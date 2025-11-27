@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Users, Building2, BarChart3, RefreshCw, Activity, MessageSquare, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -20,11 +21,18 @@ interface Stats {
   totalActivityLogs: number;
 }
 
+interface Team {
+  id: string;
+  name: string;
+}
+
 interface RepProfile {
   id: string;
   name: string;
   email: string;
   is_active: boolean;
+  team_id: string | null;
+  team_name?: string;
 }
 
 export default function AdminDashboard() {
@@ -39,6 +47,8 @@ export default function AdminDashboard() {
     totalActivityLogs: 0,
   });
   const [reps, setReps] = useState<RepProfile[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [teamFilter, setTeamFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
 
@@ -48,10 +58,14 @@ export default function AdminDashboard() {
       .from('profiles')
       .select('*', { count: 'exact', head: true });
 
-    // Fetch team count
-    const { count: teamCount } = await supabase
+    // Fetch teams
+    const { data: teamsData, count: teamCount } = await supabase
       .from('teams')
-      .select('*', { count: 'exact', head: true });
+      .select('id, name', { count: 'exact' });
+    
+    if (teamsData) {
+      setTeams(teamsData);
+    }
 
     // Fetch role counts
     const { data: roles } = await supabase
@@ -77,16 +91,20 @@ export default function AdminDashboard() {
     const repCount = repRoles.length;
     const managerCount = roles?.filter((r) => r.role === 'manager').length || 0;
 
-    // Fetch rep profiles for the table
+    // Fetch rep profiles for the table with team info
     if (repRoles.length > 0) {
       const repUserIds = repRoles.map((r) => r.user_id);
       const { data: repProfiles } = await supabase
         .from('profiles')
-        .select('id, name, email, is_active')
+        .select('id, name, email, is_active, team_id, teams(name)')
         .in('id', repUserIds);
       
       if (repProfiles) {
-        setReps(repProfiles);
+        const repsWithTeam = repProfiles.map((rep) => ({
+          ...rep,
+          team_name: (rep.teams as { name: string } | null)?.name || 'Unassigned',
+        }));
+        setReps(repsWithTeam);
       }
     }
 
@@ -225,43 +243,67 @@ export default function AdminDashboard() {
 
         {/* Rep Table */}
         <Card>
-          <CardHeader>
-            <CardTitle>Sales Reps</CardTitle>
-            <CardDescription>Click on a rep to view their details</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Sales Reps</CardTitle>
+              <CardDescription>Click on a rep to view their details</CardDescription>
+            </div>
+            <Select value={teamFilter} onValueChange={setTeamFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filter by team" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Teams</SelectItem>
+                <SelectItem value="unassigned">Unassigned</SelectItem>
+                {teams.map((team) => (
+                  <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </CardHeader>
           <CardContent>
-            {reps.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {reps.map((rep) => (
-                    <TableRow key={rep.id}>
-                      <TableCell className="font-medium">{rep.name}</TableCell>
-                      <TableCell>{rep.email}</TableCell>
-                      <TableCell>
-                        <Badge variant={rep.is_active ? 'default' : 'secondary'}>
-                          {rep.is_active ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Button variant="outline" size="sm" asChild>
-                          <Link to={`/manager/rep/${rep.id}`}>View</Link>
-                        </Button>
-                      </TableCell>
+            {(() => {
+              const filteredReps = teamFilter === 'all' 
+                ? reps 
+                : teamFilter === 'unassigned'
+                  ? reps.filter((rep) => !rep.team_id)
+                  : reps.filter((rep) => rep.team_id === teamFilter);
+              
+              return filteredReps.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Team</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead></TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            ) : (
-              <p className="text-muted-foreground text-center py-8">No reps found.</p>
-            )}
+                  </TableHeader>
+                  <TableBody>
+                    {filteredReps.map((rep) => (
+                      <TableRow key={rep.id}>
+                        <TableCell className="font-medium">{rep.name}</TableCell>
+                        <TableCell>{rep.email}</TableCell>
+                        <TableCell>{rep.team_name || 'Unassigned'}</TableCell>
+                        <TableCell>
+                          <Badge variant={rep.is_active ? 'default' : 'secondary'}>
+                            {rep.is_active ? 'Active' : 'Inactive'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Button variant="outline" size="sm" asChild>
+                            <Link to={`/manager/rep/${rep.id}`}>View</Link>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <p className="text-muted-foreground text-center py-8">No reps found.</p>
+              );
+            })()}
           </CardContent>
         </Card>
 
