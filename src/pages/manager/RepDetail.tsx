@@ -27,6 +27,7 @@ import {
   listCallTranscriptsForRep,
   getAnalysisForCall,
 } from '@/api/aiCallAnalysis';
+import { AICoachingSnapshot } from '@/components/AICoachingSnapshot';
 
 const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -311,6 +312,9 @@ export default function RepDetail() {
             <p className="text-muted-foreground">{rep.email}</p>
           </div>
         </div>
+
+        {/* AI Coaching Snapshot */}
+        <AICoachingSnapshot repId={repId!} />
 
         <Tabs defaultValue="performance">
           <TabsList>
