@@ -222,68 +222,117 @@ export default function ManagerDashboard() {
     );
   }
 
+  // Calculate average revenue progress
+  const avgRevenueProgress = useMemo(() => {
+    if (processedReps.length === 0) return 0;
+    const total = processedReps.reduce((sum, rep) => sum + rep.revenueProgress, 0);
+    return Math.round((total / processedReps.length) * 100);
+  }, [processedReps]);
+
+  // Calculate reps coached in last 14 days
+  const recentlyCoached = useMemo(() => {
+    return processedReps.filter((rep) => {
+      if (!rep.lastCoaching) return false;
+      const daysSince = differenceInDays(new Date(), new Date(rep.lastCoaching.session_date));
+      return daysSince <= 14;
+    }).length;
+  }, [processedReps]);
+
   return (
     <AppLayout>
-      <div className="space-y-8">
-        <div>
-          <h1 className="text-3xl font-bold">Team Overview</h1>
-          <p className="text-muted-foreground mt-1">
-            {format(new Date(), 'MMMM yyyy')} performance summary
+      <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+        {/* Page Header */}
+        <div className="space-y-1">
+          <h1 className="text-3xl font-bold tracking-tight">Team Performance Overview</h1>
+          <p className="text-muted-foreground">
+            Track who is on track vs at risk for {format(new Date(), 'MMMM yyyy')}
           </p>
         </div>
 
         {/* Summary Cards */}
-        <div className="grid gap-6 md:grid-cols-3">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Card className="border-l-4 border-l-primary">
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
               <CardTitle className="text-sm font-medium text-muted-foreground">Total Reps</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
+              <Users className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <span className="text-3xl font-bold">{processedReps.length}</span>
+              <div className="text-3xl font-bold">{processedReps.length}</div>
+              <p className="text-xs text-muted-foreground mt-1">Active team members</p>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
+
+          <Card className="border-l-4 border-l-success">
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
               <CardTitle className="text-sm font-medium text-muted-foreground">On Track</CardTitle>
               <TrendingUp className="h-4 w-4 text-success" />
             </CardHeader>
             <CardContent>
-              <span className="text-3xl font-bold text-success">{onTrackCount}</span>
+              <div className="text-3xl font-bold text-success">{onTrackCount}</div>
+              <p className="text-xs text-muted-foreground mt-1">Meeting performance goals</p>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
+
+          <Card className="border-l-4 border-l-warning">
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
               <CardTitle className="text-sm font-medium text-muted-foreground">At Risk</CardTitle>
               <AlertTriangle className="h-4 w-4 text-warning" />
             </CardHeader>
             <CardContent>
-              <span className="text-3xl font-bold text-warning">{atRiskCount}</span>
+              <div className="text-3xl font-bold text-warning">{atRiskCount}</div>
+              <p className="text-xs text-muted-foreground mt-1">Need attention this month</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-l-4 border-l-muted-foreground">
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Avg Revenue</CardTitle>
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">{avgRevenueProgress}%</div>
+              <p className="text-xs text-muted-foreground mt-1">{recentlyCoached} coached in 14 days</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Team Table */}
         <Card>
-          <CardHeader>
+          <CardHeader className="pb-4">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <CardTitle>Team Performance</CardTitle>
-                <CardDescription>Click on a rep to view details.</CardDescription>
+                <CardTitle className="text-xl">Rep Performance</CardTitle>
+                <CardDescription>Click on a rep to view detailed performance metrics</CardDescription>
               </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <Select value={filter} onValueChange={(v: FilterType) => setFilter(v)}>
-                  <SelectTrigger className="w-[140px]">
-                    <SelectValue placeholder="Filter" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="at-risk">At Risk</SelectItem>
-                    <SelectItem value="on-track">On Track</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex rounded-lg border bg-muted p-1">
+                  <Button
+                    variant={filter === 'all' ? 'secondary' : 'ghost'}
+                    size="sm"
+                    onClick={() => setFilter('all')}
+                    className="px-3"
+                  >
+                    All ({processedReps.length})
+                  </Button>
+                  <Button
+                    variant={filter === 'at-risk' ? 'secondary' : 'ghost'}
+                    size="sm"
+                    onClick={() => setFilter('at-risk')}
+                    className="px-3"
+                  >
+                    At Risk ({atRiskCount})
+                  </Button>
+                  <Button
+                    variant={filter === 'on-track' ? 'secondary' : 'ghost'}
+                    size="sm"
+                    onClick={() => setFilter('on-track')}
+                    className="px-3"
+                  >
+                    On Track ({onTrackCount})
+                  </Button>
+                </div>
                 <Select value={sortBy} onValueChange={(v: SortType) => setSortBy(v)}>
-                  <SelectTrigger className="w-[180px]">
+                  <SelectTrigger className="w-[180px] bg-background">
                     <SelectValue placeholder="Sort By" />
                   </SelectTrigger>
                   <SelectContent>
@@ -296,109 +345,133 @@ export default function ManagerDashboard() {
               </div>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-0">
             {filteredReps.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Risk</TableHead>
-                    <TableHead className="w-[180px]">Revenue Progress</TableHead>
-                    <TableHead className="w-[180px]">Demos Progress</TableHead>
-                    <TableHead>Pipeline</TableHead>
-                    <TableHead>Last Coaching</TableHead>
-                    <TableHead></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredReps.map((rep) => {
-                    const daysSinceCoaching = rep.lastCoaching
-                      ? differenceInDays(new Date(), new Date(rep.lastCoaching.session_date))
-                      : null;
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50 hover:bg-muted/50">
+                      <TableHead className="font-semibold text-xs uppercase tracking-wider">Rep Name</TableHead>
+                      <TableHead className="font-semibold text-xs uppercase tracking-wider">Status</TableHead>
+                      <TableHead className="font-semibold text-xs uppercase tracking-wider w-[200px]">Revenue Progress</TableHead>
+                      <TableHead className="font-semibold text-xs uppercase tracking-wider w-[180px]">Demos Progress</TableHead>
+                      <TableHead className="font-semibold text-xs uppercase tracking-wider text-center">Pipeline</TableHead>
+                      <TableHead className="font-semibold text-xs uppercase tracking-wider">Last Coaching</TableHead>
+                      <TableHead className="w-[80px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredReps.map((rep, index) => {
+                      const daysSinceCoaching = rep.lastCoaching
+                        ? differenceInDays(new Date(), new Date(rep.lastCoaching.session_date))
+                        : null;
 
-                    return (
-                      <TableRow key={rep.id} className={rep.isAtRisk ? 'bg-warning/5' : ''}>
-                        <TableCell className="font-medium">{rep.name}</TableCell>
-                        <TableCell>
-                          <StatusBadge status={rep.isAtRisk ? 'at-risk' : 'on-track'}>
-                            {rep.isAtRisk ? rep.riskStatus.replace('At Risk: ', '') : 'On Track'}
-                          </StatusBadge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-sm">
-                              <span>{formatCurrency(rep.performance?.revenue_closed || 0)}</span>
-                              <span className={`font-semibold ${
-                                rep.revenueProgress >= 0.75 ? 'text-success' : 
-                                rep.revenueProgress >= 0.5 ? 'text-warning' : 'text-destructive'
-                              }`}>
-                                {Math.round(rep.revenueProgress * 100)}%
-                              </span>
+                      return (
+                        <TableRow 
+                          key={rep.id} 
+                          className={`
+                            transition-colors hover:bg-muted/50
+                            ${index % 2 === 0 ? 'bg-background' : 'bg-muted/20'}
+                            ${rep.isAtRisk ? 'border-l-2 border-l-warning' : ''}
+                          `}
+                        >
+                          <TableCell className="py-4">
+                            <span className="font-semibold text-foreground">{rep.name}</span>
+                          </TableCell>
+                          <TableCell>
+                            <StatusBadge status={rep.isAtRisk ? 'at-risk' : 'on-track'}>
+                              {rep.isAtRisk ? rep.riskStatus.replace('At Risk: ', '') : 'On Track'}
+                            </StatusBadge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium">
+                                  {formatCurrency(rep.performance?.revenue_closed || 0)}
+                                  <span className="text-muted-foreground font-normal"> / {formatCurrency(rep.performance?.revenue_goal || 0)}</span>
+                                </span>
+                                <span className={`text-sm font-bold ml-2 ${
+                                  rep.revenueProgress >= 0.75 ? 'text-success' : 
+                                  rep.revenueProgress >= 0.5 ? 'text-warning' : 'text-destructive'
+                                }`}>
+                                  {Math.round(rep.revenueProgress * 100)}%
+                                </span>
+                              </div>
+                              <ProgressBar
+                                value={rep.performance?.revenue_closed || 0}
+                                goal={rep.performance?.revenue_goal || 0}
+                                showLabel={false}
+                                size="sm"
+                              />
                             </div>
-                            <ProgressBar
-                              value={rep.performance?.revenue_closed || 0}
-                              goal={rep.performance?.revenue_goal || 0}
-                              showLabel={false}
-                              size="sm"
-                            />
-                            <div className="text-xs text-muted-foreground">
-                              Goal: {formatCurrency(rep.performance?.revenue_goal || 0)}
+                          </TableCell>
+                          <TableCell>
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium">
+                                  {rep.performance?.demos_set || 0}
+                                  <span className="text-muted-foreground font-normal"> / {rep.performance?.demo_goal || 0}</span>
+                                </span>
+                                <span className={`text-sm font-bold ml-2 ${
+                                  rep.demosProgress >= 0.75 ? 'text-success' : 
+                                  rep.demosProgress >= 0.5 ? 'text-warning' : 'text-destructive'
+                                }`}>
+                                  {Math.round(rep.demosProgress * 100)}%
+                                </span>
+                              </div>
+                              <ProgressBar
+                                value={rep.performance?.demos_set || 0}
+                                goal={rep.performance?.demo_goal || 0}
+                                showLabel={false}
+                                size="sm"
+                              />
                             </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-sm">
-                              <span>{rep.performance?.demos_set || 0}</span>
-                              <span className={`font-semibold ${
-                                rep.demosProgress >= 0.75 ? 'text-success' : 
-                                rep.demosProgress >= 0.5 ? 'text-warning' : 'text-destructive'
-                              }`}>
-                                {Math.round(rep.demosProgress * 100)}%
-                              </span>
-                            </div>
-                            <ProgressBar
-                              value={rep.performance?.demos_set || 0}
-                              goal={rep.performance?.demo_goal || 0}
-                              showLabel={false}
-                              size="sm"
-                            />
-                            <div className="text-xs text-muted-foreground">
-                              Goal: {rep.performance?.demo_goal || 0}
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>{rep.performance?.pipeline_count || '-'}</TableCell>
-                        <TableCell>
-                          {rep.lastCoaching ? (
-                            <span className={daysSinceCoaching && daysSinceCoaching > 14 ? 'text-warning' : ''}>
-                              {format(new Date(rep.lastCoaching.session_date), 'MMM d')}
-                              {daysSinceCoaching !== null && (
-                                <span className="text-xs ml-1 text-muted-foreground">({daysSinceCoaching}d ago)</span>
-                              )}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <span className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-muted text-sm font-medium">
+                              {rep.performance?.pipeline_count ?? '-'}
                             </span>
-                          ) : (
-                            <span className="text-destructive">Never</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Button variant="outline" size="sm" asChild>
-                            <Link to={`/manager/rep/${rep.id}`}>View</Link>
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                          </TableCell>
+                          <TableCell>
+                            {rep.lastCoaching ? (
+                              <div className="space-y-0.5">
+                                <div className={`text-sm font-medium ${daysSinceCoaching && daysSinceCoaching > 14 ? 'text-warning' : 'text-foreground'}`}>
+                                  {format(new Date(rep.lastCoaching.session_date), 'MMM d, yyyy')}
+                                </div>
+                                {daysSinceCoaching !== null && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {daysSinceCoaching === 0 ? 'Today' : daysSinceCoaching === 1 ? 'Yesterday' : `${daysSinceCoaching} days ago`}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-sm text-destructive font-medium">Never coached</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Button variant="ghost" size="sm" asChild className="hover:bg-primary/10 hover:text-primary">
+                              <Link to={`/manager/rep/${rep.id}`}>View →</Link>
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
             ) : (
-              <p className="text-muted-foreground text-center py-8">
-                {filter === 'at-risk' 
-                  ? 'No reps are at risk. Great job!' 
-                  : filter === 'on-track'
-                    ? 'No reps are on track yet.'
-                    : 'No team members found.'}
-              </p>
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-4">
+                  <Users className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <p className="text-muted-foreground">
+                  {filter === 'at-risk' 
+                    ? 'No reps are at risk. Great job!' 
+                    : filter === 'on-track'
+                      ? 'No reps are on track yet.'
+                      : 'No team members found.'}
+                </p>
+              </div>
             )}
           </CardContent>
         </Card>
