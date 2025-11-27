@@ -283,9 +283,16 @@ export default function RepDetail() {
   if (!rep) {
     return (
       <AppLayout>
-        <div className="text-center py-8">
-          <p className="text-muted-foreground">Rep not found or you don't have access.</p>
-          <Button variant="outline" className="mt-4" onClick={() => navigate(getBackUrl())}>
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
+          <p className="text-muted-foreground max-w-md mb-6">
+            {role === 'manager' 
+              ? "This rep is not on your team. You can only view detailed information for reps assigned to your team."
+              : "Rep not found or you don't have permission to view this page."}
+          </p>
+          <Button variant="outline" onClick={() => navigate(getBackUrl())}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Dashboard
           </Button>
         </div>
@@ -296,12 +303,14 @@ export default function RepDetail() {
   return (
     <AppLayout>
       <div className="space-y-8">
-        {/* Debug info */}
-        <div className="text-xs text-muted-foreground bg-muted/50 rounded px-3 py-2">
-          Viewing rep: <span className="font-mono">{repId}</span> as{' '}
-          <span className="font-medium">{profile?.email || 'unknown'}</span>{' '}
-          (role: <span className="font-medium">{role || 'unknown'}</span>)
-        </div>
+        {/* Debug info - only show in development */}
+        {import.meta.env.DEV && (
+          <div className="text-xs text-muted-foreground bg-muted/50 rounded px-3 py-2">
+            Viewing rep: <span className="font-mono">{repId}</span> as{' '}
+            <span className="font-medium">{profile?.email || 'unknown'}</span>{' '}
+            (role: <span className="font-medium">{role || 'unknown'}</span>)
+          </div>
+        )}
 
         <div className="flex items-center gap-4">
           <Button variant="outline" size="icon" onClick={() => navigate(getBackUrl())}>
