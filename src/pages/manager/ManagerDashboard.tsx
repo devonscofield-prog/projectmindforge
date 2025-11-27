@@ -158,7 +158,7 @@ export default function ManagerDashboard() {
     fetchData();
   }, [user, role]);
 
-  // Compute risk status for all reps and apply filtering/sorting
+  // Compute risk status for all reps
   const processedReps: RepWithRisk[] = useMemo(() => {
     return reps.map((rep) => {
       const { riskStatus, isAtRisk, revenueProgress, demosProgress } = computeRiskStatus(rep);
@@ -172,7 +172,25 @@ export default function ManagerDashboard() {
     });
   }, [reps]);
 
-  // Filter reps based on selection
+  // Calculate summary stats
+  const { atRiskCount, onTrackCount, avgRevenueProgress, recentlyCoached } = useMemo(() => {
+    const atRisk = processedReps.filter((rep) => rep.isAtRisk).length;
+    const onTrack = processedReps.length - atRisk;
+    
+    const avgRevenue = processedReps.length === 0 
+      ? 0 
+      : Math.round((processedReps.reduce((sum, rep) => sum + rep.revenueProgress, 0) / processedReps.length) * 100);
+    
+    const coached = processedReps.filter((rep) => {
+      if (!rep.lastCoaching) return false;
+      const daysSince = differenceInDays(new Date(), new Date(rep.lastCoaching.session_date));
+      return daysSince <= 14;
+    }).length;
+
+    return { atRiskCount: atRisk, onTrackCount: onTrack, avgRevenueProgress: avgRevenue, recentlyCoached: coached };
+  }, [processedReps]);
+
+  // Filter and sort reps based on selection
   const filteredReps = useMemo(() => {
     let result = [...processedReps];
     
@@ -182,7 +200,6 @@ export default function ManagerDashboard() {
       result = result.filter((rep) => !rep.isAtRisk);
     }
     
-    // Sort based on selected sort option
     result.sort((a, b) => {
       switch (sortBy) {
         case 'risk':
@@ -205,25 +222,6 @@ export default function ManagerDashboard() {
     
     return result;
   }, [processedReps, filter, sortBy]);
-
-  const atRiskCount = processedReps.filter((rep) => rep.isAtRisk).length;
-  const onTrackCount = processedReps.length - atRiskCount;
-
-  // Calculate average revenue progress
-  const avgRevenueProgress = useMemo(() => {
-    if (processedReps.length === 0) return 0;
-    const total = processedReps.reduce((sum, rep) => sum + rep.revenueProgress, 0);
-    return Math.round((total / processedReps.length) * 100);
-  }, [processedReps]);
-
-  // Calculate reps coached in last 14 days
-  const recentlyCoached = useMemo(() => {
-    return processedReps.filter((rep) => {
-      if (!rep.lastCoaching) return false;
-      const daysSince = differenceInDays(new Date(), new Date(rep.lastCoaching.session_date));
-      return daysSince <= 14;
-    }).length;
-  }, [processedReps]);
 
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
