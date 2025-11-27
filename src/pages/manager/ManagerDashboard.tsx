@@ -209,19 +209,6 @@ export default function ManagerDashboard() {
   const atRiskCount = processedReps.filter((rep) => rep.isAtRisk).length;
   const onTrackCount = processedReps.length - atRiskCount;
 
-  const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
-
-  if (loading) {
-    return (
-      <AppLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-        </div>
-      </AppLayout>
-    );
-  }
-
   // Calculate average revenue progress
   const avgRevenueProgress = useMemo(() => {
     if (processedReps.length === 0) return 0;
@@ -237,6 +224,19 @@ export default function ManagerDashboard() {
       return daysSince <= 14;
     }).length;
   }, [processedReps]);
+
+  const formatCurrency = (val: number) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
