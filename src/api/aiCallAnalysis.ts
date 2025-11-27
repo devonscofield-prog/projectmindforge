@@ -155,3 +155,65 @@ export async function getAnalysisForCall(callId: string): Promise<CallAnalysis |
 
   return data as CallAnalysis | null;
 }
+
+/**
+ * Gets the most recent AI analysis for a rep.
+ * @param repId - The rep's user ID
+ * @param limit - Number of results to return (default 1)
+ * @returns Array of analysis rows ordered by created_at desc
+ */
+export async function listRecentAiAnalysisForRep(repId: string, limit: number = 1): Promise<CallAnalysis[]> {
+  const { data, error } = await supabase
+    .from('ai_call_analysis')
+    .select('*')
+    .eq('rep_id', repId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('[listRecentAiAnalysisForRep] Error:', error);
+    throw new Error(`Failed to list AI analyses: ${error.message}`);
+  }
+
+  return (data || []) as CallAnalysis[];
+}
+
+/**
+ * Gets the most recent AI analysis for multiple reps in a batch.
+ * Returns a map of repId -> most recent CallAnalysis (or null)
+ * @param repIds - Array of rep user IDs
+ * @returns Map of repId to their most recent analysis
+ */
+export async function getLatestAiAnalysisForReps(repIds: string[]): Promise<Map<string, CallAnalysis | null>> {
+  if (repIds.length === 0) {
+    return new Map();
+  }
+
+  const { data, error } = await supabase
+    .from('ai_call_analysis')
+    .select('*')
+    .in('rep_id', repIds)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('[getLatestAiAnalysisForReps] Error:', error);
+    throw new Error(`Failed to fetch AI analyses: ${error.message}`);
+  }
+
+  // Group by rep_id and take the most recent for each
+  const result = new Map<string, CallAnalysis | null>();
+  repIds.forEach(id => result.set(id, null));
+
+  if (data) {
+    for (const analysis of data as CallAnalysis[]) {
+      if (!result.get(analysis.rep_id)) {
+        result.set(analysis.rep_id, analysis);
+      }
+    }
+  }
+
+  return result;
+}
+
+// Export types for use in components
+export type { CallAnalysis, CallTranscript, AnalyzeCallResponse };
