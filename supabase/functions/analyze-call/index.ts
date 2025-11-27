@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getCurrentAiMode, type AiMode } from "../_shared/getAiMode.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -535,10 +536,6 @@ serve(async (req) => {
   const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-  // Check if we should use mock AI
-  const useMockAI = Deno.env.get('USE_MOCK_AI') !== 'false';
-  console.log(`[analyze-call] USE_MOCK_AI: ${useMockAI}`);
-
   // Get the JWT from Authorization header
   const authHeader = req.headers.get('Authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -601,7 +598,11 @@ serve(async (req) => {
 
     console.log(`[analyze-call] Transcript found for rep_id: ${transcript.rep_id}`);
 
-    // Step 2: Update analysis_status to 'processing' using service role client
+    // Step 2: Get AI mode from database (with env fallback)
+    const aiMode = await getCurrentAiMode(supabaseAdmin);
+    console.log(`[analyze-call] AI mode: ${aiMode}`);
+
+    // Step 3: Update analysis_status to 'processing' using service role client
     const { error: updateProcessingError } = await supabaseAdmin
       .from('call_transcripts')
       .update({ analysis_status: 'processing', analysis_error: null })
@@ -612,20 +613,31 @@ serve(async (req) => {
       // Continue anyway, this is not critical
     }
 
-    // Step 3: Generate analysis (mock or real based on env flag)
+    // Step 4: Generate analysis (mock or real based on DB-driven aiMode)
     let analysis: AnalysisResult;
     
-    if (useMockAI) {
+    if (aiMode === 'mock') {
       console.log('[analyze-call] Using mock analysis');
       analysis = buildMockAnalysis(transcript as TranscriptRow);
+      // Ensure mock metadata
+      analysis.model_name = 'mock-model';
+      analysis.prompt_version = 'v0-mock';
+      if (!analysis.meta_tags.includes('mode:mock')) {
+        analysis.meta_tags.push('mode:mock');
+      }
     } else {
       console.log('[analyze-call] Using real AI analysis');
       analysis = await generateRealAnalysis(transcript as TranscriptRow);
+      // Ensure real metadata
+      analysis.prompt_version = 'v2-real-2025-11-27';
+      if (!analysis.meta_tags.includes('mode:real')) {
+        analysis.meta_tags.push('mode:real');
+      }
     }
 
     console.log('[analyze-call] Analysis generated');
 
-    // Step 4: Insert into ai_call_analysis using service role client
+    // Step 5: Insert into ai_call_analysis using service role client
     const { data: analysisResult, error: insertError } = await supabaseAdmin
       .from('ai_call_analysis')
       .insert(analysis)
@@ -653,7 +665,7 @@ serve(async (req) => {
     const analysisId = analysisResult.id;
     console.log(`[analyze-call] Analysis inserted with id: ${analysisId}`);
 
-    // Step 5: Update call_transcripts.analysis_status to 'completed'
+    // Step 6: Update call_transcripts.analysis_status to 'completed'
     const { error: updateCompletedError } = await supabaseAdmin
       .from('call_transcripts')
       .update({ analysis_status: 'completed' })
