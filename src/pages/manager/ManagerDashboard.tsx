@@ -26,6 +26,7 @@ interface RepWithRisk extends RepWithData {
 }
 
 type FilterType = 'all' | 'at-risk' | 'on-track';
+type SortType = 'risk' | 'revenue' | 'demos' | 'coaching';
 
 function computeRiskStatus(rep: RepWithData): { riskStatus: string; isAtRisk: boolean; revenueProgress: number; demosProgress: number } {
   const now = new Date();
@@ -66,6 +67,7 @@ export default function ManagerDashboard() {
   const [reps, setReps] = useState<RepWithData[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>('all');
+  const [sortBy, setSortBy] = useState<SortType>('risk');
 
   useEffect(() => {
     if (!user) return;
@@ -180,15 +182,29 @@ export default function ManagerDashboard() {
       result = result.filter((rep) => !rep.isAtRisk);
     }
     
-    // Sort: At Risk first, then On Track
+    // Sort based on selected sort option
     result.sort((a, b) => {
-      if (a.isAtRisk && !b.isAtRisk) return -1;
-      if (!a.isAtRisk && b.isAtRisk) return 1;
-      return a.name.localeCompare(b.name);
+      switch (sortBy) {
+        case 'risk':
+          if (a.isAtRisk && !b.isAtRisk) return -1;
+          if (!a.isAtRisk && b.isAtRisk) return 1;
+          return a.name.localeCompare(b.name);
+        case 'revenue':
+          return b.revenueProgress - a.revenueProgress;
+        case 'demos':
+          return b.demosProgress - a.demosProgress;
+        case 'coaching': {
+          const aDate = a.lastCoaching ? new Date(a.lastCoaching.session_date).getTime() : 0;
+          const bDate = b.lastCoaching ? new Date(b.lastCoaching.session_date).getTime() : 0;
+          return bDate - aDate;
+        }
+        default:
+          return 0;
+      }
     });
     
     return result;
-  }, [processedReps, filter]);
+  }, [processedReps, filter, sortBy]);
 
   const atRiskCount = processedReps.filter((rep) => rep.isAtRisk).length;
   const onTrackCount = processedReps.length - atRiskCount;
@@ -249,21 +265,36 @@ export default function ManagerDashboard() {
 
         {/* Team Table */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle>Team Performance</CardTitle>
-              <CardDescription>Click on a rep to view details. At-risk reps are shown first.</CardDescription>
+          <CardHeader>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle>Team Performance</CardTitle>
+                <CardDescription>Click on a rep to view details.</CardDescription>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <Select value={filter} onValueChange={(v: FilterType) => setFilter(v)}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue placeholder="Filter" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="at-risk">At Risk</SelectItem>
+                    <SelectItem value="on-track">On Track</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={sortBy} onValueChange={(v: SortType) => setSortBy(v)}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Sort By" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="risk">Sort: Risk Status</SelectItem>
+                    <SelectItem value="revenue">Sort: Revenue Progress</SelectItem>
+                    <SelectItem value="demos">Sort: Demo Progress</SelectItem>
+                    <SelectItem value="coaching">Sort: Last Coaching</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <Select value={filter} onValueChange={(v: FilterType) => setFilter(v)}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Reps</SelectItem>
-                <SelectItem value="at-risk">At Risk Only</SelectItem>
-                <SelectItem value="on-track">On Track Only</SelectItem>
-              </SelectContent>
-            </Select>
           </CardHeader>
           <CardContent>
             {filteredReps.length > 0 ? (
