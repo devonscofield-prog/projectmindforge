@@ -59,6 +59,8 @@ interface AnalysisResult {
   skill_tags: string[];
   deal_tags: string[];
   meta_tags: string[];
+  call_notes: string;
+  recap_email_draft: string;
   raw_json: Record<string, unknown>;
 }
 
@@ -66,7 +68,86 @@ interface AnalysisResult {
  * Generate mock analysis for testing/development
  */
 function buildMockAnalysis(transcript: TranscriptRow): AnalysisResult {
-  return {
+  const call_notes = `## Call Overview
+- Initial discovery call with prospect from Acme Corp
+- 25-minute conversation focused on training platform needs
+- Positive engagement throughout
+
+## Participants
+- John Smith (IT Director, Acme Corp)
+- Sarah Johnson (HR Manager, Acme Corp)
+
+## Business Context & Pain
+- Current training solution is outdated and lacks engagement tracking
+- Compliance training completion rates are below target (currently 68%)
+- Need to onboard 50+ new hires in Q1
+
+## Current State / Environment
+- Using legacy LMS from 2018
+- Mix of in-person and self-paced training
+- No integration with HRIS system
+
+## Solution Topics Discussed
+- Cloud-based training platform with real-time analytics
+- Mobile-first learning experience
+- Automated compliance tracking and reminders
+
+## Decision Process & Stakeholders
+- IT Director has budget authority up to $50K
+- VP of Operations final sign-off required for larger investments
+- Procurement involvement for contracts over $25K
+
+## Timeline & Urgency
+- Q1 onboarding creates urgency
+- Want to have solution in place by February 15th
+- Compliance audit scheduled for March
+
+## Budget / Commercials
+- Current spend: ~$30K/year
+- Budget for new solution: $40-50K range mentioned
+- Open to multi-year commitment for better pricing
+
+## Next Steps & Commitments
+- Rep to send product demo video and case studies
+- Prospect to share current training content inventory
+- Follow-up call scheduled for next Tuesday
+
+## Risks & Open Questions
+- Integration with existing HRIS (Workday) needs validation
+- Change management concerns from HR team
+- Competitor evaluation in progress (mentioned CompetitorX)
+
+## Competitors Mentioned
+- CompetitorX (currently in evaluation)
+- Legacy vendor pushing for renewal`;
+
+  const recap_email_draft = `Subject: Recap and next steps from today's discussion
+
+Hi John,
+
+Thank you for taking the time to speak with me today about Acme Corp's training initiatives. It was great learning about your goals for improving compliance completion rates and streamlining your Q1 onboarding process.
+
+Here's a quick recap of what we covered:
+- Your current challenges with the legacy LMS and engagement tracking
+- How our platform can help achieve your target compliance rates
+- Timeline considerations around your February 15th target and March audit
+- Next steps to move forward with evaluation
+
+I'm confident our solution can help Acme Corp achieve better training outcomes while reducing administrative burden on your team. Our clients in similar situations have seen compliance completion rates improve by 25-30% within the first quarter.
+
+I'll send over the product demo video and relevant case studies by end of day tomorrow. Looking forward to our follow-up call next Tuesday to discuss any questions.
+
+You can learn more here:
+[StormWind Website](https://info.stormwind.com/)
+
+View sample courses here:
+[View Sample Courses](https://info.stormwind.com/training-samples)
+
+Best,
+{{RepFirstName}}
+{{RepCompanyName}}`;
+
+  const analysisData = {
     call_id: transcript.id,
     rep_id: transcript.rep_id,
     model_name: 'mock-model',
@@ -98,7 +179,13 @@ function buildMockAnalysis(transcript: TranscriptRow): AnalysisResult {
     skill_tags: ['discovery_depth_medium', 'objection_follow_up_ok', 'rapport_strong'],
     deal_tags: ['no_confirmed_timeline', 'single_threaded'],
     meta_tags: ['mock_analysis', 'short_transcript'],
-    raw_json: {}
+    call_notes,
+    recap_email_draft
+  };
+
+  return {
+    ...analysisData,
+    raw_json: analysisData
   };
 }
 
@@ -303,6 +390,8 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
   }
 
   // Build the result object
+  // Note: call_notes and recap_email_draft are rep-facing outputs that will be 
+  // generated in a future iteration of the AI prompt. For now, we use placeholders.
   const result: AnalysisResult = {
     call_id: transcript.id,
     rep_id: transcript.rep_id,
@@ -323,6 +412,8 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
     skill_tags: analysisData.skill_tags as string[],
     deal_tags: analysisData.deal_tags as string[],
     meta_tags: analysisData.meta_tags as string[],
+    call_notes: (analysisData.call_notes as string) || '',
+    recap_email_draft: (analysisData.recap_email_draft as string) || '',
     raw_json: analysisData
   };
 
