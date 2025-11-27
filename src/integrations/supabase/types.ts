@@ -51,6 +51,7 @@ export type Database = {
         Row: {
           call_effectiveness_score: number | null
           call_id: string
+          call_notes: string | null
           call_summary: string
           confidence: number | null
           created_at: string
@@ -67,6 +68,7 @@ export type Database = {
           prompt_version: string
           rapport_communication_score: number | null
           raw_json: Json | null
+          recap_email_draft: string | null
           rep_id: string
           skill_tags: string[] | null
           strengths: Json | null
@@ -75,6 +77,7 @@ export type Database = {
         Insert: {
           call_effectiveness_score?: number | null
           call_id: string
+          call_notes?: string | null
           call_summary: string
           confidence?: number | null
           created_at?: string
@@ -91,6 +94,7 @@ export type Database = {
           prompt_version?: string
           rapport_communication_score?: number | null
           raw_json?: Json | null
+          recap_email_draft?: string | null
           rep_id: string
           skill_tags?: string[] | null
           strengths?: Json | null
@@ -99,6 +103,7 @@ export type Database = {
         Update: {
           call_effectiveness_score?: number | null
           call_id?: string
+          call_notes?: string | null
           call_summary?: string
           confidence?: number | null
           created_at?: string
@@ -115,6 +120,7 @@ export type Database = {
           prompt_version?: string
           rapport_communication_score?: number | null
           raw_json?: Json | null
+          recap_email_draft?: string | null
           rep_id?: string
           skill_tags?: string[] | null
           strengths?: Json | null
