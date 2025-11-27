@@ -272,10 +272,8 @@ export default function ManagerDashboard() {
                   <TableRow>
                     <TableHead>Name</TableHead>
                     <TableHead>Risk</TableHead>
-                    <TableHead>Revenue</TableHead>
-                    <TableHead className="w-[120px]">Progress</TableHead>
-                    <TableHead>Demos</TableHead>
-                    <TableHead className="w-[120px]">Progress</TableHead>
+                    <TableHead className="w-[180px]">Revenue Progress</TableHead>
+                    <TableHead className="w-[180px]">Demos Progress</TableHead>
                     <TableHead>Pipeline</TableHead>
                     <TableHead>Last Coaching</TableHead>
                     <TableHead></TableHead>
@@ -296,26 +294,48 @@ export default function ManagerDashboard() {
                           </StatusBadge>
                         </TableCell>
                         <TableCell>
-                          {formatCurrency(rep.performance?.revenue_closed || 0)} / {formatCurrency(rep.performance?.revenue_goal || 0)}
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between text-sm">
+                              <span>{formatCurrency(rep.performance?.revenue_closed || 0)}</span>
+                              <span className={`font-semibold ${
+                                rep.revenueProgress >= 0.75 ? 'text-success' : 
+                                rep.revenueProgress >= 0.5 ? 'text-warning' : 'text-destructive'
+                              }`}>
+                                {Math.round(rep.revenueProgress * 100)}%
+                              </span>
+                            </div>
+                            <ProgressBar
+                              value={rep.performance?.revenue_closed || 0}
+                              goal={rep.performance?.revenue_goal || 0}
+                              showLabel={false}
+                              size="sm"
+                            />
+                            <div className="text-xs text-muted-foreground">
+                              Goal: {formatCurrency(rep.performance?.revenue_goal || 0)}
+                            </div>
+                          </div>
                         </TableCell>
                         <TableCell>
-                          <ProgressBar
-                            value={rep.performance?.revenue_closed || 0}
-                            goal={rep.performance?.revenue_goal || 0}
-                            showLabel={false}
-                            size="sm"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          {rep.performance?.demos_set || 0} / {rep.performance?.demo_goal || 0}
-                        </TableCell>
-                        <TableCell>
-                          <ProgressBar
-                            value={rep.performance?.demos_set || 0}
-                            goal={rep.performance?.demo_goal || 0}
-                            showLabel={false}
-                            size="sm"
-                          />
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between text-sm">
+                              <span>{rep.performance?.demos_set || 0}</span>
+                              <span className={`font-semibold ${
+                                rep.demosProgress >= 0.75 ? 'text-success' : 
+                                rep.demosProgress >= 0.5 ? 'text-warning' : 'text-destructive'
+                              }`}>
+                                {Math.round(rep.demosProgress * 100)}%
+                              </span>
+                            </div>
+                            <ProgressBar
+                              value={rep.performance?.demos_set || 0}
+                              goal={rep.performance?.demo_goal || 0}
+                              showLabel={false}
+                              size="sm"
+                            />
+                            <div className="text-xs text-muted-foreground">
+                              Goal: {rep.performance?.demo_goal || 0}
+                            </div>
+                          </div>
                         </TableCell>
                         <TableCell>{rep.performance?.pipeline_count || '-'}</TableCell>
                         <TableCell>
