@@ -19,7 +19,7 @@ interface RepWithData extends Profile {
 }
 
 export default function ManagerDashboard() {
-  const { user, profile } = useAuth();
+  const { user, profile, role } = useAuth();
   const [reps, setReps] = useState<RepWithData[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'at-risk'>('all');
@@ -32,25 +32,45 @@ export default function ManagerDashboard() {
       const currentYear = now.getFullYear();
       const currentMonth = now.getMonth() + 1;
 
-      // First, get the team(s) this manager manages
-      const { data: teams } = await supabase
-        .from('teams')
-        .select('id')
-        .eq('manager_id', user.id);
+      let repProfiles: Profile[] | null = null;
 
-      if (!teams || teams.length === 0) {
-        setLoading(false);
-        return;
+      if (role === 'admin') {
+        // Admins can see all reps - get all profiles that have 'rep' role
+        const { data: repRoles } = await supabase
+          .from('user_roles')
+          .select('user_id')
+          .eq('role', 'rep');
+
+        if (repRoles && repRoles.length > 0) {
+          const repUserIds = repRoles.map((r) => r.user_id);
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('*')
+            .in('id', repUserIds)
+            .eq('is_active', true);
+          repProfiles = profiles;
+        }
+      } else {
+        // Managers only see their team's reps
+        const { data: teams } = await supabase
+          .from('teams')
+          .select('id')
+          .eq('manager_id', user.id);
+
+        if (!teams || teams.length === 0) {
+          setLoading(false);
+          return;
+        }
+
+        const teamIds = teams.map((t) => t.id);
+
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('*')
+          .in('team_id', teamIds)
+          .eq('is_active', true);
+        repProfiles = profiles;
       }
-
-      const teamIds = teams.map((t) => t.id);
-
-      // Get all reps in those teams
-      const { data: repProfiles } = await supabase
-        .from('profiles')
-        .select('*')
-        .in('team_id', teamIds)
-        .eq('is_active', true);
 
       if (!repProfiles || repProfiles.length === 0) {
         setLoading(false);
@@ -91,7 +111,7 @@ export default function ManagerDashboard() {
     };
 
     fetchData();
-  }, [user]);
+  }, [user, role]);
 
   const isAtRisk = (rep: RepWithData) => {
     if (!rep.performance) return true; // No data = at risk

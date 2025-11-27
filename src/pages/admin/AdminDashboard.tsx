@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Users, Building2, BarChart3, RefreshCw, Activity, MessageSquare, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -19,6 +20,13 @@ interface Stats {
   totalActivityLogs: number;
 }
 
+interface RepProfile {
+  id: string;
+  name: string;
+  email: string;
+  is_active: boolean;
+}
+
 export default function AdminDashboard() {
   const { role } = useAuth();
   const [stats, setStats] = useState<Stats>({
@@ -30,6 +38,7 @@ export default function AdminDashboard() {
     totalCoachingSessions: 0,
     totalActivityLogs: 0,
   });
+  const [reps, setReps] = useState<RepProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
 
@@ -47,7 +56,7 @@ export default function AdminDashboard() {
     // Fetch role counts
     const { data: roles } = await supabase
       .from('user_roles')
-      .select('role');
+      .select('role, user_id');
 
     // Fetch performance snapshots count
     const { count: perfCount } = await supabase
@@ -64,8 +73,22 @@ export default function AdminDashboard() {
       .from('activity_logs')
       .select('*', { count: 'exact', head: true });
 
-    const repCount = roles?.filter((r) => r.role === 'rep').length || 0;
+    const repRoles = roles?.filter((r) => r.role === 'rep') || [];
+    const repCount = repRoles.length;
     const managerCount = roles?.filter((r) => r.role === 'manager').length || 0;
+
+    // Fetch rep profiles for the table
+    if (repRoles.length > 0) {
+      const repUserIds = repRoles.map((r) => r.user_id);
+      const { data: repProfiles } = await supabase
+        .from('profiles')
+        .select('id, name, email, is_active')
+        .in('id', repUserIds);
+      
+      if (repProfiles) {
+        setReps(repProfiles);
+      }
+    }
 
     setStats({
       totalUsers: userCount || 0,
@@ -199,6 +222,48 @@ export default function AdminDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Rep Table */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Sales Reps</CardTitle>
+            <CardDescription>Click on a rep to view their details</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {reps.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {reps.map((rep) => (
+                    <TableRow key={rep.id}>
+                      <TableCell className="font-medium">{rep.name}</TableCell>
+                      <TableCell>{rep.email}</TableCell>
+                      <TableCell>
+                        <Badge variant={rep.is_active ? 'default' : 'secondary'}>
+                          {rep.is_active ? 'Active' : 'Inactive'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Button variant="outline" size="sm" asChild>
+                          <Link to={`/manager/rep/${rep.id}`}>View</Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <p className="text-muted-foreground text-center py-8">No reps found.</p>
+            )}
+          </CardContent>
+        </Card>
 
         <div className="grid gap-6 md:grid-cols-2">
           <Card>
