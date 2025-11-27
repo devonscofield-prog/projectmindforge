@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -19,15 +19,15 @@ import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { PerformanceTrendCharts } from '@/components/charts/PerformanceTrendCharts';
 import { Profile, RepPerformanceSnapshot, CoachingSession, ActivityLog, ActivityType } from '@/types/database';
-import { ArrowLeft, Plus, AlertCircle, Eye, Loader2, X, Bot } from 'lucide-react';
+import { ArrowLeft, Plus, AlertCircle, Eye, Loader2, X, Bot, FileText, Mail } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import {
-  createCallTranscriptAndAnalyze,
   listCallTranscriptsForRep,
   getAnalysisForCall,
 } from '@/api/aiCallAnalysis';
 import { AICoachingSnapshot } from '@/components/AICoachingSnapshot';
+import ReactMarkdown from 'react-markdown';
 
 const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -54,7 +54,6 @@ export default function RepDetail() {
   const { user, profile, role } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   
   const [rep, setRep] = useState<Profile | null>(null);
   const [performance, setPerformance] = useState<RepPerformanceSnapshot[]>([]);
@@ -70,18 +69,11 @@ export default function RepDetail() {
     follow_up_date: '',
   });
 
-  // Call Coaching (AI) state
-  const [transcriptForm, setTranscriptForm] = useState({
-    rawText: '',
-    callDate: format(new Date(), 'yyyy-MM-dd'),
-    source: 'other' as CallSource,
-    notes: '',
-  });
-  const [isSubmittingTranscript, setIsSubmittingTranscript] = useState(false);
+  // Call Coaching (AI) state - read-only for managers
   const [selectedCallId, setSelectedCallId] = useState<string | null>(null);
 
   // Fetch transcripts for rep using React Query
-  const { data: transcripts = [], isLoading: isLoadingTranscripts, refetch: refetchTranscripts } = useQuery({
+  const { data: transcripts = [], isLoading: isLoadingTranscripts } = useQuery({
     queryKey: ['callTranscripts', repId],
     queryFn: () => listCallTranscriptsForRep(repId!),
     enabled: !!repId,
@@ -190,67 +182,6 @@ export default function RepDetail() {
         follow_up_date: '',
       });
       fetchData();
-    }
-  };
-
-  const handleTranscriptSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!repId || !transcriptForm.rawText.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Please enter the call transcript.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setIsSubmittingTranscript(true);
-    try {
-      const { transcript, analyzeResponse } = await createCallTranscriptAndAnalyze({
-        repId,
-        callDate: transcriptForm.callDate,
-        source: transcriptForm.source,
-        rawText: transcriptForm.rawText,
-        notes: transcriptForm.notes || undefined,
-      });
-
-      if (analyzeResponse.success) {
-        toast({
-          title: 'Analysis Complete',
-          description: 'Call transcript saved and analysis completed.',
-        });
-      } else if (analyzeResponse.error) {
-        toast({
-          title: 'Transcript Saved',
-          description: `Transcript saved but analysis had an issue: ${analyzeResponse.error}`,
-          variant: 'destructive',
-        });
-      } else {
-        toast({
-          title: 'Transcript Saved',
-          description: 'Call transcript saved. Analysis is processing.',
-        });
-      }
-
-      // Clear form
-      setTranscriptForm({
-        rawText: '',
-        callDate: format(new Date(), 'yyyy-MM-dd'),
-        source: 'other',
-        notes: '',
-      });
-
-      // Refresh transcripts list
-      refetchTranscripts();
-    } catch (error) {
-      console.error('Error submitting transcript:', error);
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to save transcript.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSubmittingTranscript(false);
     }
   };
 
@@ -552,97 +483,17 @@ export default function RepDetail() {
             </Card>
           </TabsContent>
 
-          {/* Call Coaching (AI) Tab */}
+          {/* Call Coaching (AI) Tab - Read-only for managers */}
           <TabsContent value="ai-coaching" className="mt-6">
             <div className="grid gap-6 lg:grid-cols-2">
-              {/* Left Column: Form + Transcripts List */}
+              {/* Left Column: Transcripts List */}
               <div className="space-y-6">
-                {/* New Call Analysis Form */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Plus className="h-5 w-5" />
-                      New Call Analysis
-                    </CardTitle>
-                    <CardDescription>
-                      Paste a call transcript to get AI-powered coaching insights
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <form onSubmit={handleTranscriptSubmit} className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="rawText">Call Transcript *</Label>
-                        <Textarea
-                          id="rawText"
-                          placeholder="Paste the call transcript here..."
-                          value={transcriptForm.rawText}
-                          onChange={(e) => setTranscriptForm({ ...transcriptForm, rawText: e.target.value })}
-                          rows={6}
-                          required
-                          className="font-mono text-sm"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="callDate">Call Date</Label>
-                          <Input
-                            id="callDate"
-                            type="date"
-                            value={transcriptForm.callDate}
-                            onChange={(e) => setTranscriptForm({ ...transcriptForm, callDate: e.target.value })}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="source">Source</Label>
-                          <Select
-                            value={transcriptForm.source}
-                            onValueChange={(value: CallSource) => setTranscriptForm({ ...transcriptForm, source: value })}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="zoom">Zoom</SelectItem>
-                              <SelectItem value="teams">Teams</SelectItem>
-                              <SelectItem value="dialer">Dialer</SelectItem>
-                              <SelectItem value="other">Other</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="transcriptNotes">Internal Notes (Optional)</Label>
-                        <Textarea
-                          id="transcriptNotes"
-                          placeholder="Any context or notes about this call..."
-                          value={transcriptForm.notes}
-                          onChange={(e) => setTranscriptForm({ ...transcriptForm, notes: e.target.value })}
-                          rows={2}
-                        />
-                      </div>
-
-                      <Button type="submit" className="w-full" disabled={isSubmittingTranscript}>
-                        {isSubmittingTranscript ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Analyzing...
-                          </>
-                        ) : (
-                          'Save Transcript & Analyze'
-                        )}
-                      </Button>
-                    </form>
-                  </CardContent>
-                </Card>
-
                 {/* Transcripts List */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>Recent Call Transcripts</CardTitle>
+                    <CardTitle>Call Transcripts</CardTitle>
                     <CardDescription>
-                      {transcripts.length} transcript{transcripts.length !== 1 ? 's' : ''} for this rep
+                      {transcripts.length} transcript{transcripts.length !== 1 ? 's' : ''} submitted by {rep?.name?.split(' ')[0] || 'this rep'}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -708,9 +559,12 @@ export default function RepDetail() {
                         </TableBody>
                       </Table>
                     ) : (
-                      <p className="text-muted-foreground text-center py-8">
-                        No call transcripts yet. Add your first one above!
-                      </p>
+                      <div className="text-center py-8">
+                        <Bot className="h-10 w-10 text-muted-foreground/50 mx-auto mb-3" />
+                        <p className="text-muted-foreground">
+                          No call transcripts yet. Reps submit their own transcripts from their dashboard.
+                        </p>
+                      </div>
                     )}
                   </CardContent>
                 </Card>
@@ -727,7 +581,7 @@ export default function RepDetail() {
                           AI Call Analysis
                         </CardTitle>
                         <CardDescription>
-                          Insights and coaching recommendations
+                          Read-only view of rep's analysis
                         </CardDescription>
                       </div>
                       <Button
@@ -744,7 +598,7 @@ export default function RepDetail() {
                           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                         </div>
                       ) : selectedAnalysis ? (
-                        <div className="space-y-6">
+                        <div className="space-y-6 max-h-[calc(100vh-200px)] overflow-y-auto pr-2">
                           {/* Call Summary */}
                           <div>
                             <h4 className="text-sm font-semibold mb-2">Summary</h4>
@@ -775,6 +629,34 @@ export default function RepDetail() {
                               )}
                             </div>
                           </div>
+
+                          {/* Call Notes (Read-only markdown) */}
+                          {selectedAnalysis.call_notes && (
+                            <div>
+                              <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                                <FileText className="h-4 w-4" />
+                                Call Notes
+                              </h4>
+                              <div className="prose prose-sm dark:prose-invert max-w-none bg-muted/30 rounded-lg p-4 max-h-[300px] overflow-y-auto">
+                                <ReactMarkdown>{selectedAnalysis.call_notes}</ReactMarkdown>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Recap Email Draft (Read-only) */}
+                          {selectedAnalysis.recap_email_draft && (
+                            <div>
+                              <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                                <Mail className="h-4 w-4" />
+                                Recap Email Draft
+                              </h4>
+                              <div className="bg-muted/30 rounded-lg p-4 max-h-[200px] overflow-y-auto">
+                                <pre className="text-sm whitespace-pre-wrap font-sans text-muted-foreground">
+                                  {selectedAnalysis.recap_email_draft}
+                                </pre>
+                              </div>
+                            </div>
+                          )}
 
                           {/* Deal Gaps */}
                           {selectedAnalysis.deal_gaps && (
@@ -900,7 +782,7 @@ export default function RepDetail() {
                       <Bot className="h-12 w-12 text-muted-foreground/50 mb-4" />
                       <h4 className="text-lg font-medium mb-2">No Analysis Selected</h4>
                       <p className="text-sm text-muted-foreground max-w-xs">
-                        Click "View" on a completed transcript to see the AI analysis and coaching insights.
+                        Click "View" on a completed transcript to see the AI analysis, call notes, and recap email.
                       </p>
                     </CardContent>
                   </Card>
