@@ -52,173 +52,94 @@ export type Database = {
           call_effectiveness_score: number | null
           call_id: string
           call_summary: string
-          call_type: string | null
-          communication_good_examples: Json | null
-          communication_needs_work_examples: Json | null
-          confidence: string
+          confidence: number | null
           created_at: string
-          critical_missing_info: Json | null
-          customer_persona: string | null
           deal_advancement_score: number | null
-          deal_tags: Json | null
-          discovery_depth_notes: string | null
-          discovery_good_examples: Json | null
-          discovery_improvement_suggestions: string | null
-          discovery_missed_opportunities: Json | null
-          discovery_num_questions: number | null
+          deal_gaps: Json | null
+          deal_tags: string[] | null
           discovery_score: number | null
-          estimated_duration_seconds: number | null
-          explicit_followups_from_call: Json | null
           id: string
-          key_quotes: Json | null
-          key_topics: Json | null
-          meta_tags: Json | null
-          missed_deal_opportunities: Json | null
-          model_name: string | null
-          next_steps_mentioned: Json | null
-          objection_good_examples: Json | null
-          objection_improvement_suggestions: string | null
-          objection_missed_opportunities: Json | null
-          objection_needs_work_examples: Json | null
-          objection_quality_notes: string | null
-          objection_score: number | null
-          objections_raised: Json | null
-          open_customer_questions: Json | null
-          pain_points: Json | null
-          product_knowledge_gaps: Json | null
-          product_knowledge_improvement_suggestions: string | null
-          product_knowledge_opportunities: Json | null
+          meta_tags: string[] | null
+          model_name: string
+          objection_handling_score: number | null
+          opportunities: Json | null
           product_knowledge_score: number | null
-          product_knowledge_strengths: Json | null
-          product_positioning_notes: string | null
-          prompt_version: number
-          rapport_opportunities: Json | null
-          rapport_score: number | null
-          rapport_strengths: Json | null
+          prompt_version: string
+          rapport_communication_score: number | null
+          raw_json: Json | null
           rep_id: string
-          skill_tags: Json | null
-          speaker_stats: Json | null
-          talk_listen_ratio: Json | null
-          tone_notes: string | null
-          unresolved_objections: Json | null
-          used_aaa_model: boolean | null
+          skill_tags: string[] | null
+          strengths: Json | null
+          trend_indicators: Json | null
         }
         Insert: {
           call_effectiveness_score?: number | null
           call_id: string
           call_summary: string
-          call_type?: string | null
-          communication_good_examples?: Json | null
-          communication_needs_work_examples?: Json | null
-          confidence: string
+          confidence?: number | null
           created_at?: string
-          critical_missing_info?: Json | null
-          customer_persona?: string | null
           deal_advancement_score?: number | null
-          deal_tags?: Json | null
-          discovery_depth_notes?: string | null
-          discovery_good_examples?: Json | null
-          discovery_improvement_suggestions?: string | null
-          discovery_missed_opportunities?: Json | null
-          discovery_num_questions?: number | null
+          deal_gaps?: Json | null
+          deal_tags?: string[] | null
           discovery_score?: number | null
-          estimated_duration_seconds?: number | null
-          explicit_followups_from_call?: Json | null
           id?: string
-          key_quotes?: Json | null
-          key_topics?: Json | null
-          meta_tags?: Json | null
-          missed_deal_opportunities?: Json | null
-          model_name?: string | null
-          next_steps_mentioned?: Json | null
-          objection_good_examples?: Json | null
-          objection_improvement_suggestions?: string | null
-          objection_missed_opportunities?: Json | null
-          objection_needs_work_examples?: Json | null
-          objection_quality_notes?: string | null
-          objection_score?: number | null
-          objections_raised?: Json | null
-          open_customer_questions?: Json | null
-          pain_points?: Json | null
-          product_knowledge_gaps?: Json | null
-          product_knowledge_improvement_suggestions?: string | null
-          product_knowledge_opportunities?: Json | null
+          meta_tags?: string[] | null
+          model_name: string
+          objection_handling_score?: number | null
+          opportunities?: Json | null
           product_knowledge_score?: number | null
-          product_knowledge_strengths?: Json | null
-          product_positioning_notes?: string | null
-          prompt_version?: number
-          rapport_opportunities?: Json | null
-          rapport_score?: number | null
-          rapport_strengths?: Json | null
+          prompt_version?: string
+          rapport_communication_score?: number | null
+          raw_json?: Json | null
           rep_id: string
-          skill_tags?: Json | null
-          speaker_stats?: Json | null
-          talk_listen_ratio?: Json | null
-          tone_notes?: string | null
-          unresolved_objections?: Json | null
-          used_aaa_model?: boolean | null
+          skill_tags?: string[] | null
+          strengths?: Json | null
+          trend_indicators?: Json | null
         }
         Update: {
           call_effectiveness_score?: number | null
           call_id?: string
           call_summary?: string
-          call_type?: string | null
-          communication_good_examples?: Json | null
-          communication_needs_work_examples?: Json | null
-          confidence?: string
+          confidence?: number | null
           created_at?: string
-          critical_missing_info?: Json | null
-          customer_persona?: string | null
           deal_advancement_score?: number | null
-          deal_tags?: Json | null
-          discovery_depth_notes?: string | null
-          discovery_good_examples?: Json | null
-          discovery_improvement_suggestions?: string | null
-          discovery_missed_opportunities?: Json | null
-          discovery_num_questions?: number | null
+          deal_gaps?: Json | null
+          deal_tags?: string[] | null
           discovery_score?: number | null
-          estimated_duration_seconds?: number | null
-          explicit_followups_from_call?: Json | null
           id?: string
-          key_quotes?: Json | null
-          key_topics?: Json | null
-          meta_tags?: Json | null
-          missed_deal_opportunities?: Json | null
-          model_name?: string | null
-          next_steps_mentioned?: Json | null
-          objection_good_examples?: Json | null
-          objection_improvement_suggestions?: string | null
-          objection_missed_opportunities?: Json | null
-          objection_needs_work_examples?: Json | null
-          objection_quality_notes?: string | null
-          objection_score?: number | null
-          objections_raised?: Json | null
-          open_customer_questions?: Json | null
-          pain_points?: Json | null
-          product_knowledge_gaps?: Json | null
-          product_knowledge_improvement_suggestions?: string | null
-          product_knowledge_opportunities?: Json | null
+          meta_tags?: string[] | null
+          model_name?: string
+          objection_handling_score?: number | null
+          opportunities?: Json | null
           product_knowledge_score?: number | null
-          product_knowledge_strengths?: Json | null
-          product_positioning_notes?: string | null
-          prompt_version?: number
-          rapport_opportunities?: Json | null
-          rapport_score?: number | null
-          rapport_strengths?: Json | null
+          prompt_version?: string
+          rapport_communication_score?: number | null
+          raw_json?: Json | null
           rep_id?: string
-          skill_tags?: Json | null
-          speaker_stats?: Json | null
-          talk_listen_ratio?: Json | null
-          tone_notes?: string | null
-          unresolved_objections?: Json | null
-          used_aaa_model?: boolean | null
+          skill_tags?: string[] | null
+          strengths?: Json | null
+          trend_indicators?: Json | null
         }
         Relationships: [
           {
             foreignKeyName: "ai_call_analysis_call_id_fkey"
             columns: ["call_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "call_transcripts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_call_analysis_rep_id_fkey"
+            columns: ["rep_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_call_analysis_rep_id_fkey"
+            columns: ["rep_id"]
+            isOneToOne: false
+            referencedRelation: "user_with_role"
             referencedColumns: ["id"]
           },
         ]
@@ -226,8 +147,8 @@ export type Database = {
       call_transcripts: {
         Row: {
           analysis_error: string | null
-          analysis_status: string
-          analysis_version: number
+          analysis_status: Database["public"]["Enums"]["call_analysis_status"]
+          analysis_version: string
           call_date: string
           created_at: string
           id: string
@@ -235,13 +156,13 @@ export type Database = {
           notes: string | null
           raw_text: string
           rep_id: string
-          source: string
+          source: Database["public"]["Enums"]["call_source_type"]
           updated_at: string
         }
         Insert: {
           analysis_error?: string | null
-          analysis_status?: string
-          analysis_version?: number
+          analysis_status?: Database["public"]["Enums"]["call_analysis_status"]
+          analysis_version?: string
           call_date?: string
           created_at?: string
           id?: string
@@ -249,13 +170,13 @@ export type Database = {
           notes?: string | null
           raw_text: string
           rep_id: string
-          source?: string
+          source?: Database["public"]["Enums"]["call_source_type"]
           updated_at?: string
         }
         Update: {
           analysis_error?: string | null
-          analysis_status?: string
-          analysis_version?: number
+          analysis_status?: Database["public"]["Enums"]["call_analysis_status"]
+          analysis_version?: string
           call_date?: string
           created_at?: string
           id?: string
@@ -263,10 +184,39 @@ export type Database = {
           notes?: string | null
           raw_text?: string
           rep_id?: string
-          source?: string
+          source?: Database["public"]["Enums"]["call_source_type"]
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "call_transcripts_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_transcripts_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "user_with_role"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_transcripts_rep_id_fkey"
+            columns: ["rep_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_transcripts_rep_id_fkey"
+            columns: ["rep_id"]
+            isOneToOne: false
+            referencedRelation: "user_with_role"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       coaching_sessions: {
         Row: {
@@ -488,6 +438,8 @@ export type Database = {
         | "demos"
         | "meetings"
         | "proposals"
+      call_analysis_status: "pending" | "processing" | "completed" | "error"
+      call_source_type: "zoom" | "teams" | "dialer" | "other"
       user_role: "rep" | "manager" | "admin"
     }
     CompositeTypes: {
@@ -624,6 +576,8 @@ export const Constants = {
         "meetings",
         "proposals",
       ],
+      call_analysis_status: ["pending", "processing", "completed", "error"],
+      call_source_type: ["zoom", "teams", "dialer", "other"],
       user_role: ["rep", "manager", "admin"],
     },
   },
