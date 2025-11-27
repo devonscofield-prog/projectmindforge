@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,6 +18,7 @@ import {
   CallAnalysis,
   CallTranscript 
 } from '@/api/aiCallAnalysis';
+import { getAiMode, AiMode } from '@/api/appSettings';
 import { format } from 'date-fns';
 import { 
   Plus, 
@@ -31,7 +32,9 @@ import {
   AlertCircle, 
   Clock, 
   Loader2,
-  Eye
+  Eye,
+  Bot,
+  Zap
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
@@ -59,6 +62,14 @@ export function CallCoachingSection() {
   const [originalRecapDraft, setOriginalRecapDraft] = useState('');
   const [editInstructions, setEditInstructions] = useState('');
   const [isRefining, setIsRefining] = useState(false);
+
+  // AI mode indicator
+  const [aiMode, setAiMode] = useState<AiMode | null>(null);
+
+  // Fetch AI mode on mount
+  useEffect(() => {
+    getAiMode().then(setAiMode).catch(() => setAiMode('mock'));
+  }, []);
 
   // Fetch transcripts for history
   const { data: transcripts = [], isLoading: isLoadingTranscripts, refetch: refetchTranscripts } = useQuery({
@@ -286,7 +297,15 @@ export function CallCoachingSection() {
         <TabsContent value="new" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Submit Call for AI Analysis</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle>Submit Call for AI Analysis</CardTitle>
+                {aiMode && (
+                  <Badge variant={aiMode === 'real' ? 'default' : 'secondary'} className="gap-1">
+                    {aiMode === 'real' ? <Zap className="h-3 w-3" /> : <Bot className="h-3 w-3" />}
+                    {aiMode === 'real' ? 'Real AI' : 'Mock Mode'}
+                  </Badge>
+                )}
+              </div>
               <CardDescription>
                 Paste your call transcript and get AI-generated notes and a recap email draft.
               </CardDescription>
