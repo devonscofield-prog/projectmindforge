@@ -1,73 +1,131 @@
-# Welcome to your Lovable project
+# Sales Performance Tracker
 
-## Project info
+A role-based sales performance management application built with React, TypeScript, and Supabase.
+
+## Project Info
 
 **URL**: https://lovable.dev/projects/7147383f-fa7b-4ad5-8fca-cd94fb4039d8
 
-## How can I edit this code?
+## Features
 
-There are several ways of editing your application.
+- **Admin Dashboard**: View all teams, users, and system-wide metrics
+- **Manager Dashboard**: Track team performance, coaching sessions, and rep details
+- **Rep Dashboard**: Log activities, view personal performance, and track goals
 
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/7147383f-fa7b-4ad5-8fca-cd94fb4039d8) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
+## Technology Stack
 
 - Vite
 - TypeScript
 - React
 - shadcn-ui
 - Tailwind CSS
+- Supabase (Auth, Database, Edge Functions)
 
-## How can I deploy this project?
+## Getting Started
 
-Simply open [Lovable](https://lovable.dev/projects/7147383f-fa7b-4ad5-8fca-cd94fb4039d8) and click on Share -> Publish.
+### Prerequisites
 
-## Can I connect a custom domain to my Lovable project?
+- Node.js & npm - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
 
-Yes, you can!
+### Installation
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+```sh
+# Clone the repository
+git clone <YOUR_GIT_URL>
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+# Navigate to the project directory
+cd <YOUR_PROJECT_NAME>
+
+# Install dependencies
+npm i
+
+# Start the development server
+npm run dev
+```
+
+## Demo/Seed Data
+
+The project includes a seed function to populate the database with realistic demo data for testing.
+
+### Running the Seed Script
+
+The seed data can be loaded by calling the `seed-demo-data` edge function. You can do this via:
+
+1. **Using the Supabase dashboard** - Navigate to Edge Functions and invoke `seed-demo-data`
+2. **Using curl**:
+   ```sh
+   curl -X POST https://wuquclmippzuejqbcksl.supabase.co/functions/v1/seed-demo-data \
+     -H "Authorization: Bearer YOUR_ANON_KEY"
+   ```
+
+### Test Credentials
+
+After running the seed script, you can log in with these accounts:
+
+| Role | Email | Password | Access |
+|------|-------|----------|--------|
+| **Admin** | `admin@example.com` | `Password123!` | Full access to all teams and data |
+| **Manager (East)** | `manager.east@example.com` | `Password123!` | Enterprise East team only |
+| **Manager (West)** | `manager.west@example.com` | `Password123!` | Enterprise West team only |
+| **Rep (East)** | `rep.east.1@example.com` | `Password123!` | Own data only |
+| **Rep (East)** | `rep.east.2@example.com` | `Password123!` | Own data only |
+| **Rep (East)** | `rep.east.3@example.com` | `Password123!` | Own data only |
+| **Rep (East)** | `rep.east.4@example.com` | `Password123!` | Own data only |
+| **Rep (West)** | `rep.west.1@example.com` | `Password123!` | Own data only |
+| **Rep (West)** | `rep.west.2@example.com` | `Password123!` | Own data only |
+| **Rep (West)** | `rep.west.3@example.com` | `Password123!` | Own data only |
+| **Rep (West)** | `rep.west.4@example.com` | `Password123!` | Own data only |
+
+### Seed Data Contents
+
+The seed script creates:
+
+- **11 users** with proper auth accounts, profiles, and roles
+- **2 teams**: Enterprise East and Enterprise West
+- **Performance snapshots** for each rep (current and previous month)
+- **Coaching sessions** (2-3 per rep with realistic notes)
+- **Activity logs** (14 days of varied sales activities)
+
+The seed script is **idempotent** - it can be run multiple times safely. It will update existing users and replace their associated data.
+
+## Database Schema
+
+### Core Tables
+
+- `profiles` - User profile information
+- `user_roles` - Role assignments (admin, manager, rep)
+- `teams` - Team definitions with manager assignments
+- `rep_performance_snapshots` - Monthly performance metrics
+- `coaching_sessions` - Manager-rep coaching records
+- `activity_logs` - Daily activity tracking
+
+### Security
+
+All tables are protected with Row-Level Security (RLS) policies:
+- Admins can access all data
+- Managers can only access their team's data
+- Reps can only access their own data
+
+## Development
+
+### Edit with Lovable
+
+Visit the [Lovable Project](https://lovable.dev/projects/7147383f-fa7b-4ad5-8fca-cd94fb4039d8) and start prompting.
+
+### Edit Locally
+
+Clone the repo and push changes. Changes will sync with Lovable automatically.
+
+### Edit in GitHub
+
+Navigate to files and use the edit button, or use GitHub Codespaces.
+
+## Deployment
+
+Open [Lovable](https://lovable.dev/projects/7147383f-fa7b-4ad5-8fca-cd94fb4039d8) and click Share → Publish.
+
+## Custom Domain
+
+Navigate to Project > Settings > Domains and click Connect Domain.
+
+Read more: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
