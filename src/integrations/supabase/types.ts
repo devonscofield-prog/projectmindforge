@@ -418,13 +418,15 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["user_role"]
       }
-      has_role: {
-        Args: {
-          _role: Database["public"]["Enums"]["user_role"]
-          _user_id: string
-        }
-        Returns: boolean
-      }
+      has_role:
+        | { Args: { p_role: string; p_user_id: string }; Returns: boolean }
+        | {
+            Args: {
+              _role: Database["public"]["Enums"]["user_role"]
+              _user_id: string
+            }
+            Returns: boolean
+          }
       is_manager_of_user: {
         Args: { _manager_id: string; _rep_id: string }
         Returns: boolean
