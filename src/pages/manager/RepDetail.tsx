@@ -31,7 +31,7 @@ const activityTypeLabels: Record<ActivityType, string> = {
 
 export default function RepDetail() {
   const { repId } = useParams<{ repId: string }>();
-  const { user } = useAuth();
+  const { user, profile, role } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -48,6 +48,12 @@ export default function RepDetail() {
     action_items: '',
     follow_up_date: '',
   });
+
+  // Determine back navigation based on role
+  const getBackUrl = () => {
+    if (role === 'admin') return '/admin';
+    return '/manager';
+  };
 
   const fetchData = async () => {
     if (!repId) return;
@@ -160,7 +166,7 @@ export default function RepDetail() {
       <AppLayout>
         <div className="text-center py-8">
           <p className="text-muted-foreground">Rep not found or you don't have access.</p>
-          <Button variant="outline" className="mt-4" onClick={() => navigate('/manager')}>
+          <Button variant="outline" className="mt-4" onClick={() => navigate(getBackUrl())}>
             Back to Dashboard
           </Button>
         </div>
@@ -171,8 +177,15 @@ export default function RepDetail() {
   return (
     <AppLayout>
       <div className="space-y-8">
+        {/* Debug info */}
+        <div className="text-xs text-muted-foreground bg-muted/50 rounded px-3 py-2">
+          Viewing rep: <span className="font-mono">{repId}</span> as{' '}
+          <span className="font-medium">{profile?.email || 'unknown'}</span>{' '}
+          (role: <span className="font-medium">{role || 'unknown'}</span>)
+        </div>
+
         <div className="flex items-center gap-4">
-          <Button variant="outline" size="icon" onClick={() => navigate('/manager')}>
+          <Button variant="outline" size="icon" onClick={() => navigate(getBackUrl())}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>

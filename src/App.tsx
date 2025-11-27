@@ -67,7 +67,7 @@ const App = () => (
               </ProtectedRoute>
             } />
             <Route path="/manager/rep/:repId" element={
-              <ProtectedRoute allowedRoles={['manager']}>
+              <ProtectedRoute allowedRoles={['manager', 'admin']}>
                 <RepDetail />
               </ProtectedRoute>
             } />
