@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProgressBar } from '@/components/ui/progress-bar';
 import { StatusBadge, getPerformanceStatus } from '@/components/ui/status-badge';
+import { PerformanceTrendCharts } from '@/components/charts/PerformanceTrendCharts';
 import { Profile, RepPerformanceSnapshot, CoachingSession, ActivityLog, ActivityType } from '@/types/database';
 import { ArrowLeft, Plus } from 'lucide-react';
 import { format } from 'date-fns';
@@ -201,10 +202,15 @@ export default function RepDetail() {
             <TabsTrigger value="activity">Activity</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="performance" className="mt-6">
+          <TabsContent value="performance" className="mt-6 space-y-6">
+            {/* Performance Trend Charts */}
+            <PerformanceTrendCharts performance={performance} />
+
+            {/* Performance History Table */}
             <Card>
               <CardHeader>
-                <CardTitle>Performance History</CardTitle>
+                <CardTitle>Monthly Performance History</CardTitle>
+                <CardDescription>Detailed breakdown by month</CardDescription>
               </CardHeader>
               <CardContent>
                 {performance.length > 0 ? (
