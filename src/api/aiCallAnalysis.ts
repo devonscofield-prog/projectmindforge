@@ -53,6 +53,8 @@ interface CallAnalysis {
   skill_tags: string[] | null;
   deal_tags: string[] | null;
   meta_tags: string[] | null;
+  call_notes: string | null;
+  recap_email_draft: string | null;
   raw_json: Record<string, unknown> | null;
   created_at: string;
 }
@@ -213,6 +215,50 @@ export async function getLatestAiAnalysisForReps(repIds: string[]): Promise<Map<
   }
 
   return result;
+}
+
+/**
+ * Edits a recap email draft using AI based on instructions.
+ * @param originalDraft - The original recap email draft text
+ * @param editInstructions - Instructions for how to modify the email
+ * @param callSummary - Optional call summary for additional context
+ * @returns The updated recap email draft
+ */
+export async function editRecapEmail(
+  originalDraft: string,
+  editInstructions: string,
+  callSummary?: string
+): Promise<string> {
+  // Validate inputs
+  if (!originalDraft || originalDraft.trim().length === 0) {
+    throw new Error('Original draft cannot be empty');
+  }
+  if (!editInstructions || editInstructions.trim().length === 0) {
+    throw new Error('Edit instructions cannot be empty');
+  }
+
+  console.log('[editRecapEmail] Calling edit-recap-email edge function');
+
+  const { data, error } = await supabase.functions.invoke('edit-recap-email', {
+    body: {
+      original_recap_email_draft: originalDraft,
+      edit_instructions: editInstructions,
+      call_summary: callSummary ?? null
+    }
+  });
+
+  if (error) {
+    console.error('[editRecapEmail] Edge function error:', error);
+    throw new Error(`Failed to edit recap email: ${error.message}`);
+  }
+
+  if (!data || typeof data.updated_recap_email_draft !== 'string') {
+    console.error('[editRecapEmail] Invalid response:', data);
+    throw new Error('Invalid response from edit-recap-email function');
+  }
+
+  console.log('[editRecapEmail] Successfully received updated email');
+  return data.updated_recap_email_draft;
 }
 
 // Export types for use in components
