@@ -219,7 +219,28 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      user_with_role: {
+        Row: {
+          created_at: string | null
+          email: string | null
+          hire_date: string | null
+          id: string | null
+          is_active: boolean | null
+          name: string | null
+          role: Database["public"]["Enums"]["user_role"] | null
+          team_id: string | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       get_user_role: {
