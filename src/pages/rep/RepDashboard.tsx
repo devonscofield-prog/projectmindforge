@@ -6,10 +6,12 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { KPICard } from '@/components/ui/kpi-card';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { RepPerformanceSnapshot, CoachingSession, ActivityLog, ActivityType } from '@/types/database';
-import { DollarSign, Target, Calendar, Activity, Brain, Sparkles, AlertCircle } from 'lucide-react';
+import { DollarSign, Target, Calendar, Activity, Brain, Sparkles, AlertCircle, LayoutDashboard } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 import { listRecentAiAnalysisForRep, CallAnalysis } from '@/api/aiCallAnalysis';
+import { CallCoachingSection } from '@/components/rep/CallCoachingSection';
 
 function getTopStrength(analysis: CallAnalysis): string | null {
   if (analysis.strengths && Array.isArray(analysis.strengths) && analysis.strengths.length > 0) {
@@ -124,9 +126,25 @@ export default function RepDashboard() {
         <div>
           <h1 className="text-3xl font-bold">Welcome back, {profile?.name?.split(' ')[0] || 'Rep'}</h1>
           <p className="text-muted-foreground mt-1">
-            Here's your performance summary for {format(new Date(), 'MMMM yyyy')}
+            Your sales hub for {format(new Date(), 'MMMM yyyy')}
           </p>
         </div>
+
+        <Tabs defaultValue="dashboard" className="w-full">
+          <TabsList>
+            <TabsTrigger value="dashboard" className="gap-2">
+              <LayoutDashboard className="h-4 w-4" /> Dashboard
+            </TabsTrigger>
+            <TabsTrigger value="coaching" className="gap-2">
+              <Brain className="h-4 w-4" /> Call Coaching (AI)
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="coaching" className="mt-6">
+            <CallCoachingSection />
+          </TabsContent>
+
+          <TabsContent value="dashboard" className="mt-6 space-y-8">
 
         {/* KPI Cards */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
@@ -306,6 +324,8 @@ export default function RepDashboard() {
             )}
           </CardContent>
         </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </AppLayout>
   );
