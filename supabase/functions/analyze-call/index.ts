@@ -9,18 +9,80 @@ const corsHeaders = {
 // UUID validation regex
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// System prompt for call analysis
-const ANALYSIS_SYSTEM_PROMPT = `You are an expert sales call analyst. Analyze the provided call transcript and evaluate the sales representative's performance.
+// System prompt for call analysis - includes call_notes and recap_email_draft generation
+const ANALYSIS_SYSTEM_PROMPT = `You are an AI Sales Call Analyst for StormWind.
 
-Score each category from 0-100:
-- discovery_score: How well the rep uncovered customer needs, pain points, and context
-- objection_handling_score: How effectively the rep addressed concerns and objections
-- rapport_communication_score: Quality of rapport building, active listening, and communication style
-- product_knowledge_score: Accuracy and depth of product/service knowledge demonstrated
-- deal_advancement_score: How well the rep moved the deal forward toward next steps
-- call_effectiveness_score: Overall call effectiveness and value delivered
+Your job is to analyze a full call transcript and generate:
+1. A structured JSON analysis for coaching
+2. Internal Call Notes for CRM use
+3. A customer-facing Recap Email Draft for the rep to send
 
-Also identify:
+You must follow all formatting rules exactly.
+
+PART 1 — CALL NOTES (field: call_notes)
+- Format: Markdown.
+- Must contain these section headers in this exact order:
+  ## Call Overview
+  ## Participants
+  ## Business Context & Pain
+  ## Current State / Environment
+  ## Solution Topics Discussed
+  ## Decision Process & Stakeholders
+  ## Timeline & Urgency
+  ## Budget / Commercials
+  ## Next Steps & Commitments
+  ## Risks & Open Questions
+  ## Competitors Mentioned
+- Use concise bullet points only.
+- Never fabricate names, dates, prices, or commitments.
+- If something wasn't discussed, explicitly state that (e.g. "- Budget not discussed.").
+- In "Competitors Mentioned":
+  - Only list competitors actually named or clearly referenced.
+  - If unnamed competitor is referenced, say "- A competitor was referenced indirectly but not named."
+  - If none: "- None mentioned."
+
+PART 2 — RECAP EMAIL DRAFT (field: recap_email_draft)
+- Format: plain text email body with markdown links.
+- Must start with a Subject line:
+  Subject: <short subject>
+- Then:
+  Hi {{ProspectFirstName}},
+
+  <Thank you + call purpose>
+
+  <Summary of key points (bullets or short lines)>
+
+  <Value alignment paragraph>
+
+  <Next steps (ONLY if actually discussed)>
+
+- At the bottom, you MUST include these lines exactly:
+
+  You can learn more here:
+  [StormWind Website](https://info.stormwind.com/)
+
+  View sample courses here:
+  [View Sample Courses](https://info.stormwind.com/training-samples)
+
+  Best,
+  {{RepFirstName}}
+  {{RepCompanyName}}
+
+- Do NOT:
+  - Invent commitments, dates, or prices.
+  - Remove or modify the two links.
+  - Remove placeholders like {{ProspectFirstName}}.
+
+PART 3 — COACHING FIELDS
+Also include:
+- call_summary: 2-3 sentence summary of the call
+- confidence: Your confidence in the analysis from 0.0 to 1.0
+- discovery_score: Score 0-100 for how well the rep uncovered customer needs, pain points, and context
+- objection_handling_score: Score 0-100 for how effectively the rep addressed concerns and objections
+- rapport_communication_score: Score 0-100 for quality of rapport building, active listening, and communication style
+- product_knowledge_score: Score 0-100 for accuracy and depth of product/service knowledge demonstrated
+- deal_advancement_score: Score 0-100 for how well the rep moved the deal forward toward next steps
+- call_effectiveness_score: Score 0-100 for overall call effectiveness and value delivered
 - trend_indicators: Object with trend directions (e.g., {"discovery": "improving", "objections": "stable"})
 - deal_gaps: Object with "critical_missing_info" (array of strings) and "unresolved_objections" (array of strings)
 - strengths: Array of objects with "area" and "example" fields showing what went well
@@ -29,7 +91,8 @@ Also identify:
 - deal_tags: Array of deal-related tags (e.g., "no_confirmed_timeline", "single_threaded")
 - meta_tags: Array of metadata tags (e.g., "short_transcript", "first_call")
 
-Provide a concise call_summary (2-3 sentences) and a confidence score (0.0-1.0) for your analysis.`;
+FINAL OUTPUT:
+Return all fields via the submit_call_analysis function call.`;
 
 interface TranscriptRow {
   id: string;
@@ -189,6 +252,19 @@ Best,
   };
 }
 
+// Required links that must appear in recap_email_draft
+const REQUIRED_RECAP_LINKS = [
+  '[StormWind Website](https://info.stormwind.com/)',
+  '[View Sample Courses](https://info.stormwind.com/training-samples)'
+];
+
+/**
+ * Validate that recap_email_draft contains required links
+ */
+function validateRecapEmailLinks(recapEmail: string): boolean {
+  return REQUIRED_RECAP_LINKS.every(link => recapEmail.includes(link));
+}
+
 /**
  * Generate real analysis using Lovable AI Gateway
  */
@@ -200,12 +276,12 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
 
   console.log('[analyze-call] Calling Lovable AI Gateway for analysis...');
 
-  // Define the tool for structured output
+  // Define the tool for structured output - includes call_notes and recap_email_draft
   const analysisToolSchema = {
     type: "function",
     function: {
       name: "submit_call_analysis",
-      description: "Submit the analysis results for a sales call transcript",
+      description: "Submit the complete analysis results for a sales call transcript including coaching scores, call notes, and recap email draft",
       parameters: {
         type: "object",
         properties: {
@@ -243,7 +319,7 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
           },
           trend_indicators: {
             type: "object",
-            description: "Object with trend directions for each area",
+            description: "Object with trend directions for each area (e.g., 'improving', 'stable', 'declining')",
             additionalProperties: { type: "string" }
           },
           deal_gaps: {
@@ -252,12 +328,12 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
               critical_missing_info: {
                 type: "array",
                 items: { type: "string" },
-                description: "List of critical missing information"
+                description: "List of critical missing information from the call"
               },
               unresolved_objections: {
                 type: "array",
                 items: { type: "string" },
-                description: "List of unresolved objections"
+                description: "List of objections that were not fully resolved"
               }
             },
             required: ["critical_missing_info", "unresolved_objections"]
@@ -267,39 +343,47 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
             items: {
               type: "object",
               properties: {
-                area: { type: "string" },
-                example: { type: "string" }
+                area: { type: "string", description: "The skill or behavior area" },
+                example: { type: "string", description: "Specific example from the call" }
               },
               required: ["area", "example"]
             },
-            description: "Array of strength areas with examples"
+            description: "Array of strength areas with specific examples from the call"
           },
           opportunities: {
             type: "array",
             items: {
               type: "object",
               properties: {
-                area: { type: "string" },
-                example: { type: "string" }
+                area: { type: "string", description: "The skill or behavior area to improve" },
+                example: { type: "string", description: "Specific recommendation" }
               },
               required: ["area", "example"]
             },
-            description: "Array of improvement opportunities with examples"
+            description: "Array of improvement opportunities with recommendations"
           },
           skill_tags: {
             type: "array",
             items: { type: "string" },
-            description: "Skill-related tags"
+            description: "Skill-related tags (e.g., 'discovery_depth_medium', 'rapport_strong')"
           },
           deal_tags: {
             type: "array",
             items: { type: "string" },
-            description: "Deal-related tags"
+            description: "Deal-related tags (e.g., 'no_confirmed_timeline', 'single_threaded')"
           },
           meta_tags: {
             type: "array",
             items: { type: "string" },
-            description: "Metadata tags about the call"
+            description: "Metadata tags about the call (e.g., 'short_transcript', 'first_call')"
+          },
+          call_notes: {
+            type: "string",
+            description: "Structured markdown call notes with sections: Call Overview, Participants, Business Context & Pain, Current State / Environment, Solution Topics Discussed, Decision Process & Stakeholders, Timeline & Urgency, Budget / Commercials, Next Steps & Commitments, Risks & Open Questions, Competitors Mentioned. Use bullet points, never fabricate information."
+          },
+          recap_email_draft: {
+            type: "string",
+            description: "Customer-facing recap email starting with 'Subject: <subject>', then 'Hi {{ProspectFirstName}},' followed by thank you, summary bullets, value paragraph, next steps, and MUST end with the exact links: '[StormWind Website](https://info.stormwind.com/)' and '[View Sample Courses](https://info.stormwind.com/training-samples)' followed by 'Best, {{RepFirstName}} {{RepCompanyName}}'"
           }
         },
         required: [
@@ -317,7 +401,9 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
           "opportunities",
           "skill_tags",
           "deal_tags",
-          "meta_tags"
+          "meta_tags",
+          "call_notes",
+          "recap_email_draft"
         ]
       }
     }
@@ -335,7 +421,7 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
         { role: 'system', content: ANALYSIS_SYSTEM_PROMPT },
         { 
           role: 'user', 
-          content: `Please analyze the following sales call transcript:\n\n---\n${transcript.raw_text}\n---\n\nCall Date: ${transcript.call_date}\nSource: ${transcript.source}` 
+          content: `Please analyze the following sales call transcript and generate the complete analysis including call_notes and recap_email_draft:\n\n---\n${transcript.raw_text}\n---\n\nCall Date: ${transcript.call_date}\nSource: ${transcript.source}` 
         }
       ],
       tools: [analysisToolSchema],
@@ -374,12 +460,12 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
     throw new Error('Failed to parse AI analysis response');
   }
 
-  // Validate required fields
+  // Validate all required fields including new rep-facing fields
   const requiredFields = [
     'call_summary', 'confidence', 'discovery_score', 'objection_handling_score',
     'rapport_communication_score', 'product_knowledge_score', 'deal_advancement_score',
     'call_effectiveness_score', 'trend_indicators', 'deal_gaps', 'strengths',
-    'opportunities', 'skill_tags', 'deal_tags', 'meta_tags'
+    'opportunities', 'skill_tags', 'deal_tags', 'meta_tags', 'call_notes', 'recap_email_draft'
   ];
 
   for (const field of requiredFields) {
@@ -389,14 +475,32 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
     }
   }
 
+  // Validate call_notes is a non-empty string
+  const callNotes = analysisData.call_notes;
+  if (typeof callNotes !== 'string' || callNotes.trim().length === 0) {
+    console.error('[analyze-call] call_notes is not a valid string');
+    throw new Error('AI analysis call_notes must be a non-empty string');
+  }
+
+  // Validate recap_email_draft is a non-empty string with required links
+  const recapEmail = analysisData.recap_email_draft;
+  if (typeof recapEmail !== 'string' || recapEmail.trim().length === 0) {
+    console.error('[analyze-call] recap_email_draft is not a valid string');
+    throw new Error('AI analysis recap_email_draft must be a non-empty string');
+  }
+
+  if (!validateRecapEmailLinks(recapEmail)) {
+    console.error('[analyze-call] recap_email_draft missing required links');
+    console.error('[analyze-call] Expected links:', REQUIRED_RECAP_LINKS);
+    throw new Error('AI analysis recap_email_draft must include required StormWind links');
+  }
+
   // Build the result object
-  // Note: call_notes and recap_email_draft are rep-facing outputs that will be 
-  // generated in a future iteration of the AI prompt. For now, we use placeholders.
   const result: AnalysisResult = {
     call_id: transcript.id,
     rep_id: transcript.rep_id,
     model_name: 'google/gemini-2.5-flash',
-    prompt_version: 'v1',
+    prompt_version: 'v2',
     confidence: Number(analysisData.confidence) || 0.5,
     call_summary: String(analysisData.call_summary),
     discovery_score: Number(analysisData.discovery_score),
@@ -412,12 +516,12 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
     skill_tags: analysisData.skill_tags as string[],
     deal_tags: analysisData.deal_tags as string[],
     meta_tags: analysisData.meta_tags as string[],
-    call_notes: (analysisData.call_notes as string) || '',
-    recap_email_draft: (analysisData.recap_email_draft as string) || '',
+    call_notes: String(callNotes),
+    recap_email_draft: String(recapEmail),
     raw_json: analysisData
   };
 
-  console.log('[analyze-call] Analysis parsed successfully');
+  console.log('[analyze-call] Analysis parsed successfully with call_notes and recap_email_draft');
   return result;
 }
 
