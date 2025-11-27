@@ -208,7 +208,25 @@ export function CallCoachingSection() {
       await navigator.clipboard.writeText(recapDraft);
       toast({
         title: 'Copied',
-        description: 'Email copied to clipboard',
+        description: 'Email copied to clipboard.',
+      });
+    } catch {
+      toast({
+        title: 'Error',
+        description: 'Failed to copy to clipboard',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Copy notes to clipboard
+  const handleCopyNotes = async () => {
+    if (!currentAnalysis?.call_notes) return;
+    try {
+      await navigator.clipboard.writeText(currentAnalysis.call_notes);
+      toast({
+        title: 'Copied',
+        description: 'Notes copied to clipboard.',
       });
     } catch {
       toast({
@@ -354,10 +372,18 @@ export function CallCoachingSection() {
               {/* Call Notes */}
               <Card className="lg:col-span-1">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5" />
-                    Call Notes
-                  </CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="h-5 w-5" />
+                      Call Notes
+                    </CardTitle>
+                    {currentAnalysis.call_notes && (
+                      <Button onClick={handleCopyNotes} variant="outline" size="sm">
+                        <Copy className="mr-2 h-4 w-4" />
+                        Copy Notes
+                      </Button>
+                    )}
+                  </div>
                   <CardDescription>
                     AI-generated structured notes from your call
                   </CardDescription>
