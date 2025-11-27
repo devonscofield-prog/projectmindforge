@@ -7,11 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ProgressBar } from '@/components/ui/progress-bar';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Profile, RepPerformanceSnapshot, CoachingSession } from '@/types/database';
-import { Users, TrendingUp, AlertTriangle } from 'lucide-react';
+import { Users, TrendingUp, AlertTriangle, Brain } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
+import { getLatestAiAnalysisForReps, CallAnalysis } from '@/api/aiCallAnalysis';
 
 interface RepWithData extends Profile {
   performance?: RepPerformanceSnapshot;
@@ -23,10 +25,12 @@ interface RepWithRisk extends RepWithData {
   demosProgress: number;
   riskStatus: string;
   isAtRisk: boolean;
+  latestAiAnalysis?: CallAnalysis | null;
+  hasAiGaps: boolean;
 }
 
-type FilterType = 'all' | 'at-risk' | 'on-track';
-type SortType = 'risk' | 'revenue' | 'demos' | 'coaching';
+type FilterType = 'all' | 'at-risk' | 'on-track' | 'ai-gaps';
+type SortType = 'risk' | 'revenue' | 'demos' | 'coaching' | 'ai-score';
 
 function computeRiskStatus(rep: RepWithData): { riskStatus: string; isAtRisk: boolean; revenueProgress: number; demosProgress: number } {
   const now = new Date();
@@ -62,9 +66,19 @@ function computeRiskStatus(rep: RepWithData): { riskStatus: string; isAtRisk: bo
   return { riskStatus, isAtRisk, revenueProgress, demosProgress };
 }
 
+// Helper to check if a rep has AI gaps
+function hasAiGapsFromAnalysis(analysis: CallAnalysis | null | undefined): boolean {
+  if (!analysis || !analysis.deal_gaps) return false;
+  const gaps = analysis.deal_gaps as { critical_missing_info?: unknown[]; unresolved_objections?: unknown[] };
+  const hasCritical = Array.isArray(gaps.critical_missing_info) && gaps.critical_missing_info.length > 0;
+  const hasUnresolved = Array.isArray(gaps.unresolved_objections) && gaps.unresolved_objections.length > 0;
+  return hasCritical || hasUnresolved;
+}
+
 export default function ManagerDashboard() {
   const { user, role } = useAuth();
   const [reps, setReps] = useState<RepWithData[]>([]);
+  const [aiAnalysisMap, setAiAnalysisMap] = useState<Map<string, CallAnalysis | null>>(new Map());
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>('all');
   const [sortBy, setSortBy] = useState<SortType>('risk');
@@ -152,6 +166,17 @@ export default function ManagerDashboard() {
       });
 
       setReps(repsWithData);
+
+      // Fetch AI analysis for all reps
+      if (repProfiles.length > 0) {
+        try {
+          const analysisMap = await getLatestAiAnalysisForReps(repIds);
+          setAiAnalysisMap(analysisMap);
+        } catch (err) {
+          console.error('Failed to fetch AI analyses:', err);
+        }
+      }
+
       setLoading(false);
     };
 
@@ -162,20 +187,25 @@ export default function ManagerDashboard() {
   const processedReps: RepWithRisk[] = useMemo(() => {
     return reps.map((rep) => {
       const { riskStatus, isAtRisk, revenueProgress, demosProgress } = computeRiskStatus(rep);
+      const latestAiAnalysis = aiAnalysisMap.get(rep.id) || null;
+      const hasAiGaps = hasAiGapsFromAnalysis(latestAiAnalysis);
       return {
         ...rep,
         riskStatus,
         isAtRisk,
         revenueProgress,
         demosProgress,
+        latestAiAnalysis,
+        hasAiGaps,
       };
     });
-  }, [reps]);
+  }, [reps, aiAnalysisMap]);
 
   // Calculate summary stats
-  const { atRiskCount, onTrackCount, avgRevenueProgress, recentlyCoached } = useMemo(() => {
+  const { atRiskCount, onTrackCount, avgRevenueProgress, recentlyCoached, aiGapsCount } = useMemo(() => {
     const atRisk = processedReps.filter((rep) => rep.isAtRisk).length;
     const onTrack = processedReps.length - atRisk;
+    const aiGaps = processedReps.filter((rep) => rep.hasAiGaps).length;
     
     const avgRevenue = processedReps.length === 0 
       ? 0 
@@ -187,7 +217,7 @@ export default function ManagerDashboard() {
       return daysSince <= 14;
     }).length;
 
-    return { atRiskCount: atRisk, onTrackCount: onTrack, avgRevenueProgress: avgRevenue, recentlyCoached: coached };
+    return { atRiskCount: atRisk, onTrackCount: onTrack, avgRevenueProgress: avgRevenue, recentlyCoached: coached, aiGapsCount: aiGaps };
   }, [processedReps]);
 
   // Filter and sort reps based on selection
@@ -198,6 +228,8 @@ export default function ManagerDashboard() {
       result = result.filter((rep) => rep.isAtRisk);
     } else if (filter === 'on-track') {
       result = result.filter((rep) => !rep.isAtRisk);
+    } else if (filter === 'ai-gaps') {
+      result = result.filter((rep) => rep.hasAiGaps);
     }
     
     result.sort((a, b) => {
@@ -214,6 +246,11 @@ export default function ManagerDashboard() {
           const aDate = a.lastCoaching ? new Date(a.lastCoaching.session_date).getTime() : 0;
           const bDate = b.lastCoaching ? new Date(b.lastCoaching.session_date).getTime() : 0;
           return bDate - aDate;
+        }
+        case 'ai-score': {
+          const aScore = a.latestAiAnalysis?.call_effectiveness_score ?? -1;
+          const bScore = b.latestAiAnalysis?.call_effectiveness_score ?? -1;
+          return bScore - aScore;
         }
         default:
           return 0;
@@ -328,6 +365,15 @@ export default function ManagerDashboard() {
                   >
                     On Track ({onTrackCount})
                   </Button>
+                  <Button
+                    variant={filter === 'ai-gaps' ? 'secondary' : 'ghost'}
+                    size="sm"
+                    onClick={() => setFilter('ai-gaps')}
+                    className="px-3"
+                  >
+                    <Brain className="h-3.5 w-3.5 mr-1" />
+                    AI Gaps ({aiGapsCount})
+                  </Button>
                 </div>
                 <Select value={sortBy} onValueChange={(v: SortType) => setSortBy(v)}>
                   <SelectTrigger className="w-[180px] bg-background">
@@ -338,6 +384,7 @@ export default function ManagerDashboard() {
                     <SelectItem value="revenue">Sort: Revenue Progress</SelectItem>
                     <SelectItem value="demos">Sort: Demo Progress</SelectItem>
                     <SelectItem value="coaching">Sort: Last Coaching</SelectItem>
+                    <SelectItem value="ai-score">Sort: AI Call Score</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -354,6 +401,8 @@ export default function ManagerDashboard() {
                       <TableHead className="font-semibold text-xs uppercase tracking-wider w-[200px]">Revenue Progress</TableHead>
                       <TableHead className="font-semibold text-xs uppercase tracking-wider w-[180px]">Demos Progress</TableHead>
                       <TableHead className="font-semibold text-xs uppercase tracking-wider text-center">Pipeline</TableHead>
+                      <TableHead className="font-semibold text-xs uppercase tracking-wider text-center">AI Score</TableHead>
+                      <TableHead className="font-semibold text-xs uppercase tracking-wider text-center">AI Gaps?</TableHead>
                       <TableHead className="font-semibold text-xs uppercase tracking-wider">Last Coaching</TableHead>
                       <TableHead className="w-[80px]"></TableHead>
                     </TableRow>
@@ -430,6 +479,39 @@ export default function ManagerDashboard() {
                               {rep.performance?.pipeline_count ?? '-'}
                             </span>
                           </TableCell>
+                          <TableCell className="text-center">
+                            {rep.latestAiAnalysis?.call_effectiveness_score != null ? (
+                              <Badge 
+                                variant="secondary" 
+                                className={`text-xs font-semibold ${
+                                  rep.latestAiAnalysis.call_effectiveness_score >= 80 
+                                    ? 'bg-success/10 text-success' 
+                                    : rep.latestAiAnalysis.call_effectiveness_score >= 60 
+                                      ? 'bg-warning/10 text-warning' 
+                                      : 'bg-destructive/10 text-destructive'
+                                }`}
+                              >
+                                {Math.round(rep.latestAiAnalysis.call_effectiveness_score)}
+                              </Badge>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {rep.latestAiAnalysis ? (
+                              rep.hasAiGaps ? (
+                                <Badge variant="destructive" className="text-xs">
+                                  Flagged
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary" className="text-xs bg-success/10 text-success">
+                                  None
+                                </Badge>
+                              )
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
                           <TableCell>
                             {rep.lastCoaching ? (
                               <div className="space-y-0.5">
@@ -467,6 +549,8 @@ export default function ManagerDashboard() {
                     ? 'No reps are at risk. Great job!' 
                     : filter === 'on-track'
                       ? 'No reps are on track yet.'
+                      : filter === 'ai-gaps'
+                        ? 'No reps have AI-flagged gaps. Great calls!'
                       : 'No team members found.'}
                 </p>
               </div>
