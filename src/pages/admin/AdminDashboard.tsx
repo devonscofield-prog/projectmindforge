@@ -4,7 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Users, Building2, BarChart3 } from 'lucide-react';
+import { Users, Building2, BarChart3, RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface Stats {
   totalUsers: number;
@@ -21,39 +22,60 @@ export default function AdminDashboard() {
     totalManagers: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [seeding, setSeeding] = useState(false);
+
+  const fetchStats = async () => {
+    // Fetch user count
+    const { count: userCount } = await supabase
+      .from('profiles')
+      .select('*', { count: 'exact', head: true });
+
+    // Fetch team count
+    const { count: teamCount } = await supabase
+      .from('teams')
+      .select('*', { count: 'exact', head: true });
+
+    // Fetch role counts
+    const { data: roles } = await supabase
+      .from('user_roles')
+      .select('role');
+
+    const repCount = roles?.filter((r) => r.role === 'rep').length || 0;
+    const managerCount = roles?.filter((r) => r.role === 'manager').length || 0;
+
+    setStats({
+      totalUsers: userCount || 0,
+      totalTeams: teamCount || 0,
+      totalReps: repCount,
+      totalManagers: managerCount,
+    });
+
+    setLoading(false);
+  };
 
   useEffect(() => {
-    const fetchStats = async () => {
-      // Fetch user count
-      const { count: userCount } = await supabase
-        .from('profiles')
-        .select('*', { count: 'exact', head: true });
-
-      // Fetch team count
-      const { count: teamCount } = await supabase
-        .from('teams')
-        .select('*', { count: 'exact', head: true });
-
-      // Fetch role counts
-      const { data: roles } = await supabase
-        .from('user_roles')
-        .select('role');
-
-      const repCount = roles?.filter((r) => r.role === 'rep').length || 0;
-      const managerCount = roles?.filter((r) => r.role === 'manager').length || 0;
-
-      setStats({
-        totalUsers: userCount || 0,
-        totalTeams: teamCount || 0,
-        totalReps: repCount,
-        totalManagers: managerCount,
-      });
-
-      setLoading(false);
-    };
-
     fetchStats();
   }, []);
+
+  const handleSeedData = async () => {
+    setSeeding(true);
+    try {
+      const response = await supabase.functions.invoke('seed-demo-data');
+      
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+      
+      toast.success('Demo data reset successfully');
+      // Refresh stats after seeding
+      fetchStats();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to seed data';
+      toast.error(errorMessage);
+    } finally {
+      setSeeding(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -124,6 +146,25 @@ export default function AdminDashboard() {
               <Button variant="outline" className="w-full justify-start" asChild>
                 <Link to="/admin/users">Manage Users</Link>
               </Button>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Developer Tools</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <Button 
+                variant="destructive" 
+                className="w-full justify-start"
+                onClick={handleSeedData}
+                disabled={seeding}
+              >
+                <RefreshCw className={`mr-2 h-4 w-4 ${seeding ? 'animate-spin' : ''}`} />
+                {seeding ? 'Seeding...' : 'Reset demo data (dev only)'}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Resets all demo users, teams, and performance data.
+              </p>
             </CardContent>
           </Card>
           <Card>
