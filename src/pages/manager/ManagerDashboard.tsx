@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -6,7 +6,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ProgressBar } from '@/components/ui/progress-bar';
-import { StatusBadge, getPerformanceStatus } from '@/components/ui/status-badge';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Profile, RepPerformanceSnapshot, CoachingSession } from '@/types/database';
@@ -18,11 +18,54 @@ interface RepWithData extends Profile {
   lastCoaching?: CoachingSession;
 }
 
+interface RepWithRisk extends RepWithData {
+  revenueProgress: number;
+  demosProgress: number;
+  riskStatus: string;
+  isAtRisk: boolean;
+}
+
+type FilterType = 'all' | 'at-risk' | 'on-track';
+
+function computeRiskStatus(rep: RepWithData): { riskStatus: string; isAtRisk: boolean; revenueProgress: number; demosProgress: number } {
+  const now = new Date();
+  const dayOfMonth = now.getDate();
+  
+  const revenueGoal = rep.performance?.revenue_goal || 0;
+  const revenueClosed = rep.performance?.revenue_closed || 0;
+  const demoGoal = rep.performance?.demo_goal || 0;
+  const demosSet = rep.performance?.demos_set || 0;
+  
+  const revenueProgress = revenueGoal > 0 ? revenueClosed / revenueGoal : 0;
+  const demosProgress = demoGoal > 0 ? demosSet / demoGoal : 0;
+  
+  const daysSinceCoaching = rep.lastCoaching
+    ? differenceInDays(now, new Date(rep.lastCoaching.session_date))
+    : null;
+  
+  const risks: string[] = [];
+  
+  // Check low revenue risk: goal > 0, day > 10, progress < 50%
+  if (revenueGoal > 0 && dayOfMonth > 10 && revenueProgress < 0.5) {
+    risks.push('Low Revenue');
+  }
+  
+  // Check no recent coaching: no session in last 14 days
+  if (daysSinceCoaching === null || daysSinceCoaching > 14) {
+    risks.push('No Recent Coaching');
+  }
+  
+  const isAtRisk = risks.length > 0;
+  const riskStatus = isAtRisk ? `At Risk: ${risks.join(', ')}` : 'On Track';
+  
+  return { riskStatus, isAtRisk, revenueProgress, demosProgress };
+}
+
 export default function ManagerDashboard() {
-  const { user, profile, role } = useAuth();
+  const { user, role } = useAuth();
   const [reps, setReps] = useState<RepWithData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'at-risk'>('all');
+  const [filter, setFilter] = useState<FilterType>('all');
 
   useEffect(() => {
     if (!user) return;
@@ -113,22 +156,42 @@ export default function ManagerDashboard() {
     fetchData();
   }, [user, role]);
 
-  const isAtRisk = (rep: RepWithData) => {
-    if (!rep.performance) return true; // No data = at risk
-    
-    const revenueStatus = getPerformanceStatus(rep.performance.revenue_closed, rep.performance.revenue_goal);
-    const demoStatus = getPerformanceStatus(rep.performance.demos_set, rep.performance.demo_goal);
-    
-    // Check coaching recency
-    const daysSinceCoaching = rep.lastCoaching 
-      ? differenceInDays(new Date(), new Date(rep.lastCoaching.session_date))
-      : 999;
+  // Compute risk status for all reps and apply filtering/sorting
+  const processedReps: RepWithRisk[] = useMemo(() => {
+    return reps.map((rep) => {
+      const { riskStatus, isAtRisk, revenueProgress, demosProgress } = computeRiskStatus(rep);
+      return {
+        ...rep,
+        riskStatus,
+        isAtRisk,
+        revenueProgress,
+        demosProgress,
+      };
+    });
+  }, [reps]);
 
-    return revenueStatus === 'off-track' || demoStatus === 'off-track' || daysSinceCoaching > 14;
-  };
+  // Filter reps based on selection
+  const filteredReps = useMemo(() => {
+    let result = [...processedReps];
+    
+    if (filter === 'at-risk') {
+      result = result.filter((rep) => rep.isAtRisk);
+    } else if (filter === 'on-track') {
+      result = result.filter((rep) => !rep.isAtRisk);
+    }
+    
+    // Sort: At Risk first, then On Track
+    result.sort((a, b) => {
+      if (a.isAtRisk && !b.isAtRisk) return -1;
+      if (!a.isAtRisk && b.isAtRisk) return 1;
+      return a.name.localeCompare(b.name);
+    });
+    
+    return result;
+  }, [processedReps, filter]);
 
-  const filteredReps = filter === 'at-risk' ? reps.filter(isAtRisk) : reps;
-  const atRiskCount = reps.filter(isAtRisk).length;
+  const atRiskCount = processedReps.filter((rep) => rep.isAtRisk).length;
+  const onTrackCount = processedReps.length - atRiskCount;
 
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
@@ -161,7 +224,7 @@ export default function ManagerDashboard() {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <span className="text-3xl font-bold">{reps.length}</span>
+              <span className="text-3xl font-bold">{processedReps.length}</span>
             </CardContent>
           </Card>
           <Card>
@@ -170,12 +233,12 @@ export default function ManagerDashboard() {
               <TrendingUp className="h-4 w-4 text-success" />
             </CardHeader>
             <CardContent>
-              <span className="text-3xl font-bold text-success">{reps.length - atRiskCount}</span>
+              <span className="text-3xl font-bold text-success">{onTrackCount}</span>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Needs Attention</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">At Risk</CardTitle>
               <AlertTriangle className="h-4 w-4 text-warning" />
             </CardHeader>
             <CardContent>
@@ -189,15 +252,16 @@ export default function ManagerDashboard() {
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle>Team Performance</CardTitle>
-              <CardDescription>Click on a rep to view details</CardDescription>
+              <CardDescription>Click on a rep to view details. At-risk reps are shown first.</CardDescription>
             </div>
-            <Select value={filter} onValueChange={(v: 'all' | 'at-risk') => setFilter(v)}>
+            <Select value={filter} onValueChange={(v: FilterType) => setFilter(v)}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Filter" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Reps</SelectItem>
-                <SelectItem value="at-risk">Needs Attention</SelectItem>
+                <SelectItem value="at-risk">At Risk Only</SelectItem>
+                <SelectItem value="on-track">On Track Only</SelectItem>
               </SelectContent>
             </Select>
           </CardHeader>
@@ -207,26 +271,30 @@ export default function ManagerDashboard() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
+                    <TableHead>Risk</TableHead>
                     <TableHead>Revenue</TableHead>
-                    <TableHead className="w-[150px]">Progress</TableHead>
+                    <TableHead className="w-[120px]">Progress</TableHead>
                     <TableHead>Demos</TableHead>
-                    <TableHead className="w-[150px]">Progress</TableHead>
+                    <TableHead className="w-[120px]">Progress</TableHead>
                     <TableHead>Pipeline</TableHead>
                     <TableHead>Last Coaching</TableHead>
-                    <TableHead>Status</TableHead>
                     <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredReps.map((rep) => {
-                    const atRisk = isAtRisk(rep);
                     const daysSinceCoaching = rep.lastCoaching
                       ? differenceInDays(new Date(), new Date(rep.lastCoaching.session_date))
                       : null;
 
                     return (
-                      <TableRow key={rep.id}>
+                      <TableRow key={rep.id} className={rep.isAtRisk ? 'bg-warning/5' : ''}>
                         <TableCell className="font-medium">{rep.name}</TableCell>
+                        <TableCell>
+                          <StatusBadge status={rep.isAtRisk ? 'at-risk' : 'on-track'}>
+                            {rep.isAtRisk ? rep.riskStatus.replace('At Risk: ', '') : 'On Track'}
+                          </StatusBadge>
+                        </TableCell>
                         <TableCell>
                           {formatCurrency(rep.performance?.revenue_closed || 0)} / {formatCurrency(rep.performance?.revenue_goal || 0)}
                         </TableCell>
@@ -254,18 +322,13 @@ export default function ManagerDashboard() {
                           {rep.lastCoaching ? (
                             <span className={daysSinceCoaching && daysSinceCoaching > 14 ? 'text-warning' : ''}>
                               {format(new Date(rep.lastCoaching.session_date), 'MMM d')}
-                              {daysSinceCoaching && daysSinceCoaching > 14 && (
-                                <span className="text-xs ml-1">({daysSinceCoaching}d ago)</span>
+                              {daysSinceCoaching !== null && (
+                                <span className="text-xs ml-1 text-muted-foreground">({daysSinceCoaching}d ago)</span>
                               )}
                             </span>
                           ) : (
                             <span className="text-destructive">Never</span>
                           )}
-                        </TableCell>
-                        <TableCell>
-                          <StatusBadge status={atRisk ? 'at-risk' : 'on-track'}>
-                            {atRisk ? 'Needs Attention' : 'On Track'}
-                          </StatusBadge>
                         </TableCell>
                         <TableCell>
                           <Button variant="outline" size="sm" asChild>
@@ -279,7 +342,11 @@ export default function ManagerDashboard() {
               </Table>
             ) : (
               <p className="text-muted-foreground text-center py-8">
-                {filter === 'at-risk' ? 'No reps need attention. Great job!' : 'No team members found.'}
+                {filter === 'at-risk' 
+                  ? 'No reps are at risk. Great job!' 
+                  : filter === 'on-track'
+                    ? 'No reps are on track yet.'
+                    : 'No team members found.'}
               </p>
             )}
           </CardContent>
