@@ -1,12 +1,31 @@
 import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { KPICard } from '@/components/ui/kpi-card';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { RepPerformanceSnapshot, CoachingSession, ActivityLog, ActivityType } from '@/types/database';
-import { DollarSign, Target, Calendar, Activity } from 'lucide-react';
+import { DollarSign, Target, Calendar, Activity, Brain, Sparkles, AlertCircle } from 'lucide-react';
 import { format, subDays } from 'date-fns';
+import { listRecentAiAnalysisForRep, CallAnalysis } from '@/api/aiCallAnalysis';
+
+function getTopStrength(analysis: CallAnalysis): string | null {
+  if (analysis.strengths && Array.isArray(analysis.strengths) && analysis.strengths.length > 0) {
+    const first = analysis.strengths[0];
+    return typeof first === 'string' ? first : (first as Record<string, unknown>).description as string || (first as Record<string, unknown>).title as string || null;
+  }
+  return null;
+}
+
+function getTopOpportunity(analysis: CallAnalysis): string | null {
+  if (analysis.opportunities && Array.isArray(analysis.opportunities) && analysis.opportunities.length > 0) {
+    const first = analysis.opportunities[0];
+    return typeof first === 'string' ? first : (first as Record<string, unknown>).description as string || (first as Record<string, unknown>).title as string || null;
+  }
+  return null;
+}
 
 export default function RepDashboard() {
   const { user, profile } = useAuth();
@@ -14,6 +33,13 @@ export default function RepDashboard() {
   const [latestCoaching, setLatestCoaching] = useState<CoachingSession | null>(null);
   const [recentActivity, setRecentActivity] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Fetch last 3 AI call analyses
+  const { data: aiAnalyses = [], isLoading: aiLoading } = useQuery({
+    queryKey: ['rep-ai-insights', user?.id],
+    queryFn: () => listRecentAiAnalysisForRep(user!.id, 3),
+    enabled: !!user?.id,
+  });
 
   useEffect(() => {
     if (!user) return;
@@ -211,6 +237,75 @@ export default function RepDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Recent AI Coaching Insights */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Brain className="h-5 w-5 text-primary" />
+              Recent AI Coaching Insights
+            </CardTitle>
+            <CardDescription>
+              AI-powered analysis of your recent sales calls
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {aiLoading ? (
+              <div className="flex items-center justify-center h-24">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              </div>
+            ) : aiAnalyses.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No AI call analyses yet. Ask your manager to run an analysis on your calls.
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {aiAnalyses.map((analysis) => {
+                  const topStrength = getTopStrength(analysis);
+                  const topOpportunity = getTopOpportunity(analysis);
+                  
+                  return (
+                    <div key={analysis.id} className="border rounded-lg p-4 space-y-3">
+                      <p className="text-sm text-muted-foreground line-clamp-2">
+                        {analysis.call_summary}
+                      </p>
+                      
+                      <div className="flex items-center gap-2">
+                        <Badge 
+                          variant={
+                            (analysis.call_effectiveness_score || 0) >= 80 ? 'default' :
+                            (analysis.call_effectiveness_score || 0) >= 60 ? 'secondary' : 'destructive'
+                          }
+                        >
+                          Effectiveness: {analysis.call_effectiveness_score ?? 'N/A'}
+                        </Badge>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4 text-xs">
+                        <div>
+                          <span className="text-muted-foreground flex items-center gap-1">
+                            <Sparkles className="h-3 w-3" /> Top Strength
+                          </span>
+                          <p className="line-clamp-1 mt-0.5">
+                            {topStrength || 'Not identified'}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground flex items-center gap-1">
+                            <AlertCircle className="h-3 w-3" /> Top Opportunity
+                          </span>
+                          <p className="line-clamp-1 mt-0.5">
+                            {topOpportunity || 'Not identified'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </AppLayout>
   );
