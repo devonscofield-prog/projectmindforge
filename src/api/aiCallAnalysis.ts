@@ -1,0 +1,157 @@
+import { supabase } from '@/integrations/supabase/client';
+
+type CallSource = 'zoom' | 'teams' | 'dialer' | 'other';
+
+interface CreateCallTranscriptParams {
+  repId: string;
+  callDate: string;
+  source: CallSource;
+  rawText: string;
+  notes?: string;
+}
+
+interface CallTranscript {
+  id: string;
+  rep_id: string;
+  manager_id: string | null;
+  call_date: string;
+  source: CallSource;
+  raw_text: string;
+  notes: string | null;
+  analysis_status: 'pending' | 'processing' | 'completed' | 'error';
+  analysis_error: string | null;
+  analysis_version: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface AnalyzeCallResponse {
+  success?: boolean;
+  call_id?: string;
+  analysis_id?: string;
+  error?: string;
+}
+
+interface CallAnalysis {
+  id: string;
+  call_id: string;
+  rep_id: string;
+  model_name: string;
+  prompt_version: string;
+  confidence: number | null;
+  call_summary: string;
+  discovery_score: number | null;
+  objection_handling_score: number | null;
+  rapport_communication_score: number | null;
+  product_knowledge_score: number | null;
+  deal_advancement_score: number | null;
+  call_effectiveness_score: number | null;
+  trend_indicators: Record<string, unknown> | null;
+  deal_gaps: Record<string, unknown> | null;
+  strengths: Array<Record<string, unknown>> | null;
+  opportunities: Array<Record<string, unknown>> | null;
+  skill_tags: string[] | null;
+  deal_tags: string[] | null;
+  meta_tags: string[] | null;
+  raw_json: Record<string, unknown> | null;
+  created_at: string;
+}
+
+/**
+ * Creates a call transcript and triggers AI analysis.
+ * @param params - The transcript parameters
+ * @returns The inserted transcript row and the analyze_call response
+ */
+export async function createCallTranscriptAndAnalyze(params: CreateCallTranscriptParams): Promise<{
+  transcript: CallTranscript;
+  analyzeResponse: AnalyzeCallResponse;
+}> {
+  const { repId, callDate, source, rawText, notes } = params;
+
+  // Insert new call transcript
+  const { data: transcript, error: insertError } = await supabase
+    .from('call_transcripts')
+    .insert({
+      rep_id: repId,
+      call_date: callDate,
+      source,
+      raw_text: rawText,
+      notes: notes || null,
+      analysis_status: 'pending'
+    })
+    .select()
+    .single();
+
+  if (insertError) {
+    console.error('[createCallTranscriptAndAnalyze] Insert error:', insertError);
+    throw new Error(`Failed to create call transcript: ${insertError.message}`);
+  }
+
+  if (!transcript) {
+    throw new Error('Failed to create call transcript: No data returned');
+  }
+
+  console.log('[createCallTranscriptAndAnalyze] Transcript created:', transcript.id);
+
+  // Call the analyze_call edge function
+  const { data: analyzeData, error: analyzeError } = await supabase.functions.invoke('analyze-call', {
+    body: { call_id: transcript.id }
+  });
+
+  if (analyzeError) {
+    console.error('[createCallTranscriptAndAnalyze] Analyze function error:', analyzeError);
+    // Don't throw here - the transcript was created, analysis might still be processing
+    return {
+      transcript: transcript as CallTranscript,
+      analyzeResponse: { error: analyzeError.message }
+    };
+  }
+
+  console.log('[createCallTranscriptAndAnalyze] Analysis response:', analyzeData);
+
+  return {
+    transcript: transcript as CallTranscript,
+    analyzeResponse: analyzeData as AnalyzeCallResponse
+  };
+}
+
+/**
+ * Lists recent call transcripts for a specific rep.
+ * @param repId - The rep's user ID
+ * @returns Array of call transcript rows ordered by date
+ */
+export async function listCallTranscriptsForRep(repId: string): Promise<CallTranscript[]> {
+  const { data, error } = await supabase
+    .from('call_transcripts')
+    .select('*')
+    .eq('rep_id', repId)
+    .order('call_date', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('[listCallTranscriptsForRep] Error:', error);
+    throw new Error(`Failed to list call transcripts: ${error.message}`);
+  }
+
+  return (data || []) as CallTranscript[];
+}
+
+/**
+ * Gets the AI analysis for a specific call.
+ * @param callId - The call transcript ID
+ * @returns The analysis row or null if not found
+ */
+export async function getAnalysisForCall(callId: string): Promise<CallAnalysis | null> {
+  const { data, error } = await supabase
+    .from('ai_call_analysis')
+    .select('*')
+    .eq('call_id', callId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[getAnalysisForCall] Error:', error);
+    throw new Error(`Failed to get call analysis: ${error.message}`);
+  }
+
+  return data as CallAnalysis | null;
+}
