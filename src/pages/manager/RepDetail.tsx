@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useEffect, useState, useMemo } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -19,8 +19,8 @@ import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { PerformanceTrendCharts } from '@/components/charts/PerformanceTrendCharts';
 import { Profile, RepPerformanceSnapshot, CoachingSession, ActivityLog, ActivityType } from '@/types/database';
-import { ArrowLeft, Plus, AlertCircle, Eye, Loader2, X, Bot, FileText, Mail, ExternalLink } from 'lucide-react';
-import { format } from 'date-fns';
+import { ArrowLeft, Plus, AlertCircle, Eye, Loader2, X, Bot, FileText, Mail, ExternalLink, Phone, Calendar } from 'lucide-react';
+import { format, subDays, isAfter } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import {
   listCallTranscriptsForRep,
@@ -41,6 +41,7 @@ const activityTypeLabels: Record<ActivityType, string> = {
 };
 
 type CallSource = 'zoom' | 'teams' | 'dialer' | 'other';
+type TimeframeFilter = '7d' | '30d' | '90d' | 'all';
 
 const sourceLabels: Record<CallSource, string> = {
   zoom: 'Zoom',
@@ -51,9 +52,13 @@ const sourceLabels: Record<CallSource, string> = {
 
 export default function RepDetail() {
   const { repId } = useParams<{ repId: string }>();
+  const [searchParams] = useSearchParams();
   const { user, profile, role } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  
+  // Get default tab from URL query param
+  const defaultTab = searchParams.get('tab') || 'performance';
   
   const [rep, setRep] = useState<Profile | null>(null);
   const [performance, setPerformance] = useState<RepPerformanceSnapshot[]>([]);
@@ -68,6 +73,9 @@ export default function RepDetail() {
     action_items: '',
     follow_up_date: '',
   });
+
+  // Call History state
+  const [timeframe, setTimeframe] = useState<TimeframeFilter>('30d');
 
   // Call Coaching (AI) state - read-only for managers
   const [selectedCallId, setSelectedCallId] = useState<string | null>(null);
@@ -85,6 +93,25 @@ export default function RepDetail() {
     queryFn: () => getAnalysisForCall(selectedCallId!),
     enabled: !!selectedCallId,
   });
+
+  // Filter transcripts by timeframe
+  const filteredTranscripts = useMemo(() => {
+    if (timeframe === 'all') return transcripts;
+    
+    const daysMap: Record<TimeframeFilter, number> = {
+      '7d': 7,
+      '30d': 30,
+      '90d': 90,
+      'all': 0,
+    };
+    
+    const cutoffDate = subDays(new Date(), daysMap[timeframe]);
+    
+    return transcripts.filter(t => {
+      const callDate = new Date(t.call_date);
+      return isAfter(callDate, cutoffDate);
+    });
+  }, [transcripts, timeframe]);
 
   // Determine back navigation based on role
   const getBackUrl = () => {
@@ -256,14 +283,18 @@ export default function RepDetail() {
         {/* AI Coaching Snapshot */}
         <AICoachingSnapshot repId={repId!} />
 
-        <Tabs defaultValue="performance">
+        <Tabs defaultValue={defaultTab}>
           <TabsList>
             <TabsTrigger value="performance">Performance</TabsTrigger>
             <TabsTrigger value="coaching">Coaching ({coaching.length})</TabsTrigger>
             <TabsTrigger value="activity">Activity</TabsTrigger>
+            <TabsTrigger value="call-history" className="flex items-center gap-1.5">
+              <Phone className="h-4 w-4" />
+              Call History ({transcripts.length})
+            </TabsTrigger>
             <TabsTrigger value="ai-coaching" className="flex items-center gap-1.5">
               <Bot className="h-4 w-4" />
-              Call Coaching (AI)
+              AI Coaching
             </TabsTrigger>
           </TabsList>
 
@@ -483,7 +514,147 @@ export default function RepDetail() {
             </Card>
           </TabsContent>
 
-          {/* Call Coaching (AI) Tab - Read-only for managers */}
+          {/* Call History Tab - Direct navigation to CallDetailPage */}
+          <TabsContent value="call-history" className="mt-6">
+            <Card>
+              <CardHeader>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Phone className="h-5 w-5" />
+                      Call History
+                    </CardTitle>
+                    <CardDescription>
+                      {filteredTranscripts.length} call{filteredTranscripts.length !== 1 ? 's' : ''} 
+                      {timeframe !== 'all' && ` in the last ${timeframe.replace('d', ' days')}`}
+                    </CardDescription>
+                  </div>
+                  <div className="inline-flex rounded-lg border bg-muted p-1">
+                    <Button
+                      variant={timeframe === '7d' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      onClick={() => setTimeframe('7d')}
+                      className="px-3"
+                    >
+                      7 days
+                    </Button>
+                    <Button
+                      variant={timeframe === '30d' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      onClick={() => setTimeframe('30d')}
+                      className="px-3"
+                    >
+                      30 days
+                    </Button>
+                    <Button
+                      variant={timeframe === '90d' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      onClick={() => setTimeframe('90d')}
+                      className="px-3"
+                    >
+                      90 days
+                    </Button>
+                    <Button
+                      variant={timeframe === 'all' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      onClick={() => setTimeframe('all')}
+                      className="px-3"
+                    >
+                      All
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {isLoadingTranscripts ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : filteredTranscripts.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Source</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-center">AI Score</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredTranscripts.map((transcript) => (
+                        <TableRow
+                          key={transcript.id}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => navigate(`/calls/${transcript.id}`)}
+                        >
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              <Calendar className="h-4 w-4 text-muted-foreground" />
+                              {format(new Date(transcript.call_date), 'MMM d, yyyy')}
+                            </div>
+                          </TableCell>
+                          <TableCell>{sourceLabels[transcript.source as CallSource] || transcript.source}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={getStatusBadgeVariant(transcript.analysis_status)}>
+                                {transcript.analysis_status}
+                              </Badge>
+                              {transcript.analysis_status === 'error' && transcript.analysis_error && (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger>
+                                      <AlertCircle className="h-4 w-4 text-destructive" />
+                                    </TooltipTrigger>
+                                    <TooltipContent className="max-w-xs">
+                                      <p className="text-sm">{transcript.analysis_error}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {transcript.analysis_status === 'completed' ? (
+                              <Badge variant="secondary" className="text-xs">
+                                View
+                              </Badge>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/calls/${transcript.id}`);
+                              }}
+                            >
+                              <ExternalLink className="h-4 w-4 mr-1" />
+                              View Details
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <div className="text-center py-8">
+                    <Phone className="h-10 w-10 text-muted-foreground/50 mx-auto mb-3" />
+                    <p className="text-muted-foreground">
+                      {timeframe === 'all' 
+                        ? 'No call transcripts yet.' 
+                        : `No calls in the last ${timeframe.replace('d', ' days')}.`}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* AI Coaching Tab - Read-only for managers with inline panel */}
           <TabsContent value="ai-coaching" className="mt-6">
             <div className="grid gap-6 lg:grid-cols-2">
               {/* Left Column: Transcripts List */}

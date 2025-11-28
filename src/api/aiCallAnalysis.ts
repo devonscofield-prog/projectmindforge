@@ -324,5 +324,41 @@ export async function editRecapEmail(
   return data.updated_recap_email_draft;
 }
 
+/**
+ * Gets call counts for the last 30 days for multiple reps in a batch.
+ * @param repIds - Array of rep user IDs
+ * @returns Map of repId to their call count in last 30 days
+ */
+export async function getCallCountsLast30DaysForReps(repIds: string[]): Promise<Record<string, number>> {
+  if (repIds.length === 0) {
+    return {};
+  }
+
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const { data, error } = await supabase
+    .from('call_transcripts')
+    .select('rep_id, call_date')
+    .in('rep_id', repIds)
+    .gte('call_date', thirtyDaysAgo.toISOString().split('T')[0]);
+
+  if (error) {
+    console.error('[getCallCountsLast30DaysForReps] Error:', error);
+    throw new Error(`Failed to fetch call counts: ${error.message}`);
+  }
+
+  // Aggregate by rep_id into a map { [repId]: count }
+  const counts: Record<string, number> = {};
+  for (const repId of repIds) {
+    counts[repId] = 0;
+  }
+  for (const row of data ?? []) {
+    counts[row.rep_id] = (counts[row.rep_id] ?? 0) + 1;
+  }
+  
+  return counts;
+}
+
 // Export types for use in components
 export type { CallAnalysis, CallTranscript, AnalyzeCallResponse };
