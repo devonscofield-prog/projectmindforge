@@ -245,38 +245,38 @@ Best,
 
   const coach_output = {
     call_type: "Discovery",
-    duration_minutes: 25,
+    duration_minutes: 30,
     framework_scores: {
-      bant: { score: 72, summary: "Budget and timeline discussed, but authority chain needs clarification." },
-      gap_selling: { score: 68, summary: "Good pain identification, but current state vs future state gap not fully quantified." },
-      active_listening: { score: 80, summary: "Rep asked follow-up questions and paraphrased key points effectively." }
+      bant: { score: 68, summary: "Basic discussion of BANT elements." },
+      gap_selling: { score: 62, summary: "Good exploration but needs quantification." },
+      active_listening: { score: 78, summary: "Strong paraphrasing and follow-ups." }
     },
     bant_improvements: [
-      "Clarify who has final sign-off authority beyond VP of Operations",
-      "Quantify the cost of current compliance gaps (68% completion rate)"
+      "Clarify budget range.",
+      "Confirm purchasing authority."
     ],
     gap_selling_improvements: [
-      "Calculate the business impact of missed compliance deadlines",
-      "Explore the emotional impact on stakeholders of the current training gaps"
+      "Quantify the business impact.",
+      "Explore future state more deeply."
     ],
     active_listening_improvements: [
-      "Summarize the prospect's priorities back to them before proposing solutions"
+      "Use more reflective listening.",
+      "Label hesitation points."
     ],
     critical_info_missing: [
-      "Exact budget approval process and timeline",
-      "Other stakeholders who need to be involved in the decision",
-      "Specific integration requirements for Workday HRIS",
-      "Competitor evaluation criteria and timeline"
+      "Budget range.",
+      "Timeline.",
+      "Decision-making process.",
+      "KPIs and metrics."
     ],
     recommended_follow_up_questions: [
-      "What would need to happen for you to make a decision by end of January?",
-      "Who else should be involved in evaluating our solution?",
-      "What's driving the March compliance audit deadline?",
-      "How are you currently measuring training effectiveness?"
+      "Who else is involved in the decision?",
+      "What happens if you don't address this?",
+      "How do you measure the problem?"
     ],
     heat_signature: {
       score: 7,
-      explanation: "Good engagement and clear pain points identified. Timeline urgency (Feb 15 + March audit) creates momentum. Risk factors: competitor evaluation in progress and multiple stakeholders needed for sign-off."
+      explanation: "Prospect interested but missing key info."
     }
   };
 
