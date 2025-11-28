@@ -17,7 +17,8 @@ import {
   getAnalysisForCall, 
   editRecapEmail,
   CallAnalysis,
-  CallTranscript 
+  CallTranscript,
+  CoachOutput
 } from '@/api/aiCallAnalysis';
 import { getAiMode, AiMode } from '@/api/appSettings';
 import { format } from 'date-fns';
@@ -35,7 +36,13 @@ import {
   Loader2,
   Eye,
   Bot,
-  Zap
+  Zap,
+  Target,
+  TrendingUp,
+  Ear,
+  Flame,
+  HelpCircle,
+  AlertTriangle
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
@@ -526,6 +533,202 @@ export function CallCoachingSection() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* AI Call Coach Section */}
+              {currentAnalysis.coach_output && (
+                <Card className="lg:col-span-2">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Flame className="h-5 w-5 text-orange-500" />
+                      AI Call Coach
+                    </CardTitle>
+                    <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Target className="h-4 w-4" />
+                        {currentAnalysis.coach_output.call_type || 'Unknown'}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-4 w-4" />
+                        {currentAnalysis.coach_output.duration_minutes ?? '-'} min
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Flame className="h-4 w-4 text-orange-500" />
+                        Heat Score: {currentAnalysis.coach_output.heat_signature?.score ?? '-'}/10
+                      </span>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {/* Framework Scores */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {/* BANT */}
+                      <div className="p-4 border rounded-lg space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium flex items-center gap-2">
+                            <Target className="h-4 w-4 text-blue-500" />
+                            BANT
+                          </span>
+                          <Badge variant={
+                            (currentAnalysis.coach_output.framework_scores?.bant?.score ?? 0) >= 70 ? 'default' :
+                            (currentAnalysis.coach_output.framework_scores?.bant?.score ?? 0) >= 50 ? 'secondary' : 'destructive'
+                          }>
+                            {currentAnalysis.coach_output.framework_scores?.bant?.score ?? '-'}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {currentAnalysis.coach_output.framework_scores?.bant?.summary || 'No summary available'}
+                        </p>
+                      </div>
+
+                      {/* Gap Selling */}
+                      <div className="p-4 border rounded-lg space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium flex items-center gap-2">
+                            <TrendingUp className="h-4 w-4 text-green-500" />
+                            Gap Selling
+                          </span>
+                          <Badge variant={
+                            (currentAnalysis.coach_output.framework_scores?.gap_selling?.score ?? 0) >= 70 ? 'default' :
+                            (currentAnalysis.coach_output.framework_scores?.gap_selling?.score ?? 0) >= 50 ? 'secondary' : 'destructive'
+                          }>
+                            {currentAnalysis.coach_output.framework_scores?.gap_selling?.score ?? '-'}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {currentAnalysis.coach_output.framework_scores?.gap_selling?.summary || 'No summary available'}
+                        </p>
+                      </div>
+
+                      {/* Active Listening */}
+                      <div className="p-4 border rounded-lg space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium flex items-center gap-2">
+                            <Ear className="h-4 w-4 text-purple-500" />
+                            Active Listening
+                          </span>
+                          <Badge variant={
+                            (currentAnalysis.coach_output.framework_scores?.active_listening?.score ?? 0) >= 70 ? 'default' :
+                            (currentAnalysis.coach_output.framework_scores?.active_listening?.score ?? 0) >= 50 ? 'secondary' : 'destructive'
+                          }>
+                            {currentAnalysis.coach_output.framework_scores?.active_listening?.score ?? '-'}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {currentAnalysis.coach_output.framework_scores?.active_listening?.summary || 'No summary available'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Improvements Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {/* BANT Improvements */}
+                      {currentAnalysis.coach_output.bant_improvements?.length > 0 && (
+                        <div className="space-y-2">
+                          <h4 className="font-medium text-sm flex items-center gap-2">
+                            <Target className="h-4 w-4 text-blue-500" />
+                            BANT Improvements
+                          </h4>
+                          <ul className="text-sm text-muted-foreground space-y-1">
+                            {currentAnalysis.coach_output.bant_improvements.map((item, i) => (
+                              <li key={i} className="flex items-start gap-2">
+                                <span className="text-blue-500">•</span>
+                                {item}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Gap Selling Improvements */}
+                      {currentAnalysis.coach_output.gap_selling_improvements?.length > 0 && (
+                        <div className="space-y-2">
+                          <h4 className="font-medium text-sm flex items-center gap-2">
+                            <TrendingUp className="h-4 w-4 text-green-500" />
+                            Gap Selling Improvements
+                          </h4>
+                          <ul className="text-sm text-muted-foreground space-y-1">
+                            {currentAnalysis.coach_output.gap_selling_improvements.map((item, i) => (
+                              <li key={i} className="flex items-start gap-2">
+                                <span className="text-green-500">•</span>
+                                {item}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Active Listening Improvements */}
+                      {currentAnalysis.coach_output.active_listening_improvements?.length > 0 && (
+                        <div className="space-y-2">
+                          <h4 className="font-medium text-sm flex items-center gap-2">
+                            <Ear className="h-4 w-4 text-purple-500" />
+                            Listening Improvements
+                          </h4>
+                          <ul className="text-sm text-muted-foreground space-y-1">
+                            {currentAnalysis.coach_output.active_listening_improvements.map((item, i) => (
+                              <li key={i} className="flex items-start gap-2">
+                                <span className="text-purple-500">•</span>
+                                {item}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Critical Info & Follow-up Questions */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Critical Info Missing */}
+                      {currentAnalysis.coach_output.critical_info_missing?.length > 0 && (
+                        <div className="p-4 border border-destructive/30 bg-destructive/5 rounded-lg space-y-2">
+                          <h4 className="font-medium text-sm flex items-center gap-2 text-destructive">
+                            <AlertTriangle className="h-4 w-4" />
+                            Critical Info Missing
+                          </h4>
+                          <ul className="text-sm space-y-1">
+                            {currentAnalysis.coach_output.critical_info_missing.map((item, i) => (
+                              <li key={i} className="flex items-start gap-2">
+                                <span className="text-destructive">•</span>
+                                {item}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Follow-up Questions */}
+                      {currentAnalysis.coach_output.recommended_follow_up_questions?.length > 0 && (
+                        <div className="p-4 border border-primary/30 bg-primary/5 rounded-lg space-y-2">
+                          <h4 className="font-medium text-sm flex items-center gap-2 text-primary">
+                            <HelpCircle className="h-4 w-4" />
+                            Recommended Follow-up Questions
+                          </h4>
+                          <ul className="text-sm space-y-1">
+                            {currentAnalysis.coach_output.recommended_follow_up_questions.map((item, i) => (
+                              <li key={i} className="flex items-start gap-2">
+                                <span className="text-primary">•</span>
+                                {item}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Heat Signature Explanation */}
+                    {currentAnalysis.coach_output.heat_signature?.explanation && (
+                      <div className="p-4 border border-orange-500/30 bg-orange-500/5 rounded-lg">
+                        <h4 className="font-medium text-sm flex items-center gap-2 text-orange-600 dark:text-orange-400 mb-2">
+                          <Flame className="h-4 w-4" />
+                          Heat Signature Analysis
+                        </h4>
+                        <p className="text-sm text-muted-foreground">
+                          {currentAnalysis.coach_output.heat_signature.explanation}
+                        </p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
             </div>
           ) : (
             <Card>
