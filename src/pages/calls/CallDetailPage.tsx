@@ -398,7 +398,16 @@ export default function CallDetailPage() {
               <CardContent>
                 {analysis.call_notes ? (
                   <div className="prose prose-sm dark:prose-invert max-w-none">
-                    <ReactMarkdown>{analysis.call_notes}</ReactMarkdown>
+                    <ReactMarkdown
+                      components={{
+                        p: ({children}) => <p className="mb-2">{children}</p>,
+                        ul: ({children}) => <ul className="list-disc ml-6 mb-2">{children}</ul>,
+                        li: ({children}) => <li className="mb-1">{children}</li>,
+                        strong: ({children}) => <strong className="font-bold">{children}</strong>,
+                      }}
+                    >
+                      {analysis.call_notes}
+                    </ReactMarkdown>
                   </div>
                 ) : (
                   <p className="text-muted-foreground text-sm">No call notes available.</p>
