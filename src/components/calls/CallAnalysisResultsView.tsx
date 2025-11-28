@@ -1,5 +1,5 @@
 import { useToast } from '@/hooks/use-toast';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { CallAnalysis, CallTranscript } from '@/api/aiCallAnalysis';
@@ -8,13 +8,8 @@ import {
   FileText,
   Mail,
   Target,
-  MessageSquare,
-  Users,
-  Package,
   TrendingUp,
   BarChart3,
-  Tag,
-  Lightbulb,
   AlertTriangle,
   Flame,
   Ear,
@@ -80,81 +75,6 @@ export function CallAnalysisResultsView({ call, analysis, isManager }: CallAnaly
           </div>
         </CardContent>
       </Card>
-
-      {/* Scores Grid */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Performance Scores</CardTitle>
-          <CardDescription>AI-evaluated performance across key areas</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <ScoreCard icon={Target} label="Discovery" score={analysis.discovery_score} />
-            <ScoreCard icon={MessageSquare} label="Objection Handling" score={analysis.objection_handling_score} />
-            <ScoreCard icon={Users} label="Rapport" score={analysis.rapport_communication_score} />
-            <ScoreCard icon={Package} label="Product Knowledge" score={analysis.product_knowledge_score} />
-            <ScoreCard icon={TrendingUp} label="Deal Advancement" score={analysis.deal_advancement_score} />
-            <ScoreCard icon={BarChart3} label="Effectiveness" score={analysis.call_effectiveness_score} highlight />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Strengths & Opportunities */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Strengths */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-success">
-              <Lightbulb className="h-5 w-5" />
-              Strengths
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {analysis.strengths && analysis.strengths.length > 0 ? (
-              <ul className="space-y-3">
-                {analysis.strengths.map((s, i) => (
-                  <li key={i} className="flex gap-3 p-3 bg-success/5 rounded-lg border border-success/20">
-                    <span className="text-success font-bold">{i + 1}.</span>
-                    <div>
-                      <p className="font-medium">{String(s.area || s.title || 'Strength')}</p>
-                      <p className="text-sm text-muted-foreground">{String(s.detail || s.description || '')}</p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-muted-foreground text-sm">No strengths identified.</p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Opportunities */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-warning">
-              <AlertTriangle className="h-5 w-5" />
-              Opportunities for Improvement
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {analysis.opportunities && analysis.opportunities.length > 0 ? (
-              <ul className="space-y-3">
-                {analysis.opportunities.map((o, i) => (
-                  <li key={i} className="flex gap-3 p-3 bg-warning/5 rounded-lg border border-warning/20">
-                    <span className="text-warning font-bold">{i + 1}.</span>
-                    <div>
-                      <p className="font-medium">{String(o.area || o.title || 'Opportunity')}</p>
-                      <p className="text-sm text-muted-foreground">{String(o.detail || o.description || '')}</p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-muted-foreground text-sm">No opportunities identified.</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
 
       {/* AI Call Coach Section */}
       {analysis.coach_output ? (
@@ -360,29 +280,6 @@ export function CallAnalysisResultsView({ call, analysis, isManager }: CallAnaly
         </Card>
       )}
 
-      {/* Deal Gaps */}
-      {analysis.deal_gaps && Object.keys(analysis.deal_gaps).length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-destructive" />
-              Deal Gaps
-            </CardTitle>
-            <CardDescription>Areas that may block deal progression</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {Object.entries(analysis.deal_gaps).map(([key, value]) => (
-                <div key={key} className="flex justify-between items-center p-2 bg-destructive/5 rounded border border-destructive/20">
-                  <span className="font-medium capitalize">{key.replace(/_/g, ' ')}</span>
-                  <span className="text-sm text-muted-foreground">{String(value)}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Trend Indicators */}
       {analysis.trend_indicators && Object.keys(analysis.trend_indicators).length > 0 && (
         <Card>
@@ -405,149 +302,63 @@ export function CallAnalysisResultsView({ call, analysis, isManager }: CallAnaly
         </Card>
       )}
 
-      {/* Tags */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Tag className="h-5 w-5" />
-            Tags
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {analysis.skill_tags && analysis.skill_tags.length > 0 && (
-            <div>
-              <p className="text-sm font-medium mb-2">Skill Tags</p>
-              <div className="flex flex-wrap gap-2">
-                {analysis.skill_tags.map((tag, i) => (
-                  <Badge key={i} variant="secondary">{tag}</Badge>
-                ))}
-              </div>
-            </div>
-          )}
-          {analysis.deal_tags && analysis.deal_tags.length > 0 && (
-            <div>
-              <p className="text-sm font-medium mb-2">Deal Tags</p>
-              <div className="flex flex-wrap gap-2">
-                {analysis.deal_tags.map((tag, i) => (
-                  <Badge key={i} variant="outline">{tag}</Badge>
-                ))}
-              </div>
-            </div>
-          )}
-          {analysis.meta_tags && analysis.meta_tags.length > 0 && (
-            <div>
-              <p className="text-sm font-medium mb-2">Meta Tags</p>
-              <div className="flex flex-wrap gap-2">
-                {analysis.meta_tags.map((tag, i) => (
-                  <Badge key={i} variant="default">{tag}</Badge>
-                ))}
-              </div>
-            </div>
-          )}
-          {(!analysis.skill_tags?.length && !analysis.deal_tags?.length && !analysis.meta_tags?.length) && (
-            <p className="text-muted-foreground text-sm">No tags available.</p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Call Notes - Only visible to non-managers */}
-      {!isManager && (
+      {/* Call Notes - Only visible to reps */}
+      {!isManager && analysis.call_notes && (
         <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Call Notes
-              </CardTitle>
-              {analysis.call_notes && (
-                <Button variant="outline" size="sm" onClick={() => handleCopy(analysis.call_notes!, 'Notes')}>
-                  <Copy className="mr-2 h-4 w-4" />
-                  Copy
-                </Button>
-              )}
-            </div>
-            <CardDescription>AI-generated structured notes</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Call Notes
+            </CardTitle>
+            <Button variant="outline" size="sm" onClick={() => handleCopy(analysis.call_notes!, 'Call notes')}>
+              <Copy className="h-4 w-4 mr-2" />
+              Copy
+            </Button>
           </CardHeader>
           <CardContent>
-            {analysis.call_notes ? (
-              <div className="prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown
-                  components={{
-                    p: ({children}) => <p className="mb-2">{children}</p>,
-                    ul: ({children}) => <ul className="list-disc ml-6 mb-2">{children}</ul>,
-                    li: ({children}) => <li className="mb-1">{children}</li>,
-                    strong: ({children}) => <strong className="font-bold">{children}</strong>,
-                  }}
-                >
-                  {analysis.call_notes}
-                </ReactMarkdown>
-              </div>
-            ) : (
-              <p className="text-muted-foreground text-sm">No call notes available.</p>
-            )}
+            <div className="prose prose-sm dark:prose-invert max-w-none bg-muted/30 rounded-lg p-4">
+              <ReactMarkdown
+                components={{
+                  p: ({children}) => <p className="mb-2">{children}</p>,
+                  ul: ({children}) => <ul className="list-disc ml-6 mb-2">{children}</ul>,
+                  ol: ({children}) => <ol className="list-decimal ml-6 mb-2">{children}</ol>,
+                  li: ({children}) => <li className="mb-1">{children}</li>,
+                  h1: ({children}) => <h1 className="text-xl font-bold mb-2">{children}</h1>,
+                  h2: ({children}) => <h2 className="text-lg font-bold mb-2">{children}</h2>,
+                  h3: ({children}) => <h3 className="text-base font-bold mb-2">{children}</h3>,
+                  strong: ({children}) => <strong className="font-bold">{children}</strong>,
+                  em: ({children}) => <em className="italic">{children}</em>,
+                }}
+              >
+                {analysis.call_notes}
+              </ReactMarkdown>
+            </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Recap Email - Only visible to non-managers */}
-      {!isManager && (
+      {/* Recap Email Draft - Only visible to reps */}
+      {!isManager && analysis.recap_email_draft && (
         <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <Mail className="h-5 w-5" />
-                Recap Email Draft
-              </CardTitle>
-              {analysis.recap_email_draft && (
-                <Button variant="outline" size="sm" onClick={() => handleCopy(analysis.recap_email_draft!, 'Email')}>
-                  <Copy className="mr-2 h-4 w-4" />
-                  Copy
-                </Button>
-              )}
-            </div>
-            <CardDescription>Ready-to-send follow-up email</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Mail className="h-5 w-5" />
+              Recap Email Draft
+            </CardTitle>
+            <Button variant="outline" size="sm" onClick={() => handleCopy(analysis.recap_email_draft!, 'Recap email')}>
+              <Copy className="h-4 w-4 mr-2" />
+              Copy
+            </Button>
           </CardHeader>
           <CardContent>
-            {analysis.recap_email_draft ? (
-              <div className="bg-muted/50 rounded-lg p-4 font-mono text-sm whitespace-pre-wrap">
+            <div className="bg-muted/30 rounded-lg p-4">
+              <pre className="text-sm whitespace-pre-wrap font-sans text-muted-foreground">
                 {analysis.recap_email_draft}
-              </div>
-            ) : (
-              <p className="text-muted-foreground text-sm">No recap email available.</p>
-            )}
+              </pre>
+            </div>
           </CardContent>
         </Card>
       )}
-    </div>
-  );
-}
-
-// Score card component
-function ScoreCard({ 
-  icon: Icon, 
-  label, 
-  score, 
-  highlight = false 
-}: { 
-  icon: React.ComponentType<{ className?: string }>; 
-  label: string; 
-  score: number | null;
-  highlight?: boolean;
-}) {
-  const getScoreColor = (score: number | null) => {
-    if (score === null) return 'text-muted-foreground';
-    if (score >= 80) return 'text-success';
-    if (score >= 60) return 'text-warning';
-    return 'text-destructive';
-  };
-
-  return (
-    <div className={`text-center p-4 rounded-lg ${highlight ? 'bg-primary/10 border border-primary/20' : 'bg-muted'}`}>
-      <Icon className={`h-5 w-5 mx-auto mb-2 ${highlight ? 'text-primary' : 'text-muted-foreground'}`} />
-      <div className={`text-2xl font-bold ${getScoreColor(score)}`}>
-        {score !== null ? score : '-'}
-      </div>
-      <div className="text-xs text-muted-foreground mt-1">{label}</div>
     </div>
   );
 }
