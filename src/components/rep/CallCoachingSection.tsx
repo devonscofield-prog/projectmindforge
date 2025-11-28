@@ -412,7 +412,16 @@ export function CallCoachingSection() {
                 <CardContent>
                   <div className="prose prose-sm dark:prose-invert max-w-none max-h-[500px] overflow-y-auto">
                     {currentAnalysis.call_notes ? (
-                      <ReactMarkdown>{currentAnalysis.call_notes}</ReactMarkdown>
+                      <ReactMarkdown
+                        components={{
+                          p: ({children}) => <p className="mb-2">{children}</p>,
+                          ul: ({children}) => <ul className="list-disc ml-6 mb-2">{children}</ul>,
+                          li: ({children}) => <li className="mb-1">{children}</li>,
+                          strong: ({children}) => <strong className="font-bold">{children}</strong>,
+                        }}
+                      >
+                        {currentAnalysis.call_notes}
+                      </ReactMarkdown>
                     ) : (
                       <p className="text-muted-foreground">No call notes available.</p>
                     )}
