@@ -139,6 +139,49 @@ export async function listCallTranscriptsForRep(repId: string): Promise<CallTran
 }
 
 /**
+ * Gets a single call transcript by ID with its analysis.
+ * @param callId - The call transcript ID
+ * @returns The transcript with analysis or null if not found
+ */
+export async function getCallWithAnalysis(callId: string): Promise<{
+  transcript: CallTranscript;
+  analysis: CallAnalysis | null;
+} | null> {
+  // Fetch transcript
+  const { data: transcript, error: transcriptError } = await supabase
+    .from('call_transcripts')
+    .select('*')
+    .eq('id', callId)
+    .maybeSingle();
+
+  if (transcriptError) {
+    console.error('[getCallWithAnalysis] Transcript error:', transcriptError);
+    throw new Error(`Failed to fetch call: ${transcriptError.message}`);
+  }
+
+  if (!transcript) {
+    return null;
+  }
+
+  // Fetch analysis
+  const { data: analysis, error: analysisError } = await supabase
+    .from('ai_call_analysis')
+    .select('*')
+    .eq('call_id', callId)
+    .maybeSingle();
+
+  if (analysisError) {
+    console.error('[getCallWithAnalysis] Analysis error:', analysisError);
+    // Don't throw - transcript exists but analysis might not
+  }
+
+  return {
+    transcript: transcript as CallTranscript,
+    analysis: analysis as CallAnalysis | null,
+  };
+}
+
+/**
  * Gets the AI analysis for a specific call.
  * @param callId - The call transcript ID
  * @returns The analysis row or null if not found
