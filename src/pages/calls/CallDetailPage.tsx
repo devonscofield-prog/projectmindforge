@@ -586,70 +586,74 @@ export default function CallDetailPage() {
               </CardContent>
             </Card>
 
-            {/* Call Notes */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5" />
-                    Call Notes
-                  </CardTitle>
-                  {analysis.call_notes && (
-                    <Button variant="outline" size="sm" onClick={() => handleCopy(analysis.call_notes!, 'Notes')}>
-                      <Copy className="mr-2 h-4 w-4" />
-                      Copy
-                    </Button>
-                  )}
-                </div>
-                <CardDescription>AI-generated structured notes</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {analysis.call_notes ? (
-                  <div className="prose prose-sm dark:prose-invert max-w-none">
-                    <ReactMarkdown
-                      components={{
-                        p: ({children}) => <p className="mb-2">{children}</p>,
-                        ul: ({children}) => <ul className="list-disc ml-6 mb-2">{children}</ul>,
-                        li: ({children}) => <li className="mb-1">{children}</li>,
-                        strong: ({children}) => <strong className="font-bold">{children}</strong>,
-                      }}
-                    >
-                      {analysis.call_notes}
-                    </ReactMarkdown>
+            {/* Call Notes - Only visible to reps */}
+            {role !== 'manager' && (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="h-5 w-5" />
+                      Call Notes
+                    </CardTitle>
+                    {analysis.call_notes && (
+                      <Button variant="outline" size="sm" onClick={() => handleCopy(analysis.call_notes!, 'Notes')}>
+                        <Copy className="mr-2 h-4 w-4" />
+                        Copy
+                      </Button>
+                    )}
                   </div>
-                ) : (
-                  <p className="text-muted-foreground text-sm">No call notes available.</p>
-                )}
-              </CardContent>
-            </Card>
+                  <CardDescription>AI-generated structured notes</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {analysis.call_notes ? (
+                    <div className="prose prose-sm dark:prose-invert max-w-none">
+                      <ReactMarkdown
+                        components={{
+                          p: ({children}) => <p className="mb-2">{children}</p>,
+                          ul: ({children}) => <ul className="list-disc ml-6 mb-2">{children}</ul>,
+                          li: ({children}) => <li className="mb-1">{children}</li>,
+                          strong: ({children}) => <strong className="font-bold">{children}</strong>,
+                        }}
+                      >
+                        {analysis.call_notes}
+                      </ReactMarkdown>
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground text-sm">No call notes available.</p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
-            {/* Recap Email */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <Mail className="h-5 w-5" />
-                    Recap Email Draft
-                  </CardTitle>
-                  {analysis.recap_email_draft && (
-                    <Button variant="outline" size="sm" onClick={() => handleCopy(analysis.recap_email_draft!, 'Email')}>
-                      <Copy className="mr-2 h-4 w-4" />
-                      Copy
-                    </Button>
-                  )}
-                </div>
-                <CardDescription>Ready-to-send follow-up email</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {analysis.recap_email_draft ? (
-                  <div className="bg-muted/50 rounded-lg p-4 font-mono text-sm whitespace-pre-wrap">
-                    {analysis.recap_email_draft}
+            {/* Recap Email - Only visible to reps */}
+            {role !== 'manager' && (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <Mail className="h-5 w-5" />
+                      Recap Email Draft
+                    </CardTitle>
+                    {analysis.recap_email_draft && (
+                      <Button variant="outline" size="sm" onClick={() => handleCopy(analysis.recap_email_draft!, 'Email')}>
+                        <Copy className="mr-2 h-4 w-4" />
+                        Copy
+                      </Button>
+                    )}
                   </div>
-                ) : (
-                  <p className="text-muted-foreground text-sm">No recap email available.</p>
-                )}
-              </CardContent>
-            </Card>
+                  <CardDescription>Ready-to-send follow-up email</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {analysis.recap_email_draft ? (
+                    <div className="bg-muted/50 rounded-lg p-4 font-mono text-sm whitespace-pre-wrap">
+                      {analysis.recap_email_draft}
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground text-sm">No recap email available.</p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </>
         ) : (
           <Card>
