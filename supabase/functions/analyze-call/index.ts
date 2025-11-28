@@ -17,6 +17,7 @@ Your job is to analyze a full call transcript and generate:
 1. A structured JSON analysis for coaching
 2. Internal Call Notes for CRM use
 3. A customer-facing Recap Email Draft for the rep to send
+4. AI Call Coach feedback with framework scores and improvements
 
 You must follow all formatting rules exactly.
 
@@ -92,6 +93,17 @@ Also include:
 - deal_tags: Array of deal-related tags (e.g., "no_confirmed_timeline", "single_threaded")
 - meta_tags: Array of metadata tags (e.g., "short_transcript", "first_call")
 
+### StormWind AI Call Coach — Concise Edition (v7)
+In addition to all existing outputs, act as the StormWind AI Call Coach. Populate the \`coach_output\` field with:
+- Call Type (Discovery, Demo, Negotiation)
+- Duration in minutes (estimate based on transcript length if not explicit)
+- Framework scores (BANT, Gap Selling, Active Listening), each 0–100 with 1-sentence summary
+- 1–2 improvement points per framework
+- 3–5 critical missing pieces needed to close the deal
+- 3–5 recommended follow-up questions
+- Heat Signature (1–10) with explanation of deal temperature/likelihood to close
+Use direct evidence from transcript or explicitly say "⚠️ No evidence found."
+
 FINAL OUTPUT:
 Return all fields via the submit_call_analysis function call.`;
 
@@ -101,6 +113,25 @@ interface TranscriptRow {
   raw_text: string;
   call_date: string;
   source: string;
+}
+
+interface CoachOutput {
+  call_type: string;
+  duration_minutes: number;
+  framework_scores: {
+    bant: { score: number; summary: string };
+    gap_selling: { score: number; summary: string };
+    active_listening: { score: number; summary: string };
+  };
+  bant_improvements: string[];
+  gap_selling_improvements: string[];
+  active_listening_improvements: string[];
+  critical_info_missing: string[];
+  recommended_follow_up_questions: string[];
+  heat_signature: {
+    score: number;
+    explanation: string;
+  };
 }
 
 interface AnalysisResult {
@@ -125,6 +156,7 @@ interface AnalysisResult {
   meta_tags: string[];
   call_notes: string;
   recap_email_draft: string;
+  coach_output: CoachOutput;
   raw_json: Record<string, unknown>;
 }
 
@@ -211,6 +243,43 @@ Best,
 {{RepFirstName}}
 {{RepCompanyName}}`;
 
+  const coach_output = {
+    call_type: "Discovery",
+    duration_minutes: 25,
+    framework_scores: {
+      bant: { score: 72, summary: "Budget and timeline discussed, but authority chain needs clarification." },
+      gap_selling: { score: 68, summary: "Good pain identification, but current state vs future state gap not fully quantified." },
+      active_listening: { score: 80, summary: "Rep asked follow-up questions and paraphrased key points effectively." }
+    },
+    bant_improvements: [
+      "Clarify who has final sign-off authority beyond VP of Operations",
+      "Quantify the cost of current compliance gaps (68% completion rate)"
+    ],
+    gap_selling_improvements: [
+      "Calculate the business impact of missed compliance deadlines",
+      "Explore the emotional impact on stakeholders of the current training gaps"
+    ],
+    active_listening_improvements: [
+      "Summarize the prospect's priorities back to them before proposing solutions"
+    ],
+    critical_info_missing: [
+      "Exact budget approval process and timeline",
+      "Other stakeholders who need to be involved in the decision",
+      "Specific integration requirements for Workday HRIS",
+      "Competitor evaluation criteria and timeline"
+    ],
+    recommended_follow_up_questions: [
+      "What would need to happen for you to make a decision by end of January?",
+      "Who else should be involved in evaluating our solution?",
+      "What's driving the March compliance audit deadline?",
+      "How are you currently measuring training effectiveness?"
+    ],
+    heat_signature: {
+      score: 7,
+      explanation: "Good engagement and clear pain points identified. Timeline urgency (Feb 15 + March audit) creates momentum. Risk factors: competitor evaluation in progress and multiple stakeholders needed for sign-off."
+    }
+  };
+
   const analysisData = {
     call_id: transcript.id,
     rep_id: transcript.rep_id,
@@ -244,7 +313,8 @@ Best,
     deal_tags: ['no_confirmed_timeline', 'single_threaded'],
     meta_tags: ['mock_analysis', 'short_transcript'],
     call_notes,
-    recap_email_draft
+    recap_email_draft,
+    coach_output
   };
 
   return {
@@ -385,6 +455,68 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
           recap_email_draft: {
             type: "string",
             description: "Customer-facing recap email starting with 'Subject: <subject>', then 'Hi {{ProspectFirstName}},' followed by thank you, summary bullets, value paragraph, next steps, and MUST end with the exact links: '[StormWind Website](https://info.stormwind.com/)' and '[View Sample Courses](https://info.stormwind.com/training-samples)' followed by 'Best, {{RepFirstName}} {{RepCompanyName}}'"
+          },
+          coach_output: {
+            type: "object",
+            description: "Coaching output based on BANT, Gap Selling, and Active Listening frameworks.",
+            properties: {
+              call_type: { type: "string", description: "Type of call: Discovery, Demo, or Negotiation" },
+              duration_minutes: { type: "number", description: "Estimated duration of the call in minutes" },
+              framework_scores: {
+                type: "object",
+                properties: {
+                  bant: {
+                    type: "object",
+                    properties: {
+                      score: { type: "number", description: "Score 0-100 for BANT qualification" },
+                      summary: { type: "string", description: "1-sentence summary of BANT performance" }
+                    },
+                    required: ["score", "summary"]
+                  },
+                  gap_selling: {
+                    type: "object",
+                    properties: {
+                      score: { type: "number", description: "Score 0-100 for Gap Selling methodology" },
+                      summary: { type: "string", description: "1-sentence summary of Gap Selling performance" }
+                    },
+                    required: ["score", "summary"]
+                  },
+                  active_listening: {
+                    type: "object",
+                    properties: {
+                      score: { type: "number", description: "Score 0-100 for Active Listening skills" },
+                      summary: { type: "string", description: "1-sentence summary of Active Listening performance" }
+                    },
+                    required: ["score", "summary"]
+                  }
+                },
+                required: ["bant", "gap_selling", "active_listening"]
+              },
+              bant_improvements: { type: "array", items: { type: "string" }, description: "1-2 specific improvements for BANT qualification" },
+              gap_selling_improvements: { type: "array", items: { type: "string" }, description: "1-2 specific improvements for Gap Selling" },
+              active_listening_improvements: { type: "array", items: { type: "string" }, description: "1-2 specific improvements for Active Listening" },
+              critical_info_missing: { type: "array", items: { type: "string" }, description: "3-5 critical pieces of information needed to close the deal" },
+              recommended_follow_up_questions: { type: "array", items: { type: "string" }, description: "3-5 recommended follow-up questions for next conversation" },
+              heat_signature: {
+                type: "object",
+                properties: {
+                  score: { type: "number", description: "Deal temperature score 1-10 (10 = hot, ready to close)" },
+                  explanation: { type: "string", description: "Explanation of the heat signature score" }
+                },
+                required: ["score", "explanation"]
+              }
+            },
+            required: [
+              "call_type",
+              "duration_minutes",
+              "framework_scores",
+              "bant_improvements",
+              "gap_selling_improvements",
+              "active_listening_improvements",
+              "critical_info_missing",
+              "recommended_follow_up_questions",
+              "heat_signature"
+            ]
           }
         },
         required: [
@@ -404,7 +536,8 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
           "deal_tags",
           "meta_tags",
           "call_notes",
-          "recap_email_draft"
+          "recap_email_draft",
+          "coach_output"
         ]
       }
     }
@@ -466,7 +599,8 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
     'call_summary', 'confidence', 'discovery_score', 'objection_handling_score',
     'rapport_communication_score', 'product_knowledge_score', 'deal_advancement_score',
     'call_effectiveness_score', 'trend_indicators', 'deal_gaps', 'strengths',
-    'opportunities', 'skill_tags', 'deal_tags', 'meta_tags', 'call_notes', 'recap_email_draft'
+    'opportunities', 'skill_tags', 'deal_tags', 'meta_tags', 'call_notes', 'recap_email_draft',
+    'coach_output'
   ];
 
   for (const field of requiredFields) {
@@ -496,12 +630,19 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
     throw new Error('AI analysis recap_email_draft must include required StormWind links');
   }
 
+  // Validate coach_output structure
+  const coachOutput = analysisData.coach_output as CoachOutput;
+  if (!coachOutput || typeof coachOutput !== 'object') {
+    console.error('[analyze-call] coach_output is not a valid object');
+    throw new Error('AI analysis coach_output must be a valid object');
+  }
+
   // Build the result object
   const result: AnalysisResult = {
     call_id: transcript.id,
     rep_id: transcript.rep_id,
     model_name: 'google/gemini-2.5-flash',
-    prompt_version: 'v2',
+    prompt_version: 'v3-coach',
     confidence: Number(analysisData.confidence) || 0.5,
     call_summary: String(analysisData.call_summary),
     discovery_score: Number(analysisData.discovery_score),
@@ -519,10 +660,11 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
     meta_tags: analysisData.meta_tags as string[],
     call_notes: String(callNotes),
     recap_email_draft: String(recapEmail),
+    coach_output: coachOutput,
     raw_json: analysisData
   };
 
-  console.log('[analyze-call] Analysis parsed successfully with call_notes and recap_email_draft');
+  console.log('[analyze-call] Analysis parsed successfully with call_notes, recap_email_draft, and coach_output');
   return result;
 }
 
