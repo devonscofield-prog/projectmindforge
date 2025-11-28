@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Brain, TrendingUp, AlertTriangle, Sparkles } from 'lucide-react';
+import { Brain, TrendingUp, AlertTriangle, Sparkles, Target, Ear, Flame } from 'lucide-react';
 import { listRecentAiAnalysisForRep, CallAnalysis } from '@/api/aiCallAnalysis';
 
 interface AICoachingSnapshotProps {
@@ -16,6 +16,14 @@ interface AverageScores {
   productKnowledge: number | null;
   dealAdvancement: number | null;
   callEffectiveness: number | null;
+}
+
+interface CoachAverages {
+  bant: number | null;
+  gapSelling: number | null;
+  activeListening: number | null;
+  heatSignature: number | null;
+  callCount: number;
 }
 
 function computeAverages(analyses: CallAnalysis[]): AverageScores {
@@ -42,6 +50,46 @@ function computeAverages(analyses: CallAnalysis[]): AverageScores {
     productKnowledge: sum('product_knowledge_score'),
     dealAdvancement: sum('deal_advancement_score'),
     callEffectiveness: sum('call_effectiveness_score'),
+  };
+}
+
+function computeCoachAverages(analyses: CallAnalysis[]): CoachAverages {
+  const analysesWithCoach = analyses.filter(a => a.coach_output);
+  
+  if (analysesWithCoach.length === 0) {
+    return {
+      bant: null,
+      gapSelling: null,
+      activeListening: null,
+      heatSignature: null,
+      callCount: 0,
+    };
+  }
+
+  const bantScores = analysesWithCoach
+    .map(a => a.coach_output?.framework_scores?.bant?.score)
+    .filter((v): v is number => typeof v === 'number');
+  
+  const gapSellingScores = analysesWithCoach
+    .map(a => a.coach_output?.framework_scores?.gap_selling?.score)
+    .filter((v): v is number => typeof v === 'number');
+  
+  const activeListeningScores = analysesWithCoach
+    .map(a => a.coach_output?.framework_scores?.active_listening?.score)
+    .filter((v): v is number => typeof v === 'number');
+  
+  const heatScores = analysesWithCoach
+    .map(a => a.coach_output?.heat_signature?.score)
+    .filter((v): v is number => typeof v === 'number');
+
+  const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
+
+  return {
+    bant: avg(bantScores),
+    gapSelling: avg(gapSellingScores),
+    activeListening: avg(activeListeningScores),
+    heatSignature: avg(heatScores),
+    callCount: analysesWithCoach.length,
   };
 }
 
@@ -181,6 +229,7 @@ export function AICoachingSnapshot({ repId }: AICoachingSnapshotProps) {
   }
 
   const averages = computeAverages(analyses);
+  const coachAverages = computeCoachAverages(analyses);
   const topSkills = getTopSkillTags(analyses);
   const topGaps = getTopDealGaps(analyses);
 
@@ -193,6 +242,8 @@ export function AICoachingSnapshot({ repId }: AICoachingSnapshotProps) {
     { label: 'Effectiveness', value: averages.callEffectiveness },
   ].filter(s => s.value !== null);
 
+  const hasCoachData = coachAverages.callCount > 0;
+
   return (
     <Card>
       <CardHeader>
@@ -204,7 +255,7 @@ export function AICoachingSnapshot({ repId }: AICoachingSnapshotProps) {
           Based on {analyses.length} recent call{analyses.length !== 1 ? 's' : ''}
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-6">
         <div className="grid md:grid-cols-3 gap-6">
           {/* Average Scores */}
           <div className="space-y-3">
@@ -258,6 +309,53 @@ export function AICoachingSnapshot({ repId }: AICoachingSnapshotProps) {
             )}
           </div>
         </div>
+
+        {/* AI Coach Insights Section */}
+        {hasCoachData && (
+          <div className="pt-4 border-t">
+            <h4 className="text-sm font-medium flex items-center gap-1.5 mb-4">
+              <Flame className="h-4 w-4 text-orange-500" />
+              AI Coach Insights (Last {coachAverages.callCount} Call{coachAverages.callCount !== 1 ? 's' : ''})
+            </h4>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {/* BANT */}
+              <div className="text-center p-3 bg-muted rounded-lg">
+                <Target className="h-4 w-4 mx-auto mb-1 text-blue-500" />
+                <div className="text-lg font-bold">
+                  {coachAverages.bant !== null ? Math.round(coachAverages.bant) : '-'}
+                </div>
+                <div className="text-xs text-muted-foreground">Avg BANT</div>
+              </div>
+
+              {/* Gap Selling */}
+              <div className="text-center p-3 bg-muted rounded-lg">
+                <TrendingUp className="h-4 w-4 mx-auto mb-1 text-green-500" />
+                <div className="text-lg font-bold">
+                  {coachAverages.gapSelling !== null ? Math.round(coachAverages.gapSelling) : '-'}
+                </div>
+                <div className="text-xs text-muted-foreground">Avg Gap Selling</div>
+              </div>
+
+              {/* Active Listening */}
+              <div className="text-center p-3 bg-muted rounded-lg">
+                <Ear className="h-4 w-4 mx-auto mb-1 text-purple-500" />
+                <div className="text-lg font-bold">
+                  {coachAverages.activeListening !== null ? Math.round(coachAverages.activeListening) : '-'}
+                </div>
+                <div className="text-xs text-muted-foreground">Avg Listening</div>
+              </div>
+
+              {/* Heat Signature */}
+              <div className="text-center p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg">
+                <Flame className="h-4 w-4 mx-auto mb-1 text-orange-500" />
+                <div className="text-lg font-bold text-orange-600 dark:text-orange-400">
+                  {coachAverages.heatSignature !== null ? coachAverages.heatSignature.toFixed(1) : '-'}
+                </div>
+                <div className="text-xs text-muted-foreground">Avg Heat (1-10)</div>
+              </div>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
