@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -44,6 +45,7 @@ export function CallCoachingSection() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   // Form state
   const [transcript, setTranscript] = useState('');
@@ -571,7 +573,7 @@ export function CallCoachingSection() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => loadAnalysis(t.id)}
+                          onClick={() => navigate(`/calls/${t.id}`)}
                         >
                           <Eye className="mr-2 h-4 w-4" />
                           View

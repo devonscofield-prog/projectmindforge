@@ -25,6 +25,9 @@ import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminTeams from "./pages/admin/AdminTeams";
 import AdminUsers from "./pages/admin/AdminUsers";
 
+// Shared pages
+import CallDetailPage from "./pages/calls/CallDetailPage";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -52,6 +55,13 @@ const App = () => (
             <Route path="/rep/activity" element={
               <ProtectedRoute allowedRoles={['rep']}>
                 <RepActivity />
+              </ProtectedRoute>
+            } />
+
+            {/* Shared Call Detail Route */}
+            <Route path="/calls/:id" element={
+              <ProtectedRoute allowedRoles={['rep', 'manager', 'admin']}>
+                <CallDetailPage />
               </ProtectedRoute>
             } />
 
