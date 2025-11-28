@@ -19,7 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { PerformanceTrendCharts } from '@/components/charts/PerformanceTrendCharts';
 import { Profile, RepPerformanceSnapshot, CoachingSession, ActivityLog, ActivityType } from '@/types/database';
-import { ArrowLeft, Plus, AlertCircle, Eye, Loader2, X, Bot, FileText, Mail } from 'lucide-react';
+import { ArrowLeft, Plus, AlertCircle, Eye, Loader2, X, Bot, FileText, Mail, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -584,13 +584,23 @@ export default function RepDetail() {
                           Read-only view of rep's analysis
                         </CardDescription>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setSelectedCallId(null)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigate(`/calls/${selectedCallId}`)}
+                        >
+                          <ExternalLink className="h-4 w-4 mr-1" />
+                          View Full Details
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setSelectedCallId(null)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </CardHeader>
                     <CardContent>
                       {isLoadingAnalysis ? (
@@ -630,8 +640,8 @@ export default function RepDetail() {
                             </div>
                           </div>
 
-                          {/* Call Notes (Read-only markdown) */}
-                          {selectedAnalysis.call_notes && (
+                          {/* Call Notes (Read-only markdown) - Hidden for managers */}
+                          {role !== 'manager' && selectedAnalysis.call_notes && (
                             <div>
                               <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
                                 <FileText className="h-4 w-4" />
@@ -652,8 +662,8 @@ export default function RepDetail() {
                             </div>
                           )}
 
-                          {/* Recap Email Draft (Read-only) */}
-                          {selectedAnalysis.recap_email_draft && (
+                          {/* Recap Email Draft (Read-only) - Hidden for managers */}
+                          {role !== 'manager' && selectedAnalysis.recap_email_draft && (
                             <div>
                               <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
                                 <Mail className="h-4 w-4" />
