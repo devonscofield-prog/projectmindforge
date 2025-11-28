@@ -53,6 +53,7 @@ export type Database = {
           call_id: string
           call_notes: string | null
           call_summary: string
+          coach_output: Json | null
           confidence: number | null
           created_at: string
           deal_advancement_score: number | null
@@ -79,6 +80,7 @@ export type Database = {
           call_id: string
           call_notes?: string | null
           call_summary: string
+          coach_output?: Json | null
           confidence?: number | null
           created_at?: string
           deal_advancement_score?: number | null
@@ -105,6 +107,7 @@ export type Database = {
           call_id?: string
           call_notes?: string | null
           call_summary?: string
+          coach_output?: Json | null
           confidence?: number | null
           created_at?: string
           deal_advancement_score?: number | null

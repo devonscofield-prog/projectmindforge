@@ -32,6 +32,25 @@ interface AnalyzeCallResponse {
   error?: string;
 }
 
+export interface CoachOutput {
+  call_type: string | null;
+  duration_minutes: number | null;
+  framework_scores: {
+    bant: { score: number; summary: string };
+    gap_selling: { score: number; summary: string };
+    active_listening: { score: number; summary: string };
+  };
+  bant_improvements: string[];
+  gap_selling_improvements: string[];
+  active_listening_improvements: string[];
+  critical_info_missing: string[];
+  recommended_follow_up_questions: string[];
+  heat_signature: {
+    score: number;
+    explanation: string;
+  };
+}
+
 interface CallAnalysis {
   id: string;
   call_id: string;
@@ -56,6 +75,7 @@ interface CallAnalysis {
   call_notes: string | null;
   recap_email_draft: string | null;
   raw_json: Record<string, unknown> | null;
+  coach_output?: CoachOutput | null;
   created_at: string;
 }
 
@@ -177,7 +197,7 @@ export async function getCallWithAnalysis(callId: string): Promise<{
 
   return {
     transcript: transcript as CallTranscript,
-    analysis: analysis as CallAnalysis | null,
+    analysis: analysis as unknown as CallAnalysis | null,
   };
 }
 
@@ -198,7 +218,7 @@ export async function getAnalysisForCall(callId: string): Promise<CallAnalysis |
     throw new Error(`Failed to get call analysis: ${error.message}`);
   }
 
-  return data as CallAnalysis | null;
+  return data as unknown as CallAnalysis | null;
 }
 
 /**
@@ -220,7 +240,7 @@ export async function listRecentAiAnalysisForRep(repId: string, limit: number = 
     throw new Error(`Failed to list AI analyses: ${error.message}`);
   }
 
-  return (data || []) as CallAnalysis[];
+  return (data || []) as unknown as CallAnalysis[];
 }
 
 /**
@@ -250,7 +270,7 @@ export async function getLatestAiAnalysisForReps(repIds: string[]): Promise<Map<
   repIds.forEach(id => result.set(id, null));
 
   if (data) {
-    for (const analysis of data as CallAnalysis[]) {
+    for (const analysis of data as unknown as CallAnalysis[]) {
       if (!result.get(analysis.rep_id)) {
         result.set(analysis.rep_id, analysis);
       }
