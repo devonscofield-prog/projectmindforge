@@ -2,16 +2,20 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useParams, Link } from 'react-router-dom';
+import { format } from 'date-fns';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import { getCoachingSummaryForRep, CoachingSummary } from '@/api/aiCallAnalysis';
 import { supabase } from '@/integrations/supabase/client';
 import { FrameworkTrendChart } from '@/components/coaching/FrameworkTrendChart';
 import { CoachingPatternCard } from '@/components/coaching/CoachingPatternCard';
+import { cn } from '@/lib/utils';
 import {
   ArrowLeft,
   BarChart3,
@@ -26,6 +30,7 @@ import {
   Tag,
   TrendingDown,
   Minus,
+  CalendarIcon,
 } from 'lucide-react';
 
 const TIME_RANGES = [
@@ -38,7 +43,17 @@ const TIME_RANGES = [
 export default function RepCoachingSummary() {
   const { user, role } = useAuth();
   const { repId } = useParams<{ repId?: string }>();
-  const [daysBack, setDaysBack] = useState('30');
+  
+  // Date range state
+  const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>(() => {
+    const to = new Date();
+    to.setHours(23, 59, 59, 999);
+    const from = new Date();
+    from.setDate(from.getDate() - 30);
+    from.setHours(0, 0, 0, 0);
+    return { from, to };
+  });
+  const [selectedPreset, setSelectedPreset] = useState<string>('30');
   
   // Determine if viewing own summary or another rep's (for managers)
   const targetRepId = repId || user?.id;
@@ -60,10 +75,39 @@ export default function RepCoachingSummary() {
   });
 
   const { data: summary, isLoading, error } = useQuery({
-    queryKey: ['coaching-summary', targetRepId, daysBack],
-    queryFn: () => getCoachingSummaryForRep(targetRepId!, parseInt(daysBack)),
+    queryKey: ['coaching-summary', targetRepId, dateRange.from.toISOString(), dateRange.to.toISOString()],
+    queryFn: () => getCoachingSummaryForRep(targetRepId!, dateRange),
     enabled: !!targetRepId,
   });
+
+  const handlePresetChange = (value: string) => {
+    setSelectedPreset(value);
+    if (value !== 'custom') {
+      const days = parseInt(value);
+      const to = new Date();
+      to.setHours(23, 59, 59, 999);
+      const from = new Date();
+      from.setDate(from.getDate() - days);
+      from.setHours(0, 0, 0, 0);
+      setDateRange({ from, to });
+    }
+  };
+
+  const handleFromDateChange = (date: Date | undefined) => {
+    if (date) {
+      date.setHours(0, 0, 0, 0);
+      setDateRange(prev => ({ ...prev, from: date }));
+      setSelectedPreset('custom');
+    }
+  };
+
+  const handleToDateChange = (date: Date | undefined) => {
+    if (date) {
+      date.setHours(23, 59, 59, 999);
+      setDateRange(prev => ({ ...prev, to: date }));
+      setSelectedPreset('custom');
+    }
+  };
 
   const getBackPath = () => {
     if (role === 'manager' && repId) return `/manager/rep/${repId}`;
@@ -114,9 +158,11 @@ export default function RepCoachingSummary() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <Select value={daysBack} onValueChange={setDaysBack}>
-              <SelectTrigger className="w-[160px]">
+          
+          {/* Date Range Controls */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={selectedPreset} onValueChange={handlePresetChange}>
+              <SelectTrigger className="w-[140px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -125,8 +171,53 @@ export default function RepCoachingSummary() {
                     {range.label}
                   </SelectItem>
                 ))}
+                <SelectItem value="custom">Custom Range</SelectItem>
               </SelectContent>
             </Select>
+            
+            {selectedPreset === 'custom' && (
+              <div className="flex items-center gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="w-[130px] justify-start text-left font-normal">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {format(dateRange.from, 'MMM d, yyyy')}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={dateRange.from}
+                      onSelect={handleFromDateChange}
+                      disabled={(date) => date > dateRange.to || date > new Date()}
+                      initialFocus
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </PopoverContent>
+                </Popover>
+                
+                <span className="text-muted-foreground text-sm">to</span>
+                
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="w-[130px] justify-start text-left font-normal">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {format(dateRange.to, 'MMM d, yyyy')}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={dateRange.to}
+                      onSelect={handleToDateChange}
+                      disabled={(date) => date < dateRange.from || date > new Date()}
+                      initialFocus
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
           </div>
         </div>
 
