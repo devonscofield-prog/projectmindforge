@@ -593,7 +593,7 @@ export default function RepDetail() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Date</TableHead>
-                        <TableHead>Prospect / Account</TableHead>
+                        <TableHead>Stakeholder / Account</TableHead>
                         <TableHead>Call Type</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
@@ -697,7 +697,7 @@ export default function RepDetail() {
                         <TableHeader>
                           <TableRow>
                             <TableHead>Date</TableHead>
-                            <TableHead>Prospect / Account</TableHead>
+                            <TableHead>Stakeholder / Account</TableHead>
                             <TableHead>Call Type</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
