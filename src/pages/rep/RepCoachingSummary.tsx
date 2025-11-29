@@ -70,6 +70,8 @@ function createPreviousPeriodRange(dateRange: { from: Date; to: Date }): { from:
   return { from, to };
 }
 
+type QuickFixType = 'shift-period-a' | 'match-duration' | 'use-previous-period';
+
 interface PeriodValidation {
   hasOverlap: boolean;
   overlapDays: number;
@@ -77,14 +79,14 @@ interface PeriodValidation {
   periodADays: number;
   periodBDays: number;
   daysDifference: number;
-  warnings: Array<{ type: 'error' | 'warning' | 'info'; message: string }>;
+  warnings: Array<{ type: 'error' | 'warning' | 'info'; message: string; quickFix?: QuickFixType }>;
 }
 
 function validatePeriods(
   periodA: { from: Date; to: Date },
   periodB: { from: Date; to: Date }
 ): PeriodValidation {
-  const warnings: Array<{ type: 'error' | 'warning' | 'info'; message: string }> = [];
+  const warnings: Array<{ type: 'error' | 'warning' | 'info'; message: string; quickFix?: QuickFixType }> = [];
   
   // Calculate period durations
   const periodADays = Math.ceil((periodA.to.getTime() - periodA.from.getTime()) / (1000 * 60 * 60 * 24));
@@ -99,7 +101,8 @@ function validatePeriods(
   if (isIdentical) {
     warnings.push({
       type: 'error',
-      message: 'Both periods are identical. Select different date ranges to compare.'
+      message: 'Both periods are identical. Select different date ranges to compare.',
+      quickFix: 'use-previous-period'
     });
   }
   
@@ -112,7 +115,8 @@ function validatePeriods(
   if (hasOverlap && overlapDays > 0) {
     warnings.push({
       type: 'warning',
-      message: `Periods overlap by ${overlapDays} day${overlapDays > 1 ? 's' : ''}. This may skew comparison results.`
+      message: `Periods overlap by ${overlapDays} day${overlapDays > 1 ? 's' : ''}. This may skew comparison results.`,
+      quickFix: 'shift-period-a'
     });
   }
   
@@ -120,7 +124,8 @@ function validatePeriods(
   if (!isIdentical && daysDifference > 7 && daysDifference > Math.min(periodADays, periodBDays) * 0.3) {
     warnings.push({
       type: 'info',
-      message: `Period lengths differ by ${daysDifference} days. Results will be normalized but may vary.`
+      message: `Period lengths differ by ${daysDifference} days. Results will be normalized but may vary.`,
+      quickFix: 'match-duration'
     });
   }
   
@@ -551,7 +556,7 @@ export default function RepCoachingSummary() {
               </>
             )}
             
-            {/* Period Validation Warnings */}
+            {/* Period Validation Warnings with Quick Fixes */}
             {isComparisonMode && periodValidation && periodValidation.warnings.length > 0 && (
               <div className="w-full space-y-2 mt-2">
                 {periodValidation.warnings.map((warning, index) => (
@@ -567,8 +572,53 @@ export default function RepCoachingSummary() {
                     {warning.type === 'error' && <AlertTriangle className="h-4 w-4" />}
                     {warning.type === 'warning' && <AlertTriangle className="h-4 w-4 text-yellow-600" />}
                     {warning.type === 'info' && <Info className="h-4 w-4 text-blue-600" />}
-                    <AlertDescription className="text-sm">
-                      {warning.message}
+                    <AlertDescription className="text-sm flex items-center justify-between gap-4">
+                      <span>{warning.message}</span>
+                      {warning.quickFix && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className={cn(
+                            "shrink-0 h-7 text-xs",
+                            warning.type === 'error' && "border-destructive/50 hover:bg-destructive/10",
+                            warning.type === 'warning' && "border-yellow-500/50 hover:bg-yellow-500/10 text-yellow-700 dark:text-yellow-400",
+                            warning.type === 'info' && "border-blue-500/50 hover:bg-blue-500/10 text-blue-700 dark:text-blue-400"
+                          )}
+                          onClick={() => {
+                            if (warning.quickFix === 'use-previous-period') {
+                              // Set Period A to the previous period
+                              setComparisonDateRange(createPreviousPeriodRange(dateRange));
+                              setComparisonPreset('previous');
+                              setComparisonConfirmed(false);
+                            } else if (warning.quickFix === 'shift-period-a') {
+                              // Shift Period A back to eliminate overlap
+                              const periodBDays = Math.ceil((dateRange.to.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24));
+                              const newTo = new Date(dateRange.from);
+                              newTo.setDate(newTo.getDate() - 1);
+                              newTo.setHours(23, 59, 59, 999);
+                              const newFrom = new Date(newTo);
+                              newFrom.setDate(newFrom.getDate() - periodBDays);
+                              newFrom.setHours(0, 0, 0, 0);
+                              setComparisonDateRange({ from: newFrom, to: newTo });
+                              setComparisonPreset('custom');
+                              setComparisonConfirmed(false);
+                            } else if (warning.quickFix === 'match-duration') {
+                              // Match Period A duration to Period B
+                              const periodBDays = Math.ceil((dateRange.to.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24));
+                              const newFrom = new Date(comparisonDateRange.to);
+                              newFrom.setDate(newFrom.getDate() - periodBDays);
+                              newFrom.setHours(0, 0, 0, 0);
+                              setComparisonDateRange(prev => ({ ...prev, from: newFrom }));
+                              setComparisonPreset('custom');
+                              setComparisonConfirmed(false);
+                            }
+                          }}
+                        >
+                          {warning.quickFix === 'use-previous-period' && 'Use Previous Period'}
+                          {warning.quickFix === 'shift-period-a' && 'Fix Overlap'}
+                          {warning.quickFix === 'match-duration' && 'Match Duration'}
+                        </Button>
+                      )}
                     </AlertDescription>
                   </Alert>
                 ))}
