@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useParams, Link } from 'react-router-dom';
@@ -46,6 +46,9 @@ import {
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+
+// Debounce delay for date changes (ms)
+const DATE_CHANGE_DEBOUNCE = 500;
 
 const TIME_RANGES = [
   { value: '7', label: 'Last 7 days' },
@@ -149,13 +152,21 @@ export default function RepCoachingSummary() {
   const { repId } = useParams<{ repId?: string }>();
   const queryClient = useQueryClient();
   
-  // Date range state
+  // Debounce timer ref
+  const dateChangeTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Date range state (internal for immediate UI updates)
+  const [dateRangeInternal, setDateRangeInternal] = useState<{ from: Date; to: Date }>(() => createDateRange(30));
+  // Debounced date range (triggers query)
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>(() => createDateRange(30));
   const [selectedPreset, setSelectedPreset] = useState<string>('30');
   
   // Comparison mode state
   const [isComparisonMode, setIsComparisonMode] = useState(false);
   const [comparisonConfirmed, setComparisonConfirmed] = useState(false);
+  const [comparisonDateRangeInternal, setComparisonDateRangeInternal] = useState<{ from: Date; to: Date }>(() => 
+    createPreviousPeriodRange(createDateRange(30))
+  );
   const [comparisonDateRange, setComparisonDateRange] = useState<{ from: Date; to: Date }>(() => 
     createPreviousPeriodRange(createDateRange(30))
   );
@@ -177,6 +188,28 @@ export default function RepCoachingSummary() {
   // Determine if viewing own summary or another rep's (for managers)
   const targetRepId = repId || user?.id;
   const isOwnSummary = !repId || repId === user?.id;
+
+  // Debounced date range update helper
+  const debounceDateRangeUpdate = useCallback((
+    newRange: { from: Date; to: Date },
+    setInternal: React.Dispatch<React.SetStateAction<{ from: Date; to: Date }>>,
+    setDebounced: React.Dispatch<React.SetStateAction<{ from: Date; to: Date }>>,
+    additionalCallback?: () => void
+  ) => {
+    // Update internal state immediately for UI responsiveness
+    setInternal(newRange);
+    
+    // Clear existing timer
+    if (dateChangeTimerRef.current) {
+      clearTimeout(dateChangeTimerRef.current);
+    }
+    
+    // Set debounced update
+    dateChangeTimerRef.current = setTimeout(() => {
+      setDebounced(newRange);
+      additionalCallback?.();
+    }, DATE_CHANGE_DEBOUNCE);
+  }, []);
 
   // Fetch rep profile if viewing another rep
   const { data: repProfile } = useQuery({
@@ -228,10 +261,14 @@ export default function RepCoachingSummary() {
     setLoadedAnalysis(null); // Clear loaded analysis when date changes
     if (value !== 'custom') {
       const newRange = createDateRange(parseInt(value));
+      // Update both internal and debounced immediately for presets
+      setDateRangeInternal(newRange);
       setDateRange(newRange);
       // Update comparison range to previous period
       if (isComparisonMode && comparisonPreset === 'previous') {
-        setComparisonDateRange(createPreviousPeriodRange(newRange));
+        const compRange = createPreviousPeriodRange(newRange);
+        setComparisonDateRangeInternal(compRange);
+        setComparisonDateRange(compRange);
       }
       // Reset comparison confirmed when date changes
       if (isComparisonMode) {
@@ -243,39 +280,49 @@ export default function RepCoachingSummary() {
   const handleFromDateChange = (date: Date | undefined) => {
     if (date) {
       date.setHours(0, 0, 0, 0);
-      const newRange = { ...dateRange, from: date };
-      setDateRange(newRange);
+      const newRange = { ...dateRangeInternal, from: date };
       setSelectedPreset('custom');
-      setLoadedAnalysis(null); // Clear loaded analysis when date changes
-      if (isComparisonMode && comparisonPreset === 'previous') {
-        setComparisonDateRange(createPreviousPeriodRange(newRange));
-      }
-      if (isComparisonMode) {
-        setComparisonConfirmed(false);
-      }
+      setLoadedAnalysis(null);
+      
+      debounceDateRangeUpdate(newRange, setDateRangeInternal, setDateRange, () => {
+        if (isComparisonMode && comparisonPreset === 'previous') {
+          const compRange = createPreviousPeriodRange(newRange);
+          setComparisonDateRangeInternal(compRange);
+          setComparisonDateRange(compRange);
+        }
+        if (isComparisonMode) {
+          setComparisonConfirmed(false);
+        }
+      });
     }
   };
 
   const handleToDateChange = (date: Date | undefined) => {
     if (date) {
       date.setHours(23, 59, 59, 999);
-      const newRange = { ...dateRange, to: date };
-      setDateRange(newRange);
+      const newRange = { ...dateRangeInternal, to: date };
       setSelectedPreset('custom');
-      setLoadedAnalysis(null); // Clear loaded analysis when date changes
-      if (isComparisonMode && comparisonPreset === 'previous') {
-        setComparisonDateRange(createPreviousPeriodRange(newRange));
-      }
-      if (isComparisonMode) {
-        setComparisonConfirmed(false);
-      }
+      setLoadedAnalysis(null);
+      
+      debounceDateRangeUpdate(newRange, setDateRangeInternal, setDateRange, () => {
+        if (isComparisonMode && comparisonPreset === 'previous') {
+          const compRange = createPreviousPeriodRange(newRange);
+          setComparisonDateRangeInternal(compRange);
+          setComparisonDateRange(compRange);
+        }
+        if (isComparisonMode) {
+          setComparisonConfirmed(false);
+        }
+      });
     }
   };
 
   const handleComparisonPresetChange = (value: string) => {
     setComparisonPreset(value);
     if (value === 'previous') {
-      setComparisonDateRange(createPreviousPeriodRange(dateRange));
+      const compRange = createPreviousPeriodRange(dateRange);
+      setComparisonDateRangeInternal(compRange);
+      setComparisonDateRange(compRange);
     }
     setComparisonConfirmed(false);
   };
@@ -283,18 +330,24 @@ export default function RepCoachingSummary() {
   const handleComparisonFromDateChange = (date: Date | undefined) => {
     if (date) {
       date.setHours(0, 0, 0, 0);
-      setComparisonDateRange(prev => ({ ...prev, from: date }));
+      const newRange = { ...comparisonDateRangeInternal, from: date };
       setComparisonPreset('custom');
-      setComparisonConfirmed(false);
+      
+      debounceDateRangeUpdate(newRange, setComparisonDateRangeInternal, setComparisonDateRange, () => {
+        setComparisonConfirmed(false);
+      });
     }
   };
 
   const handleComparisonToDateChange = (date: Date | undefined) => {
     if (date) {
       date.setHours(23, 59, 59, 999);
-      setComparisonDateRange(prev => ({ ...prev, to: date }));
+      const newRange = { ...comparisonDateRangeInternal, to: date };
       setComparisonPreset('custom');
-      setComparisonConfirmed(false);
+      
+      debounceDateRangeUpdate(newRange, setComparisonDateRangeInternal, setComparisonDateRange, () => {
+        setComparisonConfirmed(false);
+      });
     }
   };
 
@@ -302,7 +355,9 @@ export default function RepCoachingSummary() {
     setIsComparisonMode(checked);
     if (checked) {
       // Reset comparison date range to previous period
-      setComparisonDateRange(createPreviousPeriodRange(dateRange));
+      const compRange = createPreviousPeriodRange(dateRange);
+      setComparisonDateRangeInternal(compRange);
+      setComparisonDateRange(compRange);
       setComparisonPreset('previous');
       setComparisonConfirmed(false);
     } else {
@@ -491,15 +546,15 @@ export default function RepCoachingSummary() {
                       <PopoverTrigger asChild>
                         <Button variant="outline" size="sm" className="w-[120px] justify-start text-left font-normal">
                           <CalendarIcon className="mr-2 h-4 w-4" />
-                          {format(dateRange.from, 'MMM d, yy')}
+                          {format(dateRangeInternal.from, 'MMM d, yy')}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
                         <Calendar
                           mode="single"
-                          selected={dateRange.from}
+                          selected={dateRangeInternal.from}
                           onSelect={handleFromDateChange}
-                          disabled={(date) => date > dateRange.to || date > new Date()}
+                          disabled={(date) => date > dateRangeInternal.to || date > new Date()}
                           initialFocus
                           className={cn("p-3 pointer-events-auto")}
                         />
@@ -512,15 +567,15 @@ export default function RepCoachingSummary() {
                       <PopoverTrigger asChild>
                         <Button variant="outline" size="sm" className="w-[120px] justify-start text-left font-normal">
                           <CalendarIcon className="mr-2 h-4 w-4" />
-                          {format(dateRange.to, 'MMM d, yy')}
+                          {format(dateRangeInternal.to, 'MMM d, yy')}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
                         <Calendar
                           mode="single"
-                          selected={dateRange.to}
+                          selected={dateRangeInternal.to}
                           onSelect={handleToDateChange}
-                          disabled={(date) => date < dateRange.from || date > new Date()}
+                          disabled={(date) => date < dateRangeInternal.from || date > new Date()}
                           initialFocus
                           className={cn("p-3 pointer-events-auto")}
                         />
@@ -556,15 +611,15 @@ export default function RepCoachingSummary() {
                           <PopoverTrigger asChild>
                             <Button variant="outline" size="sm" className="w-[120px] justify-start text-left font-normal">
                               <CalendarIcon className="mr-2 h-4 w-4" />
-                              {format(comparisonDateRange.from, 'MMM d, yy')}
+                              {format(comparisonDateRangeInternal.from, 'MMM d, yy')}
                             </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
                             <Calendar
                               mode="single"
-                              selected={comparisonDateRange.from}
+                              selected={comparisonDateRangeInternal.from}
                               onSelect={handleComparisonFromDateChange}
-                              disabled={(date) => date > comparisonDateRange.to || date > new Date()}
+                              disabled={(date) => date > comparisonDateRangeInternal.to || date > new Date()}
                               initialFocus
                               className={cn("p-3 pointer-events-auto")}
                             />
@@ -577,15 +632,15 @@ export default function RepCoachingSummary() {
                           <PopoverTrigger asChild>
                             <Button variant="outline" size="sm" className="w-[120px] justify-start text-left font-normal">
                               <CalendarIcon className="mr-2 h-4 w-4" />
-                              {format(comparisonDateRange.to, 'MMM d, yy')}
+                              {format(comparisonDateRangeInternal.to, 'MMM d, yy')}
                             </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
                             <Calendar
                               mode="single"
-                              selected={comparisonDateRange.to}
+                              selected={comparisonDateRangeInternal.to}
                               onSelect={handleComparisonToDateChange}
-                              disabled={(date) => date < comparisonDateRange.from || date > new Date()}
+                              disabled={(date) => date < comparisonDateRangeInternal.from || date > new Date()}
                               initialFocus
                               className={cn("p-3 pointer-events-auto")}
                             />

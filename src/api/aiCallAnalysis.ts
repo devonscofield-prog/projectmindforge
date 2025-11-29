@@ -946,19 +946,45 @@ export async function generateCoachingTrends(
   }));
 
   // 5. Call edge function
-  const { data: trendData, error: funcError } = await supabase.functions.invoke('generate-coaching-trends', {
-    body: { 
-      calls: formattedCalls, 
-      dateRange: {
-        from: fromDate,
-        to: toDate
+  let trendData: any;
+  try {
+    const response = await supabase.functions.invoke('generate-coaching-trends', {
+      body: { 
+        calls: formattedCalls, 
+        dateRange: {
+          from: fromDate,
+          to: toDate
+        }
       }
-    }
-  });
+    });
 
-  if (funcError) {
-    console.error('[generateCoachingTrends] Edge function error:', funcError);
-    throw new Error(`AI trend analysis failed: ${funcError.message}`);
+    if (response.error) {
+      // Check for rate limiting or quota errors
+      const errorMessage = response.error.message?.toLowerCase() || '';
+      const errorContext = response.error.context?.body?.toLowerCase() || '';
+      
+      if (errorMessage.includes('429') || errorMessage.includes('rate') || errorContext.includes('rate limit')) {
+        throw new Error('AI service is temporarily busy. Please wait a moment and try again.');
+      }
+      if (errorMessage.includes('402') || errorMessage.includes('quota') || errorContext.includes('quota')) {
+        throw new Error('AI usage quota exceeded. Please contact support or try again later.');
+      }
+      if (errorMessage.includes('503') || errorMessage.includes('unavailable')) {
+        throw new Error('AI service is temporarily unavailable. Please try again in a few minutes.');
+      }
+      
+      console.error('[generateCoachingTrends] Edge function error:', response.error);
+      throw new Error(`AI trend analysis failed: ${response.error.message}`);
+    }
+
+    trendData = response.data;
+  } catch (err: any) {
+    // Re-throw if it's already a user-friendly error
+    if (err.message?.includes('temporarily') || err.message?.includes('quota') || err.message?.includes('unavailable')) {
+      throw err;
+    }
+    console.error('[generateCoachingTrends] Unexpected error:', err);
+    throw new Error(`AI trend analysis failed: ${err.message || 'Unknown error'}`);
   }
 
   if (!trendData || trendData.error) {
