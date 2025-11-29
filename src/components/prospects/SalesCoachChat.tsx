@@ -109,13 +109,14 @@ export function SalesCoachChat({ prospectId, accountName }: SalesCoachChatProps)
       <SheetTrigger asChild>
         <Button
           size="lg"
-          className="fixed bottom-6 right-6 h-14 px-5 shadow-lg gap-2 z-50"
+          className="fixed bottom-20 right-4 md:bottom-6 md:right-6 h-12 md:h-14 px-4 md:px-5 shadow-lg gap-2 z-40"
         >
           <Sparkles className="h-5 w-5" />
-          Ask Sales Coach
+          <span className="hidden sm:inline">Ask Sales Coach</span>
+          <span className="sm:hidden">Coach</span>
         </Button>
       </SheetTrigger>
-      <SheetContent className="w-full sm:max-w-lg flex flex-col p-0">
+      <SheetContent className="w-full sm:max-w-lg flex flex-col p-0 h-full max-h-[100dvh]">
         <SheetHeader className="px-4 py-3 border-b bg-primary text-primary-foreground">
           <div className="flex items-center gap-3">
             <Avatar className="h-10 w-10 bg-primary-foreground/20">

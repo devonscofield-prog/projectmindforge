@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
+import { CollapsibleSection } from '@/components/ui/collapsible-section';
 import {
   Select,
   SelectContent,
@@ -129,11 +130,11 @@ function HeatScoreDisplay({ score }: { score: number | null }) {
   else colorClass = 'text-blue-600 bg-blue-100 dark:bg-blue-900/30';
 
   return (
-    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${colorClass}`}>
-      <Flame className="h-5 w-5" />
+    <div className={`flex items-center gap-2 px-3 py-2 md:py-3 rounded-lg ${colorClass}`}>
+      <Flame className="h-4 w-4 md:h-5 md:w-5 shrink-0" />
       <div>
-        <p className="text-sm font-medium">Heat Score</p>
-        <p className="text-lg font-bold">{score}/10</p>
+        <p className="text-xs md:text-sm font-medium">Heat Score</p>
+        <p className="text-base md:text-lg font-bold">{score}/10</p>
       </div>
     </div>
   );
@@ -516,34 +517,35 @@ export default function ProspectDetail() {
     <AppLayout>
       <div className="space-y-6">
         {/* Header - Now shows Account Name as primary */}
-        <div className="flex items-start justify-between">
+        {/* Header - Mobile Responsive */}
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
             <Button
               variant="ghost"
               size="sm"
-              className="mb-2"
+              className="mb-2 -ml-2"
               onClick={() => navigate('/rep/prospects')}
             >
               <ArrowLeft className="h-4 w-4 mr-1" />
-              Back to Accounts
+              Back
             </Button>
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Building2 className="h-6 w-6 text-primary" />
+              <div className="p-2 rounded-lg bg-primary/10 shrink-0">
+                <Building2 className="h-5 w-5 md:h-6 md:w-6 text-primary" />
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-3xl font-bold tracking-tight">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-xl md:text-3xl font-bold tracking-tight truncate">
                     {prospect.account_name || prospect.prospect_name}
                   </h1>
                   {prospect.industry && (
-                    <Badge variant="secondary" className="text-sm">
+                    <Badge variant="secondary" className="text-xs md:text-sm shrink-0">
                       {industryOptions.find(i => i.value === prospect.industry)?.label || prospect.industry}
                     </Badge>
                   )}
                 </div>
                 {primaryStakeholder && (
-                  <p className="text-muted-foreground">
+                  <p className="text-sm text-muted-foreground truncate">
                     Primary: {primaryStakeholder.name}
                     {primaryStakeholder.job_title && ` • ${primaryStakeholder.job_title}`}
                   </p>
@@ -551,9 +553,9 @@ export default function ProspectDetail() {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <Select value={prospect.status} onValueChange={(v) => handleStatusChange(v as ProspectStatus)}>
-              <SelectTrigger className="w-[140px]">
+              <SelectTrigger className="w-[120px] sm:w-[140px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -565,7 +567,7 @@ export default function ProspectDetail() {
               </SelectContent>
             </Select>
             {prospect.salesforce_link && (
-              <Button variant="outline" asChild>
+              <Button variant="outline" size="sm" asChild className="hidden sm:flex">
                 <a href={prospect.salesforce_link} target="_blank" rel="noopener noreferrer">
                   <ExternalLink className="h-4 w-4 mr-2" />
                   Salesforce
@@ -575,92 +577,86 @@ export default function ProspectDetail() {
           </div>
         </div>
 
-        {/* Quick Stats */}
-        <div className="grid gap-4 md:grid-cols-4">
+        {/* Quick Stats - 2 cols mobile, 4 cols desktop */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
           <HeatScoreDisplay score={prospect.heat_score} />
           <Card>
-            <CardContent className="p-4">
+            <CardContent className="p-3 md:p-4">
               <div className="flex items-center gap-2">
-                <DollarSign className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Potential Revenue</p>
-                  <p className="text-lg font-bold">{formatCurrency(prospect.potential_revenue)}</p>
+                <DollarSign className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs md:text-sm text-muted-foreground">Revenue</p>
+                  <p className="text-base md:text-lg font-bold truncate">{formatCurrency(prospect.potential_revenue)}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="p-4">
+            <CardContent className="p-3 md:p-4">
               <div className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-muted-foreground" />
+                <Users className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground shrink-0" />
                 <div>
-                  <p className="text-sm text-muted-foreground">Stakeholders</p>
-                  <p className="text-lg font-bold">{stakeholders.length}</p>
+                  <p className="text-xs md:text-sm text-muted-foreground">Stakeholders</p>
+                  <p className="text-base md:text-lg font-bold">{stakeholders.length}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="p-4">
+            <CardContent className="p-3 md:p-4">
               <div className="flex items-center gap-2">
-                <Phone className="h-5 w-5 text-muted-foreground" />
+                <Phone className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground shrink-0" />
                 <div>
-                  <p className="text-sm text-muted-foreground">Total Calls</p>
-                  <p className="text-lg font-bold">{calls.length}</p>
+                  <p className="text-xs md:text-sm text-muted-foreground">Total Calls</p>
+                  <p className="text-base md:text-lg font-bold">{calls.length}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Stakeholders Section - NEW */}
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="h-5 w-5 text-primary" />
-                    Stakeholders
-                  </CardTitle>
-                  <CardDescription>
-                    Key contacts at this account
-                  </CardDescription>
-                </div>
+            {/* Stakeholders Section */}
+            <CollapsibleSection
+              title="Stakeholders"
+              description="Key contacts at this account"
+              icon={<Users className="h-5 w-5 text-primary" />}
+              action={
                 <Button size="sm" onClick={() => setIsAddStakeholderOpen(true)}>
                   <Plus className="h-4 w-4 mr-1" />
                   Add
                 </Button>
-              </CardHeader>
-              <CardContent>
-                {stakeholders.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Users className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-                    <p className="text-sm text-muted-foreground">No stakeholders yet</p>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="mt-3"
-                      onClick={() => setIsAddStakeholderOpen(true)}
-                    >
-                      Add First Stakeholder
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {stakeholders.map((stakeholder) => (
-                      <StakeholderCard
-                        key={stakeholder.id}
-                        stakeholder={stakeholder}
-                        onClick={() => handleStakeholderClick(stakeholder)}
-                        onPrimaryChanged={loadProspectData}
-                      />
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+              }
+              defaultOpen={true}
+            >
+              {stakeholders.length === 0 ? (
+                <div className="text-center py-8">
+                  <Users className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground">No stakeholders yet</p>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="mt-3"
+                    onClick={() => setIsAddStakeholderOpen(true)}
+                  >
+                    Add First Stakeholder
+                  </Button>
+                </div>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {stakeholders.map((stakeholder) => (
+                    <StakeholderCard
+                      key={stakeholder.id}
+                      stakeholder={stakeholder}
+                      onClick={() => handleStakeholderClick(stakeholder)}
+                      onPrimaryChanged={loadProspectData}
+                    />
+                  ))}
+                </div>
+              )}
+            </CollapsibleSection>
 
             {/* Relationship Map */}
             {user?.id && (
@@ -927,93 +923,82 @@ export default function ProspectDetail() {
             })()}
 
             {/* Call History */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Call History</CardTitle>
-                <CardDescription>
-                  All calls with this account
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {calls.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No calls recorded yet</p>
-                ) : (
-                  <div className="space-y-2">
-                    {calls.map((call) => (
-                      <Link
-                        key={call.id}
-                        to={`/calls/${call.id}`}
-                        className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <Phone className="h-4 w-4 text-muted-foreground" />
-                          <div>
-                            <p className="text-sm font-medium">
-                              {call.call_type ? call.call_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Call'}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {format(new Date(call.call_date), 'MMM d, yyyy')}
-                            </p>
-                          </div>
+            <CollapsibleSection
+              title="Call History"
+              description="All calls with this account"
+              icon={<Phone className="h-5 w-5 text-primary" />}
+            >
+              {calls.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No calls recorded yet</p>
+              ) : (
+                <div className="space-y-2">
+                  {calls.map((call) => (
+                    <Link
+                      key={call.id}
+                      to={`/calls/${call.id}`}
+                      className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Phone className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <p className="text-sm font-medium">
+                            {call.call_type ? call.call_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Call'}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {format(new Date(call.call_date), 'MMM d, yyyy')}
+                          </p>
                         </div>
-                        <Badge variant={call.analysis_status === 'completed' ? 'secondary' : 'outline'}>
-                          {call.analysis_status}
-                        </Badge>
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                      </div>
+                      <Badge variant={call.analysis_status === 'completed' ? 'secondary' : 'outline'}>
+                        {call.analysis_status}
+                      </Badge>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </CollapsibleSection>
 
             {/* Email Log */}
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Mail className="h-5 w-5 text-primary" />
-                    Email Log
-                  </CardTitle>
-                  <CardDescription>
-                    Logged email communications with this account
-                  </CardDescription>
-                </div>
+            <CollapsibleSection
+              title="Email Log"
+              description="Logged email communications with this account"
+              icon={<Mail className="h-5 w-5 text-primary" />}
+              action={
                 <Button size="sm" onClick={() => setIsAddEmailOpen(true)}>
                   <Plus className="h-4 w-4 mr-1" />
                   Add Email
                 </Button>
-              </CardHeader>
-              <CardContent>
-                {emailLogs.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Mail className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-                    <p className="text-sm text-muted-foreground mb-3">No emails logged yet</p>
-                    <p className="text-xs text-muted-foreground mb-3">
-                      Log emails you've sent or received to help AI generate better follow-up suggestions
-                    </p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setIsAddEmailOpen(true)}
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Log First Email
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {emailLogs.map((email) => (
-                      <EmailLogItem
-                        key={email.id}
-                        email={email}
-                        stakeholder={email.stakeholder_id ? stakeholders.find(s => s.id === email.stakeholder_id) : null}
-                        onDelete={handleDeleteEmailLog}
-                      />
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+              }
+            >
+              {emailLogs.length === 0 ? (
+                <div className="text-center py-8">
+                  <Mail className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground mb-3">No emails logged yet</p>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Log emails you've sent or received to help AI generate better follow-up suggestions
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsAddEmailOpen(true)}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Log First Email
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {emailLogs.map((email) => (
+                    <EmailLogItem
+                      key={email.id}
+                      email={email}
+                      stakeholder={email.stakeholder_id ? stakeholders.find(s => s.id === email.stakeholder_id) : null}
+                      onDelete={handleDeleteEmailLog}
+                    />
+                  ))}
+                </div>
+              )}
+            </CollapsibleSection>
           </div>
 
           {/* Sidebar */}
