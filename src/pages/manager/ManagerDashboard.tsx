@@ -5,58 +5,21 @@ import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { StatusBadge } from '@/components/ui/status-badge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Profile, CoachingSession } from '@/types/database';
-import { Users, TrendingUp, AlertTriangle, Brain, Phone } from 'lucide-react';
+import { Users, Phone } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { getLatestAiAnalysisForReps, getCallCountsLast30DaysForReps, CallAnalysis } from '@/api/aiCallAnalysis';
 
 interface RepWithData extends Profile {
   lastCoaching?: CoachingSession;
-}
-
-interface RepWithRisk extends RepWithData {
-  riskStatus: string;
-  isAtRisk: boolean;
   latestAiAnalysis?: CallAnalysis | null;
-  hasAiGaps: boolean;
   callsLast30Days: number;
 }
 
-type FilterType = 'all' | 'at-risk' | 'on-track' | 'ai-gaps';
-type SortType = 'risk' | 'calls' | 'coaching' | 'ai-score';
-
-function computeRiskStatus(rep: RepWithData): { riskStatus: string; isAtRisk: boolean } {
-  const now = new Date();
-  
-  const daysSinceCoaching = rep.lastCoaching
-    ? differenceInDays(now, new Date(rep.lastCoaching.session_date))
-    : null;
-  
-  const risks: string[] = [];
-  
-  // Check no recent coaching: no session in last 14 days
-  if (daysSinceCoaching === null || daysSinceCoaching > 14) {
-    risks.push('No Recent Coaching');
-  }
-  
-  const isAtRisk = risks.length > 0;
-  const riskStatus = isAtRisk ? `At Risk: ${risks.join(', ')}` : 'On Track';
-  
-  return { riskStatus, isAtRisk };
-}
-
-// Helper to check if a rep has AI gaps
-function hasAiGapsFromAnalysis(analysis: CallAnalysis | null | undefined): boolean {
-  if (!analysis || !analysis.deal_gaps) return false;
-  const gaps = analysis.deal_gaps as { critical_missing_info?: unknown[]; unresolved_objections?: unknown[] };
-  const hasCritical = Array.isArray(gaps.critical_missing_info) && gaps.critical_missing_info.length > 0;
-  const hasUnresolved = Array.isArray(gaps.unresolved_objections) && gaps.unresolved_objections.length > 0;
-  return hasCritical || hasUnresolved;
-}
+type SortType = 'name' | 'calls' | 'coaching';
 
 export default function ManagerDashboard() {
   const { user, role } = useAuth();
@@ -65,8 +28,7 @@ export default function ManagerDashboard() {
   const [aiAnalysisMap, setAiAnalysisMap] = useState<Map<string, CallAnalysis | null>>(new Map());
   const [callCountsMap, setCallCountsMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<FilterType>('all');
-  const [sortBy, setSortBy] = useState<SortType>('risk');
+  const [sortBy, setSortBy] = useState<SortType>('name');
 
   useEffect(() => {
     if (!user) return;
@@ -127,16 +89,16 @@ export default function ManagerDashboard() {
         .order('session_date', { ascending: false });
 
       // Combine data
-      const repsWithData: RepWithData[] = repProfiles.map((rep) => {
+      const repsWithData: Omit<RepWithData, 'latestAiAnalysis' | 'callsLast30Days'>[] = repProfiles.map((rep) => {
         const coaching = coachingSessions?.find((c) => c.rep_id === rep.id);
 
         return {
           ...rep,
           lastCoaching: coaching as unknown as CoachingSession,
-        } as RepWithData;
+        };
       });
 
-      setReps(repsWithData);
+      setReps(repsWithData as RepWithData[]);
 
       // Fetch AI analysis and call counts in parallel
       if (repProfiles.length > 0) {
@@ -158,57 +120,31 @@ export default function ManagerDashboard() {
     fetchData();
   }, [user, role]);
 
-  // Compute risk status for all reps
-  const processedReps: RepWithRisk[] = useMemo(() => {
+  // Process reps with AI analysis and call counts
+  const processedReps: RepWithData[] = useMemo(() => {
     return reps.map((rep) => {
-      const { riskStatus, isAtRisk } = computeRiskStatus(rep);
       const latestAiAnalysis = aiAnalysisMap.get(rep.id) || null;
-      const hasAiGaps = hasAiGapsFromAnalysis(latestAiAnalysis);
       const callsLast30Days = callCountsMap[rep.id] ?? 0;
       return {
         ...rep,
-        riskStatus,
-        isAtRisk,
         latestAiAnalysis,
-        hasAiGaps,
         callsLast30Days,
       };
     });
   }, [reps, aiAnalysisMap, callCountsMap]);
 
   // Calculate summary stats
-  const { atRiskCount, onTrackCount, recentlyCoached, aiGapsCount, totalCalls } = useMemo(() => {
-    const atRisk = processedReps.filter((rep) => rep.isAtRisk).length;
-    const onTrack = processedReps.length - atRisk;
-    const aiGaps = processedReps.filter((rep) => rep.hasAiGaps).length;
-    const total = processedReps.reduce((sum, rep) => sum + rep.callsLast30Days, 0);
-    
-    const coached = processedReps.filter((rep) => {
-      if (!rep.lastCoaching) return false;
-      const daysSince = differenceInDays(new Date(), new Date(rep.lastCoaching.session_date));
-      return daysSince <= 14;
-    }).length;
-
-    return { atRiskCount: atRisk, onTrackCount: onTrack, recentlyCoached: coached, aiGapsCount: aiGaps, totalCalls: total };
+  const totalCalls = useMemo(() => {
+    return processedReps.reduce((sum, rep) => sum + rep.callsLast30Days, 0);
   }, [processedReps]);
 
-  // Filter and sort reps based on selection
-  const filteredReps = useMemo(() => {
-    let result = [...processedReps];
-    
-    if (filter === 'at-risk') {
-      result = result.filter((rep) => rep.isAtRisk);
-    } else if (filter === 'on-track') {
-      result = result.filter((rep) => !rep.isAtRisk);
-    } else if (filter === 'ai-gaps') {
-      result = result.filter((rep) => rep.hasAiGaps);
-    }
+  // Sort reps based on selection
+  const sortedReps = useMemo(() => {
+    const result = [...processedReps];
     
     result.sort((a, b) => {
       switch (sortBy) {
-        case 'risk':
-          if (a.isAtRisk && !b.isAtRisk) return -1;
-          if (!a.isAtRisk && b.isAtRisk) return 1;
+        case 'name':
           return a.name.localeCompare(b.name);
         case 'calls':
           return b.callsLast30Days - a.callsLast30Days;
@@ -217,18 +153,13 @@ export default function ManagerDashboard() {
           const bDate = b.lastCoaching ? new Date(b.lastCoaching.session_date).getTime() : 0;
           return bDate - aDate;
         }
-        case 'ai-score': {
-          const aScore = a.latestAiAnalysis?.call_effectiveness_score ?? -1;
-          const bScore = b.latestAiAnalysis?.call_effectiveness_score ?? -1;
-          return bScore - aScore;
-        }
         default:
           return 0;
       }
     });
     
     return result;
-  }, [processedReps, filter, sortBy]);
+  }, [processedReps, sortBy]);
 
   if (loading) {
     return (
@@ -252,7 +183,7 @@ export default function ManagerDashboard() {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <Card className="border-l-4 border-l-primary">
             <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
               <CardTitle className="text-sm font-medium text-muted-foreground">Total Reps</CardTitle>
@@ -264,28 +195,6 @@ export default function ManagerDashboard() {
             </CardContent>
           </Card>
 
-          <Card className="border-l-4 border-l-success">
-            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-              <CardTitle className="text-sm font-medium text-muted-foreground">On Track</CardTitle>
-              <TrendingUp className="h-4 w-4 text-success" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-success">{onTrackCount}</div>
-              <p className="text-xs text-muted-foreground mt-1">{recentlyCoached} coached in 14 days</p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-l-4 border-l-warning">
-            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-              <CardTitle className="text-sm font-medium text-muted-foreground">At Risk</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-warning" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-warning">{atRiskCount}</div>
-              <p className="text-xs text-muted-foreground mt-1">Need coaching attention</p>
-            </CardContent>
-          </Card>
-
           <Card className="border-l-4 border-l-muted-foreground">
             <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
               <CardTitle className="text-sm font-medium text-muted-foreground">Calls (30d)</CardTitle>
@@ -293,7 +202,7 @@ export default function ManagerDashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">{totalCalls}</div>
-              <p className="text-xs text-muted-foreground mt-1">{aiGapsCount} reps with AI gaps</p>
+              <p className="text-xs text-muted-foreground mt-1">Team call volume</p>
             </CardContent>
           </Card>
         </div>
@@ -303,76 +212,36 @@ export default function ManagerDashboard() {
           <CardHeader className="pb-4">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <CardTitle className="text-xl">Your Reps</CardTitle>
+                <CardTitle className="text-xl">Your Reps ({processedReps.length})</CardTitle>
                 <CardDescription>Click "View Calls" to see a rep's call history and coaching insights</CardDescription>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="inline-flex rounded-lg border bg-muted p-1">
-                  <Button
-                    variant={filter === 'all' ? 'secondary' : 'ghost'}
-                    size="sm"
-                    onClick={() => setFilter('all')}
-                    className="px-3"
-                  >
-                    All ({processedReps.length})
-                  </Button>
-                  <Button
-                    variant={filter === 'at-risk' ? 'secondary' : 'ghost'}
-                    size="sm"
-                    onClick={() => setFilter('at-risk')}
-                    className="px-3"
-                  >
-                    At Risk ({atRiskCount})
-                  </Button>
-                  <Button
-                    variant={filter === 'on-track' ? 'secondary' : 'ghost'}
-                    size="sm"
-                    onClick={() => setFilter('on-track')}
-                    className="px-3"
-                  >
-                    On Track ({onTrackCount})
-                  </Button>
-                  <Button
-                    variant={filter === 'ai-gaps' ? 'secondary' : 'ghost'}
-                    size="sm"
-                    onClick={() => setFilter('ai-gaps')}
-                    className="px-3"
-                  >
-                    <Brain className="h-3.5 w-3.5 mr-1" />
-                    AI Gaps ({aiGapsCount})
-                  </Button>
-                </div>
-                <Select value={sortBy} onValueChange={(v: SortType) => setSortBy(v)}>
-                  <SelectTrigger className="w-[180px] bg-background">
-                    <SelectValue placeholder="Sort By" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="risk">Sort: Risk Status</SelectItem>
-                    <SelectItem value="calls">Sort: Calls (30d)</SelectItem>
-                    <SelectItem value="coaching">Sort: Last Coaching</SelectItem>
-                    <SelectItem value="ai-score">Sort: AI Call Score</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <Select value={sortBy} onValueChange={(v: SortType) => setSortBy(v)}>
+                <SelectTrigger className="w-[180px] bg-background">
+                  <SelectValue placeholder="Sort By" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name">Sort: Name</SelectItem>
+                  <SelectItem value="calls">Sort: Calls (30d)</SelectItem>
+                  <SelectItem value="coaching">Sort: Last Coaching</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            {filteredReps.length > 0 ? (
+            {sortedReps.length > 0 ? (
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50 hover:bg-muted/50">
                       <TableHead className="font-semibold text-xs uppercase tracking-wider">Rep Name</TableHead>
-                      <TableHead className="font-semibold text-xs uppercase tracking-wider">Status</TableHead>
                       <TableHead className="font-semibold text-xs uppercase tracking-wider text-center">Calls (30d)</TableHead>
                       <TableHead className="font-semibold text-xs uppercase tracking-wider text-center">AI Score</TableHead>
-                      <TableHead className="font-semibold text-xs uppercase tracking-wider text-center">AI Gaps?</TableHead>
                       <TableHead className="font-semibold text-xs uppercase tracking-wider">Last Coaching</TableHead>
                       <TableHead className="w-[180px]"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredReps.map((rep, index) => {
+                    {sortedReps.map((rep, index) => {
                       const daysSinceCoaching = rep.lastCoaching
                         ? differenceInDays(new Date(), new Date(rep.lastCoaching.session_date))
                         : null;
@@ -383,16 +252,10 @@ export default function ManagerDashboard() {
                           className={`
                             transition-colors hover:bg-muted/50
                             ${index % 2 === 0 ? 'bg-background' : 'bg-muted/20'}
-                            ${rep.isAtRisk ? 'border-l-2 border-l-warning' : ''}
                           `}
                         >
                           <TableCell className="py-4">
                             <span className="font-semibold text-foreground">{rep.name}</span>
-                          </TableCell>
-                          <TableCell>
-                            <StatusBadge status={rep.isAtRisk ? 'at-risk' : 'on-track'}>
-                              {rep.isAtRisk ? rep.riskStatus.replace('At Risk: ', '') : 'On Track'}
-                            </StatusBadge>
                           </TableCell>
                           <TableCell className="text-center">
                             <span className={`inline-flex items-center justify-center h-8 w-8 rounded-full text-sm font-medium ${
@@ -415,21 +278,6 @@ export default function ManagerDashboard() {
                               >
                                 {Math.round(rep.latestAiAnalysis.call_effectiveness_score)}
                               </Badge>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">—</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {rep.latestAiAnalysis ? (
-                              rep.hasAiGaps ? (
-                                <Badge variant="destructive" className="text-xs">
-                                  Flagged
-                                </Badge>
-                              ) : (
-                                <Badge variant="secondary" className="text-xs bg-success/10 text-success">
-                                  None
-                                </Badge>
-                              )
                             ) : (
                               <span className="text-xs text-muted-foreground">—</span>
                             )}
@@ -476,15 +324,7 @@ export default function ManagerDashboard() {
                 <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-4">
                   <Users className="h-6 w-6 text-muted-foreground" />
                 </div>
-                <p className="text-muted-foreground">
-                  {filter === 'at-risk' 
-                    ? 'No reps are at risk. Great job!' 
-                    : filter === 'on-track'
-                      ? 'No reps are on track yet.'
-                      : filter === 'ai-gaps'
-                        ? 'No reps have AI-flagged gaps. Great calls!'
-                      : 'No team members found.'}
-                </p>
+                <p className="text-muted-foreground">No team members found.</p>
               </div>
             )}
           </CardContent>
