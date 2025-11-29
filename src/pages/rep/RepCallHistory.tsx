@@ -228,7 +228,7 @@ export default function RepCallHistory() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="search"
-                  placeholder="Search prospect, account, or notes..."
+                  placeholder="Search stakeholder, account, or notes..."
                   value={search}
                   onChange={(e) => {
                     setSearch(e.target.value);
@@ -375,7 +375,7 @@ export default function RepCallHistory() {
                             <ArrowUpDown className="h-3 w-3" />
                           </div>
                         </TableHead>
-                        <TableHead>Prospect</TableHead>
+                        <TableHead>Stakeholder</TableHead>
                         <TableHead 
                           className="cursor-pointer hover:bg-muted/50"
                           onClick={() => toggleSort('account_name')}

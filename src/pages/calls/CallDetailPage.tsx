@@ -246,7 +246,7 @@ export default function CallDetailPage() {
                 <div className="flex items-center gap-2">
                   <User className="h-4 w-4 text-muted-foreground" />
                   <div>
-                    <p className="text-xs text-muted-foreground">Prospect</p>
+                    <p className="text-xs text-muted-foreground">Primary Stakeholder</p>
                     <p className="font-medium">{transcript.prospect_name}</p>
                   </div>
                 </div>

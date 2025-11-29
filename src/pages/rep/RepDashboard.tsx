@@ -36,7 +36,7 @@ export default function RepDashboard() {
 
     // Validation
     if (!prospectName.trim()) {
-      toast({ title: 'Error', description: 'Prospect Name is required', variant: 'destructive' });
+      toast({ title: 'Error', description: 'Primary Stakeholder is required', variant: 'destructive' });
       return;
     }
     if (!accountName.trim()) {
