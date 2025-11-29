@@ -44,6 +44,9 @@ import {
   Eye,
   Target,
   Loader2,
+  Pencil,
+  Check,
+  X,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import {
@@ -167,6 +170,11 @@ export default function ProspectDetail() {
     date: new Date().toISOString().split('T')[0],
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Salesforce link editing state
+  const [isEditingSalesforceLink, setIsEditingSalesforceLink] = useState(false);
+  const [editedSalesforceLink, setEditedSalesforceLink] = useState('');
+  const [isSavingSalesforceLink, setIsSavingSalesforceLink] = useState(false);
 
   useEffect(() => {
     if (id) loadProspectData();
@@ -1100,19 +1108,107 @@ export default function ProspectDetail() {
                       : '—'}
                   </span>
                 </div>
-                {prospect.salesforce_link && (
-                  <div className="pt-2">
-                    <a
-                      href={prospect.salesforce_link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline flex items-center gap-1"
-                    >
-                      <ExternalLink className="h-3 w-3" />
-                      View in Salesforce
-                    </a>
-                  </div>
-                )}
+                
+                {/* Salesforce Link with Edit */}
+                <div className="pt-2 space-y-2">
+                  <span className="text-muted-foreground text-xs">Salesforce Link</span>
+                  {isEditingSalesforceLink ? (
+                    <div className="space-y-2">
+                      <Input
+                        type="url"
+                        placeholder="https://..."
+                        value={editedSalesforceLink}
+                        onChange={(e) => setEditedSalesforceLink(e.target.value)}
+                        className="h-8 text-sm"
+                        disabled={isSavingSalesforceLink}
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="h-7 text-xs"
+                          onClick={async () => {
+                            setIsSavingSalesforceLink(true);
+                            try {
+                              await updateProspect(prospect.id, { salesforce_link: editedSalesforceLink || null });
+                              setProspect({ ...prospect, salesforce_link: editedSalesforceLink || null });
+                              setIsEditingSalesforceLink(false);
+                              toast({ title: 'Salesforce link updated' });
+                            } catch (error) {
+                              toast({ title: 'Failed to update link', variant: 'destructive' });
+                            } finally {
+                              setIsSavingSalesforceLink(false);
+                            }
+                          }}
+                          disabled={isSavingSalesforceLink}
+                        >
+                          {isSavingSalesforceLink ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <>
+                              <Check className="h-3 w-3 mr-1" />
+                              Save
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => {
+                            setIsEditingSalesforceLink(false);
+                            setEditedSalesforceLink(prospect.salesforce_link || '');
+                          }}
+                          disabled={isSavingSalesforceLink}
+                        >
+                          <X className="h-3 w-3 mr-1" />
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      {prospect.salesforce_link ? (
+                        <>
+                          <a
+                            href={prospect.salesforce_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline flex items-center gap-1 flex-1 truncate"
+                          >
+                            <ExternalLink className="h-3 w-3 shrink-0" />
+                            <span className="truncate">View in Salesforce</span>
+                          </a>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-6 w-6 shrink-0"
+                            onClick={() => {
+                              setEditedSalesforceLink(prospect.salesforce_link || '');
+                              setIsEditingSalesforceLink(true);
+                            }}
+                            title="Edit Salesforce link"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => {
+                            setEditedSalesforceLink('');
+                            setIsEditingSalesforceLink(true);
+                          }}
+                        >
+                          <Plus className="h-3 w-3 mr-1" />
+                          Add Salesforce Link
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </div>
