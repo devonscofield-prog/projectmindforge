@@ -581,6 +581,67 @@ export type Database = {
         }
         Relationships: []
       }
+      stakeholder_relationships: {
+        Row: {
+          created_at: string
+          id: string
+          notes: string | null
+          prospect_id: string
+          relationship_type: string
+          rep_id: string
+          source_stakeholder_id: string
+          strength: number | null
+          target_stakeholder_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          prospect_id: string
+          relationship_type: string
+          rep_id: string
+          source_stakeholder_id: string
+          strength?: number | null
+          target_stakeholder_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          prospect_id?: string
+          relationship_type?: string
+          rep_id?: string
+          source_stakeholder_id?: string
+          strength?: number | null
+          target_stakeholder_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stakeholder_relationships_prospect_id_fkey"
+            columns: ["prospect_id"]
+            isOneToOne: false
+            referencedRelation: "prospects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stakeholder_relationships_source_stakeholder_id_fkey"
+            columns: ["source_stakeholder_id"]
+            isOneToOne: false
+            referencedRelation: "stakeholders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stakeholder_relationships_target_stakeholder_id_fkey"
+            columns: ["target_stakeholder_id"]
+            isOneToOne: false
+            referencedRelation: "stakeholders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stakeholders: {
         Row: {
           ai_extracted_info: Json | null

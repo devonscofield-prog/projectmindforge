@@ -56,9 +56,14 @@ import {
   listStakeholdersForProspect,
   type Stakeholder,
 } from '@/api/stakeholders';
+import {
+  listRelationshipsForProspect,
+  type StakeholderRelationship,
+} from '@/api/stakeholderRelationships';
 import { StakeholderCard } from '@/components/prospects/StakeholderCard';
 import { AddStakeholderDialog } from '@/components/prospects/AddStakeholderDialog';
 import { StakeholderDetailSheet } from '@/components/prospects/StakeholderDetailSheet';
+import { StakeholderRelationshipMap } from '@/components/prospects/StakeholderRelationshipMap';
 
 const statusLabels: Record<ProspectStatus, string> = {
   active: 'Active',
@@ -113,6 +118,7 @@ export default function ProspectDetail() {
 
   const [prospect, setProspect] = useState<Prospect | null>(null);
   const [stakeholders, setStakeholders] = useState<Stakeholder[]>([]);
+  const [relationships, setRelationships] = useState<StakeholderRelationship[]>([]);
   const [activities, setActivities] = useState<ProspectActivity[]>([]);
   const [calls, setCalls] = useState<{ id: string; call_date: string; call_type: string | null; analysis_status: string }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -136,9 +142,10 @@ export default function ProspectDetail() {
     
     setIsLoading(true);
     try {
-      const [prospectData, stakeholdersData, activitiesData, callsData] = await Promise.all([
+      const [prospectData, stakeholdersData, relationshipsData, activitiesData, callsData] = await Promise.all([
         getProspectById(id),
         listStakeholdersForProspect(id),
+        listRelationshipsForProspect(id),
         listActivitiesForProspect(id),
         getCallsForProspect(id),
       ]);
@@ -151,6 +158,7 @@ export default function ProspectDetail() {
 
       setProspect(prospectData);
       setStakeholders(stakeholdersData);
+      setRelationships(relationshipsData);
       setActivities(activitiesData);
       setCalls(callsData);
     } catch (error) {
@@ -378,6 +386,18 @@ export default function ProspectDetail() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Relationship Map */}
+            {user?.id && (
+              <StakeholderRelationshipMap
+                stakeholders={stakeholders}
+                relationships={relationships}
+                prospectId={prospect.id}
+                repId={user.id}
+                onRelationshipsChanged={loadProspectData}
+                onStakeholderClick={handleStakeholderClick}
+              />
+            )}
 
             {/* AI Insights */}
             {aiInfo && (
