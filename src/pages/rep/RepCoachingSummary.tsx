@@ -11,10 +11,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { getCoachingSummaryForRep, CoachingSummary } from '@/api/aiCallAnalysis';
 import { supabase } from '@/integrations/supabase/client';
 import { FrameworkTrendChart } from '@/components/coaching/FrameworkTrendChart';
 import { CoachingPatternCard } from '@/components/coaching/CoachingPatternCard';
+import { CoachingSummaryComparison } from '@/components/coaching/CoachingSummaryComparison';
 import { cn } from '@/lib/utils';
 import {
   ArrowLeft,
@@ -31,6 +34,7 @@ import {
   TrendingDown,
   Minus,
   CalendarIcon,
+  GitCompare,
 } from 'lucide-react';
 
 const TIME_RANGES = [
@@ -40,20 +44,29 @@ const TIME_RANGES = [
   { value: '180', label: 'Last 6 months' },
 ];
 
+function createDateRange(daysBack: number): { from: Date; to: Date } {
+  const to = new Date();
+  to.setHours(23, 59, 59, 999);
+  const from = new Date();
+  from.setDate(from.getDate() - daysBack);
+  from.setHours(0, 0, 0, 0);
+  return { from, to };
+}
+
 export default function RepCoachingSummary() {
   const { user, role } = useAuth();
   const { repId } = useParams<{ repId?: string }>();
   
-  // Date range state
-  const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>(() => {
-    const to = new Date();
-    to.setHours(23, 59, 59, 999);
-    const from = new Date();
-    from.setDate(from.getDate() - 30);
-    from.setHours(0, 0, 0, 0);
-    return { from, to };
-  });
+  // Comparison mode state
+  const [isComparisonMode, setIsComparisonMode] = useState(false);
+  
+  // Primary date range state
+  const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>(() => createDateRange(30));
   const [selectedPreset, setSelectedPreset] = useState<string>('30');
+  
+  // Comparison date range state
+  const [comparisonDateRange, setComparisonDateRange] = useState<{ from: Date; to: Date }>(() => createDateRange(60));
+  const [comparisonPreset, setComparisonPreset] = useState<string>('custom');
   
   // Determine if viewing own summary or another rep's (for managers)
   const targetRepId = repId || user?.id;
@@ -74,22 +87,31 @@ export default function RepCoachingSummary() {
     enabled: !!targetRepId && !isOwnSummary,
   });
 
+  // Main summary query
   const { data: summary, isLoading, error } = useQuery({
     queryKey: ['coaching-summary', targetRepId, dateRange.from.toISOString(), dateRange.to.toISOString()],
     queryFn: () => getCoachingSummaryForRep(targetRepId!, dateRange),
     enabled: !!targetRepId,
   });
 
+  // Comparison period query
+  const { data: comparisonSummary, isLoading: isComparisonLoading } = useQuery({
+    queryKey: ['coaching-summary-comparison', targetRepId, comparisonDateRange.from.toISOString(), comparisonDateRange.to.toISOString()],
+    queryFn: () => getCoachingSummaryForRep(targetRepId!, comparisonDateRange),
+    enabled: !!targetRepId && isComparisonMode,
+  });
+
   const handlePresetChange = (value: string) => {
     setSelectedPreset(value);
     if (value !== 'custom') {
-      const days = parseInt(value);
-      const to = new Date();
-      to.setHours(23, 59, 59, 999);
-      const from = new Date();
-      from.setDate(from.getDate() - days);
-      from.setHours(0, 0, 0, 0);
-      setDateRange({ from, to });
+      setDateRange(createDateRange(parseInt(value)));
+    }
+  };
+
+  const handleComparisonPresetChange = (value: string) => {
+    setComparisonPreset(value);
+    if (value !== 'custom') {
+      setComparisonDateRange(createDateRange(parseInt(value)));
     }
   };
 
@@ -106,6 +128,39 @@ export default function RepCoachingSummary() {
       date.setHours(23, 59, 59, 999);
       setDateRange(prev => ({ ...prev, to: date }));
       setSelectedPreset('custom');
+    }
+  };
+
+  const handleComparisonFromDateChange = (date: Date | undefined) => {
+    if (date) {
+      date.setHours(0, 0, 0, 0);
+      setComparisonDateRange(prev => ({ ...prev, from: date }));
+      setComparisonPreset('custom');
+    }
+  };
+
+  const handleComparisonToDateChange = (date: Date | undefined) => {
+    if (date) {
+      date.setHours(23, 59, 59, 999);
+      setComparisonDateRange(prev => ({ ...prev, to: date }));
+      setComparisonPreset('custom');
+    }
+  };
+
+  // Initialize comparison with previous period when switching to comparison mode
+  const handleComparisonToggle = (enabled: boolean) => {
+    setIsComparisonMode(enabled);
+    if (enabled) {
+      // Set comparison to the period before the current selection
+      const daysDiff = Math.ceil((dateRange.to.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24));
+      const compTo = new Date(dateRange.from);
+      compTo.setDate(compTo.getDate() - 1);
+      compTo.setHours(23, 59, 59, 999);
+      const compFrom = new Date(compTo);
+      compFrom.setDate(compFrom.getDate() - daysDiff);
+      compFrom.setHours(0, 0, 0, 0);
+      setComparisonDateRange({ from: compFrom, to: compTo });
+      setComparisonPreset('custom');
     }
   };
 
@@ -137,91 +192,149 @@ export default function RepCoachingSummary() {
     }
   };
 
+  const formatPeriodLabel = (range: { from: Date; to: Date }) => {
+    return `${format(range.from, 'MMM d')} - ${format(range.to, 'MMM d')}`;
+  };
+
+  const DateRangePicker = ({
+    dateRange: range,
+    selectedPreset: preset,
+    onPresetChange,
+    onFromChange,
+    onToChange,
+    label,
+  }: {
+    dateRange: { from: Date; to: Date };
+    selectedPreset: string;
+    onPresetChange: (value: string) => void;
+    onFromChange: (date: Date | undefined) => void;
+    onToChange: (date: Date | undefined) => void;
+    label?: string;
+  }) => (
+    <div className="flex flex-wrap items-center gap-2">
+      {label && <span className="text-sm font-medium text-muted-foreground">{label}</span>}
+      <Select value={preset} onValueChange={onPresetChange}>
+        <SelectTrigger className="w-[140px]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {TIME_RANGES.map(r => (
+            <SelectItem key={r.value} value={r.value}>
+              {r.label}
+            </SelectItem>
+          ))}
+          <SelectItem value="custom">Custom Range</SelectItem>
+        </SelectContent>
+      </Select>
+      
+      {preset === 'custom' && (
+        <div className="flex items-center gap-2">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="w-[120px] justify-start text-left font-normal">
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {format(range.from, 'MMM d, yy')}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={range.from}
+                onSelect={onFromChange}
+                disabled={(date) => date > range.to || date > new Date()}
+                initialFocus
+                className={cn("p-3 pointer-events-auto")}
+              />
+            </PopoverContent>
+          </Popover>
+          
+          <span className="text-muted-foreground text-sm">to</span>
+          
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="w-[120px] justify-start text-left font-normal">
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {format(range.to, 'MMM d, yy')}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={range.to}
+                onSelect={onToChange}
+                disabled={(date) => date < range.from || date > new Date()}
+                initialFocus
+                className={cn("p-3 pointer-events-auto")}
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <AppLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" asChild>
-              <Link to={getBackPath()}>
-                <ArrowLeft className="h-4 w-4" />
-              </Link>
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold flex items-center gap-2">
-                <BarChart3 className="h-6 w-6 text-primary" />
-                {isOwnSummary ? 'My Coaching Summary' : `${repProfile?.name || 'Rep'}'s Coaching Summary`}
-              </h1>
-              <p className="text-muted-foreground">
-                Aggregated insights from your analyzed calls
-              </p>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <Button variant="ghost" size="icon" asChild>
+                <Link to={getBackPath()}>
+                  <ArrowLeft className="h-4 w-4" />
+                </Link>
+              </Button>
+              <div>
+                <h1 className="text-2xl font-bold flex items-center gap-2">
+                  <BarChart3 className="h-6 w-6 text-primary" />
+                  {isOwnSummary ? 'My Coaching Summary' : `${repProfile?.name || 'Rep'}'s Coaching Summary`}
+                </h1>
+                <p className="text-muted-foreground">
+                  {isComparisonMode ? 'Compare insights across two time periods' : 'Aggregated insights from your analyzed calls'}
+                </p>
+              </div>
+            </div>
+            
+            {/* Comparison Toggle */}
+            <div className="flex items-center gap-2">
+              <Switch
+                id="comparison-mode"
+                checked={isComparisonMode}
+                onCheckedChange={handleComparisonToggle}
+              />
+              <Label htmlFor="comparison-mode" className="flex items-center gap-2 cursor-pointer">
+                <GitCompare className="h-4 w-4" />
+                Compare Periods
+              </Label>
             </div>
           </div>
           
           {/* Date Range Controls */}
-          <div className="flex flex-wrap items-center gap-2">
-            <Select value={selectedPreset} onValueChange={handlePresetChange}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TIME_RANGES.map(range => (
-                  <SelectItem key={range.value} value={range.value}>
-                    {range.label}
-                  </SelectItem>
-                ))}
-                <SelectItem value="custom">Custom Range</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="flex flex-col gap-3 p-4 bg-muted/50 rounded-lg">
+            <DateRangePicker
+              dateRange={dateRange}
+              selectedPreset={selectedPreset}
+              onPresetChange={handlePresetChange}
+              onFromChange={handleFromDateChange}
+              onToChange={handleToDateChange}
+              label={isComparisonMode ? "Current Period:" : undefined}
+            />
             
-            {selectedPreset === 'custom' && (
-              <div className="flex items-center gap-2">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="w-[130px] justify-start text-left font-normal">
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {format(dateRange.from, 'MMM d, yyyy')}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={dateRange.from}
-                      onSelect={handleFromDateChange}
-                      disabled={(date) => date > dateRange.to || date > new Date()}
-                      initialFocus
-                      className={cn("p-3 pointer-events-auto")}
-                    />
-                  </PopoverContent>
-                </Popover>
-                
-                <span className="text-muted-foreground text-sm">to</span>
-                
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="w-[130px] justify-start text-left font-normal">
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {format(dateRange.to, 'MMM d, yyyy')}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={dateRange.to}
-                      onSelect={handleToDateChange}
-                      disabled={(date) => date < dateRange.from || date > new Date()}
-                      initialFocus
-                      className={cn("p-3 pointer-events-auto")}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
+            {isComparisonMode && (
+              <DateRangePicker
+                dateRange={comparisonDateRange}
+                selectedPreset={comparisonPreset}
+                onPresetChange={handleComparisonPresetChange}
+                onFromChange={handleComparisonFromDateChange}
+                onToChange={handleComparisonToDateChange}
+                label="Compare To:"
+              />
             )}
           </div>
         </div>
 
-        {isLoading ? (
+        {(isLoading || (isComparisonMode && isComparisonLoading)) ? (
           <div className="space-y-6">
             <div className="grid gap-4 md:grid-cols-4">
               {[1, 2, 3, 4].map(i => (
@@ -241,6 +354,14 @@ export default function RepCoachingSummary() {
               <p className="text-destructive">Failed to load coaching summary</p>
             </CardContent>
           </Card>
+        ) : isComparisonMode && summary && comparisonSummary ? (
+          // Comparison View
+          <CoachingSummaryComparison
+            period1={comparisonSummary}
+            period2={summary}
+            period1Label={formatPeriodLabel(comparisonDateRange)}
+            period2Label={formatPeriodLabel(dateRange)}
+          />
         ) : summary?.totalCalls === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
