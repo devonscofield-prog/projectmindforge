@@ -19,7 +19,8 @@ import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { PerformanceTrendCharts } from '@/components/charts/PerformanceTrendCharts';
 import { Profile, RepPerformanceSnapshot, CoachingSession, ActivityLog, ActivityType } from '@/types/database';
-import { ArrowLeft, Plus, AlertCircle, Eye, Loader2, X, Bot, FileText, Mail, ExternalLink, Phone, Calendar } from 'lucide-react';
+import { ArrowLeft, Plus, AlertCircle, Eye, Loader2, X, Bot, FileText, Mail, ExternalLink, Phone, Calendar, Sparkles } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { format, subDays, isAfter } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -296,10 +297,16 @@ export default function RepDetail() {
             <h1 className="text-3xl font-bold">{rep.name}</h1>
             <p className="text-muted-foreground">{rep.email}</p>
           </div>
+          <Button variant="outline" asChild className="ml-auto">
+            <Link to={`/rep/coaching-summary/${repId}`}>
+              <Sparkles className="h-4 w-4 mr-2" />
+              Coaching Trends
+            </Link>
+          </Button>
         </div>
 
         {/* AI Coaching Snapshot */}
-        <AICoachingSnapshot repId={repId!} />
+        <AICoachingSnapshot repId={repId!} showTrendsLink />
 
         <Tabs defaultValue={defaultTab}>
           <TabsList>
