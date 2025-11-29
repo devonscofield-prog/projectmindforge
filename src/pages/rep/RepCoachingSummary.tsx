@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useParams, Link } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -19,6 +19,7 @@ import { TrendCard } from '@/components/coaching/TrendCard';
 import { CriticalInfoTrends } from '@/components/coaching/CriticalInfoTrends';
 import { PriorityActionCard } from '@/components/coaching/PriorityActionCard';
 import { CoachingTrendsComparison } from '@/components/coaching/CoachingTrendsComparison';
+import { CoachingTrendHistorySheet } from '@/components/coaching/CoachingTrendHistorySheet';
 import { cn } from '@/lib/utils';
 import {
   ArrowLeft,
@@ -39,6 +40,7 @@ import {
   Database,
   AlertTriangle,
   Info,
+  History,
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -143,6 +145,7 @@ function validatePeriods(
 export default function RepCoachingSummary() {
   const { user, role } = useAuth();
   const { repId } = useParams<{ repId?: string }>();
+  const queryClient = useQueryClient();
   
   // Date range state
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>(() => createDateRange(30));
@@ -155,6 +158,10 @@ export default function RepCoachingSummary() {
     createPreviousPeriodRange(createDateRange(30))
   );
   const [comparisonPreset, setComparisonPreset] = useState<string>('previous');
+  
+  // History sheet state
+  const [showHistory, setShowHistory] = useState(false);
+  const [loadedAnalysis, setLoadedAnalysis] = useState<CoachingTrendAnalysis | null>(null);
   
   // Determine if viewing own summary or another rep's (for managers)
   const targetRepId = repId || user?.id;
@@ -207,6 +214,7 @@ export default function RepCoachingSummary() {
 
   const handlePresetChange = (value: string) => {
     setSelectedPreset(value);
+    setLoadedAnalysis(null); // Clear loaded analysis when date changes
     if (value !== 'custom') {
       const newRange = createDateRange(parseInt(value));
       setDateRange(newRange);
@@ -227,6 +235,7 @@ export default function RepCoachingSummary() {
       const newRange = { ...dateRange, from: date };
       setDateRange(newRange);
       setSelectedPreset('custom');
+      setLoadedAnalysis(null); // Clear loaded analysis when date changes
       if (isComparisonMode && comparisonPreset === 'previous') {
         setComparisonDateRange(createPreviousPeriodRange(newRange));
       }
@@ -242,6 +251,7 @@ export default function RepCoachingSummary() {
       const newRange = { ...dateRange, to: date };
       setDateRange(newRange);
       setSelectedPreset('custom');
+      setLoadedAnalysis(null); // Clear loaded analysis when date changes
       if (isComparisonMode && comparisonPreset === 'previous') {
         setComparisonDateRange(createPreviousPeriodRange(newRange));
       }
@@ -291,8 +301,18 @@ export default function RepCoachingSummary() {
 
   const handleForceRefresh = () => {
     // Force refresh bypasses cache
+    setLoadedAnalysis(null); // Clear any loaded analysis
     generateCoachingTrends(targetRepId!, dateRange, { forceRefresh: true })
       .then(() => refetch());
+  };
+
+  const handleLoadFromHistory = (analysis: CoachingTrendAnalysis, historyDateRange: { from: Date; to: Date }) => {
+    // Set the date range to match the loaded analysis
+    setDateRange(historyDateRange);
+    setSelectedPreset('custom');
+    setLoadedAnalysis(analysis);
+    // Invalidate history query to refresh the list
+    queryClient.invalidateQueries({ queryKey: ['coaching-trend-history', targetRepId] });
   };
 
   const getBackPath = () => {
@@ -332,6 +352,9 @@ export default function RepCoachingSummary() {
     : null;
   
   const hasValidationErrors = periodValidation?.warnings.some(w => w.type === 'error') ?? false;
+
+  // Use loaded analysis from history, or fetched analysis
+  const displayAnalysis = loadedAnalysis || trendAnalysis;
 
   return (
     <AppLayout>
@@ -390,6 +413,16 @@ export default function RepCoachingSummary() {
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
+              
+              {/* History Button */}
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setShowHistory(true)}
+              >
+                <History className="h-4 w-4 mr-2" />
+                History
+              </Button>
             </div>
           </div>
           
@@ -677,7 +710,7 @@ export default function RepCoachingSummary() {
               )}
             </CardContent>
           </Card>
-        ) : isComparisonMode && comparisonConfirmed && trendAnalysis && comparisonTrendAnalysis ? (
+        ) : isComparisonMode && comparisonConfirmed && displayAnalysis && comparisonTrendAnalysis ? (
           /* Comparison View */
           <CoachingTrendsComparison
             periodA={{
@@ -688,10 +721,10 @@ export default function RepCoachingSummary() {
             periodB={{
               label: 'Period B',
               dateRange: dateRange,
-              analysis: trendAnalysis,
+              analysis: displayAnalysis,
             }}
           />
-        ) : trendAnalysis && (
+        ) : displayAnalysis && (
           /* Single Period View */
           <>
             {/* Executive Summary */}
@@ -702,7 +735,7 @@ export default function RepCoachingSummary() {
                     <Sparkles className="h-5 w-5 text-primary" />
                     Executive Summary
                   </CardTitle>
-                  {dataUpdatedAt && (
+                  {dataUpdatedAt && !loadedAnalysis && (
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger>
@@ -717,23 +750,29 @@ export default function RepCoachingSummary() {
                       </Tooltip>
                     </TooltipProvider>
                   )}
+                  {loadedAnalysis && (
+                    <Badge variant="secondary" className="text-xs gap-1">
+                      <History className="h-3 w-3" />
+                      From History
+                    </Badge>
+                  )}
                 </div>
               </CardHeader>
               <CardContent>
-                <p className="text-base leading-relaxed">{trendAnalysis.summary}</p>
+                <p className="text-base leading-relaxed">{displayAnalysis.summary}</p>
                 
                 {/* Period Stats */}
                 <div className="flex flex-wrap items-center gap-6 mt-4 pt-4 border-t">
                   <div className="flex items-center gap-2">
                     <BarChart3 className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm text-muted-foreground">Calls Analyzed:</span>
-                    <span className="font-semibold">{trendAnalysis.periodAnalysis.totalCalls}</span>
+                    <span className="font-semibold">{displayAnalysis.periodAnalysis.totalCalls}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Flame className="h-4 w-4 text-orange-500" />
                     <span className="text-sm text-muted-foreground">Avg Heat Score:</span>
-                    <span className="font-semibold">{trendAnalysis.periodAnalysis.averageHeatScore?.toFixed(1) || 'N/A'}/10</span>
-                    {getTrendIcon(trendAnalysis.periodAnalysis.heatScoreTrend)}
+                    <span className="font-semibold">{displayAnalysis.periodAnalysis.averageHeatScore?.toFixed(1) || 'N/A'}/10</span>
+                    {getTrendIcon(displayAnalysis.periodAnalysis.heatScoreTrend)}
                   </div>
                 </div>
               </CardContent>
@@ -749,32 +788,32 @@ export default function RepCoachingSummary() {
                 <TrendCard
                   title="BANT"
                   icon={<Target className="h-4 w-4 text-blue-500" />}
-                  trend={trendAnalysis.trendAnalysis.bant.trend}
-                  startingAvg={trendAnalysis.trendAnalysis.bant.startingAvg}
-                  endingAvg={trendAnalysis.trendAnalysis.bant.endingAvg}
-                  keyInsight={trendAnalysis.trendAnalysis.bant.keyInsight}
-                  evidence={trendAnalysis.trendAnalysis.bant.evidence}
-                  recommendation={trendAnalysis.trendAnalysis.bant.recommendation}
+                  trend={displayAnalysis.trendAnalysis.bant.trend}
+                  startingAvg={displayAnalysis.trendAnalysis.bant.startingAvg}
+                  endingAvg={displayAnalysis.trendAnalysis.bant.endingAvg}
+                  keyInsight={displayAnalysis.trendAnalysis.bant.keyInsight}
+                  evidence={displayAnalysis.trendAnalysis.bant.evidence}
+                  recommendation={displayAnalysis.trendAnalysis.bant.recommendation}
                 />
                 <TrendCard
                   title="Gap Selling"
                   icon={<MessageSquareQuote className="h-4 w-4 text-purple-500" />}
-                  trend={trendAnalysis.trendAnalysis.gapSelling.trend}
-                  startingAvg={trendAnalysis.trendAnalysis.gapSelling.startingAvg}
-                  endingAvg={trendAnalysis.trendAnalysis.gapSelling.endingAvg}
-                  keyInsight={trendAnalysis.trendAnalysis.gapSelling.keyInsight}
-                  evidence={trendAnalysis.trendAnalysis.gapSelling.evidence}
-                  recommendation={trendAnalysis.trendAnalysis.gapSelling.recommendation}
+                  trend={displayAnalysis.trendAnalysis.gapSelling.trend}
+                  startingAvg={displayAnalysis.trendAnalysis.gapSelling.startingAvg}
+                  endingAvg={displayAnalysis.trendAnalysis.gapSelling.endingAvg}
+                  keyInsight={displayAnalysis.trendAnalysis.gapSelling.keyInsight}
+                  evidence={displayAnalysis.trendAnalysis.gapSelling.evidence}
+                  recommendation={displayAnalysis.trendAnalysis.gapSelling.recommendation}
                 />
                 <TrendCard
                   title="Active Listening"
                   icon={<Ear className="h-4 w-4 text-teal-500" />}
-                  trend={trendAnalysis.trendAnalysis.activeListening.trend}
-                  startingAvg={trendAnalysis.trendAnalysis.activeListening.startingAvg}
-                  endingAvg={trendAnalysis.trendAnalysis.activeListening.endingAvg}
-                  keyInsight={trendAnalysis.trendAnalysis.activeListening.keyInsight}
-                  evidence={trendAnalysis.trendAnalysis.activeListening.evidence}
-                  recommendation={trendAnalysis.trendAnalysis.activeListening.recommendation}
+                  trend={displayAnalysis.trendAnalysis.activeListening.trend}
+                  startingAvg={displayAnalysis.trendAnalysis.activeListening.startingAvg}
+                  endingAvg={displayAnalysis.trendAnalysis.activeListening.endingAvg}
+                  keyInsight={displayAnalysis.trendAnalysis.activeListening.keyInsight}
+                  evidence={displayAnalysis.trendAnalysis.activeListening.evidence}
+                  recommendation={displayAnalysis.trendAnalysis.activeListening.recommendation}
                 />
               </div>
             </div>
@@ -783,10 +822,10 @@ export default function RepCoachingSummary() {
             <div className="grid gap-6 lg:grid-cols-2">
               {/* Critical Info Trends */}
               <CriticalInfoTrends
-                persistentGaps={trendAnalysis.patternAnalysis.criticalInfoMissing.persistentGaps}
-                newIssues={trendAnalysis.patternAnalysis.criticalInfoMissing.newIssues}
-                resolvedIssues={trendAnalysis.patternAnalysis.criticalInfoMissing.resolvedIssues}
-                recommendation={trendAnalysis.patternAnalysis.criticalInfoMissing.recommendation}
+                persistentGaps={displayAnalysis.patternAnalysis.criticalInfoMissing.persistentGaps}
+                newIssues={displayAnalysis.patternAnalysis.criticalInfoMissing.newIssues}
+                resolvedIssues={displayAnalysis.patternAnalysis.criticalInfoMissing.resolvedIssues}
+                recommendation={displayAnalysis.patternAnalysis.criticalInfoMissing.recommendation}
               />
 
               {/* Follow-up Questions Analysis */}
@@ -800,16 +839,16 @@ export default function RepCoachingSummary() {
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">Quality Trend</span>
-                    {getTrendBadge(trendAnalysis.patternAnalysis.followUpQuestions.qualityTrend)}
+                    {getTrendBadge(displayAnalysis.patternAnalysis.followUpQuestions.qualityTrend)}
                   </div>
 
-                  {trendAnalysis.patternAnalysis.followUpQuestions.recurringThemes.length > 0 && (
+                  {displayAnalysis.patternAnalysis.followUpQuestions.recurringThemes.length > 0 && (
                     <div className="space-y-2">
                       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                         Recurring Themes
                       </p>
                       <div className="flex flex-wrap gap-2">
-                        {trendAnalysis.patternAnalysis.followUpQuestions.recurringThemes.map((theme, idx) => (
+                        {displayAnalysis.patternAnalysis.followUpQuestions.recurringThemes.map((theme, idx) => (
                           <Badge key={idx} variant="secondary" className="text-xs">
                             {theme}
                           </Badge>
@@ -818,11 +857,11 @@ export default function RepCoachingSummary() {
                     </div>
                   )}
 
-                  {trendAnalysis.patternAnalysis.followUpQuestions.recommendation && (
+                  {displayAnalysis.patternAnalysis.followUpQuestions.recommendation && (
                     <div className="p-3 rounded-lg bg-muted/50 border text-sm">
                       <p className="font-medium mb-1">Recommendation</p>
                       <p className="text-muted-foreground">
-                        {trendAnalysis.patternAnalysis.followUpQuestions.recommendation}
+                        {displayAnalysis.patternAnalysis.followUpQuestions.recommendation}
                       </p>
                     </div>
                   )}
@@ -831,10 +870,18 @@ export default function RepCoachingSummary() {
             </div>
 
             {/* Top Priorities */}
-            <PriorityActionCard priorities={trendAnalysis.topPriorities} />
+            <PriorityActionCard priorities={displayAnalysis.topPriorities} />
           </>
         )}
       </div>
+      
+      {/* History Sheet */}
+      <CoachingTrendHistorySheet
+        open={showHistory}
+        onOpenChange={setShowHistory}
+        repId={targetRepId!}
+        onLoadAnalysis={handleLoadFromHistory}
+      />
     </AppLayout>
   );
 }

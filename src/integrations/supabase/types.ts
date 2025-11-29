@@ -470,7 +470,9 @@ export type Database = {
           date_range_from: string
           date_range_to: string
           id: string
+          is_snapshot: boolean
           rep_id: string
+          title: string | null
           updated_at: string
         }
         Insert: {
@@ -480,7 +482,9 @@ export type Database = {
           date_range_from: string
           date_range_to: string
           id?: string
+          is_snapshot?: boolean
           rep_id: string
+          title?: string | null
           updated_at?: string
         }
         Update: {
@@ -490,7 +494,9 @@ export type Database = {
           date_range_from?: string
           date_range_to?: string
           id?: string
+          is_snapshot?: boolean
           rep_id?: string
+          title?: string | null
           updated_at?: string
         }
         Relationships: []
