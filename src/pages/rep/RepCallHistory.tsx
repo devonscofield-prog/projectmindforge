@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { PullToRefresh } from '@/components/ui/pull-to-refresh';
-import { listCallTranscriptsForRepWithFilters, CallHistoryFilters, CallTranscriptWithHeat } from '@/api/aiCallAnalysis';
+import { listCallTranscriptsForRepWithFilters, CallHistoryFilters, CallTranscriptWithHeat, HeatRange } from '@/api/aiCallAnalysis';
 import { CallType, callTypeLabels, callTypeOptions } from '@/constants/callTypes';
 import { MobileCallCard } from '@/components/calls/MobileCallCard';
 import { format } from 'date-fns';
@@ -47,6 +47,12 @@ const analysisStatusOptions: { value: AnalysisStatus; label: string }[] = [
   { value: 'error', label: 'Error' },
 ];
 
+const heatRangeOptions: { value: HeatRange; label: string }[] = [
+  { value: 'hot', label: '🔥 Hot (7-10)' },
+  { value: 'warm', label: '🌡️ Warm (4-6)' },
+  { value: 'cold', label: '❄️ Cold (1-3)' },
+];
+
 export default function RepCallHistory() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -57,10 +63,11 @@ export default function RepCallHistory() {
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [callTypeFilter, setCallTypeFilter] = useState<string>(searchParams.get('callType') || 'all');
   const [statusFilter, setStatusFilter] = useState<string>(searchParams.get('status') || 'all');
+  const [heatFilter, setHeatFilter] = useState<string>(searchParams.get('heatRange') || 'all');
   const [dateFrom, setDateFrom] = useState(searchParams.get('dateFrom') || '');
   const [dateTo, setDateTo] = useState(searchParams.get('dateTo') || '');
-  const [sortBy, setSortBy] = useState<'call_date' | 'account_name' | 'created_at'>(
-    (searchParams.get('sortBy') as 'call_date' | 'account_name' | 'created_at') || 'call_date'
+  const [sortBy, setSortBy] = useState<'call_date' | 'account_name' | 'created_at' | 'heat_score'>(
+    (searchParams.get('sortBy') as 'call_date' | 'account_name' | 'created_at' | 'heat_score') || 'call_date'
   );
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(
     (searchParams.get('sortOrder') as 'asc' | 'desc') || 'desc'
@@ -79,13 +86,14 @@ export default function RepCallHistory() {
     search: search || undefined,
     callTypes: callTypeFilter !== 'all' ? [callTypeFilter as CallType] : undefined,
     statuses: statusFilter !== 'all' ? [statusFilter as AnalysisStatus] : undefined,
+    heatRange: heatFilter !== 'all' ? heatFilter as HeatRange : undefined,
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
     sortBy,
     sortOrder,
     limit: pageSize,
     offset: (currentPage - 1) * pageSize,
-  }), [search, callTypeFilter, statusFilter, dateFrom, dateTo, sortBy, sortOrder, currentPage, pageSize]);
+  }), [search, callTypeFilter, statusFilter, heatFilter, dateFrom, dateTo, sortBy, sortOrder, currentPage, pageSize]);
 
   // Fetch filtered transcripts
   const { data, isLoading, refetch } = useQuery({
@@ -148,6 +156,7 @@ export default function RepCallHistory() {
     setSearch('');
     setCallTypeFilter('all');
     setStatusFilter('all');
+    setHeatFilter('all');
     setDateFrom('');
     setDateTo('');
     setSortBy('call_date');
@@ -159,7 +168,7 @@ export default function RepCallHistory() {
     setSearchParams(params);
   };
 
-  const hasActiveFilters = search || callTypeFilter !== 'all' || statusFilter !== 'all' || dateFrom || dateTo;
+  const hasActiveFilters = search || callTypeFilter !== 'all' || statusFilter !== 'all' || heatFilter !== 'all' || dateFrom || dateTo;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -213,7 +222,7 @@ export default function RepCallHistory() {
     }).format(value);
   };
 
-  const toggleSort = (column: 'call_date' | 'account_name' | 'created_at') => {
+  const toggleSort = (column: 'call_date' | 'account_name' | 'created_at' | 'heat_score') => {
     if (sortBy === column) {
       const newOrder = sortOrder === 'desc' ? 'asc' : 'desc';
       setSortOrder(newOrder);
@@ -278,7 +287,7 @@ export default function RepCallHistory() {
             <CollapsibleContent className="md:block" forceMount>
               <CardContent className="space-y-4 hidden md:block data-[state=open]:block">
                 {/* Filter Row */}
-                <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+                <div className="grid gap-4 grid-cols-2 lg:grid-cols-5">
               {/* Call Type */}
               <div className="space-y-2">
                 <Label>Call Type</Label>
@@ -319,6 +328,30 @@ export default function RepCallHistory() {
                   <SelectContent>
                     <SelectItem value="all">All Statuses</SelectItem>
                     {analysisStatusOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Heat Level */}
+              <div className="space-y-2">
+                <Label>Heat Level</Label>
+                <Select 
+                  value={heatFilter} 
+                  onValueChange={(v) => {
+                    setHeatFilter(v);
+                    updateFilters({ heatRange: v !== 'all' ? v as HeatRange : undefined }, true);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All heat levels" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Heat Levels</SelectItem>
+                    {heatRangeOptions.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
                         {option.label}
                       </SelectItem>
@@ -440,7 +473,16 @@ export default function RepCallHistory() {
                           </div>
                         </TableHead>
                         <TableHead>Call Type</TableHead>
-                        <TableHead>Heat</TableHead>
+                        <TableHead 
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => toggleSort('heat_score')}
+                        >
+                          <div className="flex items-center gap-1">
+                            <Flame className="h-3 w-3" />
+                            Heat
+                            <ArrowUpDown className="h-3 w-3" />
+                          </div>
+                        </TableHead>
                         <TableHead>Revenue</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="w-[50px]"></TableHead>
