@@ -639,34 +639,51 @@ export default function ProspectDetail() {
             )}
 
             {/* AI Insights */}
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Flame className="h-5 w-5 text-primary" />
-                    AI Insights
-                  </CardTitle>
-                  <CardDescription>
-                    {aiInfo?.last_analyzed_at 
-                      ? `Last analyzed ${format(new Date(aiInfo.last_analyzed_at), 'MMM d, yyyy h:mm a')}`
-                      : 'Extracted from calls and emails'
-                    }
-                  </CardDescription>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleRefreshInsightsOnly}
-                  disabled={isRefreshingInsights}
-                >
-                  {isRefreshingInsights ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4" />
-                  )}
-                </Button>
-              </CardHeader>
-              <CardContent className="space-y-4">
+            {(() => {
+              // Check if there's new data since last analysis
+              const lastAnalyzedAt = aiInfo?.last_analyzed_at ? new Date(aiInfo.last_analyzed_at) : null;
+              const latestCallDate = calls.length > 0 ? new Date(calls[0].call_date) : null;
+              const latestEmailDate = emailLogs.length > 0 ? new Date(emailLogs[0].email_date) : null;
+              
+              const hasNewDataSinceAnalysis = lastAnalyzedAt && (
+                (latestCallDate && latestCallDate > lastAnalyzedAt) ||
+                (latestEmailDate && latestEmailDate > lastAnalyzedAt)
+              );
+
+              return (
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <Flame className="h-5 w-5 text-primary" />
+                        AI Insights
+                        {hasNewDataSinceAnalysis && (
+                          <Badge variant="secondary" className="ml-2 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 text-xs">
+                            New data available
+                          </Badge>
+                        )}
+                      </CardTitle>
+                      <CardDescription>
+                        {aiInfo?.last_analyzed_at 
+                          ? `Last analyzed ${format(new Date(aiInfo.last_analyzed_at), 'MMM d, yyyy h:mm a')}`
+                          : 'Extracted from calls and emails'
+                        }
+                      </CardDescription>
+                    </div>
+                    <Button
+                      variant={hasNewDataSinceAnalysis ? "default" : "outline"}
+                      size="sm"
+                      onClick={handleRefreshInsightsOnly}
+                      disabled={isRefreshingInsights}
+                    >
+                      {isRefreshingInsights ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
                 {!aiInfo ? (
                   <div className="text-center py-8">
                     <Flame className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
@@ -763,6 +780,8 @@ export default function ProspectDetail() {
                 )}
               </CardContent>
             </Card>
+              );
+            })()}
 
             {/* Suggested Follow-Up Steps */}
             <Card>
