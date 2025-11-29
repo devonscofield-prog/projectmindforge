@@ -7,6 +7,16 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -48,6 +58,7 @@ export function FollowUpItem({ followUp, onComplete, onDismiss, isCompleting, is
   const [isOpen, setIsOpen] = useState(false);
   const [isLoadingComplete, setIsLoadingComplete] = useState(false);
   const [isLoadingDismiss, setIsLoadingDismiss] = useState(false);
+  const [showDismissConfirm, setShowDismissConfirm] = useState(false);
 
   const priority = priorityConfig[followUp.priority] || priorityConfig.medium;
   const category = followUp.category ? categoryConfig[followUp.category] : null;
@@ -69,91 +80,118 @@ export function FollowUpItem({ followUp, onComplete, onDismiss, isCompleting, is
       await onDismiss(followUp.id);
     } finally {
       setIsLoadingDismiss(false);
+      setShowDismissConfirm(false);
     }
   };
 
   return (
-    <div className="border rounded-lg p-4 bg-card hover:shadow-sm transition-shadow">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          {/* Badges */}
-          <div className="flex items-center gap-2 mb-2 flex-wrap">
-            <Badge variant="secondary" className={priority.className}>
-              {priority.label}
-            </Badge>
-            {category && (
-              <Badge variant="secondary" className={category.className}>
-                <CategoryIcon className="h-3 w-3 mr-1" />
-                {category.label}
+    <>
+      <div className="border rounded-lg p-4 bg-card hover:shadow-sm transition-shadow">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            {/* Badges */}
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <Badge variant="secondary" className={priority.className}>
+                {priority.label}
               </Badge>
+              {category && (
+                <Badge variant="secondary" className={category.className}>
+                  <CategoryIcon className="h-3 w-3 mr-1" />
+                  {category.label}
+                </Badge>
+              )}
+            </div>
+
+            {/* Title */}
+            <h4 className="font-medium text-foreground">{followUp.title}</h4>
+
+            {/* Description */}
+            {followUp.description && (
+              <p className="text-sm text-muted-foreground mt-1">{followUp.description}</p>
             )}
           </div>
 
-          {/* Title */}
-          <h4 className="font-medium text-foreground">{followUp.title}</h4>
-
-          {/* Description */}
-          {followUp.description && (
-            <p className="text-sm text-muted-foreground mt-1">{followUp.description}</p>
-          )}
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2 shrink-0">
-          {onDismiss && (
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2 shrink-0">
+            {onDismiss && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setShowDismissConfirm(true)}
+                disabled={isLoadingDismiss || isDismissing || isLoadingComplete || isCompleting}
+                className="text-muted-foreground hover:text-destructive"
+                title="Dismiss this follow-up"
+              >
+                {isLoadingDismiss ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <X className="h-4 w-4" />
+                )}
+              </Button>
+            )}
             <Button
               size="sm"
-              variant="ghost"
-              onClick={handleDismiss}
-              disabled={isLoadingDismiss || isDismissing || isLoadingComplete || isCompleting}
-              className="text-muted-foreground hover:text-destructive"
-              title="Dismiss this follow-up"
+              variant="outline"
+              onClick={handleComplete}
+              disabled={isLoadingComplete || isCompleting || isLoadingDismiss || isDismissing}
             >
-              {isLoadingDismiss ? (
+              {isLoadingComplete ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <X className="h-4 w-4" />
+                <>
+                  <CheckCircle2 className="h-4 w-4 mr-1" />
+                  Complete
+                </>
               )}
             </Button>
-          )}
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleComplete}
-            disabled={isLoadingComplete || isCompleting || isLoadingDismiss || isDismissing}
-          >
-            {isLoadingComplete ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <>
-                <CheckCircle2 className="h-4 w-4 mr-1" />
-                Complete
-              </>
-            )}
-          </Button>
+          </div>
         </div>
+
+        {/* AI Reasoning (Collapsible) */}
+        {followUp.ai_reasoning && (
+          <Collapsible open={isOpen} onOpenChange={setIsOpen} className="mt-3">
+            <CollapsibleTrigger asChild>
+              <button className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                {isOpen ? (
+                  <ChevronDown className="h-3 w-3" />
+                ) : (
+                  <ChevronRight className="h-3 w-3" />
+                )}
+                Why this matters
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-2">
+              <div className="text-xs text-muted-foreground bg-muted/50 rounded-md p-3 border-l-2 border-primary/30">
+                {followUp.ai_reasoning}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        )}
       </div>
 
-      {/* AI Reasoning (Collapsible) */}
-      {followUp.ai_reasoning && (
-        <Collapsible open={isOpen} onOpenChange={setIsOpen} className="mt-3">
-          <CollapsibleTrigger asChild>
-            <button className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
-              {isOpen ? (
-                <ChevronDown className="h-3 w-3" />
-              ) : (
-                <ChevronRight className="h-3 w-3" />
-              )}
-              Why this matters
-            </button>
-          </CollapsibleTrigger>
-          <CollapsibleContent className="mt-2">
-            <div className="text-xs text-muted-foreground bg-muted/50 rounded-md p-3 border-l-2 border-primary/30">
-              {followUp.ai_reasoning}
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      )}
-    </div>
+      {/* Dismiss Confirmation Dialog */}
+      <AlertDialog open={showDismissConfirm} onOpenChange={setShowDismissConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Dismiss Follow-Up?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to dismiss "{followUp.title}"? You can restore it later from the Dismissed section.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDismiss}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isLoadingDismiss ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : null}
+              Dismiss
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

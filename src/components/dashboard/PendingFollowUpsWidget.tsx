@@ -6,6 +6,16 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Target,
   ChevronRight,
   CheckCircle2,
@@ -47,6 +57,7 @@ export function PendingFollowUpsWidget({ repId }: PendingFollowUpsWidgetProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [dismissingId, setDismissingId] = useState<string | null>(null);
+  const [confirmDismissItem, setConfirmDismissItem] = useState<AccountFollowUpWithProspect | null>(null);
 
   useEffect(() => {
     loadFollowUps();
@@ -76,16 +87,22 @@ export function PendingFollowUpsWidget({ repId }: PendingFollowUpsWidgetProps) {
     }
   };
 
-  const handleDismiss = async (followUpId: string, e: React.MouseEvent) => {
+  const handleDismissClick = (followUp: AccountFollowUpWithProspect, e: React.MouseEvent) => {
     e.stopPropagation();
-    setDismissingId(followUpId);
+    setConfirmDismissItem(followUp);
+  };
+
+  const handleConfirmDismiss = async () => {
+    if (!confirmDismissItem) return;
+    setDismissingId(confirmDismissItem.id);
     try {
-      await dismissFollowUp(followUpId);
-      setFollowUps(prev => prev.filter(f => f.id !== followUpId));
+      await dismissFollowUp(confirmDismissItem.id);
+      setFollowUps(prev => prev.filter(f => f.id !== confirmDismissItem.id));
     } catch (error) {
       console.error('Failed to dismiss follow-up:', error);
     } finally {
       setDismissingId(null);
+      setConfirmDismissItem(null);
     }
   };
 
@@ -118,88 +135,114 @@ export function PendingFollowUpsWidget({ repId }: PendingFollowUpsWidgetProps) {
   }
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2">
-          <Target className="h-5 w-5 text-primary" />
-          Pending Follow-Ups
-        </CardTitle>
-        <CardDescription>
-          {followUps.length} action{followUps.length !== 1 ? 's' : ''} across your accounts
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {followUps.length === 0 ? (
-          <div className="text-center py-8">
-            <CheckCircle2 className="h-10 w-10 text-green-500 mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground">All caught up! No pending follow-ups.</p>
-          </div>
-        ) : (
-          <ScrollArea className="h-[400px] pr-4">
-            <div className="space-y-2">
-              {/* High priority section */}
-              {highPriority.length > 0 && (
-                <div className="mb-4">
-                  <p className="text-xs font-medium text-red-600 dark:text-red-400 mb-2 uppercase tracking-wider">
-                    High Priority ({highPriority.length})
-                  </p>
-                  <div className="space-y-2">
-                    {highPriority.map((followUp) => (
-                      <FollowUpRow
-                        key={followUp.id}
-                        followUp={followUp}
-                        onComplete={handleComplete}
-                        onDismiss={handleDismiss}
-                        onNavigate={handleNavigate}
-                        isCompleting={completingId === followUp.id}
-                        isDismissing={dismissingId === followUp.id}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Other priority section */}
-              {otherPriority.length > 0 && (
-                <div>
-                  {highPriority.length > 0 && (
-                    <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
-                      Other ({otherPriority.length})
-                    </p>
-                  )}
-                  <div className="space-y-2">
-                    {otherPriority.map((followUp) => (
-                      <FollowUpRow
-                        key={followUp.id}
-                        followUp={followUp}
-                        onComplete={handleComplete}
-                        onDismiss={handleDismiss}
-                        onNavigate={handleNavigate}
-                        isCompleting={completingId === followUp.id}
-                        isDismissing={dismissingId === followUp.id}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
+    <>
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2">
+            <Target className="h-5 w-5 text-primary" />
+            Pending Follow-Ups
+          </CardTitle>
+          <CardDescription>
+            {followUps.length} action{followUps.length !== 1 ? 's' : ''} across your accounts
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {followUps.length === 0 ? (
+            <div className="text-center py-8">
+              <CheckCircle2 className="h-10 w-10 text-green-500 mx-auto mb-3" />
+              <p className="text-sm text-muted-foreground">All caught up! No pending follow-ups.</p>
             </div>
-          </ScrollArea>
-        )}
-      </CardContent>
-    </Card>
+          ) : (
+            <ScrollArea className="h-[400px] pr-4">
+              <div className="space-y-2">
+                {/* High priority section */}
+                {highPriority.length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-xs font-medium text-red-600 dark:text-red-400 mb-2 uppercase tracking-wider">
+                      High Priority ({highPriority.length})
+                    </p>
+                    <div className="space-y-2">
+                      {highPriority.map((followUp) => (
+                        <FollowUpRow
+                          key={followUp.id}
+                          followUp={followUp}
+                          onComplete={handleComplete}
+                          onDismissClick={handleDismissClick}
+                          onNavigate={handleNavigate}
+                          isCompleting={completingId === followUp.id}
+                          isDismissing={dismissingId === followUp.id}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Other priority section */}
+                {otherPriority.length > 0 && (
+                  <div>
+                    {highPriority.length > 0 && (
+                      <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
+                        Other ({otherPriority.length})
+                      </p>
+                    )}
+                    <div className="space-y-2">
+                      {otherPriority.map((followUp) => (
+                        <FollowUpRow
+                          key={followUp.id}
+                          followUp={followUp}
+                          onComplete={handleComplete}
+                          onDismissClick={handleDismissClick}
+                          onNavigate={handleNavigate}
+                          isCompleting={completingId === followUp.id}
+                          isDismissing={dismissingId === followUp.id}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Dismiss Confirmation Dialog */}
+      <AlertDialog open={!!confirmDismissItem} onOpenChange={(open) => !open && setConfirmDismissItem(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Dismiss Follow-Up?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to dismiss "{confirmDismissItem?.title}"? You can restore it later from the account's Dismissed section.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDismiss}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {dismissingId ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : null}
+              Dismiss
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
 interface FollowUpRowProps {
   followUp: AccountFollowUpWithProspect;
   onComplete: (id: string, e: React.MouseEvent) => void;
-  onDismiss: (id: string, e: React.MouseEvent) => void;
+  onDismissClick: (followUp: AccountFollowUpWithProspect, e: React.MouseEvent) => void;
   onNavigate: (prospectId: string) => void;
   isCompleting: boolean;
   isDismissing: boolean;
 }
 
-function FollowUpRow({ followUp, onComplete, onDismiss, onNavigate, isCompleting, isDismissing }: FollowUpRowProps) {
+function FollowUpRow({ followUp, onComplete, onDismissClick, onNavigate, isCompleting, isDismissing }: FollowUpRowProps) {
   const priority = priorityConfig[followUp.priority] || priorityConfig.medium;
   const accountDisplay = followUp.account_name || followUp.prospect_name;
 
@@ -247,7 +290,7 @@ function FollowUpRow({ followUp, onComplete, onDismiss, onNavigate, isCompleting
         size="sm"
         variant="ghost"
         className="h-8 w-8 p-0 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-        onClick={(e) => onDismiss(followUp.id, e)}
+        onClick={(e) => onDismissClick(followUp, e)}
         disabled={isDismissing || isCompleting}
         title="Dismiss"
       >
