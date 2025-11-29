@@ -72,7 +72,7 @@ export interface CoachOutput {
   gap_selling_improvements: string[];
   active_listening_improvements: string[];
   critical_info_missing: string[];
-  recommended_follow_up_questions: string[];
+  recommended_follow_up_questions: Array<{ question: string; timing_example: string }> | string[];
   heat_signature: {
     score: number;
     explanation: string;

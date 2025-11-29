@@ -106,7 +106,7 @@ In addition to all existing outputs, act as the StormWind AI Call Coach. Populat
 - Framework scores (BANT, Gap Selling, Active Listening), each 0–100 with 1-sentence summary
 - 1–2 improvement points per framework
 - 3–5 critical missing pieces needed to close the deal
-- 3–5 recommended follow-up questions
+- 3–5 recommended follow-up questions, each with a specific example of when during the call it would have been best to ask (referencing what the prospect said or the moment in the conversation)
 - Heat Signature (1–10) with explanation of deal temperature/likelihood to close
 Use direct evidence from transcript or explicitly say "⚠️ No evidence found."
 
@@ -155,7 +155,10 @@ interface CoachOutput {
   gap_selling_improvements: string[];
   active_listening_improvements: string[];
   critical_info_missing: string[];
-  recommended_follow_up_questions: string[];
+  recommended_follow_up_questions: Array<{
+    question: string;
+    timing_example: string;
+  }>;
   heat_signature: {
     score: number;
     explanation: string;
@@ -323,9 +326,18 @@ Best,
       "KPIs and metrics."
     ],
     recommended_follow_up_questions: [
-      "Who else is involved in the decision?",
-      "What happens if you don't address this?",
-      "How do you measure the problem?"
+      { 
+        question: "Who else is involved in the decision?",
+        timing_example: "When John mentioned needing VP sign-off for larger investments, this was the perfect moment to explore the full decision-making process."
+      },
+      { 
+        question: "What happens if you don't address this?",
+        timing_example: "When they mentioned the compliance audit in March, asking about consequences of missing the deadline would have quantified urgency."
+      },
+      { 
+        question: "How do you measure the problem?",
+        timing_example: "After they mentioned '68% completion rate', diving deeper into how this impacts the business would reveal more pain."
+      }
     ],
     heat_signature: {
       score: 7,
@@ -564,7 +576,18 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
               gap_selling_improvements: { type: "array", items: { type: "string" }, description: "1-2 specific improvements for Gap Selling" },
               active_listening_improvements: { type: "array", items: { type: "string" }, description: "1-2 specific improvements for Active Listening" },
               critical_info_missing: { type: "array", items: { type: "string" }, description: "3-5 critical pieces of information needed to close the deal" },
-              recommended_follow_up_questions: { type: "array", items: { type: "string" }, description: "3-5 recommended follow-up questions for next conversation" },
+              recommended_follow_up_questions: { 
+                type: "array", 
+                items: { 
+                  type: "object",
+                  properties: {
+                    question: { type: "string", description: "The follow-up question to ask" },
+                    timing_example: { type: "string", description: "When during the call this question would have been best asked, referencing a specific moment or statement from the prospect" }
+                  },
+                  required: ["question", "timing_example"]
+                }, 
+                description: "3-5 recommended follow-up questions with examples of optimal timing" 
+              },
               heat_signature: {
                 type: "object",
                 properties: {
