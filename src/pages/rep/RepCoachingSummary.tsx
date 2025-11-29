@@ -37,7 +37,10 @@ import {
   ArrowRight,
   GitCompare,
   Database,
+  AlertTriangle,
+  Info,
 } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const TIME_RANGES = [
@@ -65,6 +68,71 @@ function createPreviousPeriodRange(dateRange: { from: Date; to: Date }): { from:
   from.setDate(from.getDate() - days);
   from.setHours(0, 0, 0, 0);
   return { from, to };
+}
+
+interface PeriodValidation {
+  hasOverlap: boolean;
+  overlapDays: number;
+  isIdentical: boolean;
+  periodADays: number;
+  periodBDays: number;
+  daysDifference: number;
+  warnings: Array<{ type: 'error' | 'warning' | 'info'; message: string }>;
+}
+
+function validatePeriods(
+  periodA: { from: Date; to: Date },
+  periodB: { from: Date; to: Date }
+): PeriodValidation {
+  const warnings: Array<{ type: 'error' | 'warning' | 'info'; message: string }> = [];
+  
+  // Calculate period durations
+  const periodADays = Math.ceil((periodA.to.getTime() - periodA.from.getTime()) / (1000 * 60 * 60 * 24));
+  const periodBDays = Math.ceil((periodB.to.getTime() - periodB.from.getTime()) / (1000 * 60 * 60 * 24));
+  const daysDifference = Math.abs(periodADays - periodBDays);
+  
+  // Check if periods are identical
+  const isIdentical = 
+    periodA.from.toDateString() === periodB.from.toDateString() &&
+    periodA.to.toDateString() === periodB.to.toDateString();
+  
+  if (isIdentical) {
+    warnings.push({
+      type: 'error',
+      message: 'Both periods are identical. Select different date ranges to compare.'
+    });
+  }
+  
+  // Check for overlap
+  const overlapStart = Math.max(periodA.from.getTime(), periodB.from.getTime());
+  const overlapEnd = Math.min(periodA.to.getTime(), periodB.to.getTime());
+  const hasOverlap = !isIdentical && overlapStart <= overlapEnd;
+  const overlapDays = hasOverlap ? Math.ceil((overlapEnd - overlapStart) / (1000 * 60 * 60 * 24)) + 1 : 0;
+  
+  if (hasOverlap && overlapDays > 0) {
+    warnings.push({
+      type: 'warning',
+      message: `Periods overlap by ${overlapDays} day${overlapDays > 1 ? 's' : ''}. This may skew comparison results.`
+    });
+  }
+  
+  // Check for significant duration difference
+  if (!isIdentical && daysDifference > 7 && daysDifference > Math.min(periodADays, periodBDays) * 0.3) {
+    warnings.push({
+      type: 'info',
+      message: `Period lengths differ by ${daysDifference} days. Results will be normalized but may vary.`
+    });
+  }
+  
+  return {
+    hasOverlap,
+    overlapDays,
+    isIdentical,
+    periodADays,
+    periodBDays,
+    daysDifference,
+    warnings
+  };
 }
 
 export default function RepCoachingSummary() {
@@ -252,6 +320,13 @@ export default function RepCoachingSummary() {
 
   const isAnyLoading = isLoading || (isComparisonMode && comparisonConfirmed && isComparisonLoading);
   const isAnyFetching = isFetching || (isComparisonMode && comparisonConfirmed && isComparisonFetching);
+
+  // Validate comparison periods
+  const periodValidation = isComparisonMode 
+    ? validatePeriods(comparisonDateRange, dateRange)
+    : null;
+  
+  const hasValidationErrors = periodValidation?.warnings.some(w => w.type === 'error') ?? false;
 
   return (
     <AppLayout>
@@ -448,19 +523,56 @@ export default function RepCoachingSummary() {
 
                 {/* Run Comparison Button */}
                 <div className="flex items-end">
-                  <Button 
-                    onClick={() => setComparisonConfirmed(true)}
-                    disabled={comparisonConfirmed && isComparisonFetching}
-                  >
-                    {comparisonConfirmed && isComparisonFetching ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <BarChart3 className="h-4 w-4 mr-2" />
-                    )}
-                    {comparisonConfirmed ? 'Re-run Comparison' : 'Run Comparison'}
-                  </Button>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span>
+                          <Button 
+                            onClick={() => setComparisonConfirmed(true)}
+                            disabled={(comparisonConfirmed && isComparisonFetching) || hasValidationErrors}
+                          >
+                            {comparisonConfirmed && isComparisonFetching ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <BarChart3 className="h-4 w-4 mr-2" />
+                            )}
+                            {comparisonConfirmed ? 'Re-run Comparison' : 'Run Comparison'}
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      {hasValidationErrors && (
+                        <TooltipContent>
+                          <p>Fix period errors before comparing</p>
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
               </>
+            )}
+            
+            {/* Period Validation Warnings */}
+            {isComparisonMode && periodValidation && periodValidation.warnings.length > 0 && (
+              <div className="w-full space-y-2 mt-2">
+                {periodValidation.warnings.map((warning, index) => (
+                  <Alert 
+                    key={index} 
+                    variant={warning.type === 'error' ? 'destructive' : 'default'}
+                    className={cn(
+                      "py-2",
+                      warning.type === 'warning' && "border-yellow-500/50 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400",
+                      warning.type === 'info' && "border-blue-500/50 bg-blue-500/10 text-blue-700 dark:text-blue-400"
+                    )}
+                  >
+                    {warning.type === 'error' && <AlertTriangle className="h-4 w-4" />}
+                    {warning.type === 'warning' && <AlertTriangle className="h-4 w-4 text-yellow-600" />}
+                    {warning.type === 'info' && <Info className="h-4 w-4 text-blue-600" />}
+                    <AlertDescription className="text-sm">
+                      {warning.message}
+                    </AlertDescription>
+                  </Alert>
+                ))}
+              </div>
             )}
           </div>
         </div>
