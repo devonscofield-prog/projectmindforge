@@ -21,7 +21,7 @@ export default function RepDashboard() {
 
   // Form state
   const [transcript, setTranscript] = useState('');
-  const [prospectName, setProspectName] = useState('');
+  const [primaryStakeholderName, setPrimaryStakeholderName] = useState('');
   const [accountName, setAccountName] = useState('');
   const [salesforceDemoLink, setSalesforceDemoLink] = useState('');
   const [potentialRevenue, setPotentialRevenue] = useState('');
@@ -35,7 +35,7 @@ export default function RepDashboard() {
     if (!user?.id) return;
 
     // Validation
-    if (!prospectName.trim()) {
+    if (!primaryStakeholderName.trim()) {
       toast({ title: 'Error', description: 'Primary Stakeholder is required', variant: 'destructive' });
       return;
     }
@@ -63,7 +63,7 @@ export default function RepDashboard() {
         callDate,
         callType,
         callTypeOther: callType === 'other' ? callTypeOther : undefined,
-        prospectName: prospectName.trim(),
+        prospectName: primaryStakeholderName.trim(),
         accountName: accountName.trim(),
         salesforceDemoLink: salesforceDemoLink.trim(),
         potentialRevenue: potentialRevenue ? parseFloat(potentialRevenue) : undefined,
@@ -127,12 +127,12 @@ export default function RepDashboard() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="prospectName">Primary Stakeholder *</Label>
+                  <Label htmlFor="primaryStakeholderName">Primary Stakeholder *</Label>
                   <Input
-                    id="prospectName"
+                    id="primaryStakeholderName"
                     placeholder="e.g., John Smith"
-                    value={prospectName}
-                    onChange={(e) => setProspectName(e.target.value)}
+                    value={primaryStakeholderName}
+                    onChange={(e) => setPrimaryStakeholderName(e.target.value)}
                     required
                   />
                 </div>
@@ -227,7 +227,7 @@ export default function RepDashboard() {
               {/* Submit Button */}
               <Button 
                 type="submit" 
-                disabled={isSubmitting || !transcript.trim() || !prospectName.trim() || !accountName.trim() || !salesforceDemoLink.trim()} 
+                disabled={isSubmitting || !transcript.trim() || !primaryStakeholderName.trim() || !accountName.trim() || !salesforceDemoLink.trim()} 
                 className="w-full h-12 text-lg"
                 size="lg"
               >
