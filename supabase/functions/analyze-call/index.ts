@@ -105,7 +105,7 @@ In addition to all existing outputs, act as the StormWind AI Call Coach. Populat
 - Duration in minutes (estimate based on transcript length if not explicit)
 - Framework scores (BANT, Gap Selling, Active Listening), each 0–100 with 1-sentence summary
 - 1–2 improvement points per framework
-- 3–5 critical missing pieces needed to close the deal
+- 3–5 critical missing pieces needed to close the deal, each with a specific example of when during the call the rep missed an opportunity to ask for this information (referencing what the prospect said or the moment in the conversation)
 - 3–5 recommended follow-up questions, each with a specific example of when during the call it would have been best to ask (referencing what the prospect said or the moment in the conversation)
 - Heat Signature (1–10) with explanation of deal temperature/likelihood to close
 Use direct evidence from transcript or explicitly say "⚠️ No evidence found."
@@ -154,7 +154,10 @@ interface CoachOutput {
   bant_improvements: string[];
   gap_selling_improvements: string[];
   active_listening_improvements: string[];
-  critical_info_missing: string[];
+  critical_info_missing: Array<{
+    info: string;
+    missed_opportunity: string;
+  }>;
   recommended_follow_up_questions: Array<{
     question: string;
     timing_example: string;
@@ -320,10 +323,22 @@ Best,
       "Label hesitation points."
     ],
     critical_info_missing: [
-      "Budget range.",
-      "Timeline.",
-      "Decision-making process.",
-      "KPIs and metrics."
+      { 
+        info: "Budget range",
+        missed_opportunity: "When they mentioned '$40-50K range', the rep should have asked about approval thresholds and who controls the budget."
+      },
+      { 
+        info: "Full decision-making process",
+        missed_opportunity: "When John mentioned needing VP sign-off, this was the ideal moment to map out all stakeholders involved."
+      },
+      { 
+        info: "Timeline blockers",
+        missed_opportunity: "After they mentioned the March compliance audit, asking 'What could prevent you from hitting February 15th?' would surface risks."
+      },
+      { 
+        info: "Success metrics/KPIs",
+        missed_opportunity: "When discussing the 68% completion rate, asking 'What would success look like in 6 months?' would quantify the goal."
+      }
     ],
     recommended_follow_up_questions: [
       { 
@@ -575,7 +590,18 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
               bant_improvements: { type: "array", items: { type: "string" }, description: "1-2 specific improvements for BANT qualification" },
               gap_selling_improvements: { type: "array", items: { type: "string" }, description: "1-2 specific improvements for Gap Selling" },
               active_listening_improvements: { type: "array", items: { type: "string" }, description: "1-2 specific improvements for Active Listening" },
-              critical_info_missing: { type: "array", items: { type: "string" }, description: "3-5 critical pieces of information needed to close the deal" },
+              critical_info_missing: { 
+                type: "array", 
+                items: { 
+                  type: "object",
+                  properties: {
+                    info: { type: "string", description: "The critical piece of information that's missing" },
+                    missed_opportunity: { type: "string", description: "When during the call the rep missed an opportunity to ask for this, referencing a specific moment or statement" }
+                  },
+                  required: ["info", "missed_opportunity"]
+                }, 
+                description: "3-5 critical missing pieces with examples of when the rep could have asked" 
+              },
               recommended_follow_up_questions: { 
                 type: "array", 
                 items: { 
