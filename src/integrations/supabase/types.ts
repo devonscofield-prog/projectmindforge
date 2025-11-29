@@ -462,6 +462,39 @@ export type Database = {
         }
         Relationships: []
       }
+      coaching_trend_analyses: {
+        Row: {
+          analysis_data: Json
+          call_count: number
+          created_at: string
+          date_range_from: string
+          date_range_to: string
+          id: string
+          rep_id: string
+          updated_at: string
+        }
+        Insert: {
+          analysis_data: Json
+          call_count: number
+          created_at?: string
+          date_range_from: string
+          date_range_to: string
+          id?: string
+          rep_id: string
+          updated_at?: string
+        }
+        Update: {
+          analysis_data?: Json
+          call_count?: number
+          created_at?: string
+          date_range_from?: string
+          date_range_to?: string
+          id?: string
+          rep_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       email_logs: {
         Row: {
           body: string
