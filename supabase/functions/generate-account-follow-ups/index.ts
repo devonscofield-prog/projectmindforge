@@ -148,6 +148,13 @@ serve(async (req) => {
       .eq('prospect_id', prospect_id)
       .eq('status', 'pending');
 
+    // Fetch email logs for this prospect
+    const { data: emailLogs } = await supabase
+      .from('email_logs')
+      .select('direction, subject, body, email_date, contact_name, notes')
+      .eq('prospect_id', prospect_id)
+      .order('email_date', { ascending: false });
+
     // Build context for AI
     const callsWithAnalysis: CallData[] = (calls || []).map(call => ({
       ...call,
@@ -199,7 +206,7 @@ serve(async (req) => {
     }
 
     // Build comprehensive context
-    const contextPrompt = buildContextPrompt(prospect, callsWithAnalysis, stakeholders || [], existingFollowUps || []);
+    const contextPrompt = buildContextPrompt(prospect, callsWithAnalysis, stakeholders || [], existingFollowUps || [], emailLogs || []);
 
     // Call Lovable AI Gateway
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
@@ -359,7 +366,8 @@ function buildContextPrompt(
   prospect: any,
   calls: CallData[],
   stakeholders: any[],
-  existingFollowUps: any[]
+  existingFollowUps: any[],
+  emailLogs: any[]
 ): string {
   let prompt = `## ACCOUNT OVERVIEW
 Account Name: ${prospect.account_name || prospect.prospect_name}
@@ -404,6 +412,29 @@ Potential Revenue: ${prospect.potential_revenue ? `$${prospect.potential_revenue
     // Include abbreviated transcript for context
     const transcriptPreview = call.raw_text.substring(0, 1500);
     prompt += `Transcript excerpt: ${transcriptPreview}${call.raw_text.length > 1500 ? '...' : ''}\n`;
+  }
+
+  // Add email communication section
+  if (emailLogs && emailLogs.length > 0) {
+    prompt += `\n## EMAIL COMMUNICATION (${emailLogs.length} emails, most recent first)\n`;
+    
+    for (const email of emailLogs.slice(0, 10)) { // Limit to last 10 emails
+      const direction = email.direction === 'outgoing' ? 'SENT' : 'RECEIVED';
+      const contact = email.contact_name ? ` ${email.direction === 'outgoing' ? 'to' : 'from'} ${email.contact_name}` : '';
+      prompt += `\n### Email ${direction}${contact} - ${email.email_date}\n`;
+      
+      if (email.subject) {
+        prompt += `Subject: ${email.subject}\n`;
+      }
+      
+      // Include abbreviated email body
+      const bodyPreview = email.body.substring(0, 800);
+      prompt += `Content: ${bodyPreview}${email.body.length > 800 ? '...' : ''}\n`;
+      
+      if (email.notes) {
+        prompt += `Rep Notes: ${email.notes}\n`;
+      }
+    }
   }
 
   if (existingFollowUps.length > 0) {
