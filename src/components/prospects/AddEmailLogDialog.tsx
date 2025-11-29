@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -10,15 +10,30 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowUpRight, ArrowDownLeft, Loader2 } from 'lucide-react';
+import { ArrowUpRight, ArrowDownLeft, Loader2, Crown, User, Check, Link2, Link2Off } from 'lucide-react';
 import { createEmailLog, type EmailDirection } from '@/api/emailLogs';
+import { type Stakeholder, influenceLevelLabels } from '@/api/stakeholders';
 import { cn } from '@/lib/utils';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 
 interface AddEmailLogDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   prospectId: string;
   repId: string;
+  stakeholders: Stakeholder[];
   onEmailAdded: () => void;
 }
 
@@ -27,6 +42,7 @@ export function AddEmailLogDialog({
   onOpenChange,
   prospectId,
   repId,
+  stakeholders,
   onEmailAdded,
 }: AddEmailLogDialogProps) {
   const { toast } = useToast();
@@ -38,6 +54,9 @@ export function AddEmailLogDialog({
   const [contactName, setContactName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [notes, setNotes] = useState('');
+  const [selectedStakeholder, setSelectedStakeholder] = useState<Stakeholder | null>(null);
+  const [stakeholderPopoverOpen, setStakeholderPopoverOpen] = useState(false);
+  const [searchValue, setSearchValue] = useState('');
 
   const resetForm = () => {
     setDirection('outgoing');
@@ -47,6 +66,28 @@ export function AddEmailLogDialog({
     setContactName('');
     setContactEmail('');
     setNotes('');
+    setSelectedStakeholder(null);
+    setSearchValue('');
+  };
+
+  // When stakeholder is selected, auto-fill contact info
+  useEffect(() => {
+    if (selectedStakeholder) {
+      setContactName(selectedStakeholder.name);
+      setContactEmail(selectedStakeholder.email || '');
+    }
+  }, [selectedStakeholder]);
+
+  const handleSelectStakeholder = (stakeholder: Stakeholder) => {
+    setSelectedStakeholder(stakeholder);
+    setStakeholderPopoverOpen(false);
+    setSearchValue('');
+  };
+
+  const handleClearStakeholder = () => {
+    setSelectedStakeholder(null);
+    setContactName('');
+    setContactEmail('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -69,6 +110,7 @@ export function AddEmailLogDialog({
         contactName: contactName || undefined,
         contactEmail: contactEmail || undefined,
         notes: notes || undefined,
+        stakeholderId: selectedStakeholder?.id,
       });
       
       toast({ title: 'Email logged successfully' });
@@ -82,6 +124,12 @@ export function AddEmailLogDialog({
       setIsSubmitting(false);
     }
   };
+
+  // Filter stakeholders based on search
+  const filteredStakeholders = stakeholders.filter(s => 
+    s.name.toLowerCase().includes(searchValue.toLowerCase()) ||
+    (s.job_title && s.job_title.toLowerCase().includes(searchValue.toLowerCase()))
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -130,6 +178,107 @@ export function AddEmailLogDialog({
             </div>
           </div>
 
+          {/* Stakeholder Selector */}
+          <div className="space-y-2">
+            <Label>
+              {direction === 'outgoing' ? 'Sent To' : 'Received From'}
+            </Label>
+            
+            {selectedStakeholder ? (
+              <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/50">
+                <div className="flex items-center gap-2">
+                  <Link2 className="h-4 w-4 text-primary" />
+                  <div className="flex items-center gap-1.5">
+                    {selectedStakeholder.is_primary_contact && (
+                      <Crown className="h-3.5 w-3.5 text-amber-500" />
+                    )}
+                    <span className="font-medium">{selectedStakeholder.name}</span>
+                    {selectedStakeholder.job_title && (
+                      <span className="text-muted-foreground">
+                        ({selectedStakeholder.job_title})
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearStakeholder}
+                  className="h-8"
+                >
+                  Change
+                </Button>
+              </div>
+            ) : (
+              <Popover open={stakeholderPopoverOpen} onOpenChange={setStakeholderPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full justify-start font-normal"
+                  >
+                    <User className="h-4 w-4 mr-2" />
+                    Select stakeholder or enter manually...
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[400px] p-0" align="start">
+                  <Command>
+                    <CommandInput
+                      placeholder="Search stakeholders..."
+                      value={searchValue}
+                      onValueChange={setSearchValue}
+                    />
+                    <CommandList>
+                      <CommandEmpty>
+                        <div className="py-4 text-center text-sm text-muted-foreground">
+                          No stakeholders found.
+                          <p className="mt-1">Enter contact name manually below.</p>
+                        </div>
+                      </CommandEmpty>
+                      {stakeholders.length > 0 && (
+                        <CommandGroup heading="Account Stakeholders">
+                          {filteredStakeholders.map((stakeholder) => (
+                            <CommandItem
+                              key={stakeholder.id}
+                              onSelect={() => handleSelectStakeholder(stakeholder)}
+                              className="cursor-pointer"
+                            >
+                              <div className="flex items-center gap-2 flex-1">
+                                {stakeholder.is_primary_contact ? (
+                                  <Crown className="h-4 w-4 text-amber-500" />
+                                ) : (
+                                  <User className="h-4 w-4 text-muted-foreground" />
+                                )}
+                                <div className="flex-1">
+                                  <p className="font-medium">{stakeholder.name}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {stakeholder.job_title || 'No title'}
+                                    {stakeholder.influence_level && (
+                                      <> • {influenceLevelLabels[stakeholder.influence_level]}</>
+                                    )}
+                                  </p>
+                                </div>
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      )}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            )}
+
+            {/* Show manual entry hint if no stakeholder selected */}
+            {!selectedStakeholder && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Link2Off className="h-3 w-3" />
+                Not linked to a stakeholder - enter contact info manually below
+              </p>
+            )}
+          </div>
+
           {/* Subject */}
           <div className="space-y-2">
             <Label htmlFor="subject">Subject Line (optional)</Label>
@@ -174,6 +323,7 @@ export function AddEmailLogDialog({
                 value={contactName}
                 onChange={(e) => setContactName(e.target.value)}
                 placeholder="John Smith"
+                disabled={!!selectedStakeholder}
               />
             </div>
           </div>

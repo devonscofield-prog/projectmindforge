@@ -747,6 +747,7 @@ export default function ProspectDetail() {
                       <EmailLogItem
                         key={email.id}
                         email={email}
+                        stakeholder={email.stakeholder_id ? stakeholders.find(s => s.id === email.stakeholder_id) : null}
                         onDelete={handleDeleteEmailLog}
                       />
                     ))}
@@ -937,6 +938,7 @@ export default function ProspectDetail() {
           onOpenChange={setIsAddEmailOpen}
           prospectId={prospect.id}
           repId={user.id}
+          stakeholders={stakeholders}
           onEmailAdded={handleEmailAdded}
         />
       )}

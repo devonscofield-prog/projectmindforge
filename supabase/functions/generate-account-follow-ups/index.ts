@@ -138,7 +138,7 @@ serve(async (req) => {
     // Fetch stakeholders
     const { data: stakeholders } = await supabase
       .from('stakeholders')
-      .select('name, job_title, influence_level, champion_score, is_primary_contact')
+      .select('id, name, job_title, influence_level, champion_score, is_primary_contact')
       .eq('prospect_id', prospect_id);
 
     // Fetch existing pending follow-ups to avoid duplicates
@@ -148,12 +148,15 @@ serve(async (req) => {
       .eq('prospect_id', prospect_id)
       .eq('status', 'pending');
 
-    // Fetch email logs for this prospect
+    // Fetch email logs for this prospect with stakeholder details
     const { data: emailLogs } = await supabase
       .from('email_logs')
-      .select('direction, subject, body, email_date, contact_name, notes')
+      .select('direction, subject, body, email_date, contact_name, notes, stakeholder_id')
       .eq('prospect_id', prospect_id)
       .order('email_date', { ascending: false });
+
+    // Create a map of stakeholders for easy lookup
+    const stakeholderMap = new Map((stakeholders || []).map(s => [s.id, s]));
 
     // Build context for AI
     const callsWithAnalysis: CallData[] = (calls || []).map(call => ({
@@ -418,10 +421,33 @@ Potential Revenue: ${prospect.potential_revenue ? `$${prospect.potential_revenue
   if (emailLogs && emailLogs.length > 0) {
     prompt += `\n## EMAIL COMMUNICATION (${emailLogs.length} emails, most recent first)\n`;
     
+    // Create a local stakeholder map for this function scope
+    const localStakeholderMap = new Map(stakeholders.map(s => [s.id, s]));
+    
     for (const email of emailLogs.slice(0, 10)) { // Limit to last 10 emails
       const direction = email.direction === 'outgoing' ? 'SENT' : 'RECEIVED';
-      const contact = email.contact_name ? ` ${email.direction === 'outgoing' ? 'to' : 'from'} ${email.contact_name}` : '';
-      prompt += `\n### Email ${direction}${contact} - ${email.email_date}\n`;
+      
+      // Get stakeholder info if linked
+      const linkedStakeholder = email.stakeholder_id ? localStakeholderMap.get(email.stakeholder_id) : null;
+      
+      let contactInfo = '';
+      if (linkedStakeholder) {
+        contactInfo = ` ${email.direction === 'outgoing' ? 'to' : 'from'} ${linkedStakeholder.name}`;
+        if (linkedStakeholder.job_title) {
+          contactInfo += ` (${linkedStakeholder.job_title}`;
+          if (linkedStakeholder.influence_level) {
+            contactInfo += `, ${linkedStakeholder.influence_level.replace('_', ' ')}`;
+          }
+          contactInfo += ')';
+        }
+        if (linkedStakeholder.is_primary_contact) {
+          contactInfo += ' [PRIMARY CONTACT]';
+        }
+      } else if (email.contact_name) {
+        contactInfo = ` ${email.direction === 'outgoing' ? 'to' : 'from'} ${email.contact_name} (not linked to stakeholder)`;
+      }
+      
+      prompt += `\n### Email ${direction}${contactInfo} - ${email.email_date}\n`;
       
       if (email.subject) {
         prompt += `Subject: ${email.subject}\n`;
@@ -430,6 +456,10 @@ Potential Revenue: ${prospect.potential_revenue ? `$${prospect.potential_revenue
       // Include abbreviated email body
       const bodyPreview = email.body.substring(0, 800);
       prompt += `Content: ${bodyPreview}${email.body.length > 800 ? '...' : ''}\n`;
+      
+      if (linkedStakeholder?.champion_score) {
+        prompt += `Stakeholder Champion Score: ${linkedStakeholder.champion_score}/10\n`;
+      }
       
       if (email.notes) {
         prompt += `Rep Notes: ${email.notes}\n`;
