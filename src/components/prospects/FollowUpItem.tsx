@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { SwipeableCard } from '@/components/ui/swipeable-card';
+import { useIsMobile } from '@/hooks/use-mobile';
 import {
   Collapsible,
   CollapsibleContent,
@@ -59,6 +61,7 @@ export function FollowUpItem({ followUp, onComplete, onDismiss, isCompleting, is
   const [isLoadingComplete, setIsLoadingComplete] = useState(false);
   const [isLoadingDismiss, setIsLoadingDismiss] = useState(false);
   const [showDismissConfirm, setShowDismissConfirm] = useState(false);
+  const isMobile = useIsMobile();
 
   const priority = priorityConfig[followUp.priority] || priorityConfig.medium;
   const category = followUp.category ? categoryConfig[followUp.category] : null;
@@ -84,34 +87,44 @@ export function FollowUpItem({ followUp, onComplete, onDismiss, isCompleting, is
     }
   };
 
-  return (
-    <>
-      <div className="border rounded-lg p-4 bg-card hover:shadow-sm transition-shadow">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            {/* Badges */}
-            <div className="flex items-center gap-2 mb-2 flex-wrap">
-              <Badge variant="secondary" className={priority.className}>
-                {priority.label}
+  const handleSwipeDismiss = async () => {
+    if (!onDismiss) return;
+    setIsLoadingDismiss(true);
+    try {
+      await onDismiss(followUp.id);
+    } finally {
+      setIsLoadingDismiss(false);
+    }
+  };
+
+  const cardContent = (
+    <div className="border rounded-lg p-4 bg-card hover:shadow-sm transition-shadow">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          {/* Badges */}
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <Badge variant="secondary" className={priority.className}>
+              {priority.label}
+            </Badge>
+            {category && (
+              <Badge variant="secondary" className={category.className}>
+                <CategoryIcon className="h-3 w-3 mr-1" />
+                {category.label}
               </Badge>
-              {category && (
-                <Badge variant="secondary" className={category.className}>
-                  <CategoryIcon className="h-3 w-3 mr-1" />
-                  {category.label}
-                </Badge>
-              )}
-            </div>
-
-            {/* Title */}
-            <h4 className="font-medium text-foreground">{followUp.title}</h4>
-
-            {/* Description */}
-            {followUp.description && (
-              <p className="text-sm text-muted-foreground mt-1">{followUp.description}</p>
             )}
           </div>
 
-          {/* Action Buttons */}
+          {/* Title */}
+          <h4 className="font-medium text-foreground">{followUp.title}</h4>
+
+          {/* Description */}
+          {followUp.description && (
+            <p className="text-sm text-muted-foreground mt-1">{followUp.description}</p>
+          )}
+        </div>
+
+        {/* Action Buttons - Hidden on mobile (use swipe instead) */}
+        {!isMobile && (
           <div className="flex items-center gap-2 shrink-0">
             {onDismiss && (
               <Button
@@ -145,31 +158,56 @@ export function FollowUpItem({ followUp, onComplete, onDismiss, isCompleting, is
               )}
             </Button>
           </div>
-        </div>
-
-        {/* AI Reasoning (Collapsible) */}
-        {followUp.ai_reasoning && (
-          <Collapsible open={isOpen} onOpenChange={setIsOpen} className="mt-3">
-            <CollapsibleTrigger asChild>
-              <button className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
-                {isOpen ? (
-                  <ChevronDown className="h-3 w-3" />
-                ) : (
-                  <ChevronRight className="h-3 w-3" />
-                )}
-                Why this matters
-              </button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="mt-2">
-              <div className="text-xs text-muted-foreground bg-muted/50 rounded-md p-3 border-l-2 border-primary/30">
-                {followUp.ai_reasoning}
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
         )}
       </div>
 
-      {/* Dismiss Confirmation Dialog */}
+      {/* AI Reasoning (Collapsible) */}
+      {followUp.ai_reasoning && (
+        <Collapsible open={isOpen} onOpenChange={setIsOpen} className="mt-3">
+          <CollapsibleTrigger asChild>
+            <button className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+              {isOpen ? (
+                <ChevronDown className="h-3 w-3" />
+              ) : (
+                <ChevronRight className="h-3 w-3" />
+              )}
+              Why this matters
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-2">
+            <div className="text-xs text-muted-foreground bg-muted/50 rounded-md p-3 border-l-2 border-primary/30">
+              {followUp.ai_reasoning}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+
+      {/* Mobile hint */}
+      {isMobile && (
+        <p className="text-[10px] text-muted-foreground mt-2 text-center">
+          Swipe right to complete • Swipe left to dismiss
+        </p>
+      )}
+    </div>
+  );
+
+  return (
+    <>
+      {isMobile ? (
+        <SwipeableCard
+          onSwipeRight={handleComplete}
+          onSwipeLeft={onDismiss ? handleSwipeDismiss : undefined}
+          swipeRightLabel="Complete"
+          swipeLeftLabel="Dismiss"
+          disabled={isLoadingComplete || isLoadingDismiss || isCompleting || isDismissing}
+        >
+          {cardContent}
+        </SwipeableCard>
+      ) : (
+        cardContent
+      )}
+
+      {/* Dismiss Confirmation Dialog - Only for desktop */}
       <AlertDialog open={showDismissConfirm} onOpenChange={setShowDismissConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
