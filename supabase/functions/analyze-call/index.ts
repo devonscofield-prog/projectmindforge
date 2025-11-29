@@ -182,6 +182,7 @@ interface AnalysisResult {
   coach_output: CoachOutput;
   raw_json: Record<string, unknown>;
   prospect_intel?: ProspectIntel;
+  stakeholders_intel?: StakeholderIntel[];
 }
 
 interface ProspectIntel {
@@ -736,6 +737,9 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
 
   // Extract prospect_intel (optional but expected)
   const prospectIntel = analysisData.prospect_intel as ProspectIntel | undefined;
+  
+  // Extract stakeholders_intel (optional)
+  const stakeholdersIntel = analysisData.stakeholders_intel as StakeholderIntel[] | undefined;
 
   // Build the result object
   const result: AnalysisResult = {
@@ -762,7 +766,8 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
     recap_email_draft: String(recapEmail),
     coach_output: coachOutput,
     raw_json: analysisData,
-    prospect_intel: prospectIntel
+    prospect_intel: prospectIntel,
+    stakeholders_intel: stakeholdersIntel
   };
 
   console.log('[analyze-call] Analysis parsed successfully with call_notes, recap_email_draft, and coach_output');
@@ -954,6 +959,118 @@ serve(async (req) => {
         }
       } catch (prospectErr) {
         console.error('[analyze-call] Failed to update prospect with AI intel:', prospectErr);
+        // Don't fail the whole request, analysis was saved
+      }
+    }
+
+    // Step 8: Process stakeholders_intel - create/update stakeholders
+    if (analysis.stakeholders_intel && analysis.stakeholders_intel.length > 0) {
+      try {
+        // Get the prospect_id and rep_id from the call transcript
+        const { data: callData } = await supabaseAdmin
+          .from('call_transcripts')
+          .select('prospect_id, rep_id')
+          .eq('id', callId)
+          .single();
+
+        if (callData?.prospect_id && callData?.rep_id) {
+          console.log(`[analyze-call] Processing ${analysis.stakeholders_intel.length} stakeholders`);
+          
+          for (const stakeholderIntel of analysis.stakeholders_intel) {
+            if (!stakeholderIntel.name) continue;
+            
+            // Check if stakeholder already exists (case-insensitive match)
+            const { data: existingStakeholder } = await supabaseAdmin
+              .from('stakeholders')
+              .select('id')
+              .eq('prospect_id', callData.prospect_id)
+              .ilike('name', stakeholderIntel.name)
+              .maybeSingle();
+
+            if (existingStakeholder) {
+              // Update existing stakeholder with new intel
+              const updates: Record<string, unknown> = {
+                last_interaction_date: new Date().toISOString().split('T')[0],
+              };
+              
+              if (stakeholderIntel.job_title) {
+                updates.job_title = stakeholderIntel.job_title;
+              }
+              if (stakeholderIntel.influence_level) {
+                updates.influence_level = stakeholderIntel.influence_level;
+              }
+              if (stakeholderIntel.champion_score) {
+                updates.champion_score = stakeholderIntel.champion_score;
+              }
+              if (stakeholderIntel.champion_score_reasoning) {
+                updates.champion_score_reasoning = stakeholderIntel.champion_score_reasoning;
+              }
+              if (stakeholderIntel.ai_notes) {
+                updates.ai_extracted_info = { notes: stakeholderIntel.ai_notes };
+              }
+
+              await supabaseAdmin
+                .from('stakeholders')
+                .update(updates)
+                .eq('id', existingStakeholder.id);
+              
+              console.log(`[analyze-call] Updated stakeholder: ${stakeholderIntel.name}`);
+
+              // Create call mention if stakeholder was present
+              if (stakeholderIntel.was_present !== false) {
+                await supabaseAdmin
+                  .from('call_stakeholder_mentions')
+                  .upsert({
+                    call_id: callId,
+                    stakeholder_id: existingStakeholder.id,
+                    was_present: stakeholderIntel.was_present ?? true,
+                    context_notes: stakeholderIntel.ai_notes || null,
+                  }, { onConflict: 'call_id,stakeholder_id' });
+              }
+            } else {
+              // Create new stakeholder
+              const { data: newStakeholder, error: createError } = await supabaseAdmin
+                .from('stakeholders')
+                .insert({
+                  prospect_id: callData.prospect_id,
+                  rep_id: callData.rep_id,
+                  name: stakeholderIntel.name,
+                  job_title: stakeholderIntel.job_title || null,
+                  influence_level: stakeholderIntel.influence_level || 'light_influencer',
+                  champion_score: stakeholderIntel.champion_score || null,
+                  champion_score_reasoning: stakeholderIntel.champion_score_reasoning || null,
+                  ai_extracted_info: stakeholderIntel.ai_notes ? { notes: stakeholderIntel.ai_notes } : null,
+                  is_primary_contact: false,
+                  last_interaction_date: new Date().toISOString().split('T')[0],
+                })
+                .select('id')
+                .single();
+
+              if (createError) {
+                console.error(`[analyze-call] Failed to create stakeholder ${stakeholderIntel.name}:`, createError);
+                continue;
+              }
+
+              console.log(`[analyze-call] Created new stakeholder: ${stakeholderIntel.name}`);
+
+              // Create call mention if stakeholder was present
+              if (newStakeholder && stakeholderIntel.was_present !== false) {
+                await supabaseAdmin
+                  .from('call_stakeholder_mentions')
+                  .insert({
+                    call_id: callId,
+                    stakeholder_id: newStakeholder.id,
+                    was_present: stakeholderIntel.was_present ?? true,
+                    context_notes: stakeholderIntel.ai_notes || null,
+                  });
+              }
+            }
+          }
+          
+          console.log(`[analyze-call] Finished processing stakeholders`);
+        }
+      } catch (stakeholderErr) {
+        console.error('[analyze-call] Failed to process stakeholders:', stakeholderErr);
         // Don't fail the whole request, analysis was saved
       }
     }
