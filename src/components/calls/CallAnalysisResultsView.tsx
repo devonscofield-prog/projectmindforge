@@ -40,6 +40,27 @@ export function CallAnalysisResultsView({ call, analysis, isOwner, isManager }: 
   const [originalRecapDraft] = useState(analysis?.recap_email_draft || '');
   const [editInstructions, setEditInstructions] = useState('');
   const [isRefining, setIsRefining] = useState(false);
+  const [showEmailPreview, setShowEmailPreview] = useState(false);
+
+  // Shared markdown components for recap email rendering
+  const recapMarkdownComponents = {
+    p: ({children}: {children?: React.ReactNode}) => <p className="mb-2">{children}</p>,
+    a: ({href, children}: {href?: string; children?: React.ReactNode}) => (
+      <a 
+        href={href} 
+        target="_blank" 
+        rel="noopener noreferrer" 
+        className="text-primary underline hover:text-primary/80"
+      >
+        {children}
+      </a>
+    ),
+    ul: ({children}: {children?: React.ReactNode}) => <ul className="list-disc ml-6 mb-2">{children}</ul>,
+    ol: ({children}: {children?: React.ReactNode}) => <ol className="list-decimal ml-6 mb-2">{children}</ol>,
+    li: ({children}: {children?: React.ReactNode}) => <li className="mb-1">{children}</li>,
+    strong: ({children}: {children?: React.ReactNode}) => <strong className="font-bold">{children}</strong>,
+    em: ({children}: {children?: React.ReactNode}) => <em className="italic">{children}</em>,
+  };
 
   const handleCopy = async (text: string, label: string) => {
     try {
@@ -452,13 +473,40 @@ export function CallAnalysisResultsView({ call, analysis, isOwner, isManager }: 
           <CardContent className="space-y-4">
             {isOwner ? (
               <>
-                {/* Editable textarea for owner */}
-                <Textarea
-                  value={recapDraft}
-                  onChange={(e) => setRecapDraft(e.target.value)}
-                  className="min-h-[200px] font-mono text-sm"
-                  placeholder="No recap email available"
-                />
+                {/* Edit/Preview toggle */}
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant={!showEmailPreview ? "secondary" : "ghost"} 
+                    size="sm"
+                    onClick={() => setShowEmailPreview(false)}
+                  >
+                    Edit
+                  </Button>
+                  <Button 
+                    variant={showEmailPreview ? "secondary" : "ghost"} 
+                    size="sm"
+                    onClick={() => setShowEmailPreview(true)}
+                  >
+                    Preview
+                  </Button>
+                </div>
+
+                {showEmailPreview ? (
+                  /* Preview mode with rendered markdown and clickable links */
+                  <div className="prose prose-sm dark:prose-invert max-w-none bg-muted/30 rounded-lg p-4 min-h-[200px]">
+                    <ReactMarkdown components={recapMarkdownComponents}>
+                      {recapDraft}
+                    </ReactMarkdown>
+                  </div>
+                ) : (
+                  /* Edit mode with textarea */
+                  <Textarea
+                    value={recapDraft}
+                    onChange={(e) => setRecapDraft(e.target.value)}
+                    className="min-h-[200px] font-mono text-sm"
+                    placeholder="No recap email available"
+                  />
+                )}
 
                 {recapDraft !== originalRecapDraft && (
                   <Button onClick={handleUndoEmail} variant="outline" size="sm">
@@ -497,11 +545,11 @@ export function CallAnalysisResultsView({ call, analysis, isOwner, isManager }: 
                 </div>
               </>
             ) : (
-              /* Read-only view for managers */
-              <div className="bg-muted/30 rounded-lg p-4">
-                <pre className="text-sm whitespace-pre-wrap font-sans text-muted-foreground">
+              /* Read-only view for managers with rendered links */
+              <div className="prose prose-sm dark:prose-invert max-w-none bg-muted/30 rounded-lg p-4">
+                <ReactMarkdown components={recapMarkdownComponents}>
                   {analysis.recap_email_draft}
-                </pre>
+                </ReactMarkdown>
               </div>
             )}
           </CardContent>
