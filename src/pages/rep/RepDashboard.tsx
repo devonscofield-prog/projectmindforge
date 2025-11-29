@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { createCallTranscriptAndAnalyze } from '@/api/aiCallAnalysis';
+import { updateProspect } from '@/api/prospects';
 import { CallType, callTypeOptions } from '@/constants/callTypes';
 import { format } from 'date-fns';
 import { Send, Loader2, Mic, Pencil } from 'lucide-react';
@@ -90,6 +91,11 @@ export default function RepDashboard() {
 
     setIsSubmitting(true);
     try {
+      // If user edited the Salesforce link for an existing account, update the prospect
+      if (selectedProspectId && isEditingSalesforceLink && salesforceAccountLink.trim()) {
+        await updateProspect(selectedProspectId, { salesforce_link: salesforceAccountLink.trim() });
+      }
+
       const result = await createCallTranscriptAndAnalyze({
         repId: user.id,
         callDate,
