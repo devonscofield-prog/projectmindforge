@@ -297,18 +297,32 @@ export function CallAnalysisResultsView({ call, analysis, isOwner, isManager }: 
 
               {/* Follow-up Questions */}
               {analysis.coach_output.recommended_follow_up_questions && analysis.coach_output.recommended_follow_up_questions.length > 0 && (
-                <div className="p-4 border border-primary/30 bg-primary/5 rounded-lg space-y-2">
+                <div className="p-4 border border-primary/30 bg-primary/5 rounded-lg space-y-3">
                   <h4 className="font-medium text-sm flex items-center gap-2 text-primary">
                     <HelpCircle className="h-4 w-4" />
                     Recommended Follow-up Questions
                   </h4>
-                  <ul className="text-sm space-y-1">
-                    {analysis.coach_output.recommended_follow_up_questions.map((item, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <span className="text-primary">•</span>
-                        {item}
-                      </li>
-                    ))}
+                  <ul className="space-y-3">
+                    {analysis.coach_output.recommended_follow_up_questions.map((item, i) => {
+                      // Handle both old (string) and new (object) formats
+                      const isObject = typeof item === 'object' && item !== null;
+                      const question = isObject ? item.question : item;
+                      const timingExample = isObject ? item.timing_example : null;
+                      
+                      return (
+                        <li key={i} className="space-y-1">
+                          <div className="flex items-start gap-2 text-sm font-medium">
+                            <span className="text-primary">•</span>
+                            {question}
+                          </div>
+                          {timingExample && (
+                            <p className="text-xs text-muted-foreground ml-4 pl-2 border-l-2 border-primary/20 italic">
+                              💡 Best moment: {timingExample}
+                            </p>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               )}
