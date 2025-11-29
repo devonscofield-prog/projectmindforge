@@ -784,89 +784,111 @@ export default function ProspectDetail() {
             })()}
 
             {/* Suggested Follow-Up Steps */}
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Target className="h-5 w-5 text-primary" />
-                    Suggested Follow-Up Steps
-                  </CardTitle>
-                  <CardDescription>
-                    AI-recommended actions based on all account calls
-                  </CardDescription>
-                </div>
-                <div className="flex items-center gap-2">
-                  {dismissedFollowUps.length > 0 && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setIsDismissedDialogOpen(true)}
-                    >
-                      Dismissed ({dismissedFollowUps.length})
-                    </Button>
-                  )}
-                  {completedFollowUps.length > 0 && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setIsCompletedDialogOpen(true)}
-                    >
-                      <Eye className="h-4 w-4 mr-1" />
-                      Completed ({completedFollowUps.length})
-                    </Button>
-                  )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleRefreshFollowUps}
-                    disabled={isRefreshing}
-                  >
-                    {isRefreshing ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {followUps.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Target className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-                    <p className="text-sm text-muted-foreground mb-3">No follow-up steps yet</p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleRefreshFollowUps}
-                      disabled={isRefreshing}
-                    >
-                      {isRefreshing ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Generating...
-                        </>
-                      ) : (
-                        <>
-                          <RefreshCw className="h-4 w-4 mr-2" />
-                          Generate Follow-Up Steps
-                        </>
+            {(() => {
+              // Check if there's new data since last follow-ups generation
+              const lastGeneratedAt = prospect.follow_ups_last_generated_at ? new Date(prospect.follow_ups_last_generated_at) : null;
+              const latestCallDate = calls.length > 0 ? new Date(calls[0].call_date) : null;
+              const latestEmailDate = emailLogs.length > 0 ? new Date(emailLogs[0].email_date) : null;
+              
+              const hasNewDataForFollowUps = lastGeneratedAt && (
+                (latestCallDate && latestCallDate > lastGeneratedAt) ||
+                (latestEmailDate && latestEmailDate > lastGeneratedAt)
+              );
+
+              return (
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <Target className="h-5 w-5 text-primary" />
+                        Suggested Follow-Up Steps
+                        {hasNewDataForFollowUps && (
+                          <Badge variant="secondary" className="ml-2 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 text-xs">
+                            New data available
+                          </Badge>
+                        )}
+                      </CardTitle>
+                      <CardDescription>
+                        {prospect.follow_ups_last_generated_at
+                          ? `Last generated ${format(new Date(prospect.follow_ups_last_generated_at), 'MMM d, yyyy h:mm a')}`
+                          : 'AI-recommended actions based on all account data'
+                        }
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {dismissedFollowUps.length > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setIsDismissedDialogOpen(true)}
+                        >
+                          Dismissed ({dismissedFollowUps.length})
+                        </Button>
                       )}
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {followUps.map((followUp) => (
-                      <FollowUpItem
-                        key={followUp.id}
-                        followUp={followUp}
-                        onComplete={handleCompleteFollowUp}
-                        onDismiss={handleDismissFollowUp}
-                      />
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                      {completedFollowUps.length > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setIsCompletedDialogOpen(true)}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          Completed ({completedFollowUps.length})
+                        </Button>
+                      )}
+                      <Button
+                        variant={hasNewDataForFollowUps ? "default" : "outline"}
+                        size="sm"
+                        onClick={handleRefreshFollowUps}
+                        disabled={isRefreshing}
+                      >
+                        {isRefreshing ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {followUps.length === 0 ? (
+                      <div className="text-center py-8">
+                        <Target className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                        <p className="text-sm text-muted-foreground mb-3">No follow-up steps yet</p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleRefreshFollowUps}
+                          disabled={isRefreshing}
+                        >
+                          {isRefreshing ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Generating...
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw className="h-4 w-4 mr-2" />
+                              Generate Follow-Up Steps
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {followUps.map((followUp) => (
+                          <FollowUpItem
+                            key={followUp.id}
+                            followUp={followUp}
+                            onComplete={handleCompleteFollowUp}
+                            onDismiss={handleDismissFollowUp}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })()}
 
             {/* Call History */}
             <Card>

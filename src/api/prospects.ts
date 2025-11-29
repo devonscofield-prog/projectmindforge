@@ -15,6 +15,8 @@ export interface Prospect {
   suggested_follow_ups: string[] | null;
   last_contact_date: string | null;
   heat_score: number | null;
+  follow_ups_generation_status: string | null;
+  follow_ups_last_generated_at: string | null;
   created_at: string;
   updated_at: string;
 }
