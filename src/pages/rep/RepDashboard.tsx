@@ -114,18 +114,8 @@ export default function RepDashboard() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Prospect and Account Row */}
+              {/* Account and Primary Stakeholder Row */}
               <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="prospectName">Prospect Name *</Label>
-                  <Input
-                    id="prospectName"
-                    placeholder="e.g., John Smith"
-                    value={prospectName}
-                    onChange={(e) => setProspectName(e.target.value)}
-                    required
-                  />
-                </div>
                 <div className="space-y-2">
                   <Label htmlFor="accountName">Account Name *</Label>
                   <Input
@@ -133,6 +123,16 @@ export default function RepDashboard() {
                     placeholder="e.g., ACME Corporation"
                     value={accountName}
                     onChange={(e) => setAccountName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="prospectName">Primary Stakeholder *</Label>
+                  <Input
+                    id="prospectName"
+                    placeholder="e.g., John Smith"
+                    value={prospectName}
+                    onChange={(e) => setProspectName(e.target.value)}
                     required
                   />
                 </div>

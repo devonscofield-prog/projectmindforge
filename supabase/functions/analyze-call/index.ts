@@ -18,6 +18,7 @@ Your job is to analyze a full call transcript and generate:
 2. Internal Call Notes for CRM use
 3. A customer-facing Recap Email Draft for the rep to send
 4. AI Call Coach feedback with framework scores and improvements
+5. Stakeholder intelligence - details about each person mentioned in the call
 
 You must follow all formatting rules exactly.
 
@@ -104,6 +105,28 @@ In addition to all existing outputs, act as the StormWind AI Call Coach. Populat
 - Heat Signature (1–10) with explanation of deal temperature/likelihood to close
 Use direct evidence from transcript or explicitly say "⚠️ No evidence found."
 
+### Stakeholder Intelligence
+Extract information about EVERY person/stakeholder mentioned in the transcript. For each person:
+- name: Full name as mentioned
+- job_title: Their role/title if mentioned
+- influence_level: One of "light_influencer", "heavy_influencer", "secondary_dm", "final_dm" based on context clues
+- champion_score: 1-10 rating of how bought-in they are to the product/solution
+- champion_score_reasoning: 1-2 sentences explaining the score based on their statements/actions
+- was_present: true if they were on the call, false if just mentioned
+- ai_notes: Any other relevant observations about this person
+
+Influence level guidelines:
+- final_dm: Has final budget/sign-off authority, can make the decision alone
+- secondary_dm: Has significant decision power but needs approval from above
+- heavy_influencer: Strong voice in the decision, technical gatekeeper, or key advocate
+- light_influencer: Involved but limited decision power, may be end user or junior stakeholder
+
+Champion score guidelines:
+- 8-10: Actively advocating internally, asking about implementation, pushing timeline
+- 5-7: Interested and engaged, but not actively pushing internally yet
+- 3-4: Neutral or showing some concerns that need addressing
+- 1-2: Skeptical, resistant, or actively blocking
+
 FINAL OUTPUT:
 Return all fields via the submit_call_analysis function call.`;
 
@@ -171,6 +194,16 @@ interface ProspectIntel {
     budget_signals?: string;
   };
   competitors_mentioned?: string[];
+}
+
+interface StakeholderIntel {
+  name: string;
+  job_title?: string;
+  influence_level: 'light_influencer' | 'heavy_influencer' | 'secondary_dm' | 'final_dm';
+  champion_score?: number;
+  champion_score_reasoning?: string;
+  was_present?: boolean;
+  ai_notes?: string;
 }
 
 /**
@@ -562,6 +595,23 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
                 }
               },
               competitors_mentioned: { type: "array", items: { type: "string" }, description: "Competitors mentioned during the call" }
+            }
+          },
+          stakeholders_intel: {
+            type: "array",
+            description: "Detailed intelligence about each stakeholder mentioned in the call",
+            items: {
+              type: "object",
+              properties: {
+                name: { type: "string", description: "Full name of the stakeholder" },
+                job_title: { type: "string", description: "Job title or role if mentioned" },
+                influence_level: { type: "string", enum: ["light_influencer", "heavy_influencer", "secondary_dm", "final_dm"], description: "Level of influence in the decision" },
+                champion_score: { type: "number", description: "1-10 rating of how bought-in they are" },
+                champion_score_reasoning: { type: "string", description: "Explanation for the champion score" },
+                was_present: { type: "boolean", description: "Whether they were on the call" },
+                ai_notes: { type: "string", description: "Additional observations about this person" }
+              },
+              required: ["name", "influence_level"]
             }
           }
         },
