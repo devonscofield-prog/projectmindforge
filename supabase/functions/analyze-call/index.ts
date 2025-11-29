@@ -707,11 +707,7 @@ serve(async (req) => {
 
     console.log(`[analyze-call] Transcript found for rep_id: ${transcript.rep_id}`);
 
-    // Step 2: Get AI mode from database (with env fallback)
-    const aiMode = await getCurrentAiMode(supabaseAdmin);
-    console.log(`[analyze-call] AI mode: ${aiMode}`);
-
-    // Step 3: Update analysis_status to 'processing' using service role client
+    // Step 2: Update analysis_status to 'processing' using service role client
     const { error: updateProcessingError } = await supabaseAdmin
       .from('call_transcripts')
       .update({ analysis_status: 'processing', analysis_error: null })
@@ -722,27 +718,10 @@ serve(async (req) => {
       // Continue anyway, this is not critical
     }
 
-    // Step 4: Generate analysis (mock or real based on DB-driven aiMode)
-    let analysis: AnalysisResult;
-    
-    if (aiMode === 'mock') {
-      console.log('[analyze-call] Using mock analysis');
-      analysis = buildMockAnalysis(transcript as TranscriptRow);
-      // Ensure mock metadata
-      analysis.model_name = 'mock-model';
-      analysis.prompt_version = 'v0-mock';
-      if (!analysis.meta_tags.includes('mode:mock')) {
-        analysis.meta_tags.push('mode:mock');
-      }
-    } else {
-      console.log('[analyze-call] Using real AI analysis');
-      analysis = await generateRealAnalysis(transcript as TranscriptRow);
-      // Ensure real metadata
-      analysis.prompt_version = 'v2-real-2025-11-27';
-      if (!analysis.meta_tags.includes('mode:real')) {
-        analysis.meta_tags.push('mode:real');
-      }
-    }
+    // Step 3: Generate analysis using real AI
+    console.log('[analyze-call] Using real AI analysis');
+    const analysis = await generateRealAnalysis(transcript as TranscriptRow);
+    analysis.prompt_version = 'v2-real-2025-11-27';
 
     console.log('[analyze-call] Analysis generated');
 
