@@ -77,6 +77,7 @@ export default function RepCoachingSummary() {
   
   // Comparison mode state
   const [isComparisonMode, setIsComparisonMode] = useState(false);
+  const [comparisonConfirmed, setComparisonConfirmed] = useState(false);
   const [comparisonDateRange, setComparisonDateRange] = useState<{ from: Date; to: Date }>(() => 
     createPreviousPeriodRange(createDateRange(30))
   );
@@ -117,7 +118,7 @@ export default function RepCoachingSummary() {
     retry: 1,
   });
 
-  // Comparison period query (Period B) - only runs when comparison mode is on
+  // Comparison period query (Period B) - only runs when comparison mode is confirmed
   const { 
     data: comparisonTrendAnalysis,
     isLoading: isComparisonLoading,
@@ -126,7 +127,7 @@ export default function RepCoachingSummary() {
   } = useQuery({
     queryKey: ['coaching-trends', targetRepId, comparisonDateRange.from.toISOString(), comparisonDateRange.to.toISOString()],
     queryFn: () => generateCoachingTrends(targetRepId!, comparisonDateRange),
-    enabled: !!targetRepId && isComparisonMode,
+    enabled: !!targetRepId && isComparisonMode && comparisonConfirmed,
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
@@ -140,6 +141,10 @@ export default function RepCoachingSummary() {
       if (isComparisonMode && comparisonPreset === 'previous') {
         setComparisonDateRange(createPreviousPeriodRange(newRange));
       }
+      // Reset comparison confirmed when date changes
+      if (isComparisonMode) {
+        setComparisonConfirmed(false);
+      }
     }
   };
 
@@ -151,6 +156,9 @@ export default function RepCoachingSummary() {
       setSelectedPreset('custom');
       if (isComparisonMode && comparisonPreset === 'previous') {
         setComparisonDateRange(createPreviousPeriodRange(newRange));
+      }
+      if (isComparisonMode) {
+        setComparisonConfirmed(false);
       }
     }
   };
@@ -164,6 +172,9 @@ export default function RepCoachingSummary() {
       if (isComparisonMode && comparisonPreset === 'previous') {
         setComparisonDateRange(createPreviousPeriodRange(newRange));
       }
+      if (isComparisonMode) {
+        setComparisonConfirmed(false);
+      }
     }
   };
 
@@ -172,6 +183,7 @@ export default function RepCoachingSummary() {
     if (value === 'previous') {
       setComparisonDateRange(createPreviousPeriodRange(dateRange));
     }
+    setComparisonConfirmed(false);
   };
 
   const handleComparisonFromDateChange = (date: Date | undefined) => {
@@ -179,6 +191,7 @@ export default function RepCoachingSummary() {
       date.setHours(0, 0, 0, 0);
       setComparisonDateRange(prev => ({ ...prev, from: date }));
       setComparisonPreset('custom');
+      setComparisonConfirmed(false);
     }
   };
 
@@ -187,6 +200,7 @@ export default function RepCoachingSummary() {
       date.setHours(23, 59, 59, 999);
       setComparisonDateRange(prev => ({ ...prev, to: date }));
       setComparisonPreset('custom');
+      setComparisonConfirmed(false);
     }
   };
 
@@ -196,6 +210,9 @@ export default function RepCoachingSummary() {
       // Reset comparison date range to previous period
       setComparisonDateRange(createPreviousPeriodRange(dateRange));
       setComparisonPreset('previous');
+      setComparisonConfirmed(false);
+    } else {
+      setComparisonConfirmed(false);
     }
   };
 
@@ -233,8 +250,8 @@ export default function RepCoachingSummary() {
     }
   };
 
-  const isAnyLoading = isLoading || (isComparisonMode && isComparisonLoading);
-  const isAnyFetching = isFetching || (isComparisonMode && isComparisonFetching);
+  const isAnyLoading = isLoading || (isComparisonMode && comparisonConfirmed && isComparisonLoading);
+  const isAnyFetching = isFetching || (isComparisonMode && comparisonConfirmed && isComparisonFetching);
 
   return (
     <AppLayout>
@@ -428,6 +445,21 @@ export default function RepCoachingSummary() {
                     )}
                   </div>
                 </div>
+
+                {/* Run Comparison Button */}
+                <div className="flex items-end">
+                  <Button 
+                    onClick={() => setComparisonConfirmed(true)}
+                    disabled={comparisonConfirmed && isComparisonFetching}
+                  >
+                    {comparisonConfirmed && isComparisonFetching ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <BarChart3 className="h-4 w-4 mr-2" />
+                    )}
+                    {comparisonConfirmed ? 'Re-run Comparison' : 'Run Comparison'}
+                  </Button>
+                </div>
               </>
             )}
           </div>
@@ -445,12 +477,12 @@ export default function RepCoachingSummary() {
                   </div>
                   <div className="text-center">
                     <p className="text-lg font-medium">
-                      {isComparisonMode ? 'Analyzing both periods...' : 'Analyzing your calls...'}
+                      {isComparisonMode && comparisonConfirmed ? 'Analyzing both periods...' : 'Analyzing your calls...'}
                     </p>
                     <p className="text-muted-foreground text-sm">
                       Our AI is reviewing your call data to identify trends and patterns.
                       <br />
-                      This may take 15-30 seconds{isComparisonMode ? ' per period' : ''}.
+                      This may take 15-30 seconds{isComparisonMode && comparisonConfirmed ? ' per period' : ''}.
                     </p>
                   </div>
                 </div>
@@ -468,7 +500,7 @@ export default function RepCoachingSummary() {
               ))}
             </div>
           </div>
-        ) : error || (isComparisonMode && comparisonError) ? (
+        ) : error || (isComparisonMode && comparisonConfirmed && comparisonError) ? (
           <Card>
             <CardContent className="py-12 text-center">
               <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -483,7 +515,7 @@ export default function RepCoachingSummary() {
               )}
             </CardContent>
           </Card>
-        ) : isComparisonMode && trendAnalysis && comparisonTrendAnalysis ? (
+        ) : isComparisonMode && comparisonConfirmed && trendAnalysis && comparisonTrendAnalysis ? (
           /* Comparison View */
           <CoachingTrendsComparison
             periodA={{
