@@ -8,18 +8,33 @@ import {
   MessageSquare,
   Mic,
   History,
-  UserCheck
+  UserCheck,
+  Menu
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  SidebarProvider,
+  Sidebar,
+  SidebarContent,
+  SidebarHeader,
+  SidebarFooter,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarInset,
+  SidebarTrigger,
+  useSidebar,
+} from '@/components/ui/sidebar';
 
 interface AppLayoutProps {
   children: React.ReactNode;
 }
 
-export function AppLayout({ children }: AppLayoutProps) {
+function SidebarNav() {
   const { profile, role, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const { setOpenMobile, isMobile } = useSidebar();
 
   const handleSignOut = async () => {
     await signOut();
@@ -44,68 +59,97 @@ export function AppLayout({ children }: AppLayoutProps) {
         { href: '/rep/prospects', label: 'Accounts', icon: UserCheck },
       ];
 
+  const handleNavClick = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
+
   return (
-    <div className="flex min-h-screen">
-      {/* Sidebar */}
-      <aside className="w-64 bg-sidebar text-sidebar-foreground flex flex-col">
-        <div className="p-6 border-b border-sidebar-border">
+    <>
+      <SidebarHeader className="border-b border-sidebar-border p-4">
+        <div>
           <h1 className="text-xl font-bold text-sidebar-primary-foreground">StormWind</h1>
           <p className="text-sm text-sidebar-foreground/70">Sales Hub</p>
         </div>
+      </SidebarHeader>
 
-        <nav className="flex-1 p-4 space-y-1">
+      <SidebarContent className="p-2">
+        <SidebarMenu>
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.href || 
               (item.href !== '/admin' && item.href !== '/manager' && item.href !== '/rep' && location.pathname.startsWith(item.href));
             
             return (
-              <Link
-                key={item.href}
-                to={item.href}
-                className={cn(
-                  "flex items-center gap-3 px-4 py-2.5 rounded-md text-sm font-medium transition-colors",
-                  isActive 
-                    ? "bg-sidebar-accent text-sidebar-primary" 
-                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                )}
-              >
-                <Icon className="h-5 w-5" />
-                {item.label}
-              </Link>
+              <SidebarMenuItem key={item.href}>
+                <SidebarMenuButton
+                  asChild
+                  isActive={isActive}
+                  tooltip={item.label}
+                  className="h-11"
+                >
+                  <Link to={item.href} onClick={handleNavClick}>
+                    <Icon className="h-5 w-5" />
+                    <span>{item.label}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             );
           })}
-        </nav>
+        </SidebarMenu>
+      </SidebarContent>
 
-        <div className="p-4 border-t border-sidebar-border">
-          <div className="flex items-center gap-3 px-4 py-2 mb-2">
-            <div className="h-8 w-8 rounded-full bg-sidebar-accent flex items-center justify-center">
-              <span className="text-sm font-medium text-sidebar-accent-foreground">
-                {profile?.name?.charAt(0).toUpperCase() || 'U'}
-              </span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{profile?.name || 'User'}</p>
-              <p className="text-xs text-sidebar-foreground/70 capitalize">{role}</p>
-            </div>
+      <SidebarFooter className="border-t border-sidebar-border p-4">
+        <div className="flex items-center gap-3 px-2 py-2 mb-2">
+          <div className="h-9 w-9 rounded-full bg-sidebar-accent flex items-center justify-center">
+            <span className="text-sm font-medium text-sidebar-accent-foreground">
+              {profile?.name?.charAt(0).toUpperCase() || 'U'}
+            </span>
           </div>
-          <Button 
-            variant="ghost" 
-            className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-            onClick={handleSignOut}
-          >
-            <LogOut className="h-4 w-4 mr-2" />
-            Sign Out
-          </Button>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium truncate">{profile?.name || 'User'}</p>
+            <p className="text-xs text-sidebar-foreground/70 capitalize">{role}</p>
+          </div>
         </div>
-      </aside>
+        <Button 
+          variant="ghost" 
+          className="w-full justify-start h-11 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          onClick={handleSignOut}
+        >
+          <LogOut className="h-4 w-4 mr-2" />
+          Sign Out
+        </Button>
+      </SidebarFooter>
+    </>
+  );
+}
 
-      {/* Main content */}
-      <main className="flex-1 overflow-auto">
-        <div className="p-8">
-          {children}
-        </div>
-      </main>
-    </div>
+export function AppLayout({ children }: AppLayoutProps) {
+  return (
+    <SidebarProvider>
+      <div className="flex min-h-svh w-full">
+        <Sidebar collapsible="offcanvas">
+          <SidebarNav />
+        </Sidebar>
+        
+        <SidebarInset>
+          {/* Mobile header */}
+          <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b bg-background px-4 md:hidden">
+            <SidebarTrigger className="h-9 w-9">
+              <Menu className="h-5 w-5" />
+            </SidebarTrigger>
+            <h1 className="font-semibold">StormWind</h1>
+          </header>
+          
+          {/* Main content */}
+          <main className="flex-1 overflow-auto">
+            <div className="p-4 md:p-6 lg:p-8">
+              {children}
+            </div>
+          </main>
+        </SidebarInset>
+      </div>
+    </SidebarProvider>
   );
 }

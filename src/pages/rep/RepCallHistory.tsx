@@ -10,8 +10,10 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { listCallTranscriptsForRepWithFilters, CallHistoryFilters, CallTranscript } from '@/api/aiCallAnalysis';
 import { CallType, callTypeLabels, callTypeOptions } from '@/constants/callTypes';
+import { MobileCallCard } from '@/components/calls/MobileCallCard';
 import { format } from 'date-fns';
 import { 
   Search, 
@@ -27,7 +29,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
-  ChevronsRight
+  ChevronsRight,
+  ChevronDown
 } from 'lucide-react';
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
@@ -45,6 +48,7 @@ export default function RepCallHistory() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Filter state from URL params
   const [search, setSearch] = useState(searchParams.get('search') || '');
@@ -200,47 +204,54 @@ export default function RepCallHistory() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="space-y-4 md:space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <History className="h-8 w-8" />
+          <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
+            <History className="h-6 w-6 md:h-8 md:w-8" />
             Call History
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-sm md:text-base text-muted-foreground mt-1">
             View and search through all your past call analyses
           </p>
         </div>
 
-        {/* Filters Card */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Filter className="h-4 w-4" />
-              Filters
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Search */}
-            <div className="space-y-2">
-              <Label htmlFor="search">Search</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="search"
-                  placeholder="Search stakeholder, account, or notes..."
-                  value={search}
-                  onChange={(e) => {
-                    setSearch(e.target.value);
-                    updateFilters({ search: e.target.value || undefined }, true);
-                  }}
-                  className="pl-9"
-                />
-              </div>
-            </div>
+        {/* Search - Always visible */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            id="search"
+            placeholder="Search stakeholder, account, or notes..."
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              updateFilters({ search: e.target.value || undefined }, true);
+            }}
+            className="pl-9 h-11"
+          />
+        </div>
 
-            {/* Filter Row */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Filters Card - Collapsible on mobile */}
+        <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+          <Card>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="pb-3 cursor-pointer md:cursor-default">
+                <CardTitle className="text-lg flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Filter className="h-4 w-4" />
+                    Filters
+                    {hasActiveFilters && (
+                      <Badge variant="secondary" className="ml-2">Active</Badge>
+                    )}
+                  </span>
+                  <ChevronDown className="h-4 w-4 md:hidden transition-transform duration-200 data-[state=open]:rotate-180" />
+                </CardTitle>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="md:block" forceMount>
+              <CardContent className="space-y-4 hidden md:block data-[state=open]:block">
+                {/* Filter Row */}
+                <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
               {/* Call Type */}
               <div className="space-y-2">
                 <Label>Call Type</Label>
@@ -325,8 +336,10 @@ export default function RepCallHistory() {
                 </Button>
               </div>
             )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
 
         {/* Results */}
         <Card>
@@ -362,7 +375,19 @@ export default function RepCallHistory() {
               </div>
             ) : (
               <>
-                <div className="rounded-md border">
+                {/* Mobile Card View */}
+                <div className="space-y-3 md:hidden">
+                  {transcripts.map((t) => (
+                    <MobileCallCard
+                      key={t.id}
+                      call={t}
+                      onClick={() => navigate(`/calls/${t.id}`)}
+                    />
+                  ))}
+                </div>
+
+                {/* Desktop Table View */}
+                <div className="hidden md:block rounded-md border">
                   <Table>
                     <TableHeader>
                       <TableRow>

@@ -130,13 +130,13 @@ export default function RepDashboard() {
 
   return (
     <AppLayout>
-      <div className="space-y-8">
+      <div className="space-y-6 md:space-y-8">
         {/* Header */}
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold">
+          <h1 className="text-2xl md:text-3xl font-bold">
             Welcome back, {profile?.name?.split(' ')[0] || 'Rep'}
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-sm md:text-base text-muted-foreground">
             Submit your call transcripts for AI-powered coaching and insights
           </p>
           <Button variant="outline" size="sm" asChild className="mt-2">
@@ -147,7 +147,7 @@ export default function RepDashboard() {
           </Button>
         </div>
 
-        <div className="grid gap-8 lg:grid-cols-3">
+        <div className="grid gap-6 lg:gap-8 lg:grid-cols-3">
           {/* Submit Call Card - Takes up 2 columns */}
           <div className="lg:col-span-2">
             <Card className="border-2">
@@ -155,13 +155,13 @@ export default function RepDashboard() {
                 <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                   <Mic className="h-6 w-6 text-primary" />
                 </div>
-                <CardTitle className="text-2xl">Submit a Call for Coaching</CardTitle>
-                <CardDescription className="text-base">
+                <CardTitle className="text-xl md:text-2xl">Submit a Call for Coaching</CardTitle>
+                <CardDescription className="text-sm md:text-base">
                   Paste your call transcript below to get AI coaching, actionable insights, and a recap email draft.
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handleSubmit} className="space-y-6">
+                <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
                   {/* Account and Primary Stakeholder Row */}
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
