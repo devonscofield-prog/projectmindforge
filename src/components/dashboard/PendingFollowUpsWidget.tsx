@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { SwipeableCard } from '@/components/ui/swipeable-card';
+import { useIsMobile } from '@/hooks/use-mobile';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -53,6 +55,7 @@ const categoryLabels: Record<FollowUpCategory, string> = {
 
 export function PendingFollowUpsWidget({ repId }: PendingFollowUpsWidgetProps) {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [followUps, setFollowUps] = useState<AccountFollowUpWithProspect[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [completingId, setCompletingId] = useState<string | null>(null);
@@ -74,8 +77,8 @@ export function PendingFollowUpsWidget({ repId }: PendingFollowUpsWidgetProps) {
     }
   };
 
-  const handleComplete = async (followUpId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleComplete = async (followUpId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     setCompletingId(followUpId);
     try {
       await completeFollowUp(followUpId);
@@ -84,6 +87,22 @@ export function PendingFollowUpsWidget({ repId }: PendingFollowUpsWidgetProps) {
       console.error('Failed to complete follow-up:', error);
     } finally {
       setCompletingId(null);
+    }
+  };
+
+  const handleSwipeComplete = async (followUpId: string) => {
+    await handleComplete(followUpId);
+  };
+
+  const handleSwipeDismiss = async (followUpId: string) => {
+    setDismissingId(followUpId);
+    try {
+      await dismissFollowUp(followUpId);
+      setFollowUps(prev => prev.filter(f => f.id !== followUpId));
+    } catch (error) {
+      console.error('Failed to dismiss follow-up:', error);
+    } finally {
+      setDismissingId(null);
     }
   };
 
@@ -162,7 +181,7 @@ export function PendingFollowUpsWidget({ repId }: PendingFollowUpsWidgetProps) {
                       High Priority ({highPriority.length})
                     </p>
                     <div className="space-y-2">
-                      {highPriority.map((followUp) => (
+                        {highPriority.map((followUp) => (
                         <FollowUpRow
                           key={followUp.id}
                           followUp={followUp}
@@ -171,6 +190,9 @@ export function PendingFollowUpsWidget({ repId }: PendingFollowUpsWidgetProps) {
                           onNavigate={handleNavigate}
                           isCompleting={completingId === followUp.id}
                           isDismissing={dismissingId === followUp.id}
+                          isMobile={isMobile}
+                          onSwipeComplete={() => handleSwipeComplete(followUp.id)}
+                          onSwipeDismiss={() => handleSwipeDismiss(followUp.id)}
                         />
                       ))}
                     </div>
@@ -195,6 +217,9 @@ export function PendingFollowUpsWidget({ repId }: PendingFollowUpsWidgetProps) {
                           onNavigate={handleNavigate}
                           isCompleting={completingId === followUp.id}
                           isDismissing={dismissingId === followUp.id}
+                          isMobile={isMobile}
+                          onSwipeComplete={() => handleSwipeComplete(followUp.id)}
+                          onSwipeDismiss={() => handleSwipeDismiss(followUp.id)}
                         />
                       ))}
                     </div>
@@ -235,36 +260,51 @@ export function PendingFollowUpsWidget({ repId }: PendingFollowUpsWidgetProps) {
 
 interface FollowUpRowProps {
   followUp: AccountFollowUpWithProspect;
-  onComplete: (id: string, e: React.MouseEvent) => void;
+  onComplete: (id: string, e?: React.MouseEvent) => void;
   onDismissClick: (followUp: AccountFollowUpWithProspect, e: React.MouseEvent) => void;
   onNavigate: (prospectId: string) => void;
   isCompleting: boolean;
   isDismissing: boolean;
+  isMobile: boolean;
+  onSwipeComplete: () => void;
+  onSwipeDismiss: () => void;
 }
 
-function FollowUpRow({ followUp, onComplete, onDismissClick, onNavigate, isCompleting, isDismissing }: FollowUpRowProps) {
+function FollowUpRow({ 
+  followUp, 
+  onComplete, 
+  onDismissClick, 
+  onNavigate, 
+  isCompleting, 
+  isDismissing,
+  isMobile,
+  onSwipeComplete,
+  onSwipeDismiss,
+}: FollowUpRowProps) {
   const priority = priorityConfig[followUp.priority] || priorityConfig.medium;
   const accountDisplay = followUp.account_name || followUp.prospect_name;
 
-  return (
+  const content = (
     <div
       className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors group"
       onClick={() => onNavigate(followUp.prospect_id)}
     >
-      {/* Complete button */}
-      <Button
-        size="sm"
-        variant="ghost"
-        className="h-8 w-8 p-0 shrink-0"
-        onClick={(e) => onComplete(followUp.id, e)}
-        disabled={isCompleting || isDismissing}
-      >
-        {isCompleting ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <CheckCircle2 className="h-4 w-4 text-muted-foreground hover:text-green-500" />
-        )}
-      </Button>
+      {/* Complete button - hidden on mobile when swipe is available */}
+      {!isMobile && (
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-8 w-8 p-0 shrink-0"
+          onClick={(e) => onComplete(followUp.id, e)}
+          disabled={isCompleting || isDismissing}
+        >
+          {isCompleting ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <CheckCircle2 className="h-4 w-4 text-muted-foreground hover:text-green-500" />
+          )}
+        </Button>
+      )}
 
       {/* Content */}
       <div className="flex-1 min-w-0">
@@ -285,24 +325,43 @@ function FollowUpRow({ followUp, onComplete, onDismissClick, onNavigate, isCompl
         </div>
       </div>
 
-      {/* Dismiss button */}
-      <Button
-        size="sm"
-        variant="ghost"
-        className="h-8 w-8 p-0 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-        onClick={(e) => onDismissClick(followUp, e)}
-        disabled={isDismissing || isCompleting}
-        title="Dismiss"
-      >
-        {isDismissing ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <X className="h-4 w-4" />
-        )}
-      </Button>
+      {/* Dismiss button - hidden on mobile when swipe is available */}
+      {!isMobile && (
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-8 w-8 p-0 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+          onClick={(e) => onDismissClick(followUp, e)}
+          disabled={isDismissing || isCompleting}
+          title="Dismiss"
+        >
+          {isDismissing ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <X className="h-4 w-4" />
+          )}
+        </Button>
+      )}
 
       {/* Arrow */}
-      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
     </div>
   );
+
+  // Wrap with SwipeableCard on mobile
+  if (isMobile) {
+    return (
+      <SwipeableCard
+        onSwipeRight={onSwipeComplete}
+        onSwipeLeft={onSwipeDismiss}
+        swipeRightLabel="Complete"
+        swipeLeftLabel="Dismiss"
+        disabled={isCompleting || isDismissing}
+      >
+        {content}
+      </SwipeableCard>
+    );
+  }
+
+  return content;
 }
