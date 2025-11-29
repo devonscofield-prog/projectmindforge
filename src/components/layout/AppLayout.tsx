@@ -6,7 +6,8 @@ import {
   Users, 
   LogOut,
   MessageSquare,
-  Mic
+  Mic,
+  History
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -37,6 +38,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       ]
     : [
         { href: '/rep', label: 'Submit a Call', icon: Mic },
+        { href: '/rep/history', label: 'Call History', icon: History },
       ];
 
   return (

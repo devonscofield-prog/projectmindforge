@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,25 +8,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  createCallTranscriptAndAnalyze, 
-  listCallTranscriptsForRep,
-  CallTranscript
-} from '@/api/aiCallAnalysis';
-import { CallType, callTypeLabels, callTypeOptions } from '@/constants/callTypes';
+import { createCallTranscriptAndAnalyze } from '@/api/aiCallAnalysis';
+import { CallType, callTypeOptions } from '@/constants/callTypes';
 import { format } from 'date-fns';
-import { 
-  Send, 
-  History, 
-  Loader2,
-  CheckCircle, 
-  AlertCircle, 
-  Clock,
-  ArrowRight,
-  Mic
-} from 'lucide-react';
+import { Send, Loader2, Mic } from 'lucide-react';
 
 export default function RepDashboard() {
   const { user, profile } = useAuth();
@@ -44,13 +29,6 @@ export default function RepDashboard() {
   const [callType, setCallType] = useState<CallType>('first_demo');
   const [callTypeOther, setCallTypeOther] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Fetch transcripts for history
-  const { data: transcripts = [], isLoading: isLoadingTranscripts } = useQuery({
-    queryKey: ['rep-transcripts', user?.id],
-    queryFn: () => listCallTranscriptsForRep(user!.id),
-    enabled: !!user?.id,
-  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,43 +86,6 @@ export default function RepDashboard() {
       });
       setIsSubmitting(false);
     }
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <Badge variant="default" className="gap-1"><CheckCircle className="h-3 w-3" /> Analyzed</Badge>;
-      case 'processing':
-        return <Badge variant="secondary" className="gap-1"><Clock className="h-3 w-3" /> Processing</Badge>;
-      case 'error':
-        return <Badge variant="destructive" className="gap-1"><AlertCircle className="h-3 w-3" /> Error</Badge>;
-      default:
-        return <Badge variant="outline" className="gap-1"><Clock className="h-3 w-3" /> Pending</Badge>;
-    }
-  };
-
-  const getCallDisplayName = (t: CallTranscript) => {
-    if (t.prospect_name && t.account_name) {
-      return `${t.prospect_name} - ${t.account_name}`;
-    }
-    if (t.account_name) {
-      return t.account_name;
-    }
-    if (t.prospect_name) {
-      return t.prospect_name;
-    }
-    // Fallback for older calls
-    return t.notes || 'Call';
-  };
-
-  const getCallTypeDisplay = (t: CallTranscript) => {
-    if (t.call_type === 'other' && t.call_type_other) {
-      return t.call_type_other;
-    }
-    if (t.call_type) {
-      return callTypeLabels[t.call_type as CallType] || t.call_type;
-    }
-    return null;
   };
 
   return (
@@ -303,64 +244,6 @@ export default function RepDashboard() {
                 )}
               </Button>
             </form>
-          </CardContent>
-        </Card>
-
-        {/* Previous Calls Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <History className="h-5 w-5" />
-              Previous Calls
-            </CardTitle>
-            <CardDescription>
-              View your past call analyses
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoadingTranscripts ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : transcripts.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                No calls submitted yet. Submit your first call above!
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {transcripts.slice(0, 5).map((t: CallTranscript) => (
-                  <button
-                    key={t.id}
-                    onClick={() => navigate(`/calls/${t.id}`)}
-                    className="w-full flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors text-left"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className="font-medium truncate">
-                          {getCallDisplayName(t)}
-                        </span>
-                        {getCallTypeDisplay(t) && (
-                          <Badge variant="outline" className="text-xs">
-                            {getCallTypeDisplay(t)}
-                          </Badge>
-                        )}
-                        {getStatusBadge(t.analysis_status)}
-                      </div>
-                      <span className="text-sm text-muted-foreground">
-                        {format(new Date(t.call_date), 'MMM d, yyyy')}
-                      </span>
-                    </div>
-                    <ArrowRight className="h-4 w-4 text-muted-foreground flex-shrink-0 ml-2" />
-                  </button>
-                ))}
-                
-                {transcripts.length > 5 && (
-                  <p className="text-sm text-muted-foreground text-center pt-2">
-                    Showing 5 of {transcripts.length} calls
-                  </p>
-                )}
-              </div>
-            )}
           </CardContent>
         </Card>
       </div>

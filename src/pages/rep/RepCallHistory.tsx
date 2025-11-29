@@ -1,0 +1,371 @@
+import { useState, useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/contexts/AuthContext';
+import { AppLayout } from '@/components/layout/AppLayout';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { listCallTranscriptsForRepWithFilters, CallHistoryFilters, CallTranscript } from '@/api/aiCallAnalysis';
+import { CallType, callTypeLabels, callTypeOptions } from '@/constants/callTypes';
+import { format } from 'date-fns';
+import { 
+  Search, 
+  Filter,
+  Loader2,
+  CheckCircle, 
+  AlertCircle, 
+  Clock,
+  ArrowRight,
+  X,
+  History,
+  ArrowUpDown
+} from 'lucide-react';
+
+type AnalysisStatus = 'pending' | 'processing' | 'completed' | 'error';
+
+const analysisStatusOptions: { value: AnalysisStatus; label: string }[] = [
+  { value: 'pending', label: 'Pending' },
+  { value: 'processing', label: 'Processing' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'error', label: 'Error' },
+];
+
+export default function RepCallHistory() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Filter state from URL params
+  const [search, setSearch] = useState(searchParams.get('search') || '');
+  const [callTypeFilter, setCallTypeFilter] = useState<string>(searchParams.get('callType') || 'all');
+  const [statusFilter, setStatusFilter] = useState<string>(searchParams.get('status') || 'all');
+  const [dateFrom, setDateFrom] = useState(searchParams.get('dateFrom') || '');
+  const [dateTo, setDateTo] = useState(searchParams.get('dateTo') || '');
+  const [sortBy, setSortBy] = useState<'call_date' | 'account_name' | 'created_at'>(
+    (searchParams.get('sortBy') as 'call_date' | 'account_name' | 'created_at') || 'call_date'
+  );
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(
+    (searchParams.get('sortOrder') as 'asc' | 'desc') || 'desc'
+  );
+
+  // Build filters object
+  const filters: CallHistoryFilters = useMemo(() => ({
+    search: search || undefined,
+    callTypes: callTypeFilter !== 'all' ? [callTypeFilter as CallType] : undefined,
+    statuses: statusFilter !== 'all' ? [statusFilter as AnalysisStatus] : undefined,
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo || undefined,
+    sortBy,
+    sortOrder,
+  }), [search, callTypeFilter, statusFilter, dateFrom, dateTo, sortBy, sortOrder]);
+
+  // Fetch filtered transcripts
+  const { data, isLoading } = useQuery({
+    queryKey: ['rep-call-history', user?.id, filters],
+    queryFn: () => listCallTranscriptsForRepWithFilters(user!.id, filters),
+    enabled: !!user?.id,
+  });
+
+  const transcripts = data?.data || [];
+  const totalCount = data?.count || 0;
+
+  // Update URL params when filters change
+  const updateFilters = (newFilters: Partial<typeof filters>) => {
+    const params = new URLSearchParams(searchParams);
+    Object.entries({ ...filters, ...newFilters }).forEach(([key, value]) => {
+      if (value && value !== 'all' && !(Array.isArray(value) && value.length === 0)) {
+        params.set(key, Array.isArray(value) ? value.join(',') : String(value));
+      } else {
+        params.delete(key);
+      }
+    });
+    setSearchParams(params);
+  };
+
+  const clearFilters = () => {
+    setSearch('');
+    setCallTypeFilter('all');
+    setStatusFilter('all');
+    setDateFrom('');
+    setDateTo('');
+    setSortBy('call_date');
+    setSortOrder('desc');
+    setSearchParams(new URLSearchParams());
+  };
+
+  const hasActiveFilters = search || callTypeFilter !== 'all' || statusFilter !== 'all' || dateFrom || dateTo;
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return <Badge variant="default" className="gap-1"><CheckCircle className="h-3 w-3" /> Analyzed</Badge>;
+      case 'processing':
+        return <Badge variant="secondary" className="gap-1"><Clock className="h-3 w-3" /> Processing</Badge>;
+      case 'error':
+        return <Badge variant="destructive" className="gap-1"><AlertCircle className="h-3 w-3" /> Error</Badge>;
+      default:
+        return <Badge variant="outline" className="gap-1"><Clock className="h-3 w-3" /> Pending</Badge>;
+    }
+  };
+
+  const getCallTypeDisplay = (t: CallTranscript) => {
+    if (t.call_type === 'other' && t.call_type_other) {
+      return t.call_type_other;
+    }
+    if (t.call_type) {
+      return callTypeLabels[t.call_type as CallType] || t.call_type;
+    }
+    return '-';
+  };
+
+  const formatCurrency = (value: number | null) => {
+    if (value === null || value === undefined) return '-';
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
+  };
+
+  const toggleSort = (column: 'call_date' | 'account_name' | 'created_at') => {
+    if (sortBy === column) {
+      const newOrder = sortOrder === 'desc' ? 'asc' : 'desc';
+      setSortOrder(newOrder);
+      updateFilters({ sortOrder: newOrder });
+    } else {
+      setSortBy(column);
+      setSortOrder('desc');
+      updateFilters({ sortBy: column, sortOrder: 'desc' });
+    }
+  };
+
+  return (
+    <AppLayout>
+      <div className="space-y-6">
+        {/* Header */}
+        <div>
+          <h1 className="text-3xl font-bold flex items-center gap-2">
+            <History className="h-8 w-8" />
+            Call History
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            View and search through all your past call analyses
+          </p>
+        </div>
+
+        {/* Filters Card */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Filter className="h-4 w-4" />
+              Filters
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Search */}
+            <div className="space-y-2">
+              <Label htmlFor="search">Search</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="search"
+                  placeholder="Search prospect, account, or notes..."
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    updateFilters({ search: e.target.value || undefined });
+                  }}
+                  className="pl-9"
+                />
+              </div>
+            </div>
+
+            {/* Filter Row */}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {/* Call Type */}
+              <div className="space-y-2">
+                <Label>Call Type</Label>
+                <Select 
+                  value={callTypeFilter} 
+                  onValueChange={(v) => {
+                    setCallTypeFilter(v);
+                    updateFilters({ callTypes: v !== 'all' ? [v as CallType] : undefined });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    {callTypeOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Status */}
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select 
+                  value={statusFilter} 
+                  onValueChange={(v) => {
+                    setStatusFilter(v);
+                    updateFilters({ statuses: v !== 'all' ? [v as AnalysisStatus] : undefined });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All statuses" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    {analysisStatusOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Date From */}
+              <div className="space-y-2">
+                <Label>From Date</Label>
+                <Input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => {
+                    setDateFrom(e.target.value);
+                    updateFilters({ dateFrom: e.target.value || undefined });
+                  }}
+                />
+              </div>
+
+              {/* Date To */}
+              <div className="space-y-2">
+                <Label>To Date</Label>
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => {
+                    setDateTo(e.target.value);
+                    updateFilters({ dateTo: e.target.value || undefined });
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Clear Filters */}
+            {hasActiveFilters && (
+              <div className="flex justify-end">
+                <Button variant="ghost" size="sm" onClick={clearFilters}>
+                  <X className="h-4 w-4 mr-1" />
+                  Clear Filters
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Results */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg">
+                {isLoading ? 'Loading...' : `${totalCount} Call${totalCount !== 1 ? 's' : ''}`}
+              </CardTitle>
+            </div>
+            <CardDescription>
+              Click on a call to view detailed analysis
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : transcripts.length === 0 ? (
+              <div className="text-center py-12">
+                <History className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium mb-2">No calls found</h3>
+                <p className="text-muted-foreground mb-4">
+                  {hasActiveFilters
+                    ? 'Try adjusting your filters or search terms'
+                    : 'Submit your first call to get started'}
+                </p>
+                {!hasActiveFilters && (
+                  <Button onClick={() => navigate('/rep')}>
+                    Submit a Call
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead 
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => toggleSort('call_date')}
+                      >
+                        <div className="flex items-center gap-1">
+                          Date
+                          <ArrowUpDown className="h-3 w-3" />
+                        </div>
+                      </TableHead>
+                      <TableHead>Prospect</TableHead>
+                      <TableHead 
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => toggleSort('account_name')}
+                      >
+                        <div className="flex items-center gap-1">
+                          Account
+                          <ArrowUpDown className="h-3 w-3" />
+                        </div>
+                      </TableHead>
+                      <TableHead>Call Type</TableHead>
+                      <TableHead>Revenue</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="w-[50px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {transcripts.map((t) => (
+                      <TableRow 
+                        key={t.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => navigate(`/calls/${t.id}`)}
+                      >
+                        <TableCell className="font-medium">
+                          {format(new Date(t.call_date), 'MMM d, yyyy')}
+                        </TableCell>
+                        <TableCell>{t.prospect_name || '-'}</TableCell>
+                        <TableCell>{t.account_name || '-'}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{getCallTypeDisplay(t)}</Badge>
+                        </TableCell>
+                        <TableCell>{formatCurrency(t.potential_revenue)}</TableCell>
+                        <TableCell>{getStatusBadge(t.analysis_status)}</TableCell>
+                        <TableCell>
+                          <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </AppLayout>
+  );
+}

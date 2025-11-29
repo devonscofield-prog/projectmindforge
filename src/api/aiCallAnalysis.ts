@@ -13,7 +13,7 @@ interface CreateCallTranscriptParams {
   rawText: string;
 }
 
-interface CallTranscript {
+export interface CallTranscript {
   id: string;
   rep_id: string;
   manager_id: string | null;
@@ -33,6 +33,20 @@ interface CallTranscript {
   potential_revenue: number | null;
   call_type: CallType | null;
   call_type_other: string | null;
+}
+
+type AnalysisStatus = 'pending' | 'processing' | 'completed' | 'error';
+
+export interface CallHistoryFilters {
+  search?: string;
+  callTypes?: CallType[];
+  statuses?: AnalysisStatus[];
+  dateFrom?: string;
+  dateTo?: string;
+  sortBy?: 'call_date' | 'account_name' | 'created_at';
+  sortOrder?: 'asc' | 'desc';
+  limit?: number;
+  offset?: number;
 }
 
 interface AnalyzeCallResponse {
@@ -183,6 +197,78 @@ export async function listCallTranscriptsForRep(repId: string): Promise<CallTran
   }
 
   return (data || []) as CallTranscript[];
+}
+
+/**
+ * Lists call transcripts for a rep with comprehensive filtering.
+ * @param repId - The rep's user ID
+ * @param filters - Filter options
+ * @returns Object with data array and total count
+ */
+export async function listCallTranscriptsForRepWithFilters(
+  repId: string,
+  filters: CallHistoryFilters
+): Promise<{ data: CallTranscript[]; count: number }> {
+  let query = supabase
+    .from('call_transcripts')
+    .select('*', { count: 'exact' })
+    .eq('rep_id', repId);
+
+  // Text search across multiple columns
+  if (filters.search) {
+    const searchTerm = `%${filters.search}%`;
+    query = query.or(
+      `prospect_name.ilike.${searchTerm},account_name.ilike.${searchTerm},call_type_other.ilike.${searchTerm},notes.ilike.${searchTerm}`
+    );
+  }
+
+  // Filter by call types
+  if (filters.callTypes && filters.callTypes.length > 0) {
+    query = query.in('call_type', filters.callTypes);
+  }
+
+  // Filter by analysis status
+  if (filters.statuses && filters.statuses.length > 0) {
+    query = query.in('analysis_status', filters.statuses);
+  }
+
+  // Date range filters
+  if (filters.dateFrom) {
+    query = query.gte('call_date', filters.dateFrom);
+  }
+  if (filters.dateTo) {
+    query = query.lte('call_date', filters.dateTo);
+  }
+
+  // Sorting
+  const sortBy = filters.sortBy || 'call_date';
+  const sortOrder = filters.sortOrder || 'desc';
+  query = query.order(sortBy, { ascending: sortOrder === 'asc' });
+
+  // Secondary sort by created_at for consistency
+  if (sortBy !== 'created_at') {
+    query = query.order('created_at', { ascending: false });
+  }
+
+  // Pagination
+  if (filters.limit) {
+    query = query.limit(filters.limit);
+  }
+  if (filters.offset) {
+    query = query.range(filters.offset, filters.offset + (filters.limit || 50) - 1);
+  }
+
+  const { data, error, count } = await query;
+
+  if (error) {
+    console.error('[listCallTranscriptsForRepWithFilters] Error:', error);
+    throw new Error(`Failed to list call transcripts: ${error.message}`);
+  }
+
+  return {
+    data: (data || []) as CallTranscript[],
+    count: count || 0,
+  };
 }
 
 /**
@@ -388,4 +474,4 @@ export async function getCallCountsLast30DaysForReps(repIds: string[]): Promise<
 }
 
 // Export types for use in components
-export type { CallAnalysis, CallTranscript, AnalyzeCallResponse };
+export type { CallAnalysis, AnalyzeCallResponse };
