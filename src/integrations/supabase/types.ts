@@ -474,6 +474,7 @@ export type Database = {
           notes: string | null
           prospect_id: string
           rep_id: string
+          stakeholder_id: string | null
           subject: string | null
           updated_at: string
         }
@@ -488,6 +489,7 @@ export type Database = {
           notes?: string | null
           prospect_id: string
           rep_id: string
+          stakeholder_id?: string | null
           subject?: string | null
           updated_at?: string
         }
@@ -502,6 +504,7 @@ export type Database = {
           notes?: string | null
           prospect_id?: string
           rep_id?: string
+          stakeholder_id?: string | null
           subject?: string | null
           updated_at?: string
         }
@@ -511,6 +514,13 @@ export type Database = {
             columns: ["prospect_id"]
             isOneToOne: false
             referencedRelation: "prospects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_logs_stakeholder_id_fkey"
+            columns: ["stakeholder_id"]
+            isOneToOne: false
+            referencedRelation: "stakeholders"
             referencedColumns: ["id"]
           },
         ]

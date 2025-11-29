@@ -13,6 +13,7 @@ export interface EmailLog {
   contact_name: string | null;
   contact_email: string | null;
   notes: string | null;
+  stakeholder_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -27,6 +28,7 @@ export interface CreateEmailLogParams {
   contactName?: string;
   contactEmail?: string;
   notes?: string;
+  stakeholderId?: string;
 }
 
 export interface UpdateEmailLogParams {
@@ -37,6 +39,7 @@ export interface UpdateEmailLogParams {
   contactName?: string | null;
   contactEmail?: string | null;
   notes?: string | null;
+  stakeholderId?: string | null;
 }
 
 export async function createEmailLog(params: CreateEmailLogParams): Promise<EmailLog> {
@@ -52,6 +55,7 @@ export async function createEmailLog(params: CreateEmailLogParams): Promise<Emai
       contact_name: params.contactName || null,
       contact_email: params.contactEmail || null,
       notes: params.notes || null,
+      stakeholder_id: params.stakeholderId || null,
     })
     .select()
     .single();
@@ -81,6 +85,7 @@ export async function updateEmailLog(id: string, updates: UpdateEmailLogParams):
   if (updates.contactName !== undefined) updateData.contact_name = updates.contactName;
   if (updates.contactEmail !== undefined) updateData.contact_email = updates.contactEmail;
   if (updates.notes !== undefined) updateData.notes = updates.notes;
+  if (updates.stakeholderId !== undefined) updateData.stakeholder_id = updates.stakeholderId;
 
   const { data, error } = await supabase
     .from('email_logs')

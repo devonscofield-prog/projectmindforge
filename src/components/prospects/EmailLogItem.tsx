@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,16 +19,21 @@ import {
   ChevronUp,
   Trash2,
   User,
+  Crown,
+  Link2,
+  Link2Off,
 } from 'lucide-react';
 import { type EmailLog } from '@/api/emailLogs';
+import { type Stakeholder, influenceLevelLabels } from '@/api/stakeholders';
 import { cn } from '@/lib/utils';
 
 interface EmailLogItemProps {
   email: EmailLog;
+  stakeholder?: Stakeholder | null;
   onDelete: (id: string) => void;
 }
 
-export function EmailLogItem({ email, onDelete }: EmailLogItemProps) {
+export function EmailLogItem({ email, stakeholder, onDelete }: EmailLogItemProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   
@@ -82,6 +88,19 @@ export function EmailLogItem({ email, onDelete }: EmailLogItemProps) {
                   {isOutgoing ? 'Sent' : 'Received'}
                 </span>
                 <span className="text-xs text-muted-foreground">{displayDate}</span>
+                
+                {/* Stakeholder Link Indicator */}
+                {stakeholder ? (
+                  <Badge variant="outline" className="text-xs gap-1 h-5">
+                    <Link2 className="h-3 w-3" />
+                    Linked
+                  </Badge>
+                ) : email.contact_name && (
+                  <Badge variant="outline" className="text-xs gap-1 h-5 text-muted-foreground">
+                    <Link2Off className="h-3 w-3" />
+                    Not linked
+                  </Badge>
+                )}
               </div>
               
               {/* Subject or Contact */}
@@ -89,7 +108,46 @@ export function EmailLogItem({ email, onDelete }: EmailLogItemProps) {
                 <p className="font-medium mt-1 truncate">{email.subject}</p>
               )}
               
-              {email.contact_name && (
+              {/* Stakeholder Info (if linked) */}
+              {stakeholder ? (
+                <div className="flex items-center gap-2 mt-1.5 p-2 rounded-md bg-muted/50">
+                  {stakeholder.is_primary_contact ? (
+                    <Crown className="h-4 w-4 text-amber-500 flex-shrink-0" />
+                  ) : (
+                    <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-sm">
+                        {isOutgoing ? 'To: ' : 'From: '}{stakeholder.name}
+                      </span>
+                      {stakeholder.job_title && (
+                        <span className="text-xs text-muted-foreground">
+                          ({stakeholder.job_title})
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
+                      {stakeholder.email && (
+                        <span>{stakeholder.email}</span>
+                      )}
+                      {stakeholder.is_primary_contact && (
+                        <Badge variant="secondary" className="h-4 text-[10px]">Primary</Badge>
+                      )}
+                      {stakeholder.influence_level && (
+                        <Badge variant="outline" className="h-4 text-[10px]">
+                          {influenceLevelLabels[stakeholder.influence_level]}
+                        </Badge>
+                      )}
+                      {stakeholder.champion_score && (
+                        <span className="text-amber-600 dark:text-amber-400">
+                          Champion: {stakeholder.champion_score}/10
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : email.contact_name && (
                 <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
                   <User className="h-3 w-3" />
                   <span>
