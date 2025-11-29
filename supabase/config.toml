@@ -17,3 +17,6 @@ verify_jwt = true
 
 [functions.regenerate-account-insights]
 verify_jwt = true
+
+[functions.sales-coach-chat]
+verify_jwt = true
