@@ -44,6 +44,7 @@ import { format } from 'date-fns';
 import {
   updateStakeholder,
   deleteStakeholder,
+  setPrimaryStakeholder,
   type Stakeholder,
   type StakeholderInfluenceLevel,
   influenceLevelLabels,
@@ -113,6 +114,7 @@ export function StakeholderDetailSheet({
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSettingPrimary, setIsSettingPrimary] = useState(false);
   const [editData, setEditData] = useState({
     name: '',
     job_title: '',
@@ -184,6 +186,21 @@ export function StakeholderDetailSheet({
     }
   };
 
+  const handleSetPrimary = async () => {
+    if (!stakeholder) return;
+    
+    setIsSettingPrimary(true);
+    try {
+      await setPrimaryStakeholder(stakeholder.prospect_id, stakeholder.id);
+      toast({ title: 'Primary contact updated' });
+      onUpdated();
+    } catch (error) {
+      toast({ title: 'Failed to set primary contact', variant: 'destructive' });
+    } finally {
+      setIsSettingPrimary(false);
+    }
+  };
+
   if (!stakeholder) return null;
 
   const InfluenceIcon = influenceLevelIcons[stakeholder.influence_level];
@@ -200,7 +217,10 @@ export function StakeholderDetailSheet({
               <SheetTitle className="flex items-center gap-2">
                 {stakeholder.name}
                 {stakeholder.is_primary_contact && (
-                  <Badge variant="secondary">Primary</Badge>
+                  <Badge variant="secondary" className="gap-1">
+                    <Crown className="h-3 w-3" />
+                    Primary
+                  </Badge>
                 )}
               </SheetTitle>
               <SheetDescription>
@@ -211,6 +231,23 @@ export function StakeholderDetailSheet({
         </SheetHeader>
 
         <div className="mt-6 space-y-6">
+          {/* Set as Primary Button */}
+          {!stakeholder.is_primary_contact && (
+            <Button 
+              variant="outline" 
+              onClick={handleSetPrimary}
+              disabled={isSettingPrimary}
+              className="w-full gap-2"
+            >
+              {isSettingPrimary ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Crown className="h-4 w-4 text-amber-500" />
+              )}
+              Set as Primary Contact
+            </Button>
+          )}
+
           {/* Influence Level Badge */}
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="text-sm py-1">

@@ -345,3 +345,39 @@ export async function getPrimaryStakeholder(prospectId: string): Promise<Stakeho
 
   return data as unknown as Stakeholder | null;
 }
+
+/**
+ * Sets a stakeholder as the primary contact for a prospect.
+ * This will unset any existing primary contact first.
+ */
+export async function setPrimaryStakeholder(
+  prospectId: string,
+  stakeholderId: string
+): Promise<Stakeholder> {
+  // First, unset any existing primary contacts for this prospect
+  const { error: unsetError } = await supabase
+    .from('stakeholders')
+    .update({ is_primary_contact: false })
+    .eq('prospect_id', prospectId)
+    .eq('is_primary_contact', true);
+
+  if (unsetError) {
+    console.error('[setPrimaryStakeholder] Error unsetting old primary:', unsetError);
+    throw new Error(`Failed to unset old primary: ${unsetError.message}`);
+  }
+
+  // Now set the new primary contact
+  const { data, error } = await supabase
+    .from('stakeholders')
+    .update({ is_primary_contact: true })
+    .eq('id', stakeholderId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('[setPrimaryStakeholder] Error setting new primary:', error);
+    throw new Error(`Failed to set primary stakeholder: ${error.message}`);
+  }
+
+  return data as unknown as Stakeholder;
+}

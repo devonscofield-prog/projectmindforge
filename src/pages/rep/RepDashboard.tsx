@@ -13,6 +13,8 @@ import { createCallTranscriptAndAnalyze } from '@/api/aiCallAnalysis';
 import { CallType, callTypeOptions } from '@/constants/callTypes';
 import { format } from 'date-fns';
 import { Send, Loader2, Mic } from 'lucide-react';
+import { AccountCombobox } from '@/components/forms/AccountCombobox';
+import { StakeholderCombobox } from '@/components/forms/StakeholderCombobox';
 
 export default function RepDashboard() {
   const { user, profile } = useAuth();
@@ -22,13 +24,28 @@ export default function RepDashboard() {
   // Form state
   const [transcript, setTranscript] = useState('');
   const [primaryStakeholderName, setPrimaryStakeholderName] = useState('');
+  const [selectedStakeholderId, setSelectedStakeholderId] = useState<string | null>(null);
   const [accountName, setAccountName] = useState('');
+  const [selectedProspectId, setSelectedProspectId] = useState<string | null>(null);
   const [salesforceDemoLink, setSalesforceDemoLink] = useState('');
   const [potentialRevenue, setPotentialRevenue] = useState('');
   const [callDate, setCallDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [callType, setCallType] = useState<CallType>('first_demo');
   const [callTypeOther, setCallTypeOther] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleAccountChange = (name: string, prospectId: string | null) => {
+    setAccountName(name);
+    setSelectedProspectId(prospectId);
+    // Reset stakeholder when account changes
+    setPrimaryStakeholderName('');
+    setSelectedStakeholderId(null);
+  };
+
+  const handleStakeholderChange = (name: string, stakeholderId: string | null) => {
+    setPrimaryStakeholderName(name);
+    setSelectedStakeholderId(stakeholderId);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,6 +85,8 @@ export default function RepDashboard() {
         salesforceDemoLink: salesforceDemoLink.trim(),
         potentialRevenue: potentialRevenue ? parseFloat(potentialRevenue) : undefined,
         rawText: transcript,
+        prospectId: selectedProspectId || undefined,
+        stakeholderId: selectedStakeholderId || undefined,
       });
 
       toast({
@@ -118,22 +137,24 @@ export default function RepDashboard() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="accountName">Account Name *</Label>
-                  <Input
-                    id="accountName"
-                    placeholder="e.g., ACME Corporation"
+                  <AccountCombobox
+                    repId={user?.id || ''}
                     value={accountName}
-                    onChange={(e) => setAccountName(e.target.value)}
-                    required
+                    selectedProspectId={selectedProspectId}
+                    onChange={handleAccountChange}
+                    placeholder="Select or type account..."
+                    disabled={!user?.id}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="primaryStakeholderName">Primary Stakeholder *</Label>
-                  <Input
-                    id="primaryStakeholderName"
-                    placeholder="e.g., John Smith"
+                  <StakeholderCombobox
+                    prospectId={selectedProspectId}
                     value={primaryStakeholderName}
-                    onChange={(e) => setPrimaryStakeholderName(e.target.value)}
-                    required
+                    selectedStakeholderId={selectedStakeholderId}
+                    onChange={handleStakeholderChange}
+                    placeholder="Select or type name..."
+                    disabled={!user?.id}
                   />
                 </div>
               </div>
