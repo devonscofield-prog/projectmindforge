@@ -71,7 +71,7 @@ export interface CoachOutput {
   bant_improvements: string[];
   gap_selling_improvements: string[];
   active_listening_improvements: string[];
-  critical_info_missing: string[];
+  critical_info_missing: Array<{ info: string; missed_opportunity: string }> | string[];
   recommended_follow_up_questions: Array<{ question: string; timing_example: string }> | string[];
   heat_signature: {
     score: number;
@@ -583,6 +583,239 @@ export async function getAiScoreStatsForReps(repIds: string[]): Promise<Map<stri
   }
 
   return result;
+}
+
+// Coaching Summary Types
+export interface CoachingSummary {
+  totalCalls: number;
+  dateRange: { from: string; to: string };
+  frameworkTrends: Array<{
+    date: string;
+    bant: number | null;
+    gap_selling: number | null;
+    active_listening: number | null;
+    effectiveness: number | null;
+  }>;
+  recurringPatterns: {
+    criticalInfoMissing: Array<{ item: string; count: number }>;
+    followUpQuestions: Array<{ item: string; count: number }>;
+    bantImprovements: Array<{ item: string; count: number }>;
+    gapSellingImprovements: Array<{ item: string; count: number }>;
+    activeListeningImprovements: Array<{ item: string; count: number }>;
+  };
+  aggregatedTags: {
+    skillTags: Array<{ tag: string; count: number }>;
+    dealTags: Array<{ tag: string; count: number }>;
+  };
+  strengthsAndOpportunities: {
+    topStrengths: Array<{ area: string; count: number; examples: string[] }>;
+    topOpportunities: Array<{ area: string; count: number; examples: string[] }>;
+  };
+  heatScoreStats: {
+    average: number | null;
+    trend: 'improving' | 'declining' | 'stable';
+    recentScores: Array<{ date: string; score: number }>;
+  };
+}
+
+/**
+ * Gets aggregated coaching summary for a rep over a date range.
+ * @param repId - The rep's user ID
+ * @param daysBack - Number of days to look back (default 30)
+ * @returns Aggregated coaching insights
+ */
+export async function getCoachingSummaryForRep(
+  repId: string,
+  daysBack: number = 30
+): Promise<CoachingSummary> {
+  const dateFrom = new Date();
+  dateFrom.setDate(dateFrom.getDate() - daysBack);
+
+  const { data, error } = await supabase
+    .from('ai_call_analysis')
+    .select('*')
+    .eq('rep_id', repId)
+    .gte('created_at', dateFrom.toISOString())
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('[getCoachingSummaryForRep] Error:', error);
+    throw new Error(`Failed to fetch coaching summary: ${error.message}`);
+  }
+
+  const analyses = (data || []) as unknown as CallAnalysis[];
+  
+  // Build framework trends
+  const frameworkTrends = analyses.map(a => ({
+    date: a.created_at,
+    bant: a.coach_output?.framework_scores?.bant?.score ?? null,
+    gap_selling: a.coach_output?.framework_scores?.gap_selling?.score ?? null,
+    active_listening: a.coach_output?.framework_scores?.active_listening?.score ?? null,
+    effectiveness: a.call_effectiveness_score,
+  }));
+
+  // Helper to count occurrences
+  const countOccurrences = (items: string[]): Array<{ item: string; count: number }> => {
+    const counts = new Map<string, number>();
+    items.forEach(item => {
+      const normalized = item.toLowerCase().trim();
+      counts.set(normalized, (counts.get(normalized) || 0) + 1);
+    });
+    return Array.from(counts.entries())
+      .map(([item, count]) => ({ item, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+  };
+
+  // Aggregate critical info missing
+  const allCriticalInfo: string[] = [];
+  analyses.forEach(a => {
+    if (a.coach_output?.critical_info_missing) {
+      a.coach_output.critical_info_missing.forEach(item => {
+        const text = typeof item === 'object' ? item.info : item;
+        if (text) allCriticalInfo.push(text);
+      });
+    }
+  });
+
+  // Aggregate follow-up questions
+  const allFollowUps: string[] = [];
+  analyses.forEach(a => {
+    if (a.coach_output?.recommended_follow_up_questions) {
+      a.coach_output.recommended_follow_up_questions.forEach(item => {
+        const text = typeof item === 'object' ? item.question : item;
+        if (text) allFollowUps.push(text);
+      });
+    }
+  });
+
+  // Aggregate improvements
+  const allBantImprovements: string[] = [];
+  const allGapSellingImprovements: string[] = [];
+  const allActiveListeningImprovements: string[] = [];
+  
+  analyses.forEach(a => {
+    if (a.coach_output?.bant_improvements) {
+      allBantImprovements.push(...a.coach_output.bant_improvements);
+    }
+    if (a.coach_output?.gap_selling_improvements) {
+      allGapSellingImprovements.push(...a.coach_output.gap_selling_improvements);
+    }
+    if (a.coach_output?.active_listening_improvements) {
+      allActiveListeningImprovements.push(...a.coach_output.active_listening_improvements);
+    }
+  });
+
+  // Aggregate tags
+  const allSkillTags: string[] = [];
+  const allDealTags: string[] = [];
+  analyses.forEach(a => {
+    if (a.skill_tags) allSkillTags.push(...a.skill_tags);
+    if (a.deal_tags) allDealTags.push(...a.deal_tags);
+  });
+
+  const countTags = (tags: string[]): Array<{ tag: string; count: number }> => {
+    const counts = new Map<string, number>();
+    tags.forEach(tag => counts.set(tag, (counts.get(tag) || 0) + 1));
+    return Array.from(counts.entries())
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+  };
+
+  // Aggregate strengths and opportunities
+  const strengthsMap = new Map<string, { count: number; examples: string[] }>();
+  const opportunitiesMap = new Map<string, { count: number; examples: string[] }>();
+
+  analyses.forEach(a => {
+    if (a.strengths && Array.isArray(a.strengths)) {
+      a.strengths.forEach((s: any) => {
+        const area = s.area?.toLowerCase() || 'unknown';
+        if (!strengthsMap.has(area)) {
+          strengthsMap.set(area, { count: 0, examples: [] });
+        }
+        const entry = strengthsMap.get(area)!;
+        entry.count++;
+        if (s.example && entry.examples.length < 3) {
+          entry.examples.push(s.example);
+        }
+      });
+    }
+    if (a.opportunities && Array.isArray(a.opportunities)) {
+      a.opportunities.forEach((o: any) => {
+        const area = o.area?.toLowerCase() || 'unknown';
+        if (!opportunitiesMap.has(area)) {
+          opportunitiesMap.set(area, { count: 0, examples: [] });
+        }
+        const entry = opportunitiesMap.get(area)!;
+        entry.count++;
+        if (o.example && entry.examples.length < 3) {
+          entry.examples.push(o.example);
+        }
+      });
+    }
+  });
+
+  const topStrengths = Array.from(strengthsMap.entries())
+    .map(([area, data]) => ({ area, ...data }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+
+  const topOpportunities = Array.from(opportunitiesMap.entries())
+    .map(([area, data]) => ({ area, ...data }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+
+  // Heat score stats
+  const heatScores = analyses
+    .filter(a => a.coach_output?.heat_signature?.score != null)
+    .map(a => ({
+      date: a.created_at,
+      score: a.coach_output!.heat_signature.score,
+    }));
+
+  const avgHeat = heatScores.length > 0
+    ? heatScores.reduce((sum, h) => sum + h.score, 0) / heatScores.length
+    : null;
+
+  let heatTrend: 'improving' | 'declining' | 'stable' = 'stable';
+  if (heatScores.length >= 3) {
+    const firstHalf = heatScores.slice(0, Math.floor(heatScores.length / 2));
+    const secondHalf = heatScores.slice(Math.floor(heatScores.length / 2));
+    const firstAvg = firstHalf.reduce((s, h) => s + h.score, 0) / firstHalf.length;
+    const secondAvg = secondHalf.reduce((s, h) => s + h.score, 0) / secondHalf.length;
+    if (secondAvg - firstAvg > 0.5) heatTrend = 'improving';
+    else if (firstAvg - secondAvg > 0.5) heatTrend = 'declining';
+  }
+
+  return {
+    totalCalls: analyses.length,
+    dateRange: {
+      from: dateFrom.toISOString(),
+      to: new Date().toISOString(),
+    },
+    frameworkTrends,
+    recurringPatterns: {
+      criticalInfoMissing: countOccurrences(allCriticalInfo),
+      followUpQuestions: countOccurrences(allFollowUps),
+      bantImprovements: countOccurrences(allBantImprovements),
+      gapSellingImprovements: countOccurrences(allGapSellingImprovements),
+      activeListeningImprovements: countOccurrences(allActiveListeningImprovements),
+    },
+    aggregatedTags: {
+      skillTags: countTags(allSkillTags),
+      dealTags: countTags(allDealTags),
+    },
+    strengthsAndOpportunities: {
+      topStrengths,
+      topOpportunities,
+    },
+    heatScoreStats: {
+      average: avgHeat,
+      trend: heatTrend,
+      recentScores: heatScores.slice(-10),
+    },
+  };
 }
 
 // Export types for use in components

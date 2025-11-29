@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,7 +13,7 @@ import { createCallTranscriptAndAnalyze } from '@/api/aiCallAnalysis';
 import { updateProspect } from '@/api/prospects';
 import { CallType, callTypeOptions } from '@/constants/callTypes';
 import { format } from 'date-fns';
-import { Send, Loader2, Mic, Pencil } from 'lucide-react';
+import { Send, Loader2, Mic, Pencil, BarChart3 } from 'lucide-react';
 import { AccountCombobox } from '@/components/forms/AccountCombobox';
 import { StakeholderCombobox } from '@/components/forms/StakeholderCombobox';
 import { PendingFollowUpsWidget } from '@/components/dashboard/PendingFollowUpsWidget';
@@ -139,6 +139,12 @@ export default function RepDashboard() {
           <p className="text-muted-foreground">
             Submit your call transcripts for AI-powered coaching and insights
           </p>
+          <Button variant="outline" size="sm" asChild className="mt-2">
+            <Link to="/rep/coaching-summary">
+              <BarChart3 className="h-4 w-4 mr-2" />
+              View Coaching Summary
+            </Link>
+          </Button>
         </div>
 
         <div className="grid gap-8 lg:grid-cols-3">
