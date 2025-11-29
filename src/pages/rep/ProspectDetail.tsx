@@ -69,6 +69,7 @@ import {
   completeFollowUp,
   reopenFollowUp,
   dismissFollowUp,
+  restoreFollowUp,
   refreshFollowUps,
   type AccountFollowUp,
 } from '@/api/accountFollowUps';
@@ -78,6 +79,7 @@ import { StakeholderDetailSheet } from '@/components/prospects/StakeholderDetail
 import { StakeholderRelationshipMap } from '@/components/prospects/StakeholderRelationshipMap';
 import { FollowUpItem } from '@/components/prospects/FollowUpItem';
 import { CompletedFollowUpsDialog } from '@/components/prospects/CompletedFollowUpsDialog';
+import { DismissedFollowUpsDialog } from '@/components/prospects/DismissedFollowUpsDialog';
 
 const statusLabels: Record<ProspectStatus, string> = {
   active: 'Active',
@@ -137,12 +139,14 @@ export default function ProspectDetail() {
   const [calls, setCalls] = useState<{ id: string; call_date: string; call_type: string | null; analysis_status: string }[]>([]);
   const [followUps, setFollowUps] = useState<AccountFollowUp[]>([]);
   const [completedFollowUps, setCompletedFollowUps] = useState<AccountFollowUp[]>([]);
+  const [dismissedFollowUps, setDismissedFollowUps] = useState<AccountFollowUp[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAddActivityOpen, setIsAddActivityOpen] = useState(false);
   const [isAddStakeholderOpen, setIsAddStakeholderOpen] = useState(false);
   const [selectedStakeholder, setSelectedStakeholder] = useState<Stakeholder | null>(null);
   const [isStakeholderSheetOpen, setIsStakeholderSheetOpen] = useState(false);
   const [isCompletedDialogOpen, setIsCompletedDialogOpen] = useState(false);
+  const [isDismissedDialogOpen, setIsDismissedDialogOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [newActivity, setNewActivity] = useState({
     type: 'note' as ProspectActivityType,
@@ -160,7 +164,7 @@ export default function ProspectDetail() {
     
     setIsLoading(true);
     try {
-      const [prospectData, stakeholdersData, relationshipsData, activitiesData, callsData, pendingFollowUps, completedFollowUpsData] = await Promise.all([
+      const [prospectData, stakeholdersData, relationshipsData, activitiesData, callsData, pendingFollowUps, completedFollowUpsData, dismissedFollowUpsData] = await Promise.all([
         getProspectById(id),
         listStakeholdersForProspect(id),
         listRelationshipsForProspect(id),
@@ -168,6 +172,7 @@ export default function ProspectDetail() {
         getCallsForProspect(id),
         listFollowUpsForProspect(id, 'pending'),
         listFollowUpsForProspect(id, 'completed'),
+        listFollowUpsForProspect(id, 'dismissed'),
       ]);
 
       if (!prospectData) {
@@ -183,6 +188,7 @@ export default function ProspectDetail() {
       setCalls(callsData);
       setFollowUps(pendingFollowUps);
       setCompletedFollowUps(completedFollowUpsData);
+      setDismissedFollowUps(dismissedFollowUpsData);
     } catch (error) {
       console.error('Failed to load prospect:', error);
       toast({ title: 'Failed to load account', variant: 'destructive' });
@@ -289,11 +295,23 @@ export default function ProspectDetail() {
 
   const handleDismissFollowUp = async (followUpId: string) => {
     try {
-      await dismissFollowUp(followUpId);
+      const dismissed = await dismissFollowUp(followUpId);
       setFollowUps(prev => prev.filter(f => f.id !== followUpId));
+      setDismissedFollowUps(prev => [dismissed, ...prev]);
       toast({ title: 'Follow-up dismissed' });
     } catch (error) {
       toast({ title: 'Failed to dismiss follow-up', variant: 'destructive' });
+    }
+  };
+
+  const handleRestoreFollowUp = async (followUpId: string) => {
+    try {
+      const restored = await restoreFollowUp(followUpId);
+      setDismissedFollowUps(prev => prev.filter(f => f.id !== followUpId));
+      setFollowUps(prev => [restored, ...prev]);
+      toast({ title: 'Follow-up restored' });
+    } catch (error) {
+      toast({ title: 'Failed to restore follow-up', variant: 'destructive' });
     }
   };
 
@@ -304,12 +322,14 @@ export default function ProspectDetail() {
       const result = await refreshFollowUps(id);
       if (result.success) {
         // Reload follow-ups after generation
-        const [pendingFollowUps, completedFollowUpsData] = await Promise.all([
+        const [pendingFollowUps, completedFollowUpsData, dismissedFollowUpsData] = await Promise.all([
           listFollowUpsForProspect(id, 'pending'),
           listFollowUpsForProspect(id, 'completed'),
+          listFollowUpsForProspect(id, 'dismissed'),
         ]);
         setFollowUps(pendingFollowUps);
         setCompletedFollowUps(completedFollowUpsData);
+        setDismissedFollowUps(dismissedFollowUpsData);
         toast({ title: `Generated ${result.count || 0} new follow-up steps` });
       } else {
         toast({ title: 'Failed to refresh follow-ups', variant: 'destructive' });
@@ -548,6 +568,15 @@ export default function ProspectDetail() {
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
+                  {dismissedFollowUps.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsDismissedDialogOpen(true)}
+                    >
+                      Dismissed ({dismissedFollowUps.length})
+                    </Button>
+                  )}
                   {completedFollowUps.length > 0 && (
                     <Button
                       variant="outline"
@@ -816,6 +845,14 @@ export default function ProspectDetail() {
         onOpenChange={setIsCompletedDialogOpen}
         completedFollowUps={completedFollowUps}
         onReopen={handleReopenFollowUp}
+      />
+
+      {/* Dismissed Follow-Ups Dialog */}
+      <DismissedFollowUpsDialog
+        open={isDismissedDialogOpen}
+        onOpenChange={setIsDismissedDialogOpen}
+        dismissedFollowUps={dismissedFollowUps}
+        onRestore={handleRestoreFollowUp}
       />
     </AppLayout>
   );

@@ -124,6 +124,27 @@ export async function dismissFollowUp(followUpId: string): Promise<AccountFollow
 }
 
 /**
+ * Restore a dismissed follow-up back to pending
+ */
+export async function restoreFollowUp(followUpId: string): Promise<AccountFollowUp> {
+  const { data, error } = await supabase
+    .from('account_follow_ups')
+    .update({
+      status: 'pending'
+    })
+    .eq('id', followUpId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error restoring follow-up:', error);
+    throw error;
+  }
+
+  return data as AccountFollowUp;
+}
+
+/**
  * Trigger regeneration of follow-ups for a prospect
  */
 export async function refreshFollowUps(prospectId: string): Promise<{ success: boolean; count?: number; error?: string }> {
