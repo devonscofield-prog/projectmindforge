@@ -28,6 +28,8 @@ Analyze the provided data and extract:
 
 7. **relationship_health**: A brief assessment of the overall relationship based on communication patterns, response rates, and stakeholder engagement.
 
+8. **industry**: Determine the most likely industry for this account based on the communications. Must be one of: education, local_government, state_government, federal_government, healthcare, msp, technology, finance, manufacturing, retail, nonprofit, other. Only set if you're confident based on evidence in the communications.
+
 Be concise but specific. Base everything on actual data provided, don't make assumptions.`;
 
 interface AccountInsights {
@@ -43,6 +45,7 @@ interface AccountInsights {
   communication_summary?: string;
   key_opportunities?: string[];
   relationship_health?: string;
+  industry?: string;
   last_analyzed_at?: string;
 }
 
@@ -181,7 +184,12 @@ serve(async (req) => {
                   items: { type: 'string' },
                   description: '2-3 specific opportunities' 
                 },
-                relationship_health: { type: 'string', description: 'Brief relationship assessment' }
+                relationship_health: { type: 'string', description: 'Brief relationship assessment' },
+                industry: { 
+                  type: 'string', 
+                  enum: ['education', 'local_government', 'state_government', 'federal_government', 'healthcare', 'msp', 'technology', 'finance', 'manufacturing', 'retail', 'nonprofit', 'other'],
+                  description: 'The industry of the account based on communications'
+                }
               },
               required: ['business_context']
             }
@@ -214,12 +222,20 @@ serve(async (req) => {
     }
 
     // Update prospect with new insights
+    const updateData: Record<string, unknown> = {
+      ai_extracted_info: insights,
+      updated_at: new Date().toISOString()
+    };
+    
+    // Auto-populate industry only if not already set on the prospect
+    if (insights.industry && !prospect.industry) {
+      updateData.industry = insights.industry;
+      console.log(`[regenerate-account-insights] Auto-populating industry: ${insights.industry}`);
+    }
+    
     const { error: updateError } = await supabase
       .from('prospects')
-      .update({ 
-        ai_extracted_info: insights,
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', prospect_id);
 
     if (updateError) {

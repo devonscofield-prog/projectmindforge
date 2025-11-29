@@ -532,9 +532,16 @@ export default function ProspectDetail() {
                 <Building2 className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold tracking-tight">
-                  {prospect.account_name || prospect.prospect_name}
-                </h1>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-3xl font-bold tracking-tight">
+                    {prospect.account_name || prospect.prospect_name}
+                  </h1>
+                  {prospect.industry && (
+                    <Badge variant="secondary" className="text-sm">
+                      {industryOptions.find(i => i.value === prospect.industry)?.label || prospect.industry}
+                    </Badge>
+                  )}
+                </div>
                 {primaryStakeholder && (
                   <p className="text-muted-foreground">
                     Primary: {primaryStakeholder.name}
