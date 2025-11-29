@@ -176,6 +176,26 @@ export default function ProspectDetail() {
   const [editedSalesforceLink, setEditedSalesforceLink] = useState('');
   const [isSavingSalesforceLink, setIsSavingSalesforceLink] = useState(false);
 
+  // Industry editing state
+  const [isEditingIndustry, setIsEditingIndustry] = useState(false);
+  const [editedIndustry, setEditedIndustry] = useState('');
+  const [isSavingIndustry, setIsSavingIndustry] = useState(false);
+
+  const industryOptions = [
+    { value: 'education', label: 'Education' },
+    { value: 'local_government', label: 'Local Government' },
+    { value: 'state_government', label: 'State Government' },
+    { value: 'federal_government', label: 'Federal Government' },
+    { value: 'healthcare', label: 'Healthcare' },
+    { value: 'msp', label: 'MSP' },
+    { value: 'technology', label: 'Technology' },
+    { value: 'finance', label: 'Finance' },
+    { value: 'manufacturing', label: 'Manufacturing' },
+    { value: 'retail', label: 'Retail' },
+    { value: 'nonprofit', label: 'Nonprofit' },
+    { value: 'other', label: 'Other' },
+  ];
+
   useEffect(() => {
     if (id) loadProspectData();
   }, [id]);
@@ -1107,6 +1127,109 @@ export default function ProspectDetail() {
                       ? format(new Date(prospect.last_contact_date), 'MMM d, yyyy')
                       : '—'}
                   </span>
+                </div>
+
+                {/* Industry with Edit */}
+                <div className="pt-2 space-y-2">
+                  <span className="text-muted-foreground text-xs">Industry</span>
+                  {isEditingIndustry ? (
+                    <div className="space-y-2">
+                      <Select
+                        value={editedIndustry}
+                        onValueChange={setEditedIndustry}
+                        disabled={isSavingIndustry}
+                      >
+                        <SelectTrigger className="h-8 text-sm">
+                          <SelectValue placeholder="Select industry..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {industryOptions.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="h-7 text-xs"
+                          onClick={async () => {
+                            setIsSavingIndustry(true);
+                            try {
+                              await updateProspect(prospect.id, { industry: editedIndustry || null });
+                              setProspect({ ...prospect, industry: editedIndustry || null });
+                              setIsEditingIndustry(false);
+                              toast({ title: 'Industry updated' });
+                            } catch (error) {
+                              toast({ title: 'Failed to update industry', variant: 'destructive' });
+                            } finally {
+                              setIsSavingIndustry(false);
+                            }
+                          }}
+                          disabled={isSavingIndustry}
+                        >
+                          {isSavingIndustry ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <>
+                              <Check className="h-3 w-3 mr-1" />
+                              Save
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => {
+                            setIsEditingIndustry(false);
+                            setEditedIndustry(prospect.industry || '');
+                          }}
+                          disabled={isSavingIndustry}
+                        >
+                          <X className="h-3 w-3 mr-1" />
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      {prospect.industry ? (
+                        <>
+                          <Badge variant="secondary" className="text-xs">
+                            {industryOptions.find(o => o.value === prospect.industry)?.label || prospect.industry}
+                          </Badge>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-6 w-6 shrink-0"
+                            onClick={() => {
+                              setEditedIndustry(prospect.industry || '');
+                              setIsEditingIndustry(true);
+                            }}
+                            title="Edit industry"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => {
+                            setEditedIndustry('');
+                            setIsEditingIndustry(true);
+                          }}
+                        >
+                          <Plus className="h-3 w-3 mr-1" />
+                          Add Industry
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </div>
                 
                 {/* Salesforce Link with Edit */}

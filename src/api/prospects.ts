@@ -11,6 +11,7 @@ export interface Prospect {
   salesforce_link: string | null;
   potential_revenue: number | null;
   status: ProspectStatus;
+  industry: string | null;
   ai_extracted_info: ProspectIntel | null;
   suggested_follow_ups: string[] | null;
   last_contact_date: string | null;
@@ -222,7 +223,8 @@ export async function updateProspect(
   updates: {
     status?: ProspectStatus;
     potential_revenue?: number;
-    salesforce_link?: string;
+    salesforce_link?: string | null;
+    industry?: string | null;
     ai_extracted_info?: ProspectIntel;
     suggested_follow_ups?: string[];
     heat_score?: number;

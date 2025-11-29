@@ -616,6 +616,7 @@ export type Database = {
           follow_ups_last_generated_at: string | null
           heat_score: number | null
           id: string
+          industry: string | null
           last_contact_date: string | null
           potential_revenue: number | null
           prospect_name: string
@@ -633,6 +634,7 @@ export type Database = {
           follow_ups_last_generated_at?: string | null
           heat_score?: number | null
           id?: string
+          industry?: string | null
           last_contact_date?: string | null
           potential_revenue?: number | null
           prospect_name: string
@@ -650,6 +652,7 @@ export type Database = {
           follow_ups_last_generated_at?: string | null
           heat_score?: number | null
           id?: string
+          industry?: string | null
           last_contact_date?: string | null
           potential_revenue?: number | null
           prospect_name?: string
