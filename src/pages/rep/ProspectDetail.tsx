@@ -39,6 +39,10 @@ import {
   CheckCircle2,
   AlertCircle,
   Building2,
+  RefreshCw,
+  Eye,
+  Target,
+  Loader2,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import {
@@ -60,10 +64,19 @@ import {
   listRelationshipsForProspect,
   type StakeholderRelationship,
 } from '@/api/stakeholderRelationships';
+import {
+  listFollowUpsForProspect,
+  completeFollowUp,
+  reopenFollowUp,
+  refreshFollowUps,
+  type AccountFollowUp,
+} from '@/api/accountFollowUps';
 import { StakeholderCard } from '@/components/prospects/StakeholderCard';
 import { AddStakeholderDialog } from '@/components/prospects/AddStakeholderDialog';
 import { StakeholderDetailSheet } from '@/components/prospects/StakeholderDetailSheet';
 import { StakeholderRelationshipMap } from '@/components/prospects/StakeholderRelationshipMap';
+import { FollowUpItem } from '@/components/prospects/FollowUpItem';
+import { CompletedFollowUpsDialog } from '@/components/prospects/CompletedFollowUpsDialog';
 
 const statusLabels: Record<ProspectStatus, string> = {
   active: 'Active',
@@ -121,11 +134,15 @@ export default function ProspectDetail() {
   const [relationships, setRelationships] = useState<StakeholderRelationship[]>([]);
   const [activities, setActivities] = useState<ProspectActivity[]>([]);
   const [calls, setCalls] = useState<{ id: string; call_date: string; call_type: string | null; analysis_status: string }[]>([]);
+  const [followUps, setFollowUps] = useState<AccountFollowUp[]>([]);
+  const [completedFollowUps, setCompletedFollowUps] = useState<AccountFollowUp[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAddActivityOpen, setIsAddActivityOpen] = useState(false);
   const [isAddStakeholderOpen, setIsAddStakeholderOpen] = useState(false);
   const [selectedStakeholder, setSelectedStakeholder] = useState<Stakeholder | null>(null);
   const [isStakeholderSheetOpen, setIsStakeholderSheetOpen] = useState(false);
+  const [isCompletedDialogOpen, setIsCompletedDialogOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [newActivity, setNewActivity] = useState({
     type: 'note' as ProspectActivityType,
     description: '',
@@ -142,12 +159,14 @@ export default function ProspectDetail() {
     
     setIsLoading(true);
     try {
-      const [prospectData, stakeholdersData, relationshipsData, activitiesData, callsData] = await Promise.all([
+      const [prospectData, stakeholdersData, relationshipsData, activitiesData, callsData, pendingFollowUps, completedFollowUpsData] = await Promise.all([
         getProspectById(id),
         listStakeholdersForProspect(id),
         listRelationshipsForProspect(id),
         listActivitiesForProspect(id),
         getCallsForProspect(id),
+        listFollowUpsForProspect(id, 'pending'),
+        listFollowUpsForProspect(id, 'completed'),
       ]);
 
       if (!prospectData) {
@@ -161,6 +180,8 @@ export default function ProspectDetail() {
       setRelationships(relationshipsData);
       setActivities(activitiesData);
       setCalls(callsData);
+      setFollowUps(pendingFollowUps);
+      setCompletedFollowUps(completedFollowUpsData);
     } catch (error) {
       console.error('Failed to load prospect:', error);
       toast({ title: 'Failed to load account', variant: 'destructive' });
@@ -242,7 +263,52 @@ export default function ProspectDetail() {
   }
 
   const aiInfo = prospect.ai_extracted_info;
-  const followUps = prospect.suggested_follow_ups || [];
+
+  const handleCompleteFollowUp = async (followUpId: string) => {
+    try {
+      const updated = await completeFollowUp(followUpId);
+      setFollowUps(prev => prev.filter(f => f.id !== followUpId));
+      setCompletedFollowUps(prev => [updated, ...prev]);
+      toast({ title: 'Follow-up completed' });
+    } catch (error) {
+      toast({ title: 'Failed to complete follow-up', variant: 'destructive' });
+    }
+  };
+
+  const handleReopenFollowUp = async (followUpId: string) => {
+    try {
+      const updated = await reopenFollowUp(followUpId);
+      setCompletedFollowUps(prev => prev.filter(f => f.id !== followUpId));
+      setFollowUps(prev => [updated, ...prev]);
+      toast({ title: 'Follow-up reopened' });
+    } catch (error) {
+      toast({ title: 'Failed to reopen follow-up', variant: 'destructive' });
+    }
+  };
+
+  const handleRefreshFollowUps = async () => {
+    if (!id) return;
+    setIsRefreshing(true);
+    try {
+      const result = await refreshFollowUps(id);
+      if (result.success) {
+        // Reload follow-ups after generation
+        const [pendingFollowUps, completedFollowUpsData] = await Promise.all([
+          listFollowUpsForProspect(id, 'pending'),
+          listFollowUpsForProspect(id, 'completed'),
+        ]);
+        setFollowUps(pendingFollowUps);
+        setCompletedFollowUps(completedFollowUpsData);
+        toast({ title: `Generated ${result.count || 0} new follow-up steps` });
+      } else {
+        toast({ title: 'Failed to refresh follow-ups', variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Failed to refresh follow-ups', variant: 'destructive' });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   return (
     <AppLayout>
@@ -458,27 +524,80 @@ export default function ProspectDetail() {
               </Card>
             )}
 
-            {/* Suggested Follow-ups */}
-            {followUps.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Suggested Follow-ups</CardTitle>
+            {/* Suggested Follow-Up Steps */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Target className="h-5 w-5 text-primary" />
+                    Suggested Follow-Up Steps
+                  </CardTitle>
                   <CardDescription>
-                    AI-recommended questions and actions
+                    AI-recommended actions based on all account calls
                   </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2">
-                    {followUps.map((item, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                        <span className="text-sm">{item}</span>
-                      </li>
+                </div>
+                <div className="flex items-center gap-2">
+                  {completedFollowUps.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsCompletedDialogOpen(true)}
+                    >
+                      <Eye className="h-4 w-4 mr-1" />
+                      Completed ({completedFollowUps.length})
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRefreshFollowUps}
+                    disabled={isRefreshing}
+                  >
+                    {isRefreshing ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {followUps.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Target className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                    <p className="text-sm text-muted-foreground mb-3">No follow-up steps yet</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRefreshFollowUps}
+                      disabled={isRefreshing}
+                    >
+                      {isRefreshing ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Generate Follow-Up Steps
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {followUps.map((followUp) => (
+                      <FollowUpItem
+                        key={followUp.id}
+                        followUp={followUp}
+                        onComplete={handleCompleteFollowUp}
+                      />
                     ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             {/* Call History */}
             <Card>
@@ -677,6 +796,14 @@ export default function ProspectDetail() {
         onOpenChange={setIsStakeholderSheetOpen}
         onUpdated={loadProspectData}
         onDeleted={loadProspectData}
+      />
+
+      {/* Completed Follow-Ups Dialog */}
+      <CompletedFollowUpsDialog
+        open={isCompletedDialogOpen}
+        onOpenChange={setIsCompletedDialogOpen}
+        completedFollowUps={completedFollowUps}
+        onReopen={handleReopenFollowUp}
       />
     </AppLayout>
   );

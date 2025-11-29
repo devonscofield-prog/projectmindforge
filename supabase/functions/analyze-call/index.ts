@@ -2,6 +2,11 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCurrentAiMode, type AiMode } from "../_shared/getAiMode.ts";
 
+// Declare EdgeRuntime for Supabase Edge Functions
+declare const EdgeRuntime: {
+  waitUntil: (promise: Promise<unknown>) => void;
+};
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -1076,6 +1081,45 @@ serve(async (req) => {
     }
 
     console.log(`[analyze-call] Analysis completed successfully for call_id: ${callId}`);
+
+    // Step 9: Trigger follow-up generation in background if prospect exists
+    try {
+      const { data: callData } = await supabaseAdmin
+        .from('call_transcripts')
+        .select('prospect_id')
+        .eq('id', callId)
+        .single();
+
+      if (callData?.prospect_id) {
+        console.log(`[analyze-call] Triggering follow-up generation for prospect: ${callData.prospect_id}`);
+        
+        // Fire and forget - don't await, let it run in background
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+        
+        EdgeRuntime.waitUntil(
+          fetch(`${supabaseUrl}/functions/v1/generate-account-follow-ups`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${supabaseServiceKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ prospect_id: callData.prospect_id })
+          }).then(res => {
+            if (!res.ok) {
+              console.error('[analyze-call] Follow-up generation failed:', res.status);
+            } else {
+              console.log('[analyze-call] Follow-up generation triggered successfully');
+            }
+          }).catch(err => {
+            console.error('[analyze-call] Follow-up generation error:', err);
+          })
+        );
+      }
+    } catch (followUpErr) {
+      console.error('[analyze-call] Error triggering follow-up generation:', followUpErr);
+      // Don't fail the request
+    }
 
     // Return success response
     return new Response(
