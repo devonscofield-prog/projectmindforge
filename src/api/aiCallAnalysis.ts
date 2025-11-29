@@ -45,13 +45,16 @@ export interface CallTranscriptWithHeat extends CallTranscript {
 
 type AnalysisStatus = 'pending' | 'processing' | 'completed' | 'error';
 
+export type HeatRange = 'hot' | 'warm' | 'cold';
+
 export interface CallHistoryFilters {
   search?: string;
   callTypes?: CallType[];
   statuses?: AnalysisStatus[];
   dateFrom?: string;
   dateTo?: string;
-  sortBy?: 'call_date' | 'account_name' | 'created_at';
+  heatRange?: HeatRange;
+  sortBy?: 'call_date' | 'account_name' | 'created_at' | 'heat_score';
   sortOrder?: 'asc' | 'desc';
   limit?: number;
   offset?: number;
@@ -243,9 +246,15 @@ export async function listCallTranscriptsForRepWithFilters(
   repId: string,
   filters: CallHistoryFilters
 ): Promise<{ data: CallTranscriptWithHeat[]; count: number }> {
+  const needsHeatFiltering = !!filters.heatRange;
+  const needsHeatSorting = filters.sortBy === 'heat_score';
+  
+  // If we need heat filtering/sorting, we must fetch all data first, then filter/sort client-side
+  const shouldFetchAll = needsHeatFiltering || needsHeatSorting;
+
   let query = supabase
     .from('call_transcripts')
-    .select('*', { count: 'exact' })
+    .select('*', { count: shouldFetchAll ? undefined : 'exact' })
     .eq('rep_id', repId);
 
   // Text search across multiple columns
@@ -274,22 +283,29 @@ export async function listCallTranscriptsForRepWithFilters(
     query = query.lte('call_date', filters.dateTo);
   }
 
-  // Sorting
-  const sortBy = filters.sortBy || 'call_date';
-  const sortOrder = filters.sortOrder || 'desc';
-  query = query.order(sortBy, { ascending: sortOrder === 'asc' });
+  // Only apply DB sorting if not sorting by heat_score
+  if (!needsHeatSorting) {
+    const sortBy = filters.sortBy || 'call_date';
+    const sortOrder = filters.sortOrder || 'desc';
+    query = query.order(sortBy, { ascending: sortOrder === 'asc' });
 
-  // Secondary sort by created_at for consistency
-  if (sortBy !== 'created_at') {
-    query = query.order('created_at', { ascending: false });
+    // Secondary sort by created_at for consistency
+    if (sortBy !== 'created_at') {
+      query = query.order('created_at', { ascending: false });
+    }
+  } else {
+    // Default ordering for consistent results before client-side sort
+    query = query.order('call_date', { ascending: false });
   }
 
-  // Pagination
-  if (filters.limit) {
-    query = query.limit(filters.limit);
-  }
-  if (filters.offset) {
-    query = query.range(filters.offset, filters.offset + (filters.limit || 50) - 1);
+  // Only apply pagination if not doing heat filtering/sorting
+  if (!shouldFetchAll) {
+    if (filters.limit) {
+      query = query.limit(filters.limit);
+    }
+    if (filters.offset) {
+      query = query.range(filters.offset, filters.offset + (filters.limit || 50) - 1);
+    }
   }
 
   const { data, error, count } = await query;
@@ -301,46 +317,80 @@ export async function listCallTranscriptsForRepWithFilters(
 
   const transcripts = (data || []) as CallTranscript[];
 
+  if (transcripts.length === 0) {
+    return { data: [], count: 0 };
+  }
+
   // Fetch heat scores from ai_call_analysis for all transcripts
-  if (transcripts.length > 0) {
-    const callIds = transcripts.map(t => t.id);
-    const { data: analyses, error: analysisError } = await supabase
-      .from('ai_call_analysis')
-      .select('call_id, coach_output')
-      .in('call_id', callIds);
+  const callIds = transcripts.map(t => t.id);
+  const { data: analyses, error: analysisError } = await supabase
+    .from('ai_call_analysis')
+    .select('call_id, coach_output')
+    .in('call_id', callIds);
 
-    if (analysisError) {
-      console.error('[listCallTranscriptsForRepWithFilters] Analysis fetch error:', analysisError);
-      // Continue without heat scores if fetch fails
-      return {
-        data: transcripts.map(t => ({ ...t, heat_score: null })),
-        count: count || 0,
-      };
-    }
-
-    // Create a map of call_id -> heat_score
-    const heatMap = new Map<string, number | null>();
-    analyses?.forEach(a => {
-      const coachOutput = a.coach_output as unknown as CoachOutput | null;
-      const heatScore = coachOutput?.heat_signature?.score ?? null;
-      heatMap.set(a.call_id, heatScore);
-    });
-
-    // Merge heat scores into transcripts
-    const transcriptsWithHeat: CallTranscriptWithHeat[] = transcripts.map(t => ({
-      ...t,
-      heat_score: heatMap.get(t.id) ?? null,
-    }));
-
+  if (analysisError) {
+    console.error('[listCallTranscriptsForRepWithFilters] Analysis fetch error:', analysisError);
+    // Continue without heat scores if fetch fails
     return {
-      data: transcriptsWithHeat,
-      count: count || 0,
+      data: transcripts.map(t => ({ ...t, heat_score: null })),
+      count: count || transcripts.length,
     };
   }
 
+  // Create a map of call_id -> heat_score
+  const heatMap = new Map<string, number | null>();
+  analyses?.forEach(a => {
+    const coachOutput = a.coach_output as unknown as CoachOutput | null;
+    const heatScore = coachOutput?.heat_signature?.score ?? null;
+    heatMap.set(a.call_id, heatScore);
+  });
+
+  // Merge heat scores into transcripts
+  let transcriptsWithHeat: CallTranscriptWithHeat[] = transcripts.map(t => ({
+    ...t,
+    heat_score: heatMap.get(t.id) ?? null,
+  }));
+
+  // Apply heat range filter if specified
+  if (filters.heatRange) {
+    transcriptsWithHeat = transcriptsWithHeat.filter(t => {
+      const score = t.heat_score;
+      switch (filters.heatRange) {
+        case 'hot':
+          return score !== null && score >= 7;
+        case 'warm':
+          return score !== null && score >= 4 && score < 7;
+        case 'cold':
+          return score === null || score < 4;
+        default:
+          return true;
+      }
+    });
+  }
+
+  // Apply heat score sorting if specified
+  if (needsHeatSorting) {
+    const sortOrder = filters.sortOrder || 'desc';
+    transcriptsWithHeat.sort((a, b) => {
+      const aScore = a.heat_score ?? -1; // Treat null as lowest
+      const bScore = b.heat_score ?? -1;
+      return sortOrder === 'desc' ? bScore - aScore : aScore - bScore;
+    });
+  }
+
+  // Calculate total count after filtering
+  const totalCount = shouldFetchAll ? transcriptsWithHeat.length : (count || 0);
+
+  // Apply pagination for heat filtering/sorting
+  if (shouldFetchAll) {
+    const offset = filters.offset || 0;
+    const limit = filters.limit || 50;
+    transcriptsWithHeat = transcriptsWithHeat.slice(offset, offset + limit);
+  }
+
   return {
-    data: [],
-    count: count || 0,
+    data: transcriptsWithHeat,
+    count: totalCount,
   };
 }
 
