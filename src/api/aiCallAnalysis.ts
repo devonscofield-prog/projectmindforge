@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { CallType } from '@/constants/callTypes';
+import { getOrCreateProspect, linkCallToProspect, updateProspect, type ProspectIntel } from '@/api/prospects';
 
 interface CreateCallTranscriptParams {
   repId: string;
@@ -155,6 +156,26 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
   }
 
   console.log('[createCallTranscriptAndAnalyze] Transcript created:', transcript.id);
+
+  // Get or create prospect and link to call
+  let prospectId: string | null = null;
+  try {
+    const { prospect } = await getOrCreateProspect({
+      repId,
+      prospectName,
+      accountName,
+      salesforceLink: salesforceDemoLink,
+      potentialRevenue,
+    });
+    prospectId = prospect.id;
+    
+    // Link the call to the prospect
+    await linkCallToProspect(transcript.id, prospectId);
+    console.log('[createCallTranscriptAndAnalyze] Linked call to prospect:', prospectId);
+  } catch (prospectError) {
+    console.error('[createCallTranscriptAndAnalyze] Failed to create/link prospect:', prospectError);
+    // Don't throw - continue with analysis even if prospect creation fails
+  }
 
   // Call the analyze_call edge function
   const { data: analyzeData, error: analyzeError } = await supabase.functions.invoke('analyze-call', {
