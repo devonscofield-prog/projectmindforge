@@ -31,6 +31,7 @@ import {
   type ProspectFilters 
 } from '@/api/prospects';
 import { getStakeholderCountsForProspects } from '@/api/stakeholders';
+import { MobileProspectCard } from '@/components/prospects/MobileProspectCard';
 
 const statusLabels: Record<ProspectStatus, string> = {
   active: 'Active',
@@ -150,17 +151,17 @@ export default function RepProspects() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="space-y-4 md:space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Accounts</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Accounts</h1>
+          <p className="text-sm md:text-base text-muted-foreground">
             Manage your accounts and track stakeholder relationships
           </p>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -286,85 +287,103 @@ export default function RepProspects() {
                 </p>
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Account</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Industry</TableHead>
-                    <TableHead>Heat</TableHead>
-                    <TableHead>Revenue</TableHead>
-                    <TableHead>Stakeholders</TableHead>
-                    <TableHead>Calls</TableHead>
-                    <TableHead>Last Contact</TableHead>
-                    <TableHead className="w-10"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+              <>
+                {/* Mobile Card View */}
+                <div className="space-y-3 md:hidden">
                   {filteredProspects.map((prospect) => (
-                    <TableRow
+                    <MobileProspectCard
                       key={prospect.id}
-                      className="cursor-pointer hover:bg-muted/50"
+                      prospect={prospect}
+                      stakeholderCount={stakeholderCounts[prospect.id] || 0}
+                      callCount={callCounts[prospect.id] || 0}
                       onClick={() => navigate(`/rep/prospects/${prospect.id}`)}
-                    >
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">
-                            {prospect.account_name || prospect.prospect_name}
-                          </p>
-                          {prospect.account_name && prospect.prospect_name && (
-                            <p className="text-xs text-muted-foreground">
-                              Primary: {prospect.prospect_name}
-                            </p>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={statusVariants[prospect.status]}>
-                          {statusLabels[prospect.status]}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {prospect.industry ? (
-                          <Badge variant="outline" className="text-xs">
-                            {industryOptions.find(i => i.value === prospect.industry)?.label || prospect.industry}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <HeatScoreBadge score={prospect.heat_score} />
-                      </TableCell>
-                      <TableCell>
-                        {formatCurrency(prospect.potential_revenue)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1 text-muted-foreground">
-                          <Users className="h-3.5 w-3.5" />
-                          {stakeholderCounts[prospect.id] || 0}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {callCounts[prospect.id] || 0}
-                      </TableCell>
-                      <TableCell>
-                        {prospect.last_contact_date ? (
-                          <div className="flex items-center gap-1 text-muted-foreground">
-                            <Calendar className="h-3 w-3" />
-                            {format(new Date(prospect.last_contact_date), 'MMM d, yyyy')}
-                          </div>
-                        ) : (
-                          '—'
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      </TableCell>
-                    </TableRow>
+                    />
                   ))}
-                </TableBody>
-              </Table>
+                </div>
+
+                {/* Desktop Table View */}
+                <div className="hidden md:block">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Account</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Industry</TableHead>
+                        <TableHead>Heat</TableHead>
+                        <TableHead>Revenue</TableHead>
+                        <TableHead>Stakeholders</TableHead>
+                        <TableHead>Calls</TableHead>
+                        <TableHead>Last Contact</TableHead>
+                        <TableHead className="w-10"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredProspects.map((prospect) => (
+                        <TableRow
+                          key={prospect.id}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => navigate(`/rep/prospects/${prospect.id}`)}
+                        >
+                          <TableCell>
+                            <div>
+                              <p className="font-medium">
+                                {prospect.account_name || prospect.prospect_name}
+                              </p>
+                              {prospect.account_name && prospect.prospect_name && (
+                                <p className="text-xs text-muted-foreground">
+                                  Primary: {prospect.prospect_name}
+                                </p>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={statusVariants[prospect.status]}>
+                              {statusLabels[prospect.status]}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {prospect.industry ? (
+                              <Badge variant="outline" className="text-xs">
+                                {industryOptions.find(i => i.value === prospect.industry)?.label || prospect.industry}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <HeatScoreBadge score={prospect.heat_score} />
+                          </TableCell>
+                          <TableCell>
+                            {formatCurrency(prospect.potential_revenue)}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1 text-muted-foreground">
+                              <Users className="h-3.5 w-3.5" />
+                              {stakeholderCounts[prospect.id] || 0}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {callCounts[prospect.id] || 0}
+                          </TableCell>
+                          <TableCell>
+                            {prospect.last_contact_date ? (
+                              <div className="flex items-center gap-1 text-muted-foreground">
+                                <Calendar className="h-3 w-3" />
+                                {format(new Date(prospect.last_contact_date), 'MMM d, yyyy')}
+                              </div>
+                            ) : (
+                              '—'
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
