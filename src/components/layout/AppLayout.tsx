@@ -12,6 +12,7 @@ import {
   Menu
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import {
   SidebarProvider,
   Sidebar,
@@ -112,6 +113,7 @@ function SidebarNav() {
             <p className="text-sm font-medium truncate">{profile?.name || 'User'}</p>
             <p className="text-xs text-sidebar-foreground/70 capitalize">{role}</p>
           </div>
+          <ThemeToggle />
         </div>
         <Button 
           variant="ghost" 
@@ -140,7 +142,8 @@ export function AppLayout({ children }: AppLayoutProps) {
             <SidebarTrigger className="h-9 w-9">
               <Menu className="h-5 w-5" />
             </SidebarTrigger>
-            <h1 className="font-semibold">StormWind</h1>
+            <h1 className="font-semibold flex-1">StormWind</h1>
+            <ThemeToggle />
           </header>
           
           {/* Main content */}
