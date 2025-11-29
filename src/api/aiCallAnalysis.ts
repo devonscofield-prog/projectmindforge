@@ -621,21 +621,19 @@ export interface CoachingSummary {
 /**
  * Gets aggregated coaching summary for a rep over a date range.
  * @param repId - The rep's user ID
- * @param daysBack - Number of days to look back (default 30)
+ * @param dateRange - Date range with from and to dates
  * @returns Aggregated coaching insights
  */
 export async function getCoachingSummaryForRep(
   repId: string,
-  daysBack: number = 30
+  dateRange: { from: Date; to: Date }
 ): Promise<CoachingSummary> {
-  const dateFrom = new Date();
-  dateFrom.setDate(dateFrom.getDate() - daysBack);
-
   const { data, error } = await supabase
     .from('ai_call_analysis')
     .select('*')
     .eq('rep_id', repId)
-    .gte('created_at', dateFrom.toISOString())
+    .gte('created_at', dateRange.from.toISOString())
+    .lte('created_at', dateRange.to.toISOString())
     .order('created_at', { ascending: true });
 
   if (error) {
@@ -791,8 +789,8 @@ export async function getCoachingSummaryForRep(
   return {
     totalCalls: analyses.length,
     dateRange: {
-      from: dateFrom.toISOString(),
-      to: new Date().toISOString(),
+      from: dateRange.from.toISOString(),
+      to: dateRange.to.toISOString(),
     },
     frameworkTrends,
     recurringPatterns: {
