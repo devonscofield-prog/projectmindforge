@@ -20,6 +20,7 @@ import { CriticalInfoTrends } from '@/components/coaching/CriticalInfoTrends';
 import { PriorityActionCard } from '@/components/coaching/PriorityActionCard';
 import { CoachingTrendsComparison } from '@/components/coaching/CoachingTrendsComparison';
 import { CoachingTrendHistorySheet } from '@/components/coaching/CoachingTrendHistorySheet';
+import { ExportShareDialog } from '@/components/coaching/ExportShareDialog';
 import { cn } from '@/lib/utils';
 import {
   ArrowLeft,
@@ -41,6 +42,7 @@ import {
   AlertTriangle,
   Info,
   History,
+  Share2,
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -162,6 +164,15 @@ export default function RepCoachingSummary() {
   // History sheet state
   const [showHistory, setShowHistory] = useState(false);
   const [loadedAnalysis, setLoadedAnalysis] = useState<CoachingTrendAnalysis | null>(null);
+  
+  // Export dialog state
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  
+  // Comparison from history state
+  const [historyComparisonAnalysis, setHistoryComparisonAnalysis] = useState<{
+    analysis: CoachingTrendAnalysis;
+    dateRange: { from: Date; to: Date };
+  } | null>(null);
   
   // Determine if viewing own summary or another rep's (for managers)
   const targetRepId = repId || user?.id;
@@ -311,8 +322,22 @@ export default function RepCoachingSummary() {
     setDateRange(historyDateRange);
     setSelectedPreset('custom');
     setLoadedAnalysis(analysis);
+    setHistoryComparisonAnalysis(null); // Clear any history comparison
     // Invalidate history query to refresh the list
     queryClient.invalidateQueries({ queryKey: ['coaching-trend-history', targetRepId] });
+  };
+
+  const handleCompareFromHistory = (analysis: CoachingTrendAnalysis, historyDateRange: { from: Date; to: Date }) => {
+    // Set up comparison: history analysis (Period A) vs current analysis (Period B)
+    setHistoryComparisonAnalysis({ analysis, dateRange: historyDateRange });
+    setIsComparisonMode(true);
+    setComparisonConfirmed(true);
+  };
+
+  const handleExitHistoryComparison = () => {
+    setHistoryComparisonAnalysis(null);
+    setIsComparisonMode(false);
+    setComparisonConfirmed(false);
   };
 
   const getBackPath = () => {
@@ -423,6 +448,18 @@ export default function RepCoachingSummary() {
                 <History className="h-4 w-4 mr-2" />
                 History
               </Button>
+              
+              {/* Export/Share Button */}
+              {displayAnalysis && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowExportDialog(true)}
+                >
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Export
+                </Button>
+              )}
             </div>
           </div>
           
@@ -710,6 +747,31 @@ export default function RepCoachingSummary() {
               )}
             </CardContent>
           </Card>
+        ) : historyComparisonAnalysis && displayAnalysis ? (
+          /* History Comparison View */
+          <div className="space-y-4">
+            <Alert className="border-primary/50 bg-primary/5">
+              <GitCompare className="h-4 w-4" />
+              <AlertDescription className="flex items-center justify-between">
+                <span>Comparing snapshot from history with current analysis</span>
+                <Button variant="outline" size="sm" onClick={handleExitHistoryComparison}>
+                  Exit Comparison
+                </Button>
+              </AlertDescription>
+            </Alert>
+            <CoachingTrendsComparison
+              periodA={{
+                label: 'Snapshot (Earlier)',
+                dateRange: historyComparisonAnalysis.dateRange,
+                analysis: historyComparisonAnalysis.analysis,
+              }}
+              periodB={{
+                label: 'Current Period',
+                dateRange: dateRange,
+                analysis: displayAnalysis,
+              }}
+            />
+          </div>
         ) : isComparisonMode && comparisonConfirmed && displayAnalysis && comparisonTrendAnalysis ? (
           /* Comparison View */
           <CoachingTrendsComparison
@@ -881,7 +943,20 @@ export default function RepCoachingSummary() {
         onOpenChange={setShowHistory}
         repId={targetRepId!}
         onLoadAnalysis={handleLoadFromHistory}
+        onCompareWithCurrent={handleCompareFromHistory}
+        hasCurrentAnalysis={!!displayAnalysis}
       />
+      
+      {/* Export/Share Dialog */}
+      {displayAnalysis && (
+        <ExportShareDialog
+          open={showExportDialog}
+          onOpenChange={setShowExportDialog}
+          analysis={displayAnalysis}
+          dateRange={dateRange}
+          repName={isOwnSummary ? user?.email?.split('@')[0] || 'Rep' : repProfile?.name || 'Rep'}
+        />
+      )}
     </AppLayout>
   );
 }

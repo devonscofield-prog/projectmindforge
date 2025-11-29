@@ -27,6 +27,7 @@ import {
   BarChart3,
   Clock,
   Loader2,
+  GitCompare,
 } from 'lucide-react';
 import {
   listCoachingTrendHistory,
@@ -48,13 +49,16 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface CoachingTrendHistorySheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   repId: string;
   onLoadAnalysis: (analysis: CoachingTrendAnalysis, dateRange: { from: Date; to: Date }) => void;
+  onCompareWithCurrent?: (analysis: CoachingTrendAnalysis, dateRange: { from: Date; to: Date }) => void;
   currentAnalysisId?: string;
+  hasCurrentAnalysis?: boolean;
 }
 
 export function CoachingTrendHistorySheet({
@@ -62,7 +66,9 @@ export function CoachingTrendHistorySheet({
   onOpenChange,
   repId,
   onLoadAnalysis,
+  onCompareWithCurrent,
   currentAnalysisId,
+  hasCurrentAnalysis = false,
 }: CoachingTrendHistorySheetProps) {
   const queryClient = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -130,6 +136,17 @@ export function CoachingTrendHistorySheet({
     };
     onLoadAnalysis(item.analysis_data, dateRange);
     onOpenChange(false);
+  };
+
+  const handleCompare = (item: CoachingTrendHistoryItem) => {
+    if (onCompareWithCurrent) {
+      const dateRange = {
+        from: new Date(item.date_range_from),
+        to: new Date(item.date_range_to),
+      };
+      onCompareWithCurrent(item.analysis_data, dateRange);
+      onOpenChange(false);
+    }
   };
 
   const handleStartEdit = (item: CoachingTrendHistoryItem) => {
@@ -203,10 +220,12 @@ export function CoachingTrendHistorySheet({
                           onSaveTitle={handleSaveTitle}
                           onCancelEdit={() => setEditingId(null)}
                           onLoad={() => handleLoad(item)}
+                          onCompare={onCompareWithCurrent ? () => handleCompare(item) : undefined}
                           onToggleSnapshot={() => removeMutation.mutate(item.id)}
                           onDelete={() => setDeleteConfirmId(item.id)}
                           isSaving={saveMutation.isPending || removeMutation.isPending}
                           isUpdatingTitle={updateTitleMutation.isPending}
+                          canCompare={hasCurrentAnalysis && item.id !== currentAnalysisId}
                         />
                       ))}
                     </div>
@@ -234,10 +253,12 @@ export function CoachingTrendHistorySheet({
                           onSaveTitle={() => {}}
                           onCancelEdit={() => {}}
                           onLoad={() => handleLoad(item)}
+                          onCompare={onCompareWithCurrent ? () => handleCompare(item) : undefined}
                           onToggleSnapshot={() => saveMutation.mutate({ id: item.id })}
                           onDelete={() => setDeleteConfirmId(item.id)}
                           isSaving={saveMutation.isPending || removeMutation.isPending}
                           isUpdatingTitle={false}
+                          canCompare={hasCurrentAnalysis && item.id !== currentAnalysisId}
                         />
                       ))}
                     </div>
@@ -289,10 +310,12 @@ interface HistoryCardProps {
   onSaveTitle: () => void;
   onCancelEdit: () => void;
   onLoad: () => void;
+  onCompare?: () => void;
   onToggleSnapshot: () => void;
   onDelete: () => void;
   isSaving: boolean;
   isUpdatingTitle: boolean;
+  canCompare?: boolean;
 }
 
 function HistoryCard({
@@ -305,10 +328,12 @@ function HistoryCard({
   onSaveTitle,
   onCancelEdit,
   onLoad,
+  onCompare,
   onToggleSnapshot,
   onDelete,
   isSaving,
   isUpdatingTitle,
+  canCompare,
 }: HistoryCardProps) {
   const fromDate = new Date(item.date_range_from);
   const toDate = new Date(item.date_range_to);
@@ -401,6 +426,26 @@ function HistoryCard({
 
           {/* Actions */}
           <div className="flex items-center gap-1">
+            {canCompare && onCompare && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8"
+                      onClick={onCompare}
+                      title="Compare with current"
+                    >
+                      <GitCompare className="h-4 w-4 text-muted-foreground hover:text-primary" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Compare with current analysis</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
             <Button
               size="icon"
               variant="ghost"
