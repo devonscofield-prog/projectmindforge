@@ -7,9 +7,9 @@ interface CreateCallTranscriptParams {
   callDate: string;
   callType: CallType;
   callTypeOther?: string;
-  primaryStakeholderName: string;
+  stakeholderName: string;
   accountName: string;
-  salesforceAccountLink: string;
+  salesforceAccountLink?: string;
   potentialRevenue?: number;
   rawText: string;
   // Optional: if user selected an existing prospect/stakeholder
@@ -121,7 +121,7 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
     callDate, 
     callType,
     callTypeOther,
-    primaryStakeholderName,
+    stakeholderName,
     accountName,
     salesforceAccountLink,
     potentialRevenue,
@@ -141,9 +141,9 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
       notes: null,
       analysis_status: 'pending',
       // New fields
-      primary_stakeholder_name: primaryStakeholderName,
+      primary_stakeholder_name: stakeholderName,
       account_name: accountName,
-      salesforce_demo_link: salesforceAccountLink,
+      salesforce_demo_link: salesforceAccountLink || null,
       potential_revenue: potentialRevenue ?? null,
       call_type: callType,
       call_type_other: callType === 'other' ? callTypeOther : null,
@@ -169,7 +169,7 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
       // No existing prospect selected, create or find one
       const { prospect } = await getOrCreateProspect({
         repId,
-        prospectName: primaryStakeholderName,
+        prospectName: stakeholderName,
         accountName,
         salesforceLink: salesforceAccountLink,
         potentialRevenue,
