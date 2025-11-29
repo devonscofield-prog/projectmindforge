@@ -158,6 +158,19 @@ interface AnalysisResult {
   recap_email_draft: string;
   coach_output: CoachOutput;
   raw_json: Record<string, unknown>;
+  prospect_intel?: ProspectIntel;
+}
+
+interface ProspectIntel {
+  business_context?: string;
+  pain_points?: string[];
+  current_state?: string;
+  decision_process?: {
+    stakeholders?: string[];
+    timeline?: string;
+    budget_signals?: string;
+  };
+  competitors_mentioned?: string[];
 }
 
 /**
@@ -314,7 +327,22 @@ Best,
     meta_tags: ['mock_analysis', 'short_transcript'],
     call_notes,
     recap_email_draft,
-    coach_output
+    coach_output,
+    prospect_intel: {
+      business_context: 'IT training solutions for enterprise compliance and onboarding',
+      pain_points: [
+        'Current training solution is outdated and lacks engagement tracking',
+        'Compliance training completion rates are below target (68%)',
+        'Need to onboard 50+ new hires in Q1'
+      ],
+      current_state: 'Using legacy LMS from 2018, mix of in-person and self-paced training, no HRIS integration',
+      decision_process: {
+        stakeholders: ['IT Director (budget authority)', 'VP of Operations (final sign-off)'],
+        timeline: 'Want solution by February 15th, compliance audit in March',
+        budget_signals: 'Current spend ~$30K/year, budget $40-50K range for new solution'
+      },
+      competitors_mentioned: ['CompetitorX', 'Legacy vendor']
+    }
   };
 
   return {
@@ -517,6 +545,24 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
               "recommended_follow_up_questions",
               "heat_signature"
             ]
+          },
+          prospect_intel: {
+            type: "object",
+            description: "Structured intelligence about the prospect extracted from the call",
+            properties: {
+              business_context: { type: "string", description: "Brief description of the prospect's business, industry, and situation" },
+              pain_points: { type: "array", items: { type: "string" }, description: "Key pain points and challenges mentioned" },
+              current_state: { type: "string", description: "Current state of prospect's solutions/environment" },
+              decision_process: {
+                type: "object",
+                properties: {
+                  stakeholders: { type: "array", items: { type: "string" }, description: "Decision makers and influencers mentioned" },
+                  timeline: { type: "string", description: "Decision timeline or urgency signals" },
+                  budget_signals: { type: "string", description: "Budget information or signals mentioned" }
+                }
+              },
+              competitors_mentioned: { type: "array", items: { type: "string" }, description: "Competitors mentioned during the call" }
+            }
           }
         },
         required: [
@@ -537,7 +583,8 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
           "meta_tags",
           "call_notes",
           "recap_email_draft",
-          "coach_output"
+          "coach_output",
+          "prospect_intel"
         ]
       }
     }
@@ -637,6 +684,9 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
     throw new Error('AI analysis coach_output must be a valid object');
   }
 
+  // Extract prospect_intel (optional but expected)
+  const prospectIntel = analysisData.prospect_intel as ProspectIntel | undefined;
+
   // Build the result object
   const result: AnalysisResult = {
     call_id: transcript.id,
@@ -661,7 +711,8 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
     call_notes: String(callNotes),
     recap_email_draft: String(recapEmail),
     coach_output: coachOutput,
-    raw_json: analysisData
+    raw_json: analysisData,
+    prospect_intel: prospectIntel
   };
 
   console.log('[analyze-call] Analysis parsed successfully with call_notes, recap_email_draft, and coach_output');
@@ -816,6 +867,45 @@ serve(async (req) => {
     if (updateCompletedError) {
       console.error('[analyze-call] Error updating status to completed:', updateCompletedError);
       // Analysis was saved, so we still return success
+    }
+
+    // Step 7: Update prospect with AI-extracted intel if available
+    if (analysis.prospect_intel || analysis.coach_output) {
+      try {
+        // Get the prospect_id from the call transcript
+        const { data: callData } = await supabaseAdmin
+          .from('call_transcripts')
+          .select('prospect_id')
+          .eq('id', callId)
+          .single();
+
+        if (callData?.prospect_id) {
+          const prospectUpdates: Record<string, unknown> = {};
+          
+          if (analysis.prospect_intel) {
+            prospectUpdates.ai_extracted_info = analysis.prospect_intel;
+          }
+          
+          if (analysis.coach_output?.recommended_follow_up_questions) {
+            prospectUpdates.suggested_follow_ups = analysis.coach_output.recommended_follow_up_questions;
+          }
+          
+          if (analysis.coach_output?.heat_signature?.score) {
+            prospectUpdates.heat_score = analysis.coach_output.heat_signature.score;
+          }
+
+          if (Object.keys(prospectUpdates).length > 0) {
+            await supabaseAdmin
+              .from('prospects')
+              .update(prospectUpdates)
+              .eq('id', callData.prospect_id);
+            console.log(`[analyze-call] Updated prospect ${callData.prospect_id} with AI intel`);
+          }
+        }
+      } catch (prospectErr) {
+        console.error('[analyze-call] Failed to update prospect with AI intel:', prospectErr);
+        // Don't fail the whole request, analysis was saved
+      }
     }
 
     console.log(`[analyze-call] Analysis completed successfully for call_id: ${callId}`);

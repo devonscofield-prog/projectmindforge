@@ -13,6 +13,8 @@ import NotFound from "./pages/NotFound";
 // Rep pages
 import RepDashboard from "./pages/rep/RepDashboard";
 import RepCallHistory from "./pages/rep/RepCallHistory";
+import RepProspects from "./pages/rep/RepProspects";
+import ProspectDetail from "./pages/rep/ProspectDetail";
 import RepPerformance from "./pages/rep/RepPerformance";
 import RepActivity from "./pages/rep/RepActivity";
 
@@ -51,6 +53,16 @@ const App = () => (
             <Route path="/rep/history" element={
               <ProtectedRoute allowedRoles={['rep']}>
                 <RepCallHistory />
+              </ProtectedRoute>
+            } />
+            <Route path="/rep/prospects" element={
+              <ProtectedRoute allowedRoles={['rep']}>
+                <RepProspects />
+              </ProtectedRoute>
+            } />
+            <Route path="/rep/prospects/:id" element={
+              <ProtectedRoute allowedRoles={['rep']}>
+                <ProspectDetail />
               </ProtectedRoute>
             } />
             <Route path="/rep/performance" element={

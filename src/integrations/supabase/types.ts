@@ -67,6 +67,7 @@ export type Database = {
           opportunities: Json | null
           product_knowledge_score: number | null
           prompt_version: string
+          prospect_intel: Json | null
           rapport_communication_score: number | null
           raw_json: Json | null
           recap_email_draft: string | null
@@ -94,6 +95,7 @@ export type Database = {
           opportunities?: Json | null
           product_knowledge_score?: number | null
           prompt_version?: string
+          prospect_intel?: Json | null
           rapport_communication_score?: number | null
           raw_json?: Json | null
           recap_email_draft?: string | null
@@ -121,6 +123,7 @@ export type Database = {
           opportunities?: Json | null
           product_knowledge_score?: number | null
           prompt_version?: string
+          prospect_intel?: Json | null
           rapport_communication_score?: number | null
           raw_json?: Json | null
           recap_email_draft?: string | null
@@ -206,6 +209,7 @@ export type Database = {
           manager_id: string | null
           notes: string | null
           potential_revenue: number | null
+          prospect_id: string | null
           prospect_name: string | null
           raw_text: string
           rep_id: string
@@ -226,6 +230,7 @@ export type Database = {
           manager_id?: string | null
           notes?: string | null
           potential_revenue?: number | null
+          prospect_id?: string | null
           prospect_name?: string | null
           raw_text: string
           rep_id: string
@@ -246,6 +251,7 @@ export type Database = {
           manager_id?: string | null
           notes?: string | null
           potential_revenue?: number | null
+          prospect_id?: string | null
           prospect_name?: string | null
           raw_text?: string
           rep_id?: string
@@ -266,6 +272,13 @@ export type Database = {
             columns: ["manager_id"]
             isOneToOne: false
             referencedRelation: "user_with_role"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_transcripts_prospect_id_fkey"
+            columns: ["prospect_id"]
+            isOneToOne: false
+            referencedRelation: "prospects"
             referencedColumns: ["id"]
           },
           {
@@ -394,6 +407,92 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      prospect_activities: {
+        Row: {
+          activity_date: string
+          activity_type: Database["public"]["Enums"]["prospect_activity_type"]
+          created_at: string
+          description: string | null
+          id: string
+          prospect_id: string
+          rep_id: string
+        }
+        Insert: {
+          activity_date?: string
+          activity_type: Database["public"]["Enums"]["prospect_activity_type"]
+          created_at?: string
+          description?: string | null
+          id?: string
+          prospect_id: string
+          rep_id: string
+        }
+        Update: {
+          activity_date?: string
+          activity_type?: Database["public"]["Enums"]["prospect_activity_type"]
+          created_at?: string
+          description?: string | null
+          id?: string
+          prospect_id?: string
+          rep_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prospect_activities_prospect_id_fkey"
+            columns: ["prospect_id"]
+            isOneToOne: false
+            referencedRelation: "prospects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prospects: {
+        Row: {
+          account_name: string | null
+          ai_extracted_info: Json | null
+          created_at: string
+          heat_score: number | null
+          id: string
+          last_contact_date: string | null
+          potential_revenue: number | null
+          prospect_name: string
+          rep_id: string
+          salesforce_link: string | null
+          status: Database["public"]["Enums"]["prospect_status"]
+          suggested_follow_ups: Json | null
+          updated_at: string
+        }
+        Insert: {
+          account_name?: string | null
+          ai_extracted_info?: Json | null
+          created_at?: string
+          heat_score?: number | null
+          id?: string
+          last_contact_date?: string | null
+          potential_revenue?: number | null
+          prospect_name: string
+          rep_id: string
+          salesforce_link?: string | null
+          status?: Database["public"]["Enums"]["prospect_status"]
+          suggested_follow_ups?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          account_name?: string | null
+          ai_extracted_info?: Json | null
+          created_at?: string
+          heat_score?: number | null
+          id?: string
+          last_contact_date?: string | null
+          potential_revenue?: number | null
+          prospect_name?: string
+          rep_id?: string
+          salesforce_link?: string | null
+          status?: Database["public"]["Enums"]["prospect_status"]
+          suggested_follow_ups?: Json | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       rep_performance_snapshots: {
         Row: {
@@ -536,6 +635,14 @@ export type Database = {
         | "proposals"
       call_analysis_status: "pending" | "processing" | "completed" | "error"
       call_source_type: "zoom" | "teams" | "dialer" | "other"
+      prospect_activity_type:
+        | "call"
+        | "email"
+        | "meeting"
+        | "note"
+        | "linkedin"
+        | "demo"
+      prospect_status: "active" | "won" | "lost" | "dormant"
       user_role: "rep" | "manager" | "admin"
     }
     CompositeTypes: {
@@ -674,6 +781,15 @@ export const Constants = {
       ],
       call_analysis_status: ["pending", "processing", "completed", "error"],
       call_source_type: ["zoom", "teams", "dialer", "other"],
+      prospect_activity_type: [
+        "call",
+        "email",
+        "meeting",
+        "note",
+        "linkedin",
+        "demo",
+      ],
+      prospect_status: ["active", "won", "lost", "dormant"],
       user_role: ["rep", "manager", "admin"],
     },
   },
