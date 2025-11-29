@@ -1,8 +1,12 @@
+import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { CallAnalysis, CallTranscript } from '@/api/aiCallAnalysis';
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { CallAnalysis, CallTranscript, editRecapEmail } from '@/api/aiCallAnalysis';
 import { 
   Copy,
   FileText,
@@ -14,18 +18,28 @@ import {
   Flame,
   Ear,
   Clock,
-  HelpCircle
+  HelpCircle,
+  RefreshCw,
+  Undo2,
+  Loader2
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 interface CallAnalysisResultsViewProps {
   call: CallTranscript | null;
   analysis: CallAnalysis | null;
-  isManager: boolean;
+  isOwner: boolean;  // Can edit notes/recap
+  isManager: boolean; // Read-only view for managers
 }
 
-export function CallAnalysisResultsView({ call, analysis, isManager }: CallAnalysisResultsViewProps) {
+export function CallAnalysisResultsView({ call, analysis, isOwner, isManager }: CallAnalysisResultsViewProps) {
   const { toast } = useToast();
+  
+  // Recap email editing state (only for owners)
+  const [recapDraft, setRecapDraft] = useState(analysis?.recap_email_draft || '');
+  const [originalRecapDraft] = useState(analysis?.recap_email_draft || '');
+  const [editInstructions, setEditInstructions] = useState('');
+  const [isRefining, setIsRefining] = useState(false);
 
   const handleCopy = async (text: string, label: string) => {
     try {
@@ -36,17 +50,61 @@ export function CallAnalysisResultsView({ call, analysis, isManager }: CallAnaly
     }
   };
 
+  const handleRefineEmail = async () => {
+    if (!editInstructions.trim() || !recapDraft.trim()) return;
+
+    setIsRefining(true);
+    try {
+      const updatedDraft = await editRecapEmail(
+        recapDraft,
+        editInstructions,
+        analysis?.call_summary
+      );
+      setRecapDraft(updatedDraft);
+      setEditInstructions('');
+      toast({
+        title: 'Email refined',
+        description: 'Your recap email has been updated.',
+      });
+    } catch (error) {
+      console.error('Error refining email:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to refine email',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRefining(false);
+    }
+  };
+
+  const handleUndoEmail = () => {
+    setRecapDraft(originalRecapDraft);
+    toast({
+      title: 'Restored',
+      description: 'Email restored to original',
+    });
+  };
+
   if (!analysis) {
     return (
       <Card>
         <CardContent className="py-12 text-center">
-          <p className="text-muted-foreground">No analysis available for this call yet.</p>
-          {call?.analysis_status === 'processing' && (
-            <p className="text-sm text-muted-foreground mt-2">Analysis is still processing...</p>
-          )}
-          {call?.analysis_status === 'error' && (
-            <p className="text-sm text-destructive mt-2">Error: {call.analysis_error}</p>
-          )}
+          <div className="space-y-4">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mx-auto" />
+            <div>
+              <p className="text-muted-foreground">Analysis in progress...</p>
+              {call?.analysis_status === 'processing' && (
+                <p className="text-sm text-muted-foreground mt-2">Your call is being analyzed by AI. This usually takes 30-60 seconds.</p>
+              )}
+              {call?.analysis_status === 'pending' && (
+                <p className="text-sm text-muted-foreground mt-2">Your call is queued for analysis.</p>
+              )}
+              {call?.analysis_status === 'error' && (
+                <p className="text-sm text-destructive mt-2">Error: {call.analysis_error}</p>
+              )}
+            </div>
+          </div>
         </CardContent>
       </Card>
     );
@@ -302,13 +360,14 @@ export function CallAnalysisResultsView({ call, analysis, isManager }: CallAnaly
         </Card>
       )}
 
-      {/* Call Notes - Only visible to reps */}
-      {!isManager && analysis.call_notes && (
+      {/* Call Notes - Visible to owner (editable) and manager (read-only) */}
+      {analysis.call_notes && (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
               Call Notes
+              {isManager && <Badge variant="outline" className="ml-2">Read-only</Badge>}
             </CardTitle>
             <Button variant="outline" size="sm" onClick={() => handleCopy(analysis.call_notes!, 'Call notes')}>
               <Copy className="h-4 w-4 mr-2" />
@@ -337,25 +396,86 @@ export function CallAnalysisResultsView({ call, analysis, isManager }: CallAnaly
         </Card>
       )}
 
-      {/* Recap Email Draft - Only visible to reps */}
-      {!isManager && analysis.recap_email_draft && (
+      {/* Recap Email - Owner can edit, Manager sees read-only */}
+      {analysis.recap_email_draft && (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Mail className="h-5 w-5" />
-              Recap Email Draft
-            </CardTitle>
-            <Button variant="outline" size="sm" onClick={() => handleCopy(analysis.recap_email_draft!, 'Recap email')}>
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Mail className="h-5 w-5" />
+                Recap Email Draft
+                {isManager && <Badge variant="outline" className="ml-2">Read-only</Badge>}
+              </CardTitle>
+              {isOwner && (
+                <CardDescription className="mt-1">
+                  Edit directly or use AI to refine your email
+                </CardDescription>
+              )}
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => handleCopy(isOwner ? recapDraft : analysis.recap_email_draft!, 'Recap email')}
+            >
               <Copy className="h-4 w-4 mr-2" />
               Copy
             </Button>
           </CardHeader>
-          <CardContent>
-            <div className="bg-muted/30 rounded-lg p-4">
-              <pre className="text-sm whitespace-pre-wrap font-sans text-muted-foreground">
-                {analysis.recap_email_draft}
-              </pre>
-            </div>
+          <CardContent className="space-y-4">
+            {isOwner ? (
+              <>
+                {/* Editable textarea for owner */}
+                <Textarea
+                  value={recapDraft}
+                  onChange={(e) => setRecapDraft(e.target.value)}
+                  className="min-h-[200px] font-mono text-sm"
+                  placeholder="No recap email available"
+                />
+
+                {recapDraft !== originalRecapDraft && (
+                  <Button onClick={handleUndoEmail} variant="outline" size="sm">
+                    <Undo2 className="mr-2 h-4 w-4" />
+                    Undo Changes
+                  </Button>
+                )}
+
+                {/* AI Refinement Section */}
+                <div className="border-t pt-4 space-y-3">
+                  <Label htmlFor="editInstructions">Refine with AI</Label>
+                  <Input
+                    id="editInstructions"
+                    placeholder="e.g., Make it shorter, more formal, emphasize the demo..."
+                    value={editInstructions}
+                    onChange={(e) => setEditInstructions(e.target.value)}
+                  />
+                  <Button 
+                    onClick={handleRefineEmail} 
+                    disabled={isRefining || !editInstructions.trim()}
+                    variant="secondary"
+                    className="w-full"
+                  >
+                    {isRefining ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Refining...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                        Refine Email
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              /* Read-only view for managers */
+              <div className="bg-muted/30 rounded-lg p-4">
+                <pre className="text-sm whitespace-pre-wrap font-sans text-muted-foreground">
+                  {analysis.recap_email_draft}
+                </pre>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

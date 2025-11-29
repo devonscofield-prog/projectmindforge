@@ -1,331 +1,262 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { KPICard } from '@/components/ui/kpi-card';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { RepPerformanceSnapshot, CoachingSession, ActivityLog, ActivityType } from '@/types/database';
-import { DollarSign, Target, Calendar, Activity, Brain, Sparkles, AlertCircle, LayoutDashboard } from 'lucide-react';
-import { format, subDays } from 'date-fns';
-import { listRecentAiAnalysisForRep, CallAnalysis } from '@/api/aiCallAnalysis';
-import { CallCoachingSection } from '@/components/rep/CallCoachingSection';
+import { useToast } from '@/hooks/use-toast';
+import { 
+  createCallTranscriptAndAnalyze, 
+  listCallTranscriptsForRep,
+  CallTranscript
+} from '@/api/aiCallAnalysis';
+import { format } from 'date-fns';
+import { 
+  Send, 
+  History, 
+  Loader2,
+  CheckCircle, 
+  AlertCircle, 
+  Clock,
+  ArrowRight,
+  Mic
+} from 'lucide-react';
 
-function getTopStrength(analysis: CallAnalysis): string | null {
-  if (analysis.strengths && Array.isArray(analysis.strengths) && analysis.strengths.length > 0) {
-    const first = analysis.strengths[0];
-    return typeof first === 'string' ? first : (first as Record<string, unknown>).description as string || (first as Record<string, unknown>).title as string || null;
-  }
-  return null;
-}
-
-function getTopOpportunity(analysis: CallAnalysis): string | null {
-  if (analysis.opportunities && Array.isArray(analysis.opportunities) && analysis.opportunities.length > 0) {
-    const first = analysis.opportunities[0];
-    return typeof first === 'string' ? first : (first as Record<string, unknown>).description as string || (first as Record<string, unknown>).title as string || null;
-  }
-  return null;
-}
+type CallSource = 'zoom' | 'teams' | 'dialer' | 'other';
 
 export default function RepDashboard() {
   const { user, profile } = useAuth();
-  const [performance, setPerformance] = useState<RepPerformanceSnapshot | null>(null);
-  const [latestCoaching, setLatestCoaching] = useState<CoachingSession | null>(null);
-  const [recentActivity, setRecentActivity] = useState<ActivityLog[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+  const navigate = useNavigate();
 
-  // Fetch last 3 AI call analyses
-  const { data: aiAnalyses = [], isLoading: aiLoading } = useQuery({
-    queryKey: ['rep-ai-insights', user?.id],
-    queryFn: () => listRecentAiAnalysisForRep(user!.id, 3),
+  // Form state
+  const [transcript, setTranscript] = useState('');
+  const [callTitle, setCallTitle] = useState('');
+  const [callDate, setCallDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [source, setSource] = useState<CallSource>('zoom');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Fetch transcripts for history
+  const { data: transcripts = [], isLoading: isLoadingTranscripts } = useQuery({
+    queryKey: ['rep-transcripts', user?.id],
+    queryFn: () => listCallTranscriptsForRep(user!.id),
     enabled: !!user?.id,
   });
 
-  useEffect(() => {
-    if (!user) return;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user?.id || !transcript.trim()) return;
 
-    const fetchData = async () => {
-      const now = new Date();
-      const currentYear = now.getFullYear();
-      const currentMonth = now.getMonth() + 1;
-      const sevenDaysAgo = format(subDays(now, 7), 'yyyy-MM-dd');
+    setIsSubmitting(true);
+    try {
+      const result = await createCallTranscriptAndAnalyze({
+        repId: user.id,
+        callDate,
+        source,
+        rawText: transcript,
+        notes: callTitle || undefined, // Use title as notes for now
+      });
 
-      // Fetch current month performance
-      const { data: perfData } = await supabase
-        .from('rep_performance_snapshots')
-        .select('*')
-        .eq('rep_id', user.id)
-        .eq('period_year', currentYear)
-        .eq('period_month', currentMonth)
-        .maybeSingle();
+      toast({
+        title: 'Call submitted for analysis',
+        description: 'Redirecting to your call details...',
+      });
 
-      if (perfData) {
-        setPerformance(perfData as unknown as RepPerformanceSnapshot);
-      }
-
-      // Fetch latest coaching session
-      const { data: coachingData } = await supabase
-        .from('coaching_sessions')
-        .select('*')
-        .eq('rep_id', user.id)
-        .order('session_date', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (coachingData) {
-        setLatestCoaching(coachingData as unknown as CoachingSession);
-      }
-
-      // Fetch recent activity (last 7 days)
-      const { data: activityData } = await supabase
-        .from('activity_logs')
-        .select('*')
-        .eq('rep_id', user.id)
-        .gte('activity_date', sevenDaysAgo)
-        .order('activity_date', { ascending: false });
-
-      if (activityData) {
-        setRecentActivity(activityData as unknown as ActivityLog[]);
-      }
-
-      setLoading(false);
-    };
-
-    fetchData();
-  }, [user]);
-
-  const activitySummary = recentActivity.reduce((acc, log) => {
-    acc[log.activity_type] = (acc[log.activity_type] || 0) + log.count;
-    return acc;
-  }, {} as Record<ActivityType, number>);
-
-  const activityTypeLabels: Record<ActivityType, string> = {
-    cold_calls: 'Cold Calls',
-    emails: 'Emails',
-    linkedin: 'LinkedIn',
-    demos: 'Demos',
-    meetings: 'Meetings',
-    proposals: 'Proposals',
+      // Navigate to the call detail page
+      navigate(`/calls/${result.transcript.id}`);
+    } catch (error) {
+      console.error('Error submitting call:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to submit call for analysis',
+        variant: 'destructive',
+      });
+      setIsSubmitting(false);
+    }
   };
 
-  if (loading) {
-    return (
-      <AppLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-        </div>
-      </AppLayout>
-    );
-  }
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return <Badge variant="default" className="gap-1"><CheckCircle className="h-3 w-3" /> Analyzed</Badge>;
+      case 'processing':
+        return <Badge variant="secondary" className="gap-1"><Clock className="h-3 w-3" /> Processing</Badge>;
+      case 'error':
+        return <Badge variant="destructive" className="gap-1"><AlertCircle className="h-3 w-3" /> Error</Badge>;
+      default:
+        return <Badge variant="outline" className="gap-1"><Clock className="h-3 w-3" /> Pending</Badge>;
+    }
+  };
+
+  const sourceLabels: Record<CallSource, string> = {
+    zoom: 'Zoom',
+    teams: 'Teams',
+    dialer: 'Dialer',
+    other: 'Other',
+  };
 
   return (
     <AppLayout>
-      <div className="space-y-8">
-        <div>
-          <h1 className="text-3xl font-bold">Welcome back, {profile?.name?.split(' ')[0] || 'Rep'}</h1>
-          <p className="text-muted-foreground mt-1">
-            Your sales hub for {format(new Date(), 'MMMM yyyy')}
+      <div className="max-w-3xl mx-auto space-y-8">
+        {/* Header */}
+        <div className="text-center space-y-2">
+          <h1 className="text-3xl font-bold">
+            Welcome back, {profile?.name?.split(' ')[0] || 'Rep'}
+          </h1>
+          <p className="text-muted-foreground">
+            Submit your call transcripts for AI-powered coaching and insights
           </p>
         </div>
 
-        <Tabs defaultValue="dashboard" className="w-full">
-          <TabsList>
-            <TabsTrigger value="dashboard" className="gap-2">
-              <LayoutDashboard className="h-4 w-4" /> Dashboard
-            </TabsTrigger>
-            <TabsTrigger value="coaching" className="gap-2">
-              <Brain className="h-4 w-4" /> Call Coaching (AI)
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="coaching" className="mt-6">
-            <CallCoachingSection />
-          </TabsContent>
-
-          <TabsContent value="dashboard" className="mt-6 space-y-8">
-
-        {/* KPI Cards */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-          <KPICard
-            title="Revenue Closed"
-            value={performance?.revenue_closed || 0}
-            goal={performance?.revenue_goal || 0}
-            icon={DollarSign}
-            format="currency"
-          />
-          <KPICard
-            title="Demos Set"
-            value={performance?.demos_set || 0}
-            goal={performance?.demo_goal || 0}
-            icon={Target}
-          />
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Pipeline Count</CardTitle>
-              <Activity className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <span className="text-2xl font-bold">{performance?.pipeline_count || 0}</span>
-              <p className="text-xs text-muted-foreground mt-1">Active opportunities</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Last Coaching</CardTitle>
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <span className="text-2xl font-bold">
-                {latestCoaching ? format(new Date(latestCoaching.session_date), 'MMM d') : 'N/A'}
-              </span>
-              <p className="text-xs text-muted-foreground mt-1">
-                {latestCoaching?.focus_area || 'No sessions yet'}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="grid gap-6 md:grid-cols-2">
-          {/* Latest Coaching Session */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Latest Coaching Session</CardTitle>
-              <CardDescription>
-                {latestCoaching 
-                  ? `${format(new Date(latestCoaching.session_date), 'MMMM d, yyyy')} • ${latestCoaching.focus_area}`
-                  : 'No coaching sessions yet'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {latestCoaching ? (
-                <div className="space-y-4">
-                  {latestCoaching.notes && (
-                    <div>
-                      <h4 className="text-sm font-medium mb-1">Notes</h4>
-                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                        {latestCoaching.notes.split('\n').slice(0, 3).join('\n')}
-                      </p>
-                    </div>
-                  )}
-                  {latestCoaching.action_items && (
-                    <div>
-                      <h4 className="text-sm font-medium mb-1">Action Items</h4>
-                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                        {latestCoaching.action_items.split('\n').slice(0, 3).join('\n')}
-                      </p>
-                    </div>
-                  )}
-                  {latestCoaching.follow_up_date && (
-                    <p className="text-sm text-muted-foreground">
-                      Follow-up: {format(new Date(latestCoaching.follow_up_date), 'MMMM d, yyyy')}
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Your manager hasn't scheduled any coaching sessions yet.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Recent Activity Summary */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Activity (Last 7 Days)</CardTitle>
-              <CardDescription>Your recent sales activities</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {Object.keys(activitySummary).length > 0 ? (
-                <div className="space-y-3">
-                  {Object.entries(activitySummary).map(([type, count]) => (
-                    <div key={type} className="flex items-center justify-between">
-                      <span className="text-sm">{activityTypeLabels[type as ActivityType]}</span>
-                      <span className="text-sm font-medium">{count}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No activity logged in the last 7 days. Start logging your activities!
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Recent AI Coaching Insights */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Brain className="h-5 w-5 text-primary" />
-              Recent AI Coaching Insights
-            </CardTitle>
-            <CardDescription>
-              AI-powered analysis of your recent sales calls
+        {/* Submit Call Card */}
+        <Card className="border-2">
+          <CardHeader className="text-center pb-2">
+            <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+              <Mic className="h-6 w-6 text-primary" />
+            </div>
+            <CardTitle className="text-2xl">Submit a Call for Coaching</CardTitle>
+            <CardDescription className="text-base">
+              Paste your call transcript below to get AI coaching, actionable insights, and a recap email draft.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {aiLoading ? (
-              <div className="flex items-center justify-center h-24">
-                <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Call Title */}
+              <div className="space-y-2">
+                <Label htmlFor="callTitle">Call Title / Label (optional)</Label>
+                <Input
+                  id="callTitle"
+                  placeholder="e.g., ACME – Discovery Call"
+                  value={callTitle}
+                  onChange={(e) => setCallTitle(e.target.value)}
+                />
               </div>
-            ) : aiAnalyses.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                No AI call analyses yet. Ask your manager to run an analysis on your calls.
+
+              {/* Date and Source Row */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="callDate">Call Date</Label>
+                  <Input
+                    id="callDate"
+                    type="date"
+                    value={callDate}
+                    onChange={(e) => setCallDate(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="source">Call Source</Label>
+                  <Select value={source} onValueChange={(v) => setSource(v as CallSource)}>
+                    <SelectTrigger id="source">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="zoom">Zoom</SelectItem>
+                      <SelectItem value="teams">Teams</SelectItem>
+                      <SelectItem value="dialer">Dialer</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Transcript */}
+              <div className="space-y-2">
+                <Label htmlFor="transcript">Call Transcript *</Label>
+                <Textarea
+                  id="transcript"
+                  placeholder="Paste your full call transcript here..."
+                  value={transcript}
+                  onChange={(e) => setTranscript(e.target.value)}
+                  className="min-h-[250px] font-mono text-sm"
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Include the full conversation for best analysis results.
+                </p>
+              </div>
+
+              {/* Submit Button */}
+              <Button 
+                type="submit" 
+                disabled={isSubmitting || !transcript.trim()} 
+                className="w-full h-12 text-lg"
+                size="lg"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Analyzing Call...
+                  </>
+                ) : (
+                  <>
+                    <Send className="mr-2 h-5 w-5" />
+                    Analyze Call
+                  </>
+                )}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* Previous Calls Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <History className="h-5 w-5" />
+              Previous Calls
+            </CardTitle>
+            <CardDescription>
+              View your past call analyses
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoadingTranscripts ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : transcripts.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                No calls submitted yet. Submit your first call above!
               </p>
             ) : (
-              <div className="space-y-4">
-                {aiAnalyses.map((analysis) => {
-                  const topStrength = getTopStrength(analysis);
-                  const topOpportunity = getTopOpportunity(analysis);
-                  
-                  return (
-                    <div key={analysis.id} className="border rounded-lg p-4 space-y-3">
-                      <p className="text-sm text-muted-foreground line-clamp-2">
-                        {analysis.call_summary}
-                      </p>
-                      
-                      <div className="flex items-center gap-2">
-                        <Badge 
-                          variant={
-                            (analysis.call_effectiveness_score || 0) >= 80 ? 'default' :
-                            (analysis.call_effectiveness_score || 0) >= 60 ? 'secondary' : 'destructive'
-                          }
-                        >
-                          Effectiveness: {analysis.call_effectiveness_score ?? 'N/A'}
-                        </Badge>
+              <div className="space-y-2">
+                {transcripts.slice(0, 5).map((t: CallTranscript) => (
+                  <button
+                    key={t.id}
+                    onClick={() => navigate(`/calls/${t.id}`)}
+                    className="w-full flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors text-left"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium truncate">
+                          {t.notes || `${sourceLabels[t.source as CallSource]} Call`}
+                        </span>
+                        {getStatusBadge(t.analysis_status)}
                       </div>
-                      
-                      <div className="grid grid-cols-2 gap-4 text-xs">
-                        <div>
-                          <span className="text-muted-foreground flex items-center gap-1">
-                            <Sparkles className="h-3 w-3" /> Top Strength
-                          </span>
-                          <p className="line-clamp-1 mt-0.5">
-                            {topStrength || 'Not identified'}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground flex items-center gap-1">
-                            <AlertCircle className="h-3 w-3" /> Top Opportunity
-                          </span>
-                          <p className="line-clamp-1 mt-0.5">
-                            {topOpportunity || 'Not identified'}
-                          </p>
-                        </div>
-                      </div>
+                      <span className="text-sm text-muted-foreground">
+                        {format(new Date(t.call_date), 'MMM d, yyyy')}
+                      </span>
                     </div>
-                  );
-                })}
+                    <ArrowRight className="h-4 w-4 text-muted-foreground flex-shrink-0 ml-2" />
+                  </button>
+                ))}
+                
+                {transcripts.length > 5 && (
+                  <p className="text-sm text-muted-foreground text-center pt-2">
+                    Showing 5 of {transcripts.length} calls
+                  </p>
+                )}
               </div>
             )}
           </CardContent>
         </Card>
-          </TabsContent>
-        </Tabs>
       </div>
     </AppLayout>
   );

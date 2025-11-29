@@ -4,11 +4,9 @@ import { Button } from '@/components/ui/button';
 import { 
   LayoutDashboard, 
   Users, 
-  Settings, 
   LogOut,
-  BarChart3,
   MessageSquare,
-  Activity
+  Mic
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -38,9 +36,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         { href: '/manager/coaching', label: 'Coaching', icon: MessageSquare },
       ]
     : [
-        { href: '/rep', label: 'Dashboard', icon: LayoutDashboard },
-        { href: '/rep/performance', label: 'Performance', icon: BarChart3 },
-        { href: '/rep/activity', label: 'Activity Log', icon: Activity },
+        { href: '/rep', label: 'Submit a Call', icon: Mic },
       ];
 
   return (

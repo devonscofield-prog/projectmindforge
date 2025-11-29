@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { getCallWithAnalysis, CallAnalysis, CallTranscript } from '@/api/aiCallAnalysis';
+import { getCallWithAnalysis, getAnalysisForCall, CallAnalysis, CallTranscript } from '@/api/aiCallAnalysis';
 import { CallAnalysisResultsView } from '@/components/calls/CallAnalysisResultsView';
 import { format } from 'date-fns';
 import { 
@@ -14,7 +14,8 @@ import {
   Calendar, 
   Loader2, 
   ShieldAlert,
-  FileText
+  FileText,
+  RefreshCw
 } from 'lucide-react';
 
 type CallSource = 'zoom' | 'teams' | 'dialer' | 'other';
@@ -36,8 +37,48 @@ export default function CallDetailPage() {
   const [analysis, setAnalysis] = useState<CallAnalysis | null>(null);
   const [loading, setLoading] = useState(true);
   const [notAuthorized, setNotAuthorized] = useState(false);
+  const [isPolling, setIsPolling] = useState(false);
 
-  const isManager = role === 'manager';
+  const isOwner = transcript?.rep_id === user?.id;
+  const isManager = role === 'manager' || role === 'admin';
+
+  // Poll for analysis completion
+  const pollForAnalysis = useCallback(async (callId: string) => {
+    setIsPolling(true);
+    let attempts = 0;
+    const maxAttempts = 30;
+
+    const poll = async () => {
+      attempts++;
+      try {
+        const result = await getAnalysisForCall(callId);
+        if (result) {
+          setAnalysis(result);
+          setIsPolling(false);
+          toast({
+            title: 'Analysis complete',
+            description: 'Your call has been analyzed.',
+          });
+          return;
+        }
+      } catch (error) {
+        console.error('Poll error:', error);
+      }
+
+      if (attempts < maxAttempts) {
+        setTimeout(poll, 2000);
+      } else {
+        setIsPolling(false);
+        toast({
+          title: 'Analysis taking longer than expected',
+          description: 'Please refresh the page in a moment.',
+          variant: 'destructive',
+        });
+      }
+    };
+
+    poll();
+  }, [toast]);
 
   useEffect(() => {
     async function loadCall() {
@@ -66,6 +107,11 @@ export default function CallDetailPage() {
 
         setTranscript(result.transcript);
         setAnalysis(result.analysis);
+
+        // If analysis is still pending/processing, start polling
+        if (!result.analysis && (result.transcript.analysis_status === 'pending' || result.transcript.analysis_status === 'processing')) {
+          pollForAnalysis(id);
+        }
       } catch (error) {
         console.error('Error loading call:', error);
         toast({
@@ -79,18 +125,38 @@ export default function CallDetailPage() {
     }
 
     loadCall();
-  }, [id, user, role, navigate, toast]);
+  }, [id, user, role, navigate, toast, pollForAnalysis]);
 
   const getBackPath = () => {
     if (role === 'manager') return '/manager/coaching';
+    if (role === 'admin') return '/admin';
     return '/rep';
+  };
+
+  const handleRefresh = async () => {
+    if (!id) return;
+    setLoading(true);
+    try {
+      const result = await getCallWithAnalysis(id);
+      if (result) {
+        setTranscript(result.transcript);
+        setAnalysis(result.analysis);
+      }
+    } catch (error) {
+      console.error('Error refreshing:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (loading) {
     return (
       <AppLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <div className="text-center space-y-4">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mx-auto" />
+            <p className="text-muted-foreground">Loading call details...</p>
+          </div>
         </div>
       </AppLayout>
     );
@@ -105,7 +171,7 @@ export default function CallDetailPage() {
           <p className="text-muted-foreground">You are not authorized to view this call.</p>
           <Button onClick={() => navigate(getBackPath())}>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Call History
+            Back
           </Button>
         </div>
       </AppLayout>
@@ -119,7 +185,7 @@ export default function CallDetailPage() {
           <h1 className="text-2xl font-bold">Call Not Found</h1>
           <Button onClick={() => navigate(getBackPath())}>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Call History
+            Back
           </Button>
         </div>
       </AppLayout>
@@ -136,12 +202,20 @@ export default function CallDetailPage() {
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
-              <h1 className="text-2xl font-bold">Call Details</h1>
+              <h1 className="text-2xl font-bold">
+                {transcript.notes || 'Call Details'}
+              </h1>
               <p className="text-muted-foreground">
                 Full AI coaching breakdown for this call
               </p>
             </div>
           </div>
+          {(transcript.analysis_status === 'pending' || transcript.analysis_status === 'processing' || isPolling) && (
+            <Button variant="outline" onClick={handleRefresh} disabled={loading}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${isPolling ? 'animate-spin' : ''}`} />
+              {isPolling ? 'Analyzing...' : 'Refresh'}
+            </Button>
+          )}
         </div>
 
         {/* Call Metadata */}
@@ -159,21 +233,23 @@ export default function CallDetailPage() {
                 <span className="font-medium">{format(new Date(transcript.call_date), 'MMMM d, yyyy')}</span>
               </div>
               <Badge variant="outline">{sourceLabels[transcript.source as CallSource]}</Badge>
-              <Badge variant={transcript.analysis_status === 'completed' ? 'default' : 'secondary'}>
-                {transcript.analysis_status}
+              <Badge variant={
+                transcript.analysis_status === 'completed' ? 'default' : 
+                transcript.analysis_status === 'error' ? 'destructive' : 
+                'secondary'
+              }>
+                {transcript.analysis_status === 'processing' || isPolling ? 'Analyzing...' : transcript.analysis_status}
               </Badge>
-              {transcript.notes && (
-                <span className="text-sm text-muted-foreground">Notes: {transcript.notes}</span>
-              )}
             </div>
           </CardContent>
         </Card>
 
-        {/* Analysis Results - Uses shared component */}
+        {/* Analysis Results - Uses shared component with ownership info */}
         <CallAnalysisResultsView 
           call={transcript} 
           analysis={analysis} 
-          isManager={isManager} 
+          isOwner={isOwner}
+          isManager={isManager && !isOwner}
         />
       </div>
     </AppLayout>
