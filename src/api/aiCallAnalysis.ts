@@ -12,6 +12,9 @@ interface CreateCallTranscriptParams {
   salesforceDemoLink: string;
   potentialRevenue?: number;
   rawText: string;
+  // Optional: if user selected an existing prospect/stakeholder
+  prospectId?: string;
+  stakeholderId?: string;
 }
 
 export interface CallTranscript {
@@ -122,7 +125,9 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
     accountName,
     salesforceDemoLink,
     potentialRevenue,
-    rawText 
+    rawText,
+    prospectId: existingProspectId,
+    stakeholderId: existingStakeholderId,
   } = params;
 
   // Insert new call transcript
@@ -158,16 +163,19 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
   console.log('[createCallTranscriptAndAnalyze] Transcript created:', transcript.id);
 
   // Get or create prospect and link to call
-  let prospectId: string | null = null;
+  let prospectId: string | null = existingProspectId || null;
   try {
-    const { prospect } = await getOrCreateProspect({
-      repId,
-      prospectName: primaryStakeholderName,
-      accountName,
-      salesforceLink: salesforceDemoLink,
-      potentialRevenue,
-    });
-    prospectId = prospect.id;
+    if (!prospectId) {
+      // No existing prospect selected, create or find one
+      const { prospect } = await getOrCreateProspect({
+        repId,
+        prospectName: primaryStakeholderName,
+        accountName,
+        salesforceLink: salesforceDemoLink,
+        potentialRevenue,
+      });
+      prospectId = prospect.id;
+    }
     
     // Link the call to the prospect
     await linkCallToProspect(transcript.id, prospectId);

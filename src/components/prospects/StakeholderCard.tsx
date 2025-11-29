@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,17 +8,27 @@ import {
   Star, 
   ChevronRight,
   Calendar,
+  Loader2,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import {
   type Stakeholder,
   type StakeholderInfluenceLevel,
   influenceLevelLabels,
+  setPrimaryStakeholder,
 } from '@/api/stakeholders';
+import { useToast } from '@/hooks/use-toast';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface StakeholderCardProps {
   stakeholder: Stakeholder;
   onClick?: () => void;
+  onPrimaryChanged?: () => void;
   compact?: boolean;
 }
 
@@ -51,9 +62,27 @@ function ChampionScoreGauge({ score }: { score: number | null }) {
   );
 }
 
-export function StakeholderCard({ stakeholder, onClick, compact = false }: StakeholderCardProps) {
+export function StakeholderCard({ stakeholder, onClick, onPrimaryChanged, compact = false }: StakeholderCardProps) {
+  const { toast } = useToast();
+  const [isSettingPrimary, setIsSettingPrimary] = useState(false);
   const style = influenceLevelStyles[stakeholder.influence_level];
   const InfluenceIcon = style.icon;
+
+  const handleSetPrimary = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (stakeholder.is_primary_contact) return;
+    
+    setIsSettingPrimary(true);
+    try {
+      await setPrimaryStakeholder(stakeholder.prospect_id, stakeholder.id);
+      toast({ title: 'Primary contact updated' });
+      onPrimaryChanged?.();
+    } catch (error) {
+      toast({ title: 'Failed to set primary contact', variant: 'destructive' });
+    } finally {
+      setIsSettingPrimary(false);
+    }
+  };
 
   if (compact) {
     return (
@@ -70,8 +99,34 @@ export function StakeholderCard({ stakeholder, onClick, compact = false }: Stake
             <p className="text-xs text-muted-foreground truncate">{stakeholder.job_title}</p>
           )}
         </div>
-        {stakeholder.is_primary_contact && (
-          <Badge variant="outline" className="text-xs shrink-0">Primary</Badge>
+        {stakeholder.is_primary_contact ? (
+          <Badge variant="outline" className="text-xs shrink-0 gap-1">
+            <Crown className="h-3 w-3 text-amber-500" />
+            Primary
+          </Badge>
+        ) : (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0"
+                  onClick={handleSetPrimary}
+                  disabled={isSettingPrimary}
+                >
+                  {isSettingPrimary ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Crown className="h-3.5 w-3.5 text-muted-foreground hover:text-amber-500" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Set as primary contact</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
         <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
       </button>
@@ -92,8 +147,34 @@ export function StakeholderCard({ stakeholder, onClick, compact = false }: Stake
             <div>
               <div className="flex items-center gap-2">
                 <h4 className="font-semibold">{stakeholder.name}</h4>
-                {stakeholder.is_primary_contact && (
-                  <Badge variant="secondary" className="text-xs">Primary</Badge>
+                {stakeholder.is_primary_contact ? (
+                  <Badge variant="secondary" className="text-xs gap-1">
+                    <Crown className="h-3 w-3 text-amber-500" />
+                    Primary
+                  </Badge>
+                ) : (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={handleSetPrimary}
+                          disabled={isSettingPrimary}
+                        >
+                          {isSettingPrimary ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Crown className="h-3.5 w-3.5 text-muted-foreground hover:text-amber-500" />
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Set as primary contact</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 )}
               </div>
               {stakeholder.job_title && (

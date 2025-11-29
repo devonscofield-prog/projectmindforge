@@ -371,6 +371,7 @@ export default function ProspectDetail() {
                         key={stakeholder.id}
                         stakeholder={stakeholder}
                         onClick={() => handleStakeholderClick(stakeholder)}
+                        onPrimaryChanged={loadProspectData}
                       />
                     ))}
                   </div>
