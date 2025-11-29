@@ -16,6 +16,7 @@ import {
   listCallTranscriptsForRep,
   CallTranscript
 } from '@/api/aiCallAnalysis';
+import { CallType, callTypeLabels, callTypeOptions } from '@/constants/callTypes';
 import { format } from 'date-fns';
 import { 
   Send, 
@@ -28,8 +29,6 @@ import {
   Mic
 } from 'lucide-react';
 
-type CallSource = 'zoom' | 'teams' | 'dialer' | 'other';
-
 export default function RepDashboard() {
   const { user, profile } = useAuth();
   const { toast } = useToast();
@@ -37,9 +36,13 @@ export default function RepDashboard() {
 
   // Form state
   const [transcript, setTranscript] = useState('');
-  const [callTitle, setCallTitle] = useState('');
+  const [prospectName, setProspectName] = useState('');
+  const [accountName, setAccountName] = useState('');
+  const [salesforceDemoLink, setSalesforceDemoLink] = useState('');
+  const [potentialRevenue, setPotentialRevenue] = useState('');
   const [callDate, setCallDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [source, setSource] = useState<CallSource>('zoom');
+  const [callType, setCallType] = useState<CallType>('first_demo');
+  const [callTypeOther, setCallTypeOther] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch transcripts for history
@@ -51,16 +54,42 @@ export default function RepDashboard() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user?.id || !transcript.trim()) return;
+    if (!user?.id) return;
+
+    // Validation
+    if (!prospectName.trim()) {
+      toast({ title: 'Error', description: 'Prospect Name is required', variant: 'destructive' });
+      return;
+    }
+    if (!accountName.trim()) {
+      toast({ title: 'Error', description: 'Account Name is required', variant: 'destructive' });
+      return;
+    }
+    if (!salesforceDemoLink.trim()) {
+      toast({ title: 'Error', description: 'Salesforce Demo Link is required', variant: 'destructive' });
+      return;
+    }
+    if (!transcript.trim()) {
+      toast({ title: 'Error', description: 'Transcript is required', variant: 'destructive' });
+      return;
+    }
+    if (callType === 'other' && !callTypeOther.trim()) {
+      toast({ title: 'Error', description: 'Please specify the call type', variant: 'destructive' });
+      return;
+    }
 
     setIsSubmitting(true);
     try {
       const result = await createCallTranscriptAndAnalyze({
         repId: user.id,
         callDate,
-        source,
+        callType,
+        callTypeOther: callType === 'other' ? callTypeOther : undefined,
+        prospectName: prospectName.trim(),
+        accountName: accountName.trim(),
+        salesforceDemoLink: salesforceDemoLink.trim(),
+        potentialRevenue: potentialRevenue ? parseFloat(potentialRevenue) : undefined,
         rawText: transcript,
-        notes: callTitle || undefined, // Use title as notes for now
       });
 
       toast({
@@ -94,11 +123,28 @@ export default function RepDashboard() {
     }
   };
 
-  const sourceLabels: Record<CallSource, string> = {
-    zoom: 'Zoom',
-    teams: 'Teams',
-    dialer: 'Dialer',
-    other: 'Other',
+  const getCallDisplayName = (t: CallTranscript) => {
+    if (t.prospect_name && t.account_name) {
+      return `${t.prospect_name} - ${t.account_name}`;
+    }
+    if (t.account_name) {
+      return t.account_name;
+    }
+    if (t.prospect_name) {
+      return t.prospect_name;
+    }
+    // Fallback for older calls
+    return t.notes || 'Call';
+  };
+
+  const getCallTypeDisplay = (t: CallTranscript) => {
+    if (t.call_type === 'other' && t.call_type_other) {
+      return t.call_type_other;
+    }
+    if (t.call_type) {
+      return callTypeLabels[t.call_type as CallType] || t.call_type;
+    }
+    return null;
   };
 
   return (
@@ -127,18 +173,58 @@ export default function RepDashboard() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Call Title */}
-              <div className="space-y-2">
-                <Label htmlFor="callTitle">Call Title / Label (optional)</Label>
-                <Input
-                  id="callTitle"
-                  placeholder="e.g., ACME – Discovery Call"
-                  value={callTitle}
-                  onChange={(e) => setCallTitle(e.target.value)}
-                />
+              {/* Prospect and Account Row */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="prospectName">Prospect Name *</Label>
+                  <Input
+                    id="prospectName"
+                    placeholder="e.g., John Smith"
+                    value={prospectName}
+                    onChange={(e) => setProspectName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="accountName">Account Name *</Label>
+                  <Input
+                    id="accountName"
+                    placeholder="e.g., ACME Corporation"
+                    value={accountName}
+                    onChange={(e) => setAccountName(e.target.value)}
+                    required
+                  />
+                </div>
               </div>
 
-              {/* Date and Source Row */}
+              {/* Salesforce Link and Revenue Row */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="salesforceDemoLink">Salesforce Demo Link *</Label>
+                  <Input
+                    id="salesforceDemoLink"
+                    type="url"
+                    placeholder="https://..."
+                    value={salesforceDemoLink}
+                    onChange={(e) => setSalesforceDemoLink(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="potentialRevenue">Potential Revenue (optional)</Label>
+                  <Input
+                    id="potentialRevenue"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="e.g., 50000"
+                    value={potentialRevenue}
+                    onChange={(e) => setPotentialRevenue(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Date and Call Type Row */}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="callDate">Call Date</Label>
@@ -151,20 +237,35 @@ export default function RepDashboard() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="source">Call Source</Label>
-                  <Select value={source} onValueChange={(v) => setSource(v as CallSource)}>
-                    <SelectTrigger id="source">
+                  <Label htmlFor="callType">Call Type</Label>
+                  <Select value={callType} onValueChange={(v) => setCallType(v as CallType)}>
+                    <SelectTrigger id="callType">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="zoom">Zoom</SelectItem>
-                      <SelectItem value="teams">Teams</SelectItem>
-                      <SelectItem value="dialer">Dialer</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
+                      {callTypeOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
+
+              {/* Other Call Type Input (conditional) */}
+              {callType === 'other' && (
+                <div className="space-y-2">
+                  <Label htmlFor="callTypeOther">Specify Call Type *</Label>
+                  <Input
+                    id="callTypeOther"
+                    placeholder="e.g., Technical Review"
+                    value={callTypeOther}
+                    onChange={(e) => setCallTypeOther(e.target.value)}
+                    required
+                  />
+                </div>
+              )}
 
               {/* Transcript */}
               <div className="space-y-2">
@@ -185,7 +286,7 @@ export default function RepDashboard() {
               {/* Submit Button */}
               <Button 
                 type="submit" 
-                disabled={isSubmitting || !transcript.trim()} 
+                disabled={isSubmitting || !transcript.trim() || !prospectName.trim() || !accountName.trim() || !salesforceDemoLink.trim()} 
                 className="w-full h-12 text-lg"
                 size="lg"
               >
@@ -234,10 +335,15 @@ export default function RepDashboard() {
                     className="w-full flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors text-left"
                   >
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <span className="font-medium truncate">
-                          {t.notes || `${sourceLabels[t.source as CallSource]} Call`}
+                          {getCallDisplayName(t)}
                         </span>
+                        {getCallTypeDisplay(t) && (
+                          <Badge variant="outline" className="text-xs">
+                            {getCallTypeDisplay(t)}
+                          </Badge>
+                        )}
                         {getStatusBadge(t.analysis_status)}
                       </div>
                       <span className="text-sm text-muted-foreground">

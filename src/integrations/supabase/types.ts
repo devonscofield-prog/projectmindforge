@@ -194,44 +194,62 @@ export type Database = {
       }
       call_transcripts: {
         Row: {
+          account_name: string | null
           analysis_error: string | null
           analysis_status: Database["public"]["Enums"]["call_analysis_status"]
           analysis_version: string
           call_date: string
+          call_type: string | null
+          call_type_other: string | null
           created_at: string
           id: string
           manager_id: string | null
           notes: string | null
+          potential_revenue: number | null
+          prospect_name: string | null
           raw_text: string
           rep_id: string
+          salesforce_demo_link: string | null
           source: Database["public"]["Enums"]["call_source_type"]
           updated_at: string
         }
         Insert: {
+          account_name?: string | null
           analysis_error?: string | null
           analysis_status?: Database["public"]["Enums"]["call_analysis_status"]
           analysis_version?: string
           call_date?: string
+          call_type?: string | null
+          call_type_other?: string | null
           created_at?: string
           id?: string
           manager_id?: string | null
           notes?: string | null
+          potential_revenue?: number | null
+          prospect_name?: string | null
           raw_text: string
           rep_id: string
+          salesforce_demo_link?: string | null
           source?: Database["public"]["Enums"]["call_source_type"]
           updated_at?: string
         }
         Update: {
+          account_name?: string | null
           analysis_error?: string | null
           analysis_status?: Database["public"]["Enums"]["call_analysis_status"]
           analysis_version?: string
           call_date?: string
+          call_type?: string | null
+          call_type_other?: string | null
           created_at?: string
           id?: string
           manager_id?: string | null
           notes?: string | null
+          potential_revenue?: number | null
+          prospect_name?: string | null
           raw_text?: string
           rep_id?: string
+          salesforce_demo_link?: string | null
           source?: Database["public"]["Enums"]["call_source_type"]
           updated_at?: string
         }
