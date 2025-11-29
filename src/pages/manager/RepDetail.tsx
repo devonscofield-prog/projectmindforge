@@ -25,8 +25,10 @@ import { useToast } from '@/hooks/use-toast';
 import {
   listCallTranscriptsForRep,
   getAnalysisForCall,
+  CallTranscript,
 } from '@/api/aiCallAnalysis';
 import { AICoachingSnapshot } from '@/components/AICoachingSnapshot';
+import { CallType, callTypeLabels } from '@/constants/callTypes';
 import ReactMarkdown from 'react-markdown';
 
 const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -40,14 +42,30 @@ const activityTypeLabels: Record<ActivityType, string> = {
   proposals: 'Proposals',
 };
 
-type CallSource = 'zoom' | 'teams' | 'dialer' | 'other';
 type TimeframeFilter = '7d' | '30d' | '90d' | 'all';
 
-const sourceLabels: Record<CallSource, string> = {
-  zoom: 'Zoom',
-  teams: 'Teams',
-  dialer: 'Dialer',
-  other: 'Other',
+// Helper functions for display
+const getCallDisplayName = (t: CallTranscript) => {
+  if (t.prospect_name && t.account_name) {
+    return `${t.prospect_name} - ${t.account_name}`;
+  }
+  if (t.account_name) {
+    return t.account_name;
+  }
+  if (t.prospect_name) {
+    return t.prospect_name;
+  }
+  return t.notes || 'Call';
+};
+
+const getCallTypeDisplay = (t: CallTranscript) => {
+  if (t.call_type === 'other' && t.call_type_other) {
+    return t.call_type_other;
+  }
+  if (t.call_type) {
+    return callTypeLabels[t.call_type as CallType] || t.call_type;
+  }
+  return null;
 };
 
 export default function RepDetail() {
@@ -575,9 +593,9 @@ export default function RepDetail() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Date</TableHead>
-                        <TableHead>Source</TableHead>
+                        <TableHead>Prospect / Account</TableHead>
+                        <TableHead>Call Type</TableHead>
                         <TableHead>Status</TableHead>
-                        <TableHead className="text-center">AI Score</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -594,7 +612,18 @@ export default function RepDetail() {
                               {format(new Date(transcript.call_date), 'MMM d, yyyy')}
                             </div>
                           </TableCell>
-                          <TableCell>{sourceLabels[transcript.source as CallSource] || transcript.source}</TableCell>
+                          <TableCell className="max-w-[200px] truncate">
+                            {getCallDisplayName(transcript)}
+                          </TableCell>
+                          <TableCell>
+                            {getCallTypeDisplay(transcript) ? (
+                              <Badge variant="outline" className="text-xs">
+                                {getCallTypeDisplay(transcript)}
+                              </Badge>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <Badge variant={getStatusBadgeVariant(transcript.analysis_status)}>
@@ -613,15 +642,6 @@ export default function RepDetail() {
                                 </TooltipProvider>
                               )}
                             </div>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {transcript.analysis_status === 'completed' ? (
-                              <Badge variant="secondary" className="text-xs">
-                                View
-                              </Badge>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">—</span>
-                            )}
                           </TableCell>
                           <TableCell className="text-right">
                             <Button
@@ -677,7 +697,8 @@ export default function RepDetail() {
                         <TableHeader>
                           <TableRow>
                             <TableHead>Date</TableHead>
-                            <TableHead>Source</TableHead>
+                            <TableHead>Prospect / Account</TableHead>
+                            <TableHead>Call Type</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                           </TableRow>
@@ -691,7 +712,18 @@ export default function RepDetail() {
                               <TableCell className="font-medium">
                                 {format(new Date(transcript.call_date), 'MMM d, yyyy')}
                               </TableCell>
-                              <TableCell>{sourceLabels[transcript.source as CallSource] || transcript.source}</TableCell>
+                              <TableCell className="max-w-[150px] truncate">
+                                {getCallDisplayName(transcript)}
+                              </TableCell>
+                              <TableCell>
+                                {getCallTypeDisplay(transcript) ? (
+                                  <Badge variant="outline" className="text-xs">
+                                    {getCallTypeDisplay(transcript)}
+                                  </Badge>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">—</span>
+                                )}
+                              </TableCell>
                               <TableCell>
                                 <div className="flex items-center gap-2">
                                   <Badge variant={getStatusBadgeVariant(transcript.analysis_status)}>

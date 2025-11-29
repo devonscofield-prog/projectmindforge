@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { getCallWithAnalysis, getAnalysisForCall, CallAnalysis, CallTranscript } from '@/api/aiCallAnalysis';
 import { CallAnalysisResultsView } from '@/components/calls/CallAnalysisResultsView';
+import { CallType, callTypeLabels } from '@/constants/callTypes';
 import { format } from 'date-fns';
 import { 
   ArrowLeft, 
@@ -15,17 +16,12 @@ import {
   Loader2, 
   ShieldAlert,
   FileText,
-  RefreshCw
+  RefreshCw,
+  ExternalLink,
+  DollarSign,
+  Building,
+  User
 } from 'lucide-react';
-
-type CallSource = 'zoom' | 'teams' | 'dialer' | 'other';
-
-const sourceLabels: Record<CallSource, string> = {
-  zoom: 'Zoom',
-  teams: 'Teams',
-  dialer: 'Dialer',
-  other: 'Other',
-};
 
 export default function CallDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -149,6 +145,19 @@ export default function CallDetailPage() {
     }
   };
 
+  const getCallTypeDisplay = (t: CallTranscript) => {
+    if (t.call_type === 'other' && t.call_type_other) {
+      return t.call_type_other;
+    }
+    if (t.call_type) {
+      return callTypeLabels[t.call_type as CallType] || t.call_type;
+    }
+    return null;
+  };
+
+  const formatCurrency = (val: number) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
+
   if (loading) {
     return (
       <AppLayout>
@@ -192,6 +201,10 @@ export default function CallDetailPage() {
     );
   }
 
+  const callTitle = transcript.prospect_name && transcript.account_name 
+    ? `${transcript.prospect_name} - ${transcript.account_name}`
+    : transcript.account_name || transcript.prospect_name || transcript.notes || 'Call Details';
+
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -203,7 +216,7 @@ export default function CallDetailPage() {
             </Button>
             <div>
               <h1 className="text-2xl font-bold">
-                {transcript.notes || 'Call Details'}
+                {callTitle}
               </h1>
               <p className="text-muted-foreground">
                 Full AI coaching breakdown for this call
@@ -227,19 +240,92 @@ export default function CallDetailPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-wrap gap-4">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {/* Prospect Name */}
+              {transcript.prospect_name && (
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Prospect</p>
+                    <p className="font-medium">{transcript.prospect_name}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Account Name */}
+              {transcript.account_name && (
+                <div className="flex items-center gap-2">
+                  <Building className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Account</p>
+                    <p className="font-medium">{transcript.account_name}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Call Date */}
               <div className="flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium">{format(new Date(transcript.call_date), 'MMMM d, yyyy')}</span>
+                <div>
+                  <p className="text-xs text-muted-foreground">Date</p>
+                  <p className="font-medium">{format(new Date(transcript.call_date), 'MMMM d, yyyy')}</p>
+                </div>
               </div>
-              <Badge variant="outline">{sourceLabels[transcript.source as CallSource]}</Badge>
-              <Badge variant={
-                transcript.analysis_status === 'completed' ? 'default' : 
-                transcript.analysis_status === 'error' ? 'destructive' : 
-                'secondary'
-              }>
-                {transcript.analysis_status === 'processing' || isPolling ? 'Analyzing...' : transcript.analysis_status}
-              </Badge>
+
+              {/* Call Type */}
+              {getCallTypeDisplay(transcript) && (
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Call Type</p>
+                    <Badge variant="outline">{getCallTypeDisplay(transcript)}</Badge>
+                  </div>
+                </div>
+              )}
+
+              {/* Potential Revenue */}
+              {transcript.potential_revenue && (
+                <div className="flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Potential Revenue</p>
+                    <p className="font-medium">{formatCurrency(transcript.potential_revenue)}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Salesforce Link */}
+              {transcript.salesforce_demo_link && (
+                <div className="flex items-center gap-2">
+                  <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Salesforce Demo</p>
+                    <a 
+                      href={transcript.salesforce_demo_link} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline font-medium flex items-center gap-1"
+                    >
+                      Open Link
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {/* Status */}
+              <div className="flex items-center gap-2">
+                <div>
+                  <p className="text-xs text-muted-foreground">Status</p>
+                  <Badge variant={
+                    transcript.analysis_status === 'completed' ? 'default' : 
+                    transcript.analysis_status === 'error' ? 'destructive' : 
+                    'secondary'
+                  }>
+                    {transcript.analysis_status === 'processing' || isPolling ? 'Analyzing...' : transcript.analysis_status}
+                  </Badge>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>

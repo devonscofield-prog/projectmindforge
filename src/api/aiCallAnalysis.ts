@@ -1,13 +1,16 @@
 import { supabase } from '@/integrations/supabase/client';
-
-type CallSource = 'zoom' | 'teams' | 'dialer' | 'other';
+import { CallType } from '@/constants/callTypes';
 
 interface CreateCallTranscriptParams {
   repId: string;
   callDate: string;
-  source: CallSource;
+  callType: CallType;
+  callTypeOther?: string;
+  prospectName: string;
+  accountName: string;
+  salesforceDemoLink: string;
+  potentialRevenue?: number;
   rawText: string;
-  notes?: string;
 }
 
 interface CallTranscript {
@@ -15,7 +18,7 @@ interface CallTranscript {
   rep_id: string;
   manager_id: string | null;
   call_date: string;
-  source: CallSource;
+  source: string;
   raw_text: string;
   notes: string | null;
   analysis_status: 'pending' | 'processing' | 'completed' | 'error';
@@ -23,6 +26,13 @@ interface CallTranscript {
   analysis_version: string;
   created_at: string;
   updated_at: string;
+  // New fields
+  prospect_name: string | null;
+  account_name: string | null;
+  salesforce_demo_link: string | null;
+  potential_revenue: number | null;
+  call_type: CallType | null;
+  call_type_other: string | null;
 }
 
 interface AnalyzeCallResponse {
@@ -88,7 +98,17 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
   transcript: CallTranscript;
   analyzeResponse: AnalyzeCallResponse;
 }> {
-  const { repId, callDate, source, rawText, notes } = params;
+  const { 
+    repId, 
+    callDate, 
+    callType,
+    callTypeOther,
+    prospectName,
+    accountName,
+    salesforceDemoLink,
+    potentialRevenue,
+    rawText 
+  } = params;
 
   // Insert new call transcript
   const { data: transcript, error: insertError } = await supabase
@@ -96,10 +116,17 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
     .insert({
       rep_id: repId,
       call_date: callDate,
-      source,
+      source: 'other', // Keep source for backward compatibility
       raw_text: rawText,
-      notes: notes || null,
-      analysis_status: 'pending'
+      notes: null,
+      analysis_status: 'pending',
+      // New fields
+      prospect_name: prospectName,
+      account_name: accountName,
+      salesforce_demo_link: salesforceDemoLink,
+      potential_revenue: potentialRevenue ?? null,
+      call_type: callType,
+      call_type_other: callType === 'other' ? callTypeOther : null,
     })
     .select()
     .single();
