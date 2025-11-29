@@ -63,7 +63,7 @@ export default function RepDashboard() {
         callDate,
         callType,
         callTypeOther: callType === 'other' ? callTypeOther : undefined,
-        prospectName: primaryStakeholderName.trim(),
+        primaryStakeholderName: primaryStakeholderName.trim(),
         accountName: accountName.trim(),
         salesforceDemoLink: salesforceDemoLink.trim(),
         potentialRevenue: potentialRevenue ? parseFloat(potentialRevenue) : undefined,
