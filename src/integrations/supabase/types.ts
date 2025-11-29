@@ -462,6 +462,59 @@ export type Database = {
         }
         Relationships: []
       }
+      email_logs: {
+        Row: {
+          body: string
+          contact_email: string | null
+          contact_name: string | null
+          created_at: string
+          direction: Database["public"]["Enums"]["email_direction"]
+          email_date: string
+          id: string
+          notes: string | null
+          prospect_id: string
+          rep_id: string
+          subject: string | null
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          contact_email?: string | null
+          contact_name?: string | null
+          created_at?: string
+          direction: Database["public"]["Enums"]["email_direction"]
+          email_date?: string
+          id?: string
+          notes?: string | null
+          prospect_id: string
+          rep_id: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          contact_email?: string | null
+          contact_name?: string | null
+          created_at?: string
+          direction?: Database["public"]["Enums"]["email_direction"]
+          email_date?: string
+          id?: string
+          notes?: string | null
+          prospect_id?: string
+          rep_id?: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_logs_prospect_id_fkey"
+            columns: ["prospect_id"]
+            isOneToOne: false
+            referencedRelation: "prospects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -868,6 +921,7 @@ export type Database = {
         | "proposals"
       call_analysis_status: "pending" | "processing" | "completed" | "error"
       call_source_type: "zoom" | "teams" | "dialer" | "other"
+      email_direction: "incoming" | "outgoing"
       prospect_activity_type:
         | "call"
         | "email"
@@ -1019,6 +1073,7 @@ export const Constants = {
       ],
       call_analysis_status: ["pending", "processing", "completed", "error"],
       call_source_type: ["zoom", "teams", "dialer", "other"],
+      email_direction: ["incoming", "outgoing"],
       prospect_activity_type: [
         "call",
         "email",

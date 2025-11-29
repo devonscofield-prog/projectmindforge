@@ -73,6 +73,11 @@ import {
   refreshFollowUps,
   type AccountFollowUp,
 } from '@/api/accountFollowUps';
+import {
+  listEmailLogsForProspect,
+  deleteEmailLog,
+  type EmailLog,
+} from '@/api/emailLogs';
 import { StakeholderCard } from '@/components/prospects/StakeholderCard';
 import { AddStakeholderDialog } from '@/components/prospects/AddStakeholderDialog';
 import { StakeholderDetailSheet } from '@/components/prospects/StakeholderDetailSheet';
@@ -80,6 +85,8 @@ import { StakeholderRelationshipMap } from '@/components/prospects/StakeholderRe
 import { FollowUpItem } from '@/components/prospects/FollowUpItem';
 import { CompletedFollowUpsDialog } from '@/components/prospects/CompletedFollowUpsDialog';
 import { DismissedFollowUpsDialog } from '@/components/prospects/DismissedFollowUpsDialog';
+import { AddEmailLogDialog } from '@/components/prospects/AddEmailLogDialog';
+import { EmailLogItem } from '@/components/prospects/EmailLogItem';
 
 const statusLabels: Record<ProspectStatus, string> = {
   active: 'Active',
@@ -140,9 +147,11 @@ export default function ProspectDetail() {
   const [followUps, setFollowUps] = useState<AccountFollowUp[]>([]);
   const [completedFollowUps, setCompletedFollowUps] = useState<AccountFollowUp[]>([]);
   const [dismissedFollowUps, setDismissedFollowUps] = useState<AccountFollowUp[]>([]);
+  const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAddActivityOpen, setIsAddActivityOpen] = useState(false);
   const [isAddStakeholderOpen, setIsAddStakeholderOpen] = useState(false);
+  const [isAddEmailOpen, setIsAddEmailOpen] = useState(false);
   const [selectedStakeholder, setSelectedStakeholder] = useState<Stakeholder | null>(null);
   const [isStakeholderSheetOpen, setIsStakeholderSheetOpen] = useState(false);
   const [isCompletedDialogOpen, setIsCompletedDialogOpen] = useState(false);
@@ -164,7 +173,7 @@ export default function ProspectDetail() {
     
     setIsLoading(true);
     try {
-      const [prospectData, stakeholdersData, relationshipsData, activitiesData, callsData, pendingFollowUps, completedFollowUpsData, dismissedFollowUpsData] = await Promise.all([
+      const [prospectData, stakeholdersData, relationshipsData, activitiesData, callsData, pendingFollowUps, completedFollowUpsData, dismissedFollowUpsData, emailLogsData] = await Promise.all([
         getProspectById(id),
         listStakeholdersForProspect(id),
         listRelationshipsForProspect(id),
@@ -173,6 +182,7 @@ export default function ProspectDetail() {
         listFollowUpsForProspect(id, 'pending'),
         listFollowUpsForProspect(id, 'completed'),
         listFollowUpsForProspect(id, 'dismissed'),
+        listEmailLogsForProspect(id),
       ]);
 
       if (!prospectData) {
@@ -189,6 +199,7 @@ export default function ProspectDetail() {
       setFollowUps(pendingFollowUps);
       setCompletedFollowUps(completedFollowUpsData);
       setDismissedFollowUps(dismissedFollowUpsData);
+      setEmailLogs(emailLogsData);
     } catch (error) {
       console.error('Failed to load prospect:', error);
       toast({ title: 'Failed to load account', variant: 'destructive' });
@@ -337,8 +348,24 @@ export default function ProspectDetail() {
     } catch (error) {
       toast({ title: 'Failed to refresh follow-ups', variant: 'destructive' });
     } finally {
-      setIsRefreshing(false);
+    setIsRefreshing(false);
     }
+  };
+
+  const handleDeleteEmailLog = async (emailId: string) => {
+    try {
+      await deleteEmailLog(emailId);
+      setEmailLogs(prev => prev.filter(e => e.id !== emailId));
+      toast({ title: 'Email log deleted' });
+    } catch (error) {
+      toast({ title: 'Failed to delete email log', variant: 'destructive' });
+    }
+  };
+
+  const handleEmailAdded = async () => {
+    if (!id) return;
+    const emailLogsData = await listEmailLogsForProspect(id);
+    setEmailLogs(emailLogsData);
   };
 
   return (
@@ -679,6 +706,54 @@ export default function ProspectDetail() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Email Log */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Mail className="h-5 w-5 text-primary" />
+                    Email Log
+                  </CardTitle>
+                  <CardDescription>
+                    Logged email communications with this account
+                  </CardDescription>
+                </div>
+                <Button size="sm" onClick={() => setIsAddEmailOpen(true)}>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Email
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {emailLogs.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Mail className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                    <p className="text-sm text-muted-foreground mb-3">No emails logged yet</p>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Log emails you've sent or received to help AI generate better follow-up suggestions
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsAddEmailOpen(true)}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Log First Email
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {emailLogs.map((email) => (
+                      <EmailLogItem
+                        key={email.id}
+                        email={email}
+                        onDelete={handleDeleteEmailLog}
+                      />
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
 
           {/* Sidebar */}
@@ -854,6 +929,17 @@ export default function ProspectDetail() {
         dismissedFollowUps={dismissedFollowUps}
         onRestore={handleRestoreFollowUp}
       />
+
+      {/* Add Email Log Dialog */}
+      {user?.id && prospect && (
+        <AddEmailLogDialog
+          open={isAddEmailOpen}
+          onOpenChange={setIsAddEmailOpen}
+          prospectId={prospect.id}
+          repId={user.id}
+          onEmailAdded={handleEmailAdded}
+        />
+      )}
     </AppLayout>
   );
 }
