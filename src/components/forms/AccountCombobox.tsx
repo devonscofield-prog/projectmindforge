@@ -21,7 +21,7 @@ interface AccountComboboxProps {
   repId: string;
   value: string;
   selectedProspectId: string | null;
-  onChange: (accountName: string, prospectId: string | null) => void;
+  onChange: (accountName: string, prospectId: string | null, salesforceLink?: string | null) => void;
   placeholder?: string;
   disabled?: boolean;
 }
@@ -56,11 +56,11 @@ export function AccountCombobox({
     fetchProspects();
   }, [repId]);
 
-  // Get unique account names with their prospect IDs
-  const accountOptions = prospects.reduce<{ accountName: string; prospectId: string }[]>((acc, prospect) => {
+  // Get unique account names with their prospect IDs and salesforce links
+  const accountOptions = prospects.reduce<{ accountName: string; prospectId: string; salesforceLink: string | null }[]>((acc, prospect) => {
     const accountName = prospect.account_name || prospect.prospect_name;
     if (!acc.find(a => a.accountName.toLowerCase() === accountName.toLowerCase())) {
-      acc.push({ accountName, prospectId: prospect.id });
+      acc.push({ accountName, prospectId: prospect.id, salesforceLink: prospect.salesforce_link });
     }
     return acc;
   }, []);
@@ -69,15 +69,15 @@ export function AccountCombobox({
   const isNewAccount = searchValue.trim() && 
     !accountOptions.some(a => a.accountName.toLowerCase() === searchValue.trim().toLowerCase());
 
-  const handleSelect = (accountName: string, prospectId: string | null) => {
-    onChange(accountName, prospectId);
+  const handleSelect = (accountName: string, prospectId: string | null, salesforceLink?: string | null) => {
+    onChange(accountName, prospectId, salesforceLink);
     setOpen(false);
     setSearchValue('');
   };
 
   const handleCreateNew = () => {
     if (searchValue.trim()) {
-      onChange(searchValue.trim(), null);
+      onChange(searchValue.trim(), null, null);
       setOpen(false);
       setSearchValue('');
     }
@@ -145,7 +145,7 @@ export function AccountCombobox({
                         <CommandItem
                           key={account.prospectId}
                           value={account.accountName}
-                          onSelect={() => handleSelect(account.accountName, account.prospectId)}
+                          onSelect={() => handleSelect(account.accountName, account.prospectId, account.salesforceLink)}
                         >
                           <Check
                             className={cn(

@@ -24,27 +24,36 @@ export default function RepDashboard() {
 
   // Form state
   const [transcript, setTranscript] = useState('');
-  const [primaryStakeholderName, setPrimaryStakeholderName] = useState('');
+  const [stakeholderName, setStakeholderName] = useState('');
   const [selectedStakeholderId, setSelectedStakeholderId] = useState<string | null>(null);
   const [accountName, setAccountName] = useState('');
   const [selectedProspectId, setSelectedProspectId] = useState<string | null>(null);
   const [salesforceAccountLink, setSalesforceAccountLink] = useState('');
+  const [existingAccountHasSalesforceLink, setExistingAccountHasSalesforceLink] = useState(false);
   const [potentialRevenue, setPotentialRevenue] = useState('');
   const [callDate, setCallDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [callType, setCallType] = useState<CallType>('first_demo');
   const [callTypeOther, setCallTypeOther] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleAccountChange = (name: string, prospectId: string | null) => {
+  const handleAccountChange = (name: string, prospectId: string | null, salesforceLink?: string | null) => {
     setAccountName(name);
     setSelectedProspectId(prospectId);
+    // Auto-populate salesforce link if existing account has one
+    if (prospectId && salesforceLink) {
+      setSalesforceAccountLink(salesforceLink);
+      setExistingAccountHasSalesforceLink(true);
+    } else {
+      setSalesforceAccountLink('');
+      setExistingAccountHasSalesforceLink(false);
+    }
     // Reset stakeholder when account changes
-    setPrimaryStakeholderName('');
+    setStakeholderName('');
     setSelectedStakeholderId(null);
   };
 
   const handleStakeholderChange = (name: string, stakeholderId: string | null) => {
-    setPrimaryStakeholderName(name);
+    setStakeholderName(name);
     setSelectedStakeholderId(stakeholderId);
   };
 
@@ -53,16 +62,18 @@ export default function RepDashboard() {
     if (!user?.id) return;
 
     // Validation
-    if (!primaryStakeholderName.trim()) {
-      toast({ title: 'Error', description: 'Primary Stakeholder is required', variant: 'destructive' });
+    if (!stakeholderName.trim()) {
+      toast({ title: 'Error', description: 'Stakeholder is required', variant: 'destructive' });
       return;
     }
     if (!accountName.trim()) {
       toast({ title: 'Error', description: 'Account Name is required', variant: 'destructive' });
       return;
     }
-    if (!salesforceAccountLink.trim()) {
-      toast({ title: 'Error', description: 'Salesforce Account Link is required', variant: 'destructive' });
+    // Salesforce link is only required for new accounts or existing accounts without a link
+    const salesforceLinkRequired = !selectedProspectId || !existingAccountHasSalesforceLink;
+    if (salesforceLinkRequired && !salesforceAccountLink.trim()) {
+      toast({ title: 'Error', description: 'Salesforce Account Link is required for new accounts', variant: 'destructive' });
       return;
     }
     if (!transcript.trim()) {
@@ -81,9 +92,9 @@ export default function RepDashboard() {
         callDate,
         callType,
         callTypeOther: callType === 'other' ? callTypeOther : undefined,
-        primaryStakeholderName: primaryStakeholderName.trim(),
+        stakeholderName: stakeholderName.trim(),
         accountName: accountName.trim(),
-        salesforceAccountLink: salesforceAccountLink.trim(),
+        salesforceAccountLink: salesforceAccountLink.trim() || undefined,
         potentialRevenue: potentialRevenue ? parseFloat(potentialRevenue) : undefined,
         rawText: transcript,
         prospectId: selectedProspectId || undefined,
@@ -150,13 +161,13 @@ export default function RepDashboard() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="primaryStakeholderName">Primary Stakeholder *</Label>
+                      <Label htmlFor="stakeholderName">Stakeholder *</Label>
                       <StakeholderCombobox
                         prospectId={selectedProspectId}
-                        value={primaryStakeholderName}
+                        value={stakeholderName}
                         selectedStakeholderId={selectedStakeholderId}
                         onChange={handleStakeholderChange}
-                        placeholder="Select or type name..."
+                        placeholder="Who was on the call?"
                         disabled={!user?.id}
                       />
                     </div>
@@ -165,15 +176,20 @@ export default function RepDashboard() {
                   {/* Salesforce Link and Revenue Row */}
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="salesforceAccountLink">Salesforce Account Link *</Label>
+                      <Label htmlFor="salesforceAccountLink">
+                        Salesforce Account Link {(!selectedProspectId || !existingAccountHasSalesforceLink) && '*'}
+                      </Label>
                       <Input
                         id="salesforceAccountLink"
                         type="url"
                         placeholder="https://..."
                         value={salesforceAccountLink}
                         onChange={(e) => setSalesforceAccountLink(e.target.value)}
-                        required
+                        disabled={existingAccountHasSalesforceLink}
                       />
+                      {existingAccountHasSalesforceLink && (
+                        <p className="text-xs text-muted-foreground">Using existing account link</p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="potentialRevenue">Potential Revenue (optional)</Label>
@@ -251,7 +267,7 @@ export default function RepDashboard() {
                   {/* Submit Button */}
                   <Button 
                     type="submit" 
-                    disabled={isSubmitting || !transcript.trim() || !primaryStakeholderName.trim() || !accountName.trim() || !salesforceAccountLink.trim()} 
+                    disabled={isSubmitting || !transcript.trim() || !stakeholderName.trim() || !accountName.trim() || ((!selectedProspectId || !existingAccountHasSalesforceLink) && !salesforceAccountLink.trim())} 
                     className="w-full h-12 text-lg"
                     size="lg"
                   >
