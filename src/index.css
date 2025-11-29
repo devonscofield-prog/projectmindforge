@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Playfair+Display&display=swap");
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -5,50 +7,50 @@
 @layer base {
   :root {
     /* Professional blue-gray color scheme */
-    --background: 210 20% 98%;
-    --foreground: 222 47% 11%;
+    --background: 210 29% 97%;
+    --foreground: 0 0% 17%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 0 0% 17%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 0 0% 17%;
 
     /* Primary: Professional blue */
-    --primary: 217 91% 40%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 166 100% 30%;
+    --primary-foreground: 0 0% 100%;
 
     /* Secondary: Slate gray */
-    --secondary: 215 20% 94%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary: 0 0% 43%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 215 20% 94%;
-    --muted-foreground: 215 16% 47%;
+    --muted: 210 29% 95%;
+    --muted-foreground: 0 0% 43%;
 
-    --accent: 215 20% 94%;
-    --accent-foreground: 222 47% 11%;
+    --accent: 160 64% 52%;
+    --accent-foreground: 0 0% 17%;
 
     /* Status colors */
     --success: 142 76% 36%;
     --success-foreground: 0 0% 100%;
-    
+
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 215 20% 88%;
-    --input: 215 20% 88%;
-    --ring: 217 91% 40%;
+    --border: 210 29% 90%;
+    --input: 210 29% 90%;
+    --ring: 166 100% 30%;
 
-    --radius: 0.5rem;
+    --radius: 1.625rem;
 
     /* Custom tokens for this app */
     --on-track: 142 76% 36%;
     --at-risk: 38 92% 50%;
     --off-track: 0 84% 60%;
-    
+
     /* Progress bar backgrounds */
     --progress-bg: 215 20% 90%;
     --progress-fill: 217 91% 40%;
@@ -62,47 +64,60 @@
     --sidebar-accent-foreground: 210 40% 98%;
     --sidebar-border: 217 32% 20%;
     --sidebar-ring: 217 91% 60%;
+    --accent-green: 160 64% 52%;
+    --accent-teal: 177 70% 41%;
+    --background-gradient: linear-gradient(135deg, hsl(210 29% 97%), hsl(177 30% 96%), hsl(166 20% 96%));
+    --gradient-accent: linear-gradient(135deg, hsl(160 64% 52%), hsl(177 70% 41%));
+    --gradient-primary: linear-gradient(135deg, hsl(166 100% 30%), hsl(166 100% 22%));
+    --primary-dark: 166 100% 22%;
+    --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --shadow-card-hover: 0 10px 15px -3px rgba(0, 154, 119, 0.2), 0 4px 6px -2px rgba(0, 154, 119, 0.1);
+    --shadow-glow: 0 0 20px rgba(0, 154, 119, 0.15);
+    --shadow-glow-strong: 0 0 30px rgba(0, 154, 119, 0.3);
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --font-sans: Inter, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji;
+    --font-serif: "Playfair Display", ui-serif, Georgia, Cambria, Times New Roman, Times, serif;
   }
 
   .dark {
-    --background: 222 47% 7%;
-    --foreground: 210 40% 98%;
+    --background: 0 0% 17%;
+    --foreground: 0 0% 100%;
 
-    --card: 222 47% 10%;
-    --card-foreground: 210 40% 98%;
+    --card: 0 0% 20%;
+    --card-foreground: 0 0% 100%;
 
-    --popover: 222 47% 10%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 0 0% 20%;
+    --popover-foreground: 0 0% 100%;
 
-    --primary: 217 91% 60%;
-    --primary-foreground: 222 47% 11%;
+    --primary: 166 100% 30%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 217 32% 17%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 0 0% 43%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 217 32% 17%;
-    --muted-foreground: 215 20% 65%;
+    --muted: 0 0% 25%;
+    --muted-foreground: 0 0% 92%;
 
-    --accent: 217 32% 17%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 160 64% 52%;
+    --accent-foreground: 0 0% 17%;
 
     --success: 142 76% 46%;
     --success-foreground: 0 0% 100%;
-    
+
     --warning: 38 92% 60%;
     --warning-foreground: 0 0% 0%;
 
-    --destructive: 0 62% 50%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 217 32% 20%;
-    --input: 217 32% 20%;
-    --ring: 217 91% 60%;
+    --border: 0 0% 30%;
+    --input: 0 0% 30%;
+    --ring: 166 100% 30%;
 
     --on-track: 142 76% 46%;
     --at-risk: 38 92% 60%;
     --off-track: 0 62% 50%;
-    
+
     --progress-bg: 217 32% 20%;
     --progress-fill: 217 91% 60%;
 
@@ -114,6 +129,10 @@
     --sidebar-accent-foreground: 210 40% 98%;
     --sidebar-border: 217 32% 15%;
     --sidebar-ring: 217 91% 60%;
+    --accent-green: 160 64% 52%;
+    --accent-teal: 177 70% 41%;
+    --background-gradient: linear-gradient(135deg, hsl(0 0% 17%), hsl(0 0% 15%), hsl(0 0% 13%));
+    --primary-dark: 166 100% 22%;
   }
 }
 
@@ -132,11 +151,11 @@
   .status-on-track {
     @apply text-success;
   }
-  
+
   .status-at-risk {
     @apply text-warning;
   }
-  
+
   .status-off-track {
     @apply text-destructive;
   }
