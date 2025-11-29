@@ -162,3 +162,57 @@ export async function getFollowUpGenerationStatus(prospectId: string): Promise<{
     lastGeneratedAt: data?.follow_ups_last_generated_at || null
   };
 }
+
+export interface AccountFollowUpWithProspect extends AccountFollowUp {
+  prospect_name?: string;
+  account_name?: string;
+}
+
+/**
+ * List all pending follow-ups for a rep across all accounts
+ */
+export async function listAllPendingFollowUpsForRep(repId: string): Promise<AccountFollowUpWithProspect[]> {
+  // Get all pending follow-ups
+  const { data: followUps, error } = await supabase
+    .from('account_follow_ups')
+    .select('*')
+    .eq('rep_id', repId)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching all follow-ups:', error);
+    throw error;
+  }
+
+  if (!followUps || followUps.length === 0) {
+    return [];
+  }
+
+  // Get unique prospect IDs
+  const prospectIds = [...new Set(followUps.map(f => f.prospect_id))];
+
+  // Fetch prospect details
+  const { data: prospects } = await supabase
+    .from('prospects')
+    .select('id, prospect_name, account_name')
+    .in('id', prospectIds);
+
+  const prospectMap = (prospects || []).reduce((acc, p) => {
+    acc[p.id] = p;
+    return acc;
+  }, {} as Record<string, { prospect_name: string; account_name: string | null }>);
+
+  // Sort by priority (high first, then medium, then low)
+  const priorityOrder: Record<FollowUpPriority, number> = { high: 0, medium: 1, low: 2 };
+  
+  return followUps.map(f => ({
+    ...f,
+    prospect_name: prospectMap[f.prospect_id]?.prospect_name,
+    account_name: prospectMap[f.prospect_id]?.account_name || undefined,
+  })).sort((a, b) => {
+    const priorityDiff = priorityOrder[a.priority as FollowUpPriority] - priorityOrder[b.priority as FollowUpPriority];
+    if (priorityDiff !== 0) return priorityDiff;
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  }) as AccountFollowUpWithProspect[];
+}
