@@ -200,6 +200,7 @@ interface ProspectIntel {
     budget_signals?: string;
   };
   competitors_mentioned?: string[];
+  industry?: string;
 }
 
 interface StakeholderIntel {
@@ -600,7 +601,12 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
                   budget_signals: { type: "string", description: "Budget information or signals mentioned" }
                 }
               },
-              competitors_mentioned: { type: "array", items: { type: "string" }, description: "Competitors mentioned during the call" }
+              competitors_mentioned: { type: "array", items: { type: "string" }, description: "Competitors mentioned during the call" },
+              industry: { 
+                type: "string", 
+                enum: ["education", "local_government", "state_government", "federal_government", "healthcare", "msp", "technology", "finance", "manufacturing", "retail", "nonprofit", "other"],
+                description: "The likely industry based on this call transcript"
+              }
             }
           },
           stakeholders_intel: {
@@ -932,7 +938,7 @@ serve(async (req) => {
     // Step 7: Update prospect with AI-extracted intel if available
     if (analysis.prospect_intel || analysis.coach_output) {
       try {
-        // Get the prospect_id from the call transcript
+        // Get the prospect_id and current industry from the call transcript
         const { data: callData } = await supabaseAdmin
           .from('call_transcripts')
           .select('prospect_id')
@@ -940,10 +946,23 @@ serve(async (req) => {
           .single();
 
         if (callData?.prospect_id) {
+          // Fetch current prospect to check if industry is already set
+          const { data: currentProspect } = await supabaseAdmin
+            .from('prospects')
+            .select('industry')
+            .eq('id', callData.prospect_id)
+            .single();
+
           const prospectUpdates: Record<string, unknown> = {};
           
           if (analysis.prospect_intel) {
             prospectUpdates.ai_extracted_info = analysis.prospect_intel;
+            
+            // Auto-populate industry only if not already set
+            if (analysis.prospect_intel.industry && !currentProspect?.industry) {
+              prospectUpdates.industry = analysis.prospect_intel.industry;
+              console.log(`[analyze-call] Auto-populating industry: ${analysis.prospect_intel.industry}`);
+            }
           }
           
           if (analysis.coach_output?.recommended_follow_up_questions) {
