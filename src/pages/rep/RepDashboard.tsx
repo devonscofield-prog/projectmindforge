@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { createCallTranscriptAndAnalyze } from '@/api/aiCallAnalysis';
 import { CallType, callTypeOptions } from '@/constants/callTypes';
 import { format } from 'date-fns';
-import { Send, Loader2, Mic } from 'lucide-react';
+import { Send, Loader2, Mic, Pencil } from 'lucide-react';
 import { AccountCombobox } from '@/components/forms/AccountCombobox';
 import { StakeholderCombobox } from '@/components/forms/StakeholderCombobox';
 import { PendingFollowUpsWidget } from '@/components/dashboard/PendingFollowUpsWidget';
@@ -30,6 +30,7 @@ export default function RepDashboard() {
   const [selectedProspectId, setSelectedProspectId] = useState<string | null>(null);
   const [salesforceAccountLink, setSalesforceAccountLink] = useState('');
   const [existingAccountHasSalesforceLink, setExistingAccountHasSalesforceLink] = useState(false);
+  const [isEditingSalesforceLink, setIsEditingSalesforceLink] = useState(false);
   const [potentialRevenue, setPotentialRevenue] = useState('');
   const [callDate, setCallDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [callType, setCallType] = useState<CallType>('first_demo');
@@ -43,9 +44,11 @@ export default function RepDashboard() {
     if (prospectId && salesforceLink) {
       setSalesforceAccountLink(salesforceLink);
       setExistingAccountHasSalesforceLink(true);
+      setIsEditingSalesforceLink(false);
     } else {
       setSalesforceAccountLink('');
       setExistingAccountHasSalesforceLink(false);
+      setIsEditingSalesforceLink(false);
     }
     // Reset stakeholder when account changes
     setStakeholderName('');
@@ -179,16 +182,32 @@ export default function RepDashboard() {
                       <Label htmlFor="salesforceAccountLink">
                         Salesforce Account Link {(!selectedProspectId || !existingAccountHasSalesforceLink) && '*'}
                       </Label>
-                      <Input
-                        id="salesforceAccountLink"
-                        type="url"
-                        placeholder="https://..."
-                        value={salesforceAccountLink}
-                        onChange={(e) => setSalesforceAccountLink(e.target.value)}
-                        disabled={existingAccountHasSalesforceLink}
-                      />
+                      <div className="flex gap-2">
+                        <Input
+                          id="salesforceAccountLink"
+                          type="url"
+                          placeholder="https://..."
+                          value={salesforceAccountLink}
+                          onChange={(e) => setSalesforceAccountLink(e.target.value)}
+                          disabled={existingAccountHasSalesforceLink && !isEditingSalesforceLink}
+                          className="flex-1"
+                        />
+                        {existingAccountHasSalesforceLink && !isEditingSalesforceLink && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => setIsEditingSalesforceLink(true)}
+                            title="Edit Salesforce link"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                       {existingAccountHasSalesforceLink && (
-                        <p className="text-xs text-muted-foreground">Using existing account link</p>
+                        <p className="text-xs text-muted-foreground">
+                          {isEditingSalesforceLink ? 'Editing account link' : 'Using existing account link'}
+                        </p>
                       )}
                     </div>
                     <div className="space-y-2">
