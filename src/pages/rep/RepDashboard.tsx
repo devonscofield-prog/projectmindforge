@@ -15,6 +15,7 @@ import { format } from 'date-fns';
 import { Send, Loader2, Mic } from 'lucide-react';
 import { AccountCombobox } from '@/components/forms/AccountCombobox';
 import { StakeholderCombobox } from '@/components/forms/StakeholderCombobox';
+import { PendingFollowUpsWidget } from '@/components/dashboard/PendingFollowUpsWidget';
 
 export default function RepDashboard() {
   const { user, profile } = useAuth();
@@ -109,7 +110,7 @@ export default function RepDashboard() {
 
   return (
     <AppLayout>
-      <div className="max-w-3xl mx-auto space-y-8">
+      <div className="space-y-8">
         {/* Header */}
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-bold">
@@ -120,153 +121,162 @@ export default function RepDashboard() {
           </p>
         </div>
 
-        {/* Submit Call Card */}
-        <Card className="border-2">
-          <CardHeader className="text-center pb-2">
-            <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-              <Mic className="h-6 w-6 text-primary" />
-            </div>
-            <CardTitle className="text-2xl">Submit a Call for Coaching</CardTitle>
-            <CardDescription className="text-base">
-              Paste your call transcript below to get AI coaching, actionable insights, and a recap email draft.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Account and Primary Stakeholder Row */}
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="accountName">Account Name *</Label>
-                  <AccountCombobox
-                    repId={user?.id || ''}
-                    value={accountName}
-                    selectedProspectId={selectedProspectId}
-                    onChange={handleAccountChange}
-                    placeholder="Select or type account..."
-                    disabled={!user?.id}
-                  />
+        <div className="grid gap-8 lg:grid-cols-3">
+          {/* Submit Call Card - Takes up 2 columns */}
+          <div className="lg:col-span-2">
+            <Card className="border-2">
+              <CardHeader className="text-center pb-2">
+                <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                  <Mic className="h-6 w-6 text-primary" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="primaryStakeholderName">Primary Stakeholder *</Label>
-                  <StakeholderCombobox
-                    prospectId={selectedProspectId}
-                    value={primaryStakeholderName}
-                    selectedStakeholderId={selectedStakeholderId}
-                    onChange={handleStakeholderChange}
-                    placeholder="Select or type name..."
-                    disabled={!user?.id}
-                  />
-                </div>
-              </div>
+                <CardTitle className="text-2xl">Submit a Call for Coaching</CardTitle>
+                <CardDescription className="text-base">
+                  Paste your call transcript below to get AI coaching, actionable insights, and a recap email draft.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSubmit} className="space-y-6">
+                  {/* Account and Primary Stakeholder Row */}
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="accountName">Account Name *</Label>
+                      <AccountCombobox
+                        repId={user?.id || ''}
+                        value={accountName}
+                        selectedProspectId={selectedProspectId}
+                        onChange={handleAccountChange}
+                        placeholder="Select or type account..."
+                        disabled={!user?.id}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="primaryStakeholderName">Primary Stakeholder *</Label>
+                      <StakeholderCombobox
+                        prospectId={selectedProspectId}
+                        value={primaryStakeholderName}
+                        selectedStakeholderId={selectedStakeholderId}
+                        onChange={handleStakeholderChange}
+                        placeholder="Select or type name..."
+                        disabled={!user?.id}
+                      />
+                    </div>
+                  </div>
 
-              {/* Salesforce Link and Revenue Row */}
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="salesforceDemoLink">Salesforce Demo Link *</Label>
-                  <Input
-                    id="salesforceDemoLink"
-                    type="url"
-                    placeholder="https://..."
-                    value={salesforceDemoLink}
-                    onChange={(e) => setSalesforceDemoLink(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="potentialRevenue">Potential Revenue (optional)</Label>
-                  <Input
-                    id="potentialRevenue"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="e.g., 50000"
-                    value={potentialRevenue}
-                    onChange={(e) => setPotentialRevenue(e.target.value)}
-                  />
-                </div>
-              </div>
+                  {/* Salesforce Link and Revenue Row */}
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="salesforceDemoLink">Salesforce Demo Link *</Label>
+                      <Input
+                        id="salesforceDemoLink"
+                        type="url"
+                        placeholder="https://..."
+                        value={salesforceDemoLink}
+                        onChange={(e) => setSalesforceDemoLink(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="potentialRevenue">Potential Revenue (optional)</Label>
+                      <Input
+                        id="potentialRevenue"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="e.g., 50000"
+                        value={potentialRevenue}
+                        onChange={(e) => setPotentialRevenue(e.target.value)}
+                      />
+                    </div>
+                  </div>
 
-              {/* Date and Call Type Row */}
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="callDate">Call Date</Label>
-                  <Input
-                    id="callDate"
-                    type="date"
-                    value={callDate}
-                    onChange={(e) => setCallDate(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="callType">Call Type</Label>
-                  <Select value={callType} onValueChange={(v) => setCallType(v as CallType)}>
-                    <SelectTrigger id="callType">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {callTypeOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+                  {/* Date and Call Type Row */}
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="callDate">Call Date</Label>
+                      <Input
+                        id="callDate"
+                        type="date"
+                        value={callDate}
+                        onChange={(e) => setCallDate(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="callType">Call Type</Label>
+                      <Select value={callType} onValueChange={(v) => setCallType(v as CallType)}>
+                        <SelectTrigger id="callType">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {callTypeOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
 
-              {/* Other Call Type Input (conditional) */}
-              {callType === 'other' && (
-                <div className="space-y-2">
-                  <Label htmlFor="callTypeOther">Specify Call Type *</Label>
-                  <Input
-                    id="callTypeOther"
-                    placeholder="e.g., Technical Review"
-                    value={callTypeOther}
-                    onChange={(e) => setCallTypeOther(e.target.value)}
-                    required
-                  />
-                </div>
-              )}
+                  {/* Other Call Type Input (conditional) */}
+                  {callType === 'other' && (
+                    <div className="space-y-2">
+                      <Label htmlFor="callTypeOther">Specify Call Type *</Label>
+                      <Input
+                        id="callTypeOther"
+                        placeholder="e.g., Technical Review"
+                        value={callTypeOther}
+                        onChange={(e) => setCallTypeOther(e.target.value)}
+                        required
+                      />
+                    </div>
+                  )}
 
-              {/* Transcript */}
-              <div className="space-y-2">
-                <Label htmlFor="transcript">Call Transcript *</Label>
-                <Textarea
-                  id="transcript"
-                  placeholder="Paste your full call transcript here..."
-                  value={transcript}
-                  onChange={(e) => setTranscript(e.target.value)}
-                  className="min-h-[250px] font-mono text-sm"
-                  required
-                />
-                <p className="text-xs text-muted-foreground">
-                  Include the full conversation for best analysis results.
-                </p>
-              </div>
+                  {/* Transcript */}
+                  <div className="space-y-2">
+                    <Label htmlFor="transcript">Call Transcript *</Label>
+                    <Textarea
+                      id="transcript"
+                      placeholder="Paste your full call transcript here..."
+                      value={transcript}
+                      onChange={(e) => setTranscript(e.target.value)}
+                      className="min-h-[250px] font-mono text-sm"
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Include the full conversation for best analysis results.
+                    </p>
+                  </div>
 
-              {/* Submit Button */}
-              <Button 
-                type="submit" 
-                disabled={isSubmitting || !transcript.trim() || !primaryStakeholderName.trim() || !accountName.trim() || !salesforceDemoLink.trim()} 
-                className="w-full h-12 text-lg"
-                size="lg"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Analyzing Call...
-                  </>
-                ) : (
-                  <>
-                    <Send className="mr-2 h-5 w-5" />
-                    Analyze Call
-                  </>
-                )}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+                  {/* Submit Button */}
+                  <Button 
+                    type="submit" 
+                    disabled={isSubmitting || !transcript.trim() || !primaryStakeholderName.trim() || !accountName.trim() || !salesforceDemoLink.trim()} 
+                    className="w-full h-12 text-lg"
+                    size="lg"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        Analyzing Call...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="mr-2 h-5 w-5" />
+                        Analyze Call
+                      </>
+                    )}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Follow-ups Widget - Takes up 1 column */}
+          <div>
+            {user?.id && <PendingFollowUpsWidget repId={user.id} />}
+          </div>
+        </div>
       </div>
     </AppLayout>
   );
