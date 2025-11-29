@@ -502,5 +502,88 @@ export async function getCallCountsLast30DaysForReps(repIds: string[]): Promise<
   return counts;
 }
 
+export interface AiScoreStats {
+  latestScore: number | null;
+  latestDate: string | null;
+  avgScore30Days: number | null;
+  callCount30Days: number;
+}
+
+/**
+ * Gets AI score stats (latest + 30-day average) for multiple reps in a batch.
+ * @param repIds - Array of rep user IDs
+ * @returns Map of repId to their AI score stats
+ */
+export async function getAiScoreStatsForReps(repIds: string[]): Promise<Map<string, AiScoreStats>> {
+  const result = new Map<string, AiScoreStats>();
+  
+  // Initialize with empty stats for all reps
+  repIds.forEach(id => result.set(id, {
+    latestScore: null,
+    latestDate: null,
+    avgScore30Days: null,
+    callCount30Days: 0,
+  }));
+
+  if (repIds.length === 0) {
+    return result;
+  }
+
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  // Fetch all analyses for these reps from the last 30 days
+  const { data, error } = await supabase
+    .from('ai_call_analysis')
+    .select('rep_id, call_effectiveness_score, created_at')
+    .in('rep_id', repIds)
+    .gte('created_at', thirtyDaysAgo.toISOString())
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('[getAiScoreStatsForReps] Error:', error);
+    throw new Error(`Failed to fetch AI score stats: ${error.message}`);
+  }
+
+  if (!data || data.length === 0) {
+    return result;
+  }
+
+  // Group analyses by rep
+  const analysesByRep = new Map<string, Array<{ score: number | null; date: string }>>();
+  
+  for (const row of data) {
+    if (!analysesByRep.has(row.rep_id)) {
+      analysesByRep.set(row.rep_id, []);
+    }
+    analysesByRep.get(row.rep_id)!.push({
+      score: row.call_effectiveness_score,
+      date: row.created_at,
+    });
+  }
+
+  // Calculate stats for each rep
+  for (const [repId, analyses] of analysesByRep) {
+    const scoresWithValues = analyses
+      .map(a => a.score)
+      .filter((s): s is number => s != null);
+    
+    const latestWithScore = analyses.find(a => a.score != null);
+    
+    const avgScore = scoresWithValues.length > 0
+      ? scoresWithValues.reduce((sum, s) => sum + s, 0) / scoresWithValues.length
+      : null;
+
+    result.set(repId, {
+      latestScore: latestWithScore?.score ?? null,
+      latestDate: latestWithScore?.date ?? null,
+      avgScore30Days: avgScore,
+      callCount30Days: scoresWithValues.length,
+    });
+  }
+
+  return result;
+}
+
 // Export types for use in components
 export type { CallAnalysis, AnalyzeCallResponse };

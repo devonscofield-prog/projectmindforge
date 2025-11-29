@@ -9,23 +9,23 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Profile, CoachingSession } from '@/types/database';
-import { Users, Phone } from 'lucide-react';
+import { Users, Phone, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
-import { getLatestAiAnalysisForReps, getCallCountsLast30DaysForReps, CallAnalysis } from '@/api/aiCallAnalysis';
+import { getAiScoreStatsForReps, getCallCountsLast30DaysForReps, AiScoreStats } from '@/api/aiCallAnalysis';
 
 interface RepWithData extends Profile {
   lastCoaching?: CoachingSession;
-  latestAiAnalysis?: CallAnalysis | null;
+  aiScoreStats?: AiScoreStats | null;
   callsLast30Days: number;
 }
 
-type SortType = 'name' | 'calls' | 'coaching';
+type SortType = 'name' | 'calls' | 'coaching' | 'ai-score';
 
 export default function ManagerDashboard() {
   const { user, role } = useAuth();
   const navigate = useNavigate();
   const [reps, setReps] = useState<RepWithData[]>([]);
-  const [aiAnalysisMap, setAiAnalysisMap] = useState<Map<string, CallAnalysis | null>>(new Map());
+  const [aiScoreStatsMap, setAiScoreStatsMap] = useState<Map<string, AiScoreStats>>(new Map());
   const [callCountsMap, setCallCountsMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<SortType>('name');
@@ -100,17 +100,17 @@ export default function ManagerDashboard() {
 
       setReps(repsWithData as RepWithData[]);
 
-      // Fetch AI analysis and call counts in parallel
+      // Fetch AI score stats and call counts in parallel
       if (repProfiles.length > 0) {
         try {
-          const [analysisMap, callCounts] = await Promise.all([
-            getLatestAiAnalysisForReps(repIds),
+          const [scoreStats, callCounts] = await Promise.all([
+            getAiScoreStatsForReps(repIds),
             getCallCountsLast30DaysForReps(repIds)
           ]);
-          setAiAnalysisMap(analysisMap);
+          setAiScoreStatsMap(scoreStats);
           setCallCountsMap(callCounts);
         } catch (err) {
-          console.error('Failed to fetch AI analyses or call counts:', err);
+          console.error('Failed to fetch AI score stats or call counts:', err);
         }
       }
 
@@ -120,18 +120,18 @@ export default function ManagerDashboard() {
     fetchData();
   }, [user, role]);
 
-  // Process reps with AI analysis and call counts
+  // Process reps with AI score stats and call counts
   const processedReps: RepWithData[] = useMemo(() => {
     return reps.map((rep) => {
-      const latestAiAnalysis = aiAnalysisMap.get(rep.id) || null;
+      const aiScoreStats = aiScoreStatsMap.get(rep.id) || null;
       const callsLast30Days = callCountsMap[rep.id] ?? 0;
       return {
         ...rep,
-        latestAiAnalysis,
+        aiScoreStats,
         callsLast30Days,
       };
     });
-  }, [reps, aiAnalysisMap, callCountsMap]);
+  }, [reps, aiScoreStatsMap, callCountsMap]);
 
   // Calculate summary stats
   const totalCalls = useMemo(() => {
@@ -152,6 +152,11 @@ export default function ManagerDashboard() {
           const aDate = a.lastCoaching ? new Date(a.lastCoaching.session_date).getTime() : 0;
           const bDate = b.lastCoaching ? new Date(b.lastCoaching.session_date).getTime() : 0;
           return bDate - aDate;
+        }
+        case 'ai-score': {
+          const aScore = a.aiScoreStats?.latestScore ?? -1;
+          const bScore = b.aiScoreStats?.latestScore ?? -1;
+          return bScore - aScore;
         }
         default:
           return 0;
@@ -222,6 +227,7 @@ export default function ManagerDashboard() {
                 <SelectContent>
                   <SelectItem value="name">Sort: Name</SelectItem>
                   <SelectItem value="calls">Sort: Calls (30d)</SelectItem>
+                  <SelectItem value="ai-score">Sort: AI Score</SelectItem>
                   <SelectItem value="coaching">Sort: Last Coaching</SelectItem>
                 </SelectContent>
               </Select>
@@ -265,19 +271,39 @@ export default function ManagerDashboard() {
                             </span>
                           </TableCell>
                           <TableCell className="text-center">
-                            {rep.latestAiAnalysis?.call_effectiveness_score != null ? (
-                              <Badge 
-                                variant="secondary" 
-                                className={`text-xs font-semibold ${
-                                  rep.latestAiAnalysis.call_effectiveness_score >= 80 
-                                    ? 'bg-success/10 text-success' 
-                                    : rep.latestAiAnalysis.call_effectiveness_score >= 60 
-                                      ? 'bg-warning/10 text-warning' 
-                                      : 'bg-destructive/10 text-destructive'
-                                }`}
-                              >
-                                {Math.round(rep.latestAiAnalysis.call_effectiveness_score)}
-                              </Badge>
+                            {rep.aiScoreStats?.latestScore != null ? (
+                              <div className="flex flex-col items-center gap-0.5">
+                                <div className="flex items-center gap-1">
+                                  <Badge 
+                                    variant="secondary" 
+                                    className={`text-xs font-semibold ${
+                                      rep.aiScoreStats.latestScore >= 80 
+                                        ? 'bg-success/10 text-success' 
+                                        : rep.aiScoreStats.latestScore >= 60 
+                                          ? 'bg-warning/10 text-warning' 
+                                          : 'bg-destructive/10 text-destructive'
+                                    }`}
+                                  >
+                                    {Math.round(rep.aiScoreStats.latestScore)}
+                                  </Badge>
+                                  {rep.aiScoreStats.avgScore30Days != null && rep.aiScoreStats.callCount30Days > 1 && (
+                                    <>
+                                      {rep.aiScoreStats.latestScore > rep.aiScoreStats.avgScore30Days + 2 ? (
+                                        <TrendingUp className="h-3.5 w-3.5 text-success" />
+                                      ) : rep.aiScoreStats.latestScore < rep.aiScoreStats.avgScore30Days - 2 ? (
+                                        <TrendingDown className="h-3.5 w-3.5 text-destructive" />
+                                      ) : (
+                                        <Minus className="h-3.5 w-3.5 text-muted-foreground" />
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                                {rep.aiScoreStats.avgScore30Days != null && rep.aiScoreStats.callCount30Days > 1 && (
+                                  <span className="text-[10px] text-muted-foreground">
+                                    Avg: {Math.round(rep.aiScoreStats.avgScore30Days)}
+                                  </span>
+                                )}
+                              </div>
                             ) : (
                               <span className="text-xs text-muted-foreground">—</span>
                             )}
