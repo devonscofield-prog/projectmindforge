@@ -867,15 +867,51 @@ export async function getCoachingSummaryForRep(
 /**
  * Generates AI-powered coaching trend analysis for a rep over a date range.
  * This sends all call analyses to an AI model which synthesizes trends and patterns.
+ * Supports caching to avoid re-analyzing the same data repeatedly.
  * @param repId - The rep's user ID
  * @param dateRange - Date range with from and to dates
+ * @param options - Optional settings (forceRefresh to bypass cache)
  * @returns AI-generated trend analysis with insights and recommendations
  */
 export async function generateCoachingTrends(
   repId: string,
-  dateRange: { from: Date; to: Date }
+  dateRange: { from: Date; to: Date },
+  options?: { forceRefresh?: boolean }
 ): Promise<CoachingTrendAnalysis> {
-  // 1. Fetch all call analyses in date range
+  const fromDate = dateRange.from.toISOString().split('T')[0];
+  const toDate = dateRange.to.toISOString().split('T')[0];
+
+  // 1. Get current call count for cache validation
+  const { count: currentCallCount, error: countError } = await supabase
+    .from('ai_call_analysis')
+    .select('*', { count: 'exact', head: true })
+    .eq('rep_id', repId)
+    .gte('created_at', dateRange.from.toISOString())
+    .lte('created_at', dateRange.to.toISOString());
+
+  if (countError) {
+    console.error('[generateCoachingTrends] Error counting analyses:', countError);
+  }
+
+  const callCount = currentCallCount || 0;
+
+  // 2. Check cache (unless force refresh)
+  if (!options?.forceRefresh) {
+    const { data: cached, error: cacheError } = await supabase
+      .from('coaching_trend_analyses')
+      .select('*')
+      .eq('rep_id', repId)
+      .eq('date_range_from', fromDate)
+      .eq('date_range_to', toDate)
+      .maybeSingle();
+
+    if (!cacheError && cached && cached.call_count === callCount && cached.analysis_data) {
+      console.log('[generateCoachingTrends] Using cached analysis');
+      return cached.analysis_data as unknown as CoachingTrendAnalysis;
+    }
+  }
+
+  // 3. Fetch all call analyses in date range
   const { data, error } = await supabase
     .from('ai_call_analysis')
     .select('*')
@@ -897,7 +933,7 @@ export async function generateCoachingTrends(
 
   console.log(`[generateCoachingTrends] Found ${analyses.length} analyses, sending to AI`);
 
-  // 2. Format only the relevant fields for AI
+  // 4. Format only the relevant fields for AI
   const formattedCalls = analyses.map(a => ({
     date: a.created_at.split('T')[0],
     framework_scores: a.coach_output?.framework_scores ?? null,
@@ -909,13 +945,13 @@ export async function generateCoachingTrends(
     heat_score: a.coach_output?.heat_signature?.score ?? null,
   }));
 
-  // 3. Call edge function
+  // 5. Call edge function
   const { data: trendData, error: funcError } = await supabase.functions.invoke('generate-coaching-trends', {
     body: { 
       calls: formattedCalls, 
       dateRange: {
-        from: dateRange.from.toISOString().split('T')[0],
-        to: dateRange.to.toISOString().split('T')[0]
+        from: fromDate,
+        to: toDate
       }
     }
   });
@@ -932,6 +968,27 @@ export async function generateCoachingTrends(
   }
 
   console.log('[generateCoachingTrends] Successfully received AI trend analysis');
+
+  // 6. Save to cache (upsert)
+  const { error: upsertError } = await supabase
+    .from('coaching_trend_analyses')
+    .upsert({
+      rep_id: repId,
+      date_range_from: fromDate,
+      date_range_to: toDate,
+      call_count: analyses.length,
+      analysis_data: trendData,
+    }, {
+      onConflict: 'rep_id,date_range_from,date_range_to'
+    });
+
+  if (upsertError) {
+    console.warn('[generateCoachingTrends] Failed to cache analysis:', upsertError);
+    // Don't throw - caching failure shouldn't block the response
+  } else {
+    console.log('[generateCoachingTrends] Analysis cached successfully');
+  }
+
   return trendData as CoachingTrendAnalysis;
 }
 
