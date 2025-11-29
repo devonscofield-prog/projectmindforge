@@ -20,3 +20,6 @@ verify_jwt = true
 
 [functions.sales-coach-chat]
 verify_jwt = true
+
+[functions.generate-coaching-trends]
+verify_jwt = true

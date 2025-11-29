@@ -1,0 +1,294 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+interface CallData {
+  date: string;
+  framework_scores: {
+    bant: { score: number; summary: string };
+    gap_selling: { score: number; summary: string };
+    active_listening: { score: number; summary: string };
+  } | null;
+  bant_improvements: string[];
+  gap_selling_improvements: string[];
+  active_listening_improvements: string[];
+  critical_info_missing: Array<{ info: string; missed_opportunity: string }> | string[];
+  follow_up_questions: Array<{ question: string; timing_example: string }> | string[];
+  heat_score: number | null;
+}
+
+interface TrendAnalysisRequest {
+  calls: CallData[];
+  dateRange: { from: string; to: string };
+}
+
+const TREND_ANALYSIS_SYSTEM_PROMPT = `You are an expert sales coaching analyst. Your job is to analyze a collection of call analyses from a sales rep and identify TRENDS in their performance over time.
+
+Focus your analysis on these specific areas:
+1. **BANT Framework** - Are they getting better at qualifying budget, authority, need, and timeline?
+2. **Gap Selling** - Are they improving at identifying current state vs future state gaps and quantifying business impact?
+3. **Active Listening** - Are they asking better follow-up questions and acknowledging prospect concerns?
+4. **Critical Information Gathering** - What types of information are they consistently missing? Is this improving or getting worse?
+5. **Follow-up Question Quality** - Are the recommended follow-ups showing repeated patterns that indicate systemic issues?
+
+For each area, you must:
+- Identify whether performance is IMPROVING, STABLE, or DECLINING
+- Provide specific evidence from the calls
+- Give actionable recommendations
+
+Be direct and specific. Don't use vague language. If something is declining, say so clearly.`;
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const { calls, dateRange } = await req.json() as TrendAnalysisRequest;
+
+    if (!calls || calls.length === 0) {
+      return new Response(
+        JSON.stringify({ error: 'No call data provided' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log(`[generate-coaching-trends] Analyzing ${calls.length} calls from ${dateRange.from} to ${dateRange.to}`);
+
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    if (!LOVABLE_API_KEY) {
+      throw new Error('LOVABLE_API_KEY not configured');
+    }
+
+    // Format calls for AI analysis
+    const formattedCalls = calls.map((call, idx) => {
+      const callNum = idx + 1;
+      let summary = `\n### Call ${callNum} (${call.date})\n`;
+      
+      if (call.framework_scores) {
+        summary += `Framework Scores:\n`;
+        summary += `- BANT: ${call.framework_scores.bant?.score ?? 'N/A'}/100 - ${call.framework_scores.bant?.summary || 'No summary'}\n`;
+        summary += `- Gap Selling: ${call.framework_scores.gap_selling?.score ?? 'N/A'}/100 - ${call.framework_scores.gap_selling?.summary || 'No summary'}\n`;
+        summary += `- Active Listening: ${call.framework_scores.active_listening?.score ?? 'N/A'}/100 - ${call.framework_scores.active_listening?.summary || 'No summary'}\n`;
+      }
+      
+      if (call.heat_score) {
+        summary += `Heat Score: ${call.heat_score}/10\n`;
+      }
+
+      if (call.bant_improvements?.length) {
+        summary += `BANT Improvements Needed: ${call.bant_improvements.join('; ')}\n`;
+      }
+      if (call.gap_selling_improvements?.length) {
+        summary += `Gap Selling Improvements Needed: ${call.gap_selling_improvements.join('; ')}\n`;
+      }
+      if (call.active_listening_improvements?.length) {
+        summary += `Active Listening Improvements Needed: ${call.active_listening_improvements.join('; ')}\n`;
+      }
+
+      if (call.critical_info_missing?.length) {
+        const missing = call.critical_info_missing.map(item => 
+          typeof item === 'object' ? item.info : item
+        ).join('; ');
+        summary += `Critical Info Missing: ${missing}\n`;
+      }
+
+      if (call.follow_up_questions?.length) {
+        const questions = call.follow_up_questions.map(item => 
+          typeof item === 'object' ? item.question : item
+        ).join('; ');
+        summary += `Recommended Follow-ups: ${questions}\n`;
+      }
+
+      return summary;
+    }).join('\n');
+
+    const userPrompt = `Analyze the following ${calls.length} call analyses from ${dateRange.from} to ${dateRange.to} and identify trends:
+
+${formattedCalls}
+
+Provide a comprehensive trend analysis with specific evidence and actionable recommendations.`;
+
+    // Use tool calling for structured output
+    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash',
+        messages: [
+          { role: 'system', content: TREND_ANALYSIS_SYSTEM_PROMPT },
+          { role: 'user', content: userPrompt }
+        ],
+        tools: [
+          {
+            type: 'function',
+            function: {
+              name: 'provide_trend_analysis',
+              description: 'Provide structured trend analysis of the sales rep coaching data',
+              parameters: {
+                type: 'object',
+                properties: {
+                  summary: {
+                    type: 'string',
+                    description: '2-3 sentence executive summary of overall performance trends'
+                  },
+                  periodAnalysis: {
+                    type: 'object',
+                    properties: {
+                      totalCalls: { type: 'number' },
+                      averageHeatScore: { type: 'number', description: 'Average heat score across all calls' },
+                      heatScoreTrend: { type: 'string', enum: ['improving', 'stable', 'declining'] }
+                    },
+                    required: ['totalCalls', 'averageHeatScore', 'heatScoreTrend']
+                  },
+                  trendAnalysis: {
+                    type: 'object',
+                    properties: {
+                      bant: {
+                        type: 'object',
+                        properties: {
+                          trend: { type: 'string', enum: ['improving', 'stable', 'declining'] },
+                          startingAvg: { type: 'number', description: 'Average score from first half of period' },
+                          endingAvg: { type: 'number', description: 'Average score from second half of period' },
+                          keyInsight: { type: 'string', description: 'One sentence insight about this trend' },
+                          evidence: { type: 'array', items: { type: 'string' }, description: 'Specific examples from calls' },
+                          recommendation: { type: 'string', description: 'Specific actionable advice' }
+                        },
+                        required: ['trend', 'startingAvg', 'endingAvg', 'keyInsight', 'evidence', 'recommendation']
+                      },
+                      gapSelling: {
+                        type: 'object',
+                        properties: {
+                          trend: { type: 'string', enum: ['improving', 'stable', 'declining'] },
+                          startingAvg: { type: 'number' },
+                          endingAvg: { type: 'number' },
+                          keyInsight: { type: 'string' },
+                          evidence: { type: 'array', items: { type: 'string' } },
+                          recommendation: { type: 'string' }
+                        },
+                        required: ['trend', 'startingAvg', 'endingAvg', 'keyInsight', 'evidence', 'recommendation']
+                      },
+                      activeListening: {
+                        type: 'object',
+                        properties: {
+                          trend: { type: 'string', enum: ['improving', 'stable', 'declining'] },
+                          startingAvg: { type: 'number' },
+                          endingAvg: { type: 'number' },
+                          keyInsight: { type: 'string' },
+                          evidence: { type: 'array', items: { type: 'string' } },
+                          recommendation: { type: 'string' }
+                        },
+                        required: ['trend', 'startingAvg', 'endingAvg', 'keyInsight', 'evidence', 'recommendation']
+                      }
+                    },
+                    required: ['bant', 'gapSelling', 'activeListening']
+                  },
+                  patternAnalysis: {
+                    type: 'object',
+                    properties: {
+                      criticalInfoMissing: {
+                        type: 'object',
+                        properties: {
+                          persistentGaps: {
+                            type: 'array',
+                            items: {
+                              type: 'object',
+                              properties: {
+                                gap: { type: 'string' },
+                                frequency: { type: 'string', description: 'e.g., "5 of 12 calls"' },
+                                trend: { type: 'string', enum: ['improving', 'stable', 'worse'] }
+                              },
+                              required: ['gap', 'frequency', 'trend']
+                            }
+                          },
+                          newIssues: { type: 'array', items: { type: 'string' }, description: 'Issues that appeared recently' },
+                          resolvedIssues: { type: 'array', items: { type: 'string' }, description: 'Issues that stopped appearing' },
+                          recommendation: { type: 'string' }
+                        },
+                        required: ['persistentGaps', 'newIssues', 'resolvedIssues', 'recommendation']
+                      },
+                      followUpQuestions: {
+                        type: 'object',
+                        properties: {
+                          recurringThemes: { type: 'array', items: { type: 'string' } },
+                          qualityTrend: { type: 'string', enum: ['improving', 'stable', 'declining'] },
+                          recommendation: { type: 'string' }
+                        },
+                        required: ['recurringThemes', 'qualityTrend', 'recommendation']
+                      }
+                    },
+                    required: ['criticalInfoMissing', 'followUpQuestions']
+                  },
+                  topPriorities: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        area: { type: 'string', description: 'Area to focus on' },
+                        reason: { type: 'string', description: 'Why this is a priority' },
+                        actionItem: { type: 'string', description: 'Specific thing to do' }
+                      },
+                      required: ['area', 'reason', 'actionItem']
+                    },
+                    description: 'Top 3 priority areas to focus on'
+                  }
+                },
+                required: ['summary', 'periodAnalysis', 'trendAnalysis', 'patternAnalysis', 'topPriorities']
+              }
+            }
+          }
+        ],
+        tool_choice: { type: 'function', function: { name: 'provide_trend_analysis' } }
+      })
+    });
+
+    if (!aiResponse.ok) {
+      if (aiResponse.status === 429) {
+        return new Response(
+          JSON.stringify({ error: 'Rate limit exceeded, please try again in a moment' }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      if (aiResponse.status === 402) {
+        return new Response(
+          JSON.stringify({ error: 'Usage limit reached, please add credits' }),
+          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      const errorText = await aiResponse.text();
+      console.error('[generate-coaching-trends] AI Gateway error:', aiResponse.status, errorText);
+      throw new Error(`AI Gateway error: ${aiResponse.status}`);
+    }
+
+    const aiData = await aiResponse.json();
+    console.log('[generate-coaching-trends] AI response received');
+
+    // Extract the tool call result
+    const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
+    if (!toolCall || toolCall.function.name !== 'provide_trend_analysis') {
+      console.error('[generate-coaching-trends] Unexpected AI response:', JSON.stringify(aiData));
+      throw new Error('AI did not return expected structured output');
+    }
+
+    const trendAnalysis = JSON.parse(toolCall.function.arguments);
+    
+    return new Response(
+      JSON.stringify(trendAnalysis),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error) {
+    console.error('[generate-coaching-trends] Error:', error);
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});
