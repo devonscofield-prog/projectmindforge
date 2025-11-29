@@ -585,7 +585,7 @@ export async function getAiScoreStatsForReps(repIds: string[]): Promise<Map<stri
   return result;
 }
 
-// Coaching Summary Types
+// Coaching Summary Types (legacy - kept for compatibility)
 export interface CoachingSummary {
   totalCalls: number;
   dateRange: { from: string; to: string };
@@ -616,6 +616,54 @@ export interface CoachingSummary {
     trend: 'improving' | 'declining' | 'stable';
     recentScores: Array<{ date: string; score: number }>;
   };
+}
+
+// AI-Powered Coaching Trend Analysis Types
+export interface FrameworkTrend {
+  trend: 'improving' | 'stable' | 'declining';
+  startingAvg: number;
+  endingAvg: number;
+  keyInsight: string;
+  evidence: string[];
+  recommendation: string;
+}
+
+export interface PersistentGap {
+  gap: string;
+  frequency: string;
+  trend: 'improving' | 'stable' | 'worse';
+}
+
+export interface CoachingTrendAnalysis {
+  summary: string;
+  periodAnalysis: {
+    totalCalls: number;
+    averageHeatScore: number;
+    heatScoreTrend: 'improving' | 'stable' | 'declining';
+  };
+  trendAnalysis: {
+    bant: FrameworkTrend;
+    gapSelling: FrameworkTrend;
+    activeListening: FrameworkTrend;
+  };
+  patternAnalysis: {
+    criticalInfoMissing: {
+      persistentGaps: PersistentGap[];
+      newIssues: string[];
+      resolvedIssues: string[];
+      recommendation: string;
+    };
+    followUpQuestions: {
+      recurringThemes: string[];
+      qualityTrend: 'improving' | 'stable' | 'declining';
+      recommendation: string;
+    };
+  };
+  topPriorities: Array<{
+    area: string;
+    reason: string;
+    actionItem: string;
+  }>;
 }
 
 /**
@@ -814,6 +862,77 @@ export async function getCoachingSummaryForRep(
       recentScores: heatScores.slice(-10),
     },
   };
+}
+
+/**
+ * Generates AI-powered coaching trend analysis for a rep over a date range.
+ * This sends all call analyses to an AI model which synthesizes trends and patterns.
+ * @param repId - The rep's user ID
+ * @param dateRange - Date range with from and to dates
+ * @returns AI-generated trend analysis with insights and recommendations
+ */
+export async function generateCoachingTrends(
+  repId: string,
+  dateRange: { from: Date; to: Date }
+): Promise<CoachingTrendAnalysis> {
+  // 1. Fetch all call analyses in date range
+  const { data, error } = await supabase
+    .from('ai_call_analysis')
+    .select('*')
+    .eq('rep_id', repId)
+    .gte('created_at', dateRange.from.toISOString())
+    .lte('created_at', dateRange.to.toISOString())
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('[generateCoachingTrends] Error fetching analyses:', error);
+    throw new Error(`Failed to fetch call analyses: ${error.message}`);
+  }
+
+  const analyses = (data || []) as unknown as CallAnalysis[];
+
+  if (analyses.length === 0) {
+    throw new Error('No analyzed calls found in the selected period');
+  }
+
+  console.log(`[generateCoachingTrends] Found ${analyses.length} analyses, sending to AI`);
+
+  // 2. Format only the relevant fields for AI
+  const formattedCalls = analyses.map(a => ({
+    date: a.created_at.split('T')[0],
+    framework_scores: a.coach_output?.framework_scores ?? null,
+    bant_improvements: a.coach_output?.bant_improvements ?? [],
+    gap_selling_improvements: a.coach_output?.gap_selling_improvements ?? [],
+    active_listening_improvements: a.coach_output?.active_listening_improvements ?? [],
+    critical_info_missing: a.coach_output?.critical_info_missing ?? [],
+    follow_up_questions: a.coach_output?.recommended_follow_up_questions ?? [],
+    heat_score: a.coach_output?.heat_signature?.score ?? null,
+  }));
+
+  // 3. Call edge function
+  const { data: trendData, error: funcError } = await supabase.functions.invoke('generate-coaching-trends', {
+    body: { 
+      calls: formattedCalls, 
+      dateRange: {
+        from: dateRange.from.toISOString().split('T')[0],
+        to: dateRange.to.toISOString().split('T')[0]
+      }
+    }
+  });
+
+  if (funcError) {
+    console.error('[generateCoachingTrends] Edge function error:', funcError);
+    throw new Error(`AI trend analysis failed: ${funcError.message}`);
+  }
+
+  if (!trendData || trendData.error) {
+    const errorMsg = trendData?.error || 'Unknown error from AI';
+    console.error('[generateCoachingTrends] AI error:', errorMsg);
+    throw new Error(errorMsg);
+  }
+
+  console.log('[generateCoachingTrends] Successfully received AI trend analysis');
+  return trendData as CoachingTrendAnalysis;
 }
 
 // Export types for use in components

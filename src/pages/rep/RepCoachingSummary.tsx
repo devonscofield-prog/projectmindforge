@@ -11,30 +11,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import { getCoachingSummaryForRep, CoachingSummary } from '@/api/aiCallAnalysis';
+import { generateCoachingTrends, CoachingTrendAnalysis } from '@/api/aiCallAnalysis';
 import { supabase } from '@/integrations/supabase/client';
-import { FrameworkTrendChart } from '@/components/coaching/FrameworkTrendChart';
-import { CoachingPatternCard } from '@/components/coaching/CoachingPatternCard';
-import { CoachingSummaryComparison } from '@/components/coaching/CoachingSummaryComparison';
+import { TrendCard } from '@/components/coaching/TrendCard';
+import { CriticalInfoTrends } from '@/components/coaching/CriticalInfoTrends';
+import { PriorityActionCard } from '@/components/coaching/PriorityActionCard';
 import { cn } from '@/lib/utils';
 import {
   ArrowLeft,
   BarChart3,
-  AlertTriangle,
-  HelpCircle,
-  Target,
-  TrendingUp,
-  Ear,
   Flame,
-  Award,
-  Lightbulb,
-  Tag,
+  TrendingUp,
   TrendingDown,
   Minus,
   CalendarIcon,
-  GitCompare,
+  Sparkles,
+  Target,
+  MessageSquareQuote,
+  Ear,
+  Loader2,
+  RefreshCw,
 } from 'lucide-react';
 
 const TIME_RANGES = [
@@ -57,16 +53,9 @@ export default function RepCoachingSummary() {
   const { user, role } = useAuth();
   const { repId } = useParams<{ repId?: string }>();
   
-  // Comparison mode state
-  const [isComparisonMode, setIsComparisonMode] = useState(false);
-  
-  // Primary date range state
+  // Date range state
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>(() => createDateRange(30));
   const [selectedPreset, setSelectedPreset] = useState<string>('30');
-  
-  // Comparison date range state
-  const [comparisonDateRange, setComparisonDateRange] = useState<{ from: Date; to: Date }>(() => createDateRange(60));
-  const [comparisonPreset, setComparisonPreset] = useState<string>('custom');
   
   // Determine if viewing own summary or another rep's (for managers)
   const targetRepId = repId || user?.id;
@@ -87,31 +76,25 @@ export default function RepCoachingSummary() {
     enabled: !!targetRepId && !isOwnSummary,
   });
 
-  // Main summary query
-  const { data: summary, isLoading, error } = useQuery({
-    queryKey: ['coaching-summary', targetRepId, dateRange.from.toISOString(), dateRange.to.toISOString()],
-    queryFn: () => getCoachingSummaryForRep(targetRepId!, dateRange),
+  // AI Trend Analysis query
+  const { 
+    data: trendAnalysis, 
+    isLoading, 
+    error, 
+    refetch,
+    isFetching 
+  } = useQuery({
+    queryKey: ['coaching-trends', targetRepId, dateRange.from.toISOString(), dateRange.to.toISOString()],
+    queryFn: () => generateCoachingTrends(targetRepId!, dateRange),
     enabled: !!targetRepId,
-  });
-
-  // Comparison period query
-  const { data: comparisonSummary, isLoading: isComparisonLoading } = useQuery({
-    queryKey: ['coaching-summary-comparison', targetRepId, comparisonDateRange.from.toISOString(), comparisonDateRange.to.toISOString()],
-    queryFn: () => getCoachingSummaryForRep(targetRepId!, comparisonDateRange),
-    enabled: !!targetRepId && isComparisonMode,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    retry: 1,
   });
 
   const handlePresetChange = (value: string) => {
     setSelectedPreset(value);
     if (value !== 'custom') {
       setDateRange(createDateRange(parseInt(value)));
-    }
-  };
-
-  const handleComparisonPresetChange = (value: string) => {
-    setComparisonPreset(value);
-    if (value !== 'custom') {
-      setComparisonDateRange(createDateRange(parseInt(value)));
     }
   };
 
@@ -128,39 +111,6 @@ export default function RepCoachingSummary() {
       date.setHours(23, 59, 59, 999);
       setDateRange(prev => ({ ...prev, to: date }));
       setSelectedPreset('custom');
-    }
-  };
-
-  const handleComparisonFromDateChange = (date: Date | undefined) => {
-    if (date) {
-      date.setHours(0, 0, 0, 0);
-      setComparisonDateRange(prev => ({ ...prev, from: date }));
-      setComparisonPreset('custom');
-    }
-  };
-
-  const handleComparisonToDateChange = (date: Date | undefined) => {
-    if (date) {
-      date.setHours(23, 59, 59, 999);
-      setComparisonDateRange(prev => ({ ...prev, to: date }));
-      setComparisonPreset('custom');
-    }
-  };
-
-  // Initialize comparison with previous period when switching to comparison mode
-  const handleComparisonToggle = (enabled: boolean) => {
-    setIsComparisonMode(enabled);
-    if (enabled) {
-      // Set comparison to the period before the current selection
-      const daysDiff = Math.ceil((dateRange.to.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24));
-      const compTo = new Date(dateRange.from);
-      compTo.setDate(compTo.getDate() - 1);
-      compTo.setHours(23, 59, 59, 999);
-      const compFrom = new Date(compTo);
-      compFrom.setDate(compFrom.getDate() - daysDiff);
-      compFrom.setHours(0, 0, 0, 0);
-      setComparisonDateRange({ from: compFrom, to: compTo });
-      setComparisonPreset('custom');
     }
   };
 
@@ -181,97 +131,16 @@ export default function RepCoachingSummary() {
     }
   };
 
-  const getTrendLabel = (trend: 'improving' | 'declining' | 'stable') => {
+  const getTrendBadge = (trend: 'improving' | 'declining' | 'stable') => {
     switch (trend) {
       case 'improving':
-        return <Badge variant="default" className="bg-green-500">Improving</Badge>;
+        return <Badge className="bg-green-500/10 text-green-600 border-green-500/20">Improving</Badge>;
       case 'declining':
-        return <Badge variant="destructive">Declining</Badge>;
+        return <Badge variant="destructive" className="bg-destructive/10 text-destructive border-destructive/20">Declining</Badge>;
       default:
         return <Badge variant="secondary">Stable</Badge>;
     }
   };
-
-  const formatPeriodLabel = (range: { from: Date; to: Date }) => {
-    return `${format(range.from, 'MMM d')} - ${format(range.to, 'MMM d')}`;
-  };
-
-  const DateRangePicker = ({
-    dateRange: range,
-    selectedPreset: preset,
-    onPresetChange,
-    onFromChange,
-    onToChange,
-    label,
-  }: {
-    dateRange: { from: Date; to: Date };
-    selectedPreset: string;
-    onPresetChange: (value: string) => void;
-    onFromChange: (date: Date | undefined) => void;
-    onToChange: (date: Date | undefined) => void;
-    label?: string;
-  }) => (
-    <div className="flex flex-wrap items-center gap-2">
-      {label && <span className="text-sm font-medium text-muted-foreground">{label}</span>}
-      <Select value={preset} onValueChange={onPresetChange}>
-        <SelectTrigger className="w-[140px]">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {TIME_RANGES.map(r => (
-            <SelectItem key={r.value} value={r.value}>
-              {r.label}
-            </SelectItem>
-          ))}
-          <SelectItem value="custom">Custom Range</SelectItem>
-        </SelectContent>
-      </Select>
-      
-      {preset === 'custom' && (
-        <div className="flex items-center gap-2">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="w-[120px] justify-start text-left font-normal">
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {format(range.from, 'MMM d, yy')}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={range.from}
-                onSelect={onFromChange}
-                disabled={(date) => date > range.to || date > new Date()}
-                initialFocus
-                className={cn("p-3 pointer-events-auto")}
-              />
-            </PopoverContent>
-          </Popover>
-          
-          <span className="text-muted-foreground text-sm">to</span>
-          
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="w-[120px] justify-start text-left font-normal">
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {format(range.to, 'MMM d, yy')}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={range.to}
-                onSelect={onToChange}
-                disabled={(date) => date < range.from || date > new Date()}
-                initialFocus
-                className={cn("p-3 pointer-events-auto")}
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
-      )}
-    </div>
-  );
 
   return (
     <AppLayout>
@@ -287,88 +156,129 @@ export default function RepCoachingSummary() {
               </Button>
               <div>
                 <h1 className="text-2xl font-bold flex items-center gap-2">
-                  <BarChart3 className="h-6 w-6 text-primary" />
-                  {isOwnSummary ? 'My Coaching Summary' : `${repProfile?.name || 'Rep'}'s Coaching Summary`}
+                  <Sparkles className="h-6 w-6 text-primary" />
+                  {isOwnSummary ? 'My Coaching Trends' : `${repProfile?.name || 'Rep'}'s Coaching Trends`}
                 </h1>
                 <p className="text-muted-foreground">
-                  {isComparisonMode ? 'Compare insights across two time periods' : 'Aggregated insights from your analyzed calls'}
+                  AI-powered trend analysis of your sales calls
                 </p>
               </div>
             </div>
             
-            {/* Comparison Toggle */}
-            <div className="flex items-center gap-2">
-              <Switch
-                id="comparison-mode"
-                checked={isComparisonMode}
-                onCheckedChange={handleComparisonToggle}
-              />
-              <Label htmlFor="comparison-mode" className="flex items-center gap-2 cursor-pointer">
-                <GitCompare className="h-4 w-4" />
-                Compare Periods
-              </Label>
-            </div>
+            {/* Refresh Button */}
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => refetch()}
+              disabled={isFetching}
+            >
+              <RefreshCw className={cn("h-4 w-4 mr-2", isFetching && "animate-spin")} />
+              Refresh Analysis
+            </Button>
           </div>
           
           {/* Date Range Controls */}
-          <div className="flex flex-col gap-3 p-4 bg-muted/50 rounded-lg">
-            <DateRangePicker
-              dateRange={dateRange}
-              selectedPreset={selectedPreset}
-              onPresetChange={handlePresetChange}
-              onFromChange={handleFromDateChange}
-              onToChange={handleToDateChange}
-              label={isComparisonMode ? "Current Period:" : undefined}
-            />
+          <div className="flex flex-wrap items-center gap-2 p-4 bg-muted/50 rounded-lg">
+            <Select value={selectedPreset} onValueChange={handlePresetChange}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TIME_RANGES.map(r => (
+                  <SelectItem key={r.value} value={r.value}>
+                    {r.label}
+                  </SelectItem>
+                ))}
+                <SelectItem value="custom">Custom Range</SelectItem>
+              </SelectContent>
+            </Select>
             
-            {isComparisonMode && (
-              <DateRangePicker
-                dateRange={comparisonDateRange}
-                selectedPreset={comparisonPreset}
-                onPresetChange={handleComparisonPresetChange}
-                onFromChange={handleComparisonFromDateChange}
-                onToChange={handleComparisonToDateChange}
-                label="Compare To:"
-              />
+            {selectedPreset === 'custom' && (
+              <div className="flex items-center gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="w-[120px] justify-start text-left font-normal">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {format(dateRange.from, 'MMM d, yy')}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={dateRange.from}
+                      onSelect={handleFromDateChange}
+                      disabled={(date) => date > dateRange.to || date > new Date()}
+                      initialFocus
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </PopoverContent>
+                </Popover>
+                
+                <span className="text-muted-foreground text-sm">to</span>
+                
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="w-[120px] justify-start text-left font-normal">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {format(dateRange.to, 'MMM d, yy')}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={dateRange.to}
+                      onSelect={handleToDateChange}
+                      disabled={(date) => date < dateRange.from || date > new Date()}
+                      initialFocus
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
             )}
           </div>
         </div>
 
-        {(isLoading || (isComparisonMode && isComparisonLoading)) ? (
+        {/* Loading State */}
+        {isLoading ? (
           <div className="space-y-6">
-            <div className="grid gap-4 md:grid-cols-4">
-              {[1, 2, 3, 4].map(i => (
+            <Card className="border-dashed">
+              <CardContent className="py-12">
+                <div className="flex flex-col items-center justify-center gap-4">
+                  <div className="relative">
+                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                    <Sparkles className="h-5 w-5 text-primary absolute -top-1 -right-1 animate-pulse" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-lg font-medium">Analyzing your calls...</p>
+                    <p className="text-muted-foreground text-sm">
+                      Our AI is reviewing your call data to identify trends and patterns.
+                      <br />
+                      This may take 15-30 seconds.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <div className="grid gap-4 md:grid-cols-3">
+              {[1, 2, 3].map(i => (
                 <Card key={i}>
                   <CardContent className="pt-6">
                     <Skeleton className="h-8 w-24" />
                     <Skeleton className="h-4 w-32 mt-2" />
+                    <Skeleton className="h-20 w-full mt-4" />
                   </CardContent>
                 </Card>
               ))}
             </div>
-            <Skeleton className="h-[350px]" />
           </div>
         ) : error ? (
           <Card>
             <CardContent className="py-12 text-center">
-              <p className="text-destructive">Failed to load coaching summary</p>
-            </CardContent>
-          </Card>
-        ) : isComparisonMode && summary && comparisonSummary ? (
-          // Comparison View
-          <CoachingSummaryComparison
-            period1={comparisonSummary}
-            period2={summary}
-            period1Label={formatPeriodLabel(comparisonDateRange)}
-            period2Label={formatPeriodLabel(dateRange)}
-          />
-        ) : summary?.totalCalls === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
               <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium">No Analyzed Calls</h3>
-              <p className="text-muted-foreground mt-2">
-                Submit calls for analysis to see your coaching summary.
+              <h3 className="text-lg font-medium">Unable to Generate Analysis</h3>
+              <p className="text-muted-foreground mt-2 max-w-md mx-auto">
+                {error instanceof Error ? error.message : 'Failed to generate coaching trends'}
               </p>
               {isOwnSummary && (
                 <Button asChild className="mt-4">
@@ -377,207 +287,129 @@ export default function RepCoachingSummary() {
               )}
             </CardContent>
           </Card>
-        ) : summary && (
+        ) : trendAnalysis && (
           <>
-            {/* Stats Overview */}
-            <div className="grid gap-4 md:grid-cols-4">
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-muted-foreground">Calls Analyzed</p>
+            {/* Executive Summary */}
+            <Card className="bg-gradient-to-br from-primary/5 via-background to-background border-primary/20">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                  Executive Summary
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-base leading-relaxed">{trendAnalysis.summary}</p>
+                
+                {/* Period Stats */}
+                <div className="flex flex-wrap items-center gap-6 mt-4 pt-4 border-t">
+                  <div className="flex items-center gap-2">
                     <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">Calls Analyzed:</span>
+                    <span className="font-semibold">{trendAnalysis.periodAnalysis.totalCalls}</span>
                   </div>
-                  <p className="text-3xl font-bold mt-2">{summary.totalCalls}</p>
-                  <p className="text-xs text-muted-foreground mt-1">in selected period</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-muted-foreground">Avg Heat Score</p>
+                  <div className="flex items-center gap-2">
                     <Flame className="h-4 w-4 text-orange-500" />
+                    <span className="text-sm text-muted-foreground">Avg Heat Score:</span>
+                    <span className="font-semibold">{trendAnalysis.periodAnalysis.averageHeatScore?.toFixed(1) || 'N/A'}/10</span>
+                    {getTrendIcon(trendAnalysis.periodAnalysis.heatScoreTrend)}
                   </div>
-                  <p className="text-3xl font-bold mt-2">
-                    {summary.heatScoreStats.average?.toFixed(1) || '-'}/10
-                  </p>
-                  <div className="flex items-center gap-2 mt-1">
-                    {getTrendIcon(summary.heatScoreStats.trend)}
-                    {getTrendLabel(summary.heatScoreStats.trend)}
-                  </div>
-                </CardContent>
-              </Card>
+                </div>
+              </CardContent>
+            </Card>
 
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-muted-foreground">Top Strength</p>
-                    <Award className="h-4 w-4 text-green-500" />
-                  </div>
-                  <p className="text-lg font-semibold mt-2 capitalize">
-                    {summary.strengthsAndOpportunities.topStrengths[0]?.area.replace(/_/g, ' ') || '-'}
-                  </p>
-                  {summary.strengthsAndOpportunities.topStrengths[0] && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {summary.strengthsAndOpportunities.topStrengths[0].count} occurrences
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-muted-foreground">Focus Area</p>
-                    <Lightbulb className="h-4 w-4 text-yellow-500" />
-                  </div>
-                  <p className="text-lg font-semibold mt-2 capitalize">
-                    {summary.strengthsAndOpportunities.topOpportunities[0]?.area.replace(/_/g, ' ') || '-'}
-                  </p>
-                  {summary.strengthsAndOpportunities.topOpportunities[0] && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {summary.strengthsAndOpportunities.topOpportunities[0].count} occurrences
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Framework Trends Chart */}
-            <FrameworkTrendChart data={summary.frameworkTrends} />
-
-            {/* Recurring Patterns */}
+            {/* Framework Trends */}
             <div>
-              <h2 className="text-lg font-semibold mb-4">Recurring Patterns</h2>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <CoachingPatternCard
-                  title="Critical Info Missing"
-                  icon={AlertTriangle}
-                  items={summary.recurringPatterns.criticalInfoMissing}
-                  variant="destructive"
-                  emptyMessage="Great job! No recurring gaps found."
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-primary" />
+                Framework Trends
+              </h2>
+              <div className="grid gap-4 md:grid-cols-3">
+                <TrendCard
+                  title="BANT"
+                  icon={<Target className="h-4 w-4 text-blue-500" />}
+                  trend={trendAnalysis.trendAnalysis.bant.trend}
+                  startingAvg={trendAnalysis.trendAnalysis.bant.startingAvg}
+                  endingAvg={trendAnalysis.trendAnalysis.bant.endingAvg}
+                  keyInsight={trendAnalysis.trendAnalysis.bant.keyInsight}
+                  evidence={trendAnalysis.trendAnalysis.bant.evidence}
+                  recommendation={trendAnalysis.trendAnalysis.bant.recommendation}
                 />
-                <CoachingPatternCard
-                  title="Common Follow-up Questions"
-                  icon={HelpCircle}
-                  items={summary.recurringPatterns.followUpQuestions}
-                  variant="default"
+                <TrendCard
+                  title="Gap Selling"
+                  icon={<MessageSquareQuote className="h-4 w-4 text-purple-500" />}
+                  trend={trendAnalysis.trendAnalysis.gapSelling.trend}
+                  startingAvg={trendAnalysis.trendAnalysis.gapSelling.startingAvg}
+                  endingAvg={trendAnalysis.trendAnalysis.gapSelling.endingAvg}
+                  keyInsight={trendAnalysis.trendAnalysis.gapSelling.keyInsight}
+                  evidence={trendAnalysis.trendAnalysis.gapSelling.evidence}
+                  recommendation={trendAnalysis.trendAnalysis.gapSelling.recommendation}
                 />
-                <CoachingPatternCard
-                  title="BANT Improvements"
-                  icon={Target}
-                  items={summary.recurringPatterns.bantImprovements}
-                  variant="default"
-                />
-                <CoachingPatternCard
-                  title="Gap Selling Improvements"
-                  icon={TrendingUp}
-                  items={summary.recurringPatterns.gapSellingImprovements}
-                  variant="default"
-                />
-                <CoachingPatternCard
-                  title="Active Listening Improvements"
-                  icon={Ear}
-                  items={summary.recurringPatterns.activeListeningImprovements}
-                  variant="default"
+                <TrendCard
+                  title="Active Listening"
+                  icon={<Ear className="h-4 w-4 text-teal-500" />}
+                  trend={trendAnalysis.trendAnalysis.activeListening.trend}
+                  startingAvg={trendAnalysis.trendAnalysis.activeListening.startingAvg}
+                  endingAvg={trendAnalysis.trendAnalysis.activeListening.endingAvg}
+                  keyInsight={trendAnalysis.trendAnalysis.activeListening.keyInsight}
+                  evidence={trendAnalysis.trendAnalysis.activeListening.evidence}
+                  recommendation={trendAnalysis.trendAnalysis.activeListening.recommendation}
                 />
               </div>
             </div>
 
-            {/* Tags & Strengths */}
+            {/* Pattern Analysis */}
             <div className="grid gap-6 lg:grid-cols-2">
-              {/* Skill & Deal Tags */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <Tag className="h-5 w-5" />
-                    Common Tags
-                  </CardTitle>
-                  <CardDescription>
-                    Recurring patterns identified across your calls
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <h4 className="text-sm font-medium mb-2">Skill Tags</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {summary.aggregatedTags.skillTags.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">No skill tags yet</p>
-                      ) : (
-                        summary.aggregatedTags.skillTags.slice(0, 8).map((t, i) => (
-                          <Badge key={i} variant="secondary">
-                            {t.tag.replace(/_/g, ' ')} ({t.count})
-                          </Badge>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-medium mb-2">Deal Tags</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {summary.aggregatedTags.dealTags.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">No deal tags yet</p>
-                      ) : (
-                        summary.aggregatedTags.dealTags.slice(0, 8).map((t, i) => (
-                          <Badge key={i} variant="outline">
-                            {t.tag.replace(/_/g, ' ')} ({t.count})
-                          </Badge>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              {/* Critical Info Trends */}
+              <CriticalInfoTrends
+                persistentGaps={trendAnalysis.patternAnalysis.criticalInfoMissing.persistentGaps}
+                newIssues={trendAnalysis.patternAnalysis.criticalInfoMissing.newIssues}
+                resolvedIssues={trendAnalysis.patternAnalysis.criticalInfoMissing.resolvedIssues}
+                recommendation={trendAnalysis.patternAnalysis.criticalInfoMissing.recommendation}
+              />
 
-              {/* Strengths & Opportunities */}
+              {/* Follow-up Questions Analysis */}
               <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <Award className="h-5 w-5" />
-                    Strengths & Opportunities
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <MessageSquareQuote className="h-5 w-5 text-blue-500" />
+                    Follow-up Question Patterns
                   </CardTitle>
-                  <CardDescription>
-                    Your top performing areas and growth opportunities
-                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div>
-                    <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
-                      <span className="text-green-500">✓</span> Top Strengths
-                    </h4>
-                    {summary.strengthsAndOpportunities.topStrengths.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No strengths identified yet</p>
-                    ) : (
-                      <ul className="space-y-2">
-                        {summary.strengthsAndOpportunities.topStrengths.slice(0, 3).map((s, i) => (
-                          <li key={i} className="flex items-start justify-between gap-2">
-                            <span className="text-sm capitalize">{s.area.replace(/_/g, ' ')}</span>
-                            <Badge variant="secondary">{s.count}x</Badge>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Quality Trend</span>
+                    {getTrendBadge(trendAnalysis.patternAnalysis.followUpQuestions.qualityTrend)}
                   </div>
-                  <div>
-                    <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
-                      <span className="text-yellow-500">↗</span> Growth Opportunities
-                    </h4>
-                    {summary.strengthsAndOpportunities.topOpportunities.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No opportunities identified yet</p>
-                    ) : (
-                      <ul className="space-y-2">
-                        {summary.strengthsAndOpportunities.topOpportunities.slice(0, 3).map((o, i) => (
-                          <li key={i} className="flex items-start justify-between gap-2">
-                            <span className="text-sm capitalize">{o.area.replace(/_/g, ' ')}</span>
-                            <Badge variant="outline">{o.count}x</Badge>
-                          </li>
+
+                  {trendAnalysis.patternAnalysis.followUpQuestions.recurringThemes.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                        Recurring Themes
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {trendAnalysis.patternAnalysis.followUpQuestions.recurringThemes.map((theme, idx) => (
+                          <Badge key={idx} variant="secondary" className="text-xs">
+                            {theme}
+                          </Badge>
                         ))}
-                      </ul>
-                    )}
-                  </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {trendAnalysis.patternAnalysis.followUpQuestions.recommendation && (
+                    <div className="p-3 rounded-lg bg-muted/50 border text-sm">
+                      <p className="font-medium mb-1">Recommendation</p>
+                      <p className="text-muted-foreground">
+                        {trendAnalysis.patternAnalysis.followUpQuestions.recommendation}
+                      </p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
+
+            {/* Top Priorities */}
+            <PriorityActionCard priorities={trendAnalysis.topPriorities} />
           </>
         )}
       </div>
