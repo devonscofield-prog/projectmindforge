@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -169,6 +170,52 @@ export default function ProspectDetail() {
   useEffect(() => {
     if (id) loadProspectData();
   }, [id]);
+
+  // Real-time subscription for call analysis completion
+  useEffect(() => {
+    if (!id) return;
+
+    const channel = supabase
+      .channel(`call-analysis-${id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'call_transcripts',
+          filter: `prospect_id=eq.${id}`,
+        },
+        (payload) => {
+          const newRecord = payload.new as { analysis_status: string; id: string };
+          const oldRecord = payload.old as { analysis_status: string; id: string };
+          
+          // Check if analysis just completed
+          if (
+            newRecord.analysis_status === 'completed' &&
+            oldRecord.analysis_status !== 'completed'
+          ) {
+            console.log('[ProspectDetail] Call analysis completed, refreshing AI data...');
+            toast({ title: 'New call analysis available, refreshing insights...' });
+            
+            // Refresh calls list and trigger AI regeneration
+            getCallsForProspect(id).then(setCalls);
+            
+            // Small delay to let the analysis data settle
+            setTimeout(() => {
+              handleRefreshAllRef.current?.();
+            }, 1000);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [id, toast]);
+
+  // Ref to access latest handleRefreshAll without adding it to effect dependencies
+  const handleRefreshAllRef = useRef<(() => Promise<void>) | null>(null);
 
   const loadProspectData = async () => {
     if (!id) return;
@@ -412,6 +459,9 @@ export default function ProspectDetail() {
       setIsRefreshingInsights(false);
     }
   };
+
+  // Keep ref updated for real-time callback
+  handleRefreshAllRef.current = handleRefreshAll;
 
   const handleRefreshInsightsOnly = async () => {
     if (!id || isRefreshingInsights) return;
