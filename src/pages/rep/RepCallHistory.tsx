@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { PullToRefresh } from '@/components/ui/pull-to-refresh';
 import { listCallTranscriptsForRepWithFilters, CallHistoryFilters, CallTranscript } from '@/api/aiCallAnalysis';
 import { CallType, callTypeLabels, callTypeOptions } from '@/constants/callTypes';
 import { MobileCallCard } from '@/components/calls/MobileCallCard';
@@ -85,11 +86,16 @@ export default function RepCallHistory() {
   }), [search, callTypeFilter, statusFilter, dateFrom, dateTo, sortBy, sortOrder, currentPage, pageSize]);
 
   // Fetch filtered transcripts
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['rep-call-history', user?.id, filters],
     queryFn: () => listCallTranscriptsForRepWithFilters(user!.id, filters),
     enabled: !!user?.id,
   });
+
+  // Pull-to-refresh handler
+  const handleRefresh = useCallback(async () => {
+    await refetch();
+  }, [refetch]);
 
   const transcripts = data?.data || [];
   const totalCount = data?.count || 0;
@@ -375,16 +381,18 @@ export default function RepCallHistory() {
               </div>
             ) : (
               <>
-                {/* Mobile Card View */}
-                <div className="space-y-3 md:hidden">
-                  {transcripts.map((t) => (
-                    <MobileCallCard
-                      key={t.id}
-                      call={t}
-                      onClick={() => navigate(`/calls/${t.id}`)}
-                    />
-                  ))}
-                </div>
+                {/* Mobile Card View with Pull-to-Refresh */}
+                <PullToRefresh onRefresh={handleRefresh} className="md:hidden">
+                  <div className="space-y-3">
+                    {transcripts.map((t) => (
+                      <MobileCallCard
+                        key={t.id}
+                        call={t}
+                        onClick={() => navigate(`/calls/${t.id}`)}
+                      />
+                    ))}
+                  </div>
+                </PullToRefresh>
 
                 {/* Desktop Table View */}
                 <div className="hidden md:block rounded-md border">
