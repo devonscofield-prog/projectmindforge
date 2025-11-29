@@ -11,10 +11,12 @@ import {
   CheckCircle2,
   Loader2,
   Building2,
+  X,
 } from 'lucide-react';
 import {
   listAllPendingFollowUpsForRep,
   completeFollowUp,
+  dismissFollowUp,
   type AccountFollowUpWithProspect,
   type FollowUpPriority,
   type FollowUpCategory,
@@ -44,6 +46,7 @@ export function PendingFollowUpsWidget({ repId }: PendingFollowUpsWidgetProps) {
   const [followUps, setFollowUps] = useState<AccountFollowUpWithProspect[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [completingId, setCompletingId] = useState<string | null>(null);
+  const [dismissingId, setDismissingId] = useState<string | null>(null);
 
   useEffect(() => {
     loadFollowUps();
@@ -70,6 +73,19 @@ export function PendingFollowUpsWidget({ repId }: PendingFollowUpsWidgetProps) {
       console.error('Failed to complete follow-up:', error);
     } finally {
       setCompletingId(null);
+    }
+  };
+
+  const handleDismiss = async (followUpId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDismissingId(followUpId);
+    try {
+      await dismissFollowUp(followUpId);
+      setFollowUps(prev => prev.filter(f => f.id !== followUpId));
+    } catch (error) {
+      console.error('Failed to dismiss follow-up:', error);
+    } finally {
+      setDismissingId(null);
     }
   };
 
@@ -133,8 +149,10 @@ export function PendingFollowUpsWidget({ repId }: PendingFollowUpsWidgetProps) {
                         key={followUp.id}
                         followUp={followUp}
                         onComplete={handleComplete}
+                        onDismiss={handleDismiss}
                         onNavigate={handleNavigate}
                         isCompleting={completingId === followUp.id}
+                        isDismissing={dismissingId === followUp.id}
                       />
                     ))}
                   </div>
@@ -155,8 +173,10 @@ export function PendingFollowUpsWidget({ repId }: PendingFollowUpsWidgetProps) {
                         key={followUp.id}
                         followUp={followUp}
                         onComplete={handleComplete}
+                        onDismiss={handleDismiss}
                         onNavigate={handleNavigate}
                         isCompleting={completingId === followUp.id}
+                        isDismissing={dismissingId === followUp.id}
                       />
                     ))}
                   </div>
@@ -173,11 +193,13 @@ export function PendingFollowUpsWidget({ repId }: PendingFollowUpsWidgetProps) {
 interface FollowUpRowProps {
   followUp: AccountFollowUpWithProspect;
   onComplete: (id: string, e: React.MouseEvent) => void;
+  onDismiss: (id: string, e: React.MouseEvent) => void;
   onNavigate: (prospectId: string) => void;
   isCompleting: boolean;
+  isDismissing: boolean;
 }
 
-function FollowUpRow({ followUp, onComplete, onNavigate, isCompleting }: FollowUpRowProps) {
+function FollowUpRow({ followUp, onComplete, onDismiss, onNavigate, isCompleting, isDismissing }: FollowUpRowProps) {
   const priority = priorityConfig[followUp.priority] || priorityConfig.medium;
   const accountDisplay = followUp.account_name || followUp.prospect_name;
 
@@ -192,7 +214,7 @@ function FollowUpRow({ followUp, onComplete, onNavigate, isCompleting }: FollowU
         variant="ghost"
         className="h-8 w-8 p-0 shrink-0"
         onClick={(e) => onComplete(followUp.id, e)}
-        disabled={isCompleting}
+        disabled={isCompleting || isDismissing}
       >
         {isCompleting ? (
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -219,6 +241,22 @@ function FollowUpRow({ followUp, onComplete, onNavigate, isCompleting }: FollowU
           <span className="truncate">{accountDisplay}</span>
         </div>
       </div>
+
+      {/* Dismiss button */}
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-8 w-8 p-0 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+        onClick={(e) => onDismiss(followUp.id, e)}
+        disabled={isDismissing || isCompleting}
+        title="Dismiss"
+      >
+        {isDismissing ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <X className="h-4 w-4" />
+        )}
+      </Button>
 
       {/* Arrow */}
       <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />

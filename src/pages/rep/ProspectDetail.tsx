@@ -68,6 +68,7 @@ import {
   listFollowUpsForProspect,
   completeFollowUp,
   reopenFollowUp,
+  dismissFollowUp,
   refreshFollowUps,
   type AccountFollowUp,
 } from '@/api/accountFollowUps';
@@ -283,6 +284,16 @@ export default function ProspectDetail() {
       toast({ title: 'Follow-up reopened' });
     } catch (error) {
       toast({ title: 'Failed to reopen follow-up', variant: 'destructive' });
+    }
+  };
+
+  const handleDismissFollowUp = async (followUpId: string) => {
+    try {
+      await dismissFollowUp(followUpId);
+      setFollowUps(prev => prev.filter(f => f.id !== followUpId));
+      toast({ title: 'Follow-up dismissed' });
+    } catch (error) {
+      toast({ title: 'Failed to dismiss follow-up', variant: 'destructive' });
     }
   };
 
@@ -592,6 +603,7 @@ export default function ProspectDetail() {
                         key={followUp.id}
                         followUp={followUp}
                         onComplete={handleCompleteFollowUp}
+                        onDismiss={handleDismissFollowUp}
                       />
                     ))}
                   </div>
