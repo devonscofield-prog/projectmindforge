@@ -11,3 +11,6 @@ verify_jwt = true
 
 [functions.edit-recap-email]
 verify_jwt = true
+
+[functions.generate-account-follow-ups]
+verify_jwt = true

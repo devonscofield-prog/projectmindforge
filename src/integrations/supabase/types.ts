@@ -14,6 +14,62 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_follow_ups: {
+        Row: {
+          ai_reasoning: string | null
+          category: string | null
+          completed_at: string | null
+          created_at: string
+          description: string | null
+          generated_from_call_ids: string[] | null
+          id: string
+          priority: string | null
+          prospect_id: string
+          rep_id: string
+          status: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          ai_reasoning?: string | null
+          category?: string | null
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          generated_from_call_ids?: string[] | null
+          id?: string
+          priority?: string | null
+          prospect_id: string
+          rep_id: string
+          status?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          ai_reasoning?: string | null
+          category?: string | null
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          generated_from_call_ids?: string[] | null
+          id?: string
+          priority?: string | null
+          prospect_id?: string
+          rep_id?: string
+          status?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_follow_ups_prospect_id_fkey"
+            columns: ["prospect_id"]
+            isOneToOne: false
+            referencedRelation: "prospects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       activity_logs: {
         Row: {
           activity_date: string
@@ -493,6 +549,8 @@ export type Database = {
           account_name: string | null
           ai_extracted_info: Json | null
           created_at: string
+          follow_ups_generation_status: string | null
+          follow_ups_last_generated_at: string | null
           heat_score: number | null
           id: string
           last_contact_date: string | null
@@ -508,6 +566,8 @@ export type Database = {
           account_name?: string | null
           ai_extracted_info?: Json | null
           created_at?: string
+          follow_ups_generation_status?: string | null
+          follow_ups_last_generated_at?: string | null
           heat_score?: number | null
           id?: string
           last_contact_date?: string | null
@@ -523,6 +583,8 @@ export type Database = {
           account_name?: string | null
           ai_extracted_info?: Json | null
           created_at?: string
+          follow_ups_generation_status?: string | null
+          follow_ups_last_generated_at?: string | null
           heat_score?: number | null
           id?: string
           last_contact_date?: string | null
