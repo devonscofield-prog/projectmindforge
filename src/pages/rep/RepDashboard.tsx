@@ -28,7 +28,7 @@ export default function RepDashboard() {
   const [selectedStakeholderId, setSelectedStakeholderId] = useState<string | null>(null);
   const [accountName, setAccountName] = useState('');
   const [selectedProspectId, setSelectedProspectId] = useState<string | null>(null);
-  const [salesforceDemoLink, setSalesforceDemoLink] = useState('');
+  const [salesforceAccountLink, setSalesforceAccountLink] = useState('');
   const [potentialRevenue, setPotentialRevenue] = useState('');
   const [callDate, setCallDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [callType, setCallType] = useState<CallType>('first_demo');
@@ -61,8 +61,8 @@ export default function RepDashboard() {
       toast({ title: 'Error', description: 'Account Name is required', variant: 'destructive' });
       return;
     }
-    if (!salesforceDemoLink.trim()) {
-      toast({ title: 'Error', description: 'Salesforce Demo Link is required', variant: 'destructive' });
+    if (!salesforceAccountLink.trim()) {
+      toast({ title: 'Error', description: 'Salesforce Account Link is required', variant: 'destructive' });
       return;
     }
     if (!transcript.trim()) {
@@ -83,7 +83,7 @@ export default function RepDashboard() {
         callTypeOther: callType === 'other' ? callTypeOther : undefined,
         primaryStakeholderName: primaryStakeholderName.trim(),
         accountName: accountName.trim(),
-        salesforceDemoLink: salesforceDemoLink.trim(),
+        salesforceAccountLink: salesforceAccountLink.trim(),
         potentialRevenue: potentialRevenue ? parseFloat(potentialRevenue) : undefined,
         rawText: transcript,
         prospectId: selectedProspectId || undefined,
@@ -165,13 +165,13 @@ export default function RepDashboard() {
                   {/* Salesforce Link and Revenue Row */}
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="salesforceDemoLink">Salesforce Demo Link *</Label>
+                      <Label htmlFor="salesforceAccountLink">Salesforce Account Link *</Label>
                       <Input
-                        id="salesforceDemoLink"
+                        id="salesforceAccountLink"
                         type="url"
                         placeholder="https://..."
-                        value={salesforceDemoLink}
-                        onChange={(e) => setSalesforceDemoLink(e.target.value)}
+                        value={salesforceAccountLink}
+                        onChange={(e) => setSalesforceAccountLink(e.target.value)}
                         required
                       />
                     </div>
@@ -251,7 +251,7 @@ export default function RepDashboard() {
                   {/* Submit Button */}
                   <Button 
                     type="submit" 
-                    disabled={isSubmitting || !transcript.trim() || !primaryStakeholderName.trim() || !accountName.trim() || !salesforceDemoLink.trim()} 
+                    disabled={isSubmitting || !transcript.trim() || !primaryStakeholderName.trim() || !accountName.trim() || !salesforceAccountLink.trim()} 
                     className="w-full h-12 text-lg"
                     size="lg"
                   >

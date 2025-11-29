@@ -299,7 +299,7 @@ export default function CallDetailPage() {
                 <div className="flex items-center gap-2">
                   <ExternalLink className="h-4 w-4 text-muted-foreground" />
                   <div>
-                    <p className="text-xs text-muted-foreground">Salesforce Demo</p>
+                    <p className="text-xs text-muted-foreground">Salesforce Account</p>
                     <a 
                       href={transcript.salesforce_demo_link} 
                       target="_blank" 
