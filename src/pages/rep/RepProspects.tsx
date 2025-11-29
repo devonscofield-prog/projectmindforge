@@ -46,6 +46,21 @@ const statusVariants: Record<ProspectStatus, 'default' | 'secondary' | 'destruct
   dormant: 'outline',
 };
 
+const industryOptions = [
+  { value: 'education', label: 'Education' },
+  { value: 'local_government', label: 'Local Government' },
+  { value: 'state_government', label: 'State Government' },
+  { value: 'federal_government', label: 'Federal Government' },
+  { value: 'healthcare', label: 'Healthcare' },
+  { value: 'msp', label: 'MSP' },
+  { value: 'technology', label: 'Technology' },
+  { value: 'finance', label: 'Finance' },
+  { value: 'manufacturing', label: 'Manufacturing' },
+  { value: 'retail', label: 'Retail' },
+  { value: 'nonprofit', label: 'Nonprofit' },
+  { value: 'other', label: 'Other' },
+];
+
 function HeatScoreBadge({ score }: { score: number | null }) {
   if (score === null) return <span className="text-muted-foreground">—</span>;
   
@@ -276,6 +291,7 @@ export default function RepProspects() {
                   <TableRow>
                     <TableHead>Account</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Industry</TableHead>
                     <TableHead>Heat</TableHead>
                     <TableHead>Revenue</TableHead>
                     <TableHead>Stakeholders</TableHead>
@@ -307,6 +323,15 @@ export default function RepProspects() {
                         <Badge variant={statusVariants[prospect.status]}>
                           {statusLabels[prospect.status]}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {prospect.industry ? (
+                          <Badge variant="outline" className="text-xs">
+                            {industryOptions.find(i => i.value === prospect.industry)?.label || prospect.industry}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <HeatScoreBadge score={prospect.heat_score} />
