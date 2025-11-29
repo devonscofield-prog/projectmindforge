@@ -251,8 +251,8 @@ export type Database = {
           manager_id: string | null
           notes: string | null
           potential_revenue: number | null
+          primary_stakeholder_name: string | null
           prospect_id: string | null
-          prospect_name: string | null
           raw_text: string
           rep_id: string
           salesforce_demo_link: string | null
@@ -272,8 +272,8 @@ export type Database = {
           manager_id?: string | null
           notes?: string | null
           potential_revenue?: number | null
+          primary_stakeholder_name?: string | null
           prospect_id?: string | null
-          prospect_name?: string | null
           raw_text: string
           rep_id: string
           salesforce_demo_link?: string | null
@@ -293,8 +293,8 @@ export type Database = {
           manager_id?: string | null
           notes?: string | null
           potential_revenue?: number | null
+          primary_stakeholder_name?: string | null
           prospect_id?: string | null
-          prospect_name?: string | null
           raw_text?: string
           rep_id?: string
           salesforce_demo_link?: string | null

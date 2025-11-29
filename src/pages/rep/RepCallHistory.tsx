@@ -401,7 +401,7 @@ export default function RepCallHistory() {
                           <TableCell className="font-medium">
                             {format(new Date(t.call_date), 'MMM d, yyyy')}
                           </TableCell>
-                          <TableCell>{t.prospect_name || '-'}</TableCell>
+                          <TableCell>{t.primary_stakeholder_name || '-'}</TableCell>
                           <TableCell>{t.account_name || '-'}</TableCell>
                           <TableCell>
                             <Badge variant="outline">{getCallTypeDisplay(t)}</Badge>

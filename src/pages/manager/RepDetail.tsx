@@ -46,14 +46,14 @@ type TimeframeFilter = '7d' | '30d' | '90d' | 'all';
 
 // Helper functions for display
 const getCallDisplayName = (t: CallTranscript) => {
-  if (t.prospect_name && t.account_name) {
-    return `${t.prospect_name} - ${t.account_name}`;
+  if (t.primary_stakeholder_name && t.account_name) {
+    return `${t.primary_stakeholder_name} - ${t.account_name}`;
   }
   if (t.account_name) {
     return t.account_name;
   }
-  if (t.prospect_name) {
-    return t.prospect_name;
+  if (t.primary_stakeholder_name) {
+    return t.primary_stakeholder_name;
   }
   return t.notes || 'Call';
 };

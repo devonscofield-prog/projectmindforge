@@ -28,7 +28,7 @@ export interface CallTranscript {
   created_at: string;
   updated_at: string;
   // New fields
-  prospect_name: string | null;
+  primary_stakeholder_name: string | null;
   account_name: string | null;
   salesforce_demo_link: string | null;
   potential_revenue: number | null;
@@ -136,7 +136,7 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
       notes: null,
       analysis_status: 'pending',
       // New fields
-      prospect_name: prospectName,
+      primary_stakeholder_name: prospectName,
       account_name: accountName,
       salesforce_demo_link: salesforceDemoLink,
       potential_revenue: potentialRevenue ?? null,
@@ -239,7 +239,7 @@ export async function listCallTranscriptsForRepWithFilters(
   if (filters.search) {
     const searchTerm = `%${filters.search}%`;
     query = query.or(
-      `prospect_name.ilike.${searchTerm},account_name.ilike.${searchTerm},call_type_other.ilike.${searchTerm},notes.ilike.${searchTerm}`
+      `primary_stakeholder_name.ilike.${searchTerm},account_name.ilike.${searchTerm},call_type_other.ilike.${searchTerm},notes.ilike.${searchTerm}`
     );
   }
 
