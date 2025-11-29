@@ -17,13 +17,16 @@ import {
   Heart,
   Swords,
   Loader2,
+  X,
 } from 'lucide-react';
 import type { AccountFollowUp, FollowUpCategory, FollowUpPriority } from '@/api/accountFollowUps';
 
 interface FollowUpItemProps {
   followUp: AccountFollowUp;
   onComplete: (id: string) => Promise<void>;
+  onDismiss?: (id: string) => Promise<void>;
   isCompleting?: boolean;
+  isDismissing?: boolean;
 }
 
 const priorityConfig: Record<FollowUpPriority, { label: string; className: string }> = {
@@ -41,20 +44,31 @@ const categoryConfig: Record<FollowUpCategory, { label: string; icon: React.Elem
   competitive: { label: 'Competitive', icon: Swords, className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
 };
 
-export function FollowUpItem({ followUp, onComplete, isCompleting }: FollowUpItemProps) {
+export function FollowUpItem({ followUp, onComplete, onDismiss, isCompleting, isDismissing }: FollowUpItemProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingComplete, setIsLoadingComplete] = useState(false);
+  const [isLoadingDismiss, setIsLoadingDismiss] = useState(false);
 
   const priority = priorityConfig[followUp.priority] || priorityConfig.medium;
   const category = followUp.category ? categoryConfig[followUp.category] : null;
   const CategoryIcon = category?.icon || Target;
 
   const handleComplete = async () => {
-    setIsLoading(true);
+    setIsLoadingComplete(true);
     try {
       await onComplete(followUp.id);
     } finally {
-      setIsLoading(false);
+      setIsLoadingComplete(false);
+    }
+  };
+
+  const handleDismiss = async () => {
+    if (!onDismiss) return;
+    setIsLoadingDismiss(true);
+    try {
+      await onDismiss(followUp.id);
+    } finally {
+      setIsLoadingDismiss(false);
     }
   };
 
@@ -84,23 +98,40 @@ export function FollowUpItem({ followUp, onComplete, isCompleting }: FollowUpIte
           )}
         </div>
 
-        {/* Complete Button */}
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={handleComplete}
-          disabled={isLoading || isCompleting}
-          className="shrink-0"
-        >
-          {isLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <>
-              <CheckCircle2 className="h-4 w-4 mr-1" />
-              Complete
-            </>
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2 shrink-0">
+          {onDismiss && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleDismiss}
+              disabled={isLoadingDismiss || isDismissing || isLoadingComplete || isCompleting}
+              className="text-muted-foreground hover:text-destructive"
+              title="Dismiss this follow-up"
+            >
+              {isLoadingDismiss ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <X className="h-4 w-4" />
+              )}
+            </Button>
           )}
-        </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleComplete}
+            disabled={isLoadingComplete || isCompleting || isLoadingDismiss || isDismissing}
+          >
+            {isLoadingComplete ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <>
+                <CheckCircle2 className="h-4 w-4 mr-1" />
+                Complete
+              </>
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* AI Reasoning (Collapsible) */}
