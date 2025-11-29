@@ -62,6 +62,19 @@ export function CallAnalysisResultsView({ call, analysis, isOwner, isManager }: 
     em: ({children}: {children?: React.ReactNode}) => <em className="italic">{children}</em>,
   };
 
+  // Convert markdown to HTML for rich text clipboard (Outlook compatibility)
+  const convertMarkdownToHtml = (markdown: string): string => {
+    return markdown
+      // Convert markdown links [text](url) to HTML <a> tags
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
+      // Convert bold **text** to <strong>
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      // Convert italic *text* to <em> (after bold to avoid conflicts)
+      .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+      // Convert newlines to <br> for proper line breaks in email
+      .replace(/\n/g, '<br>');
+  };
+
   const handleCopy = async (text: string, label: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -464,7 +477,22 @@ export function CallAnalysisResultsView({ call, analysis, isOwner, isManager }: 
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={() => handleCopy(isOwner ? recapDraft : analysis.recap_email_draft!, 'Recap email')}
+              onClick={async () => {
+                const markdown = isOwner ? recapDraft : analysis.recap_email_draft!;
+                try {
+                  const html = convertMarkdownToHtml(markdown);
+                  const clipboardItem = new ClipboardItem({
+                    'text/html': new Blob([html], { type: 'text/html' }),
+                    'text/plain': new Blob([markdown], { type: 'text/plain' }),
+                  });
+                  await navigator.clipboard.write([clipboardItem]);
+                  toast({ title: 'Copied', description: 'Recap email copied to clipboard.' });
+                } catch {
+                  // Fallback to plain text if HTML copy fails
+                  await navigator.clipboard.writeText(markdown);
+                  toast({ title: 'Copied', description: 'Recap email copied as plain text.' });
+                }
+              }}
             >
               <Copy className="h-4 w-4 mr-2" />
               Copy
