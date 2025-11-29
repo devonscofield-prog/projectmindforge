@@ -33,7 +33,6 @@ import AdminUsers from "./pages/admin/AdminUsers";
 
 // Shared pages
 import CallDetailPage from "./pages/calls/CallDetailPage";
-import OutlookIntegrationPlan from "./pages/OutlookIntegrationPlan";
 
 const queryClient = new QueryClient();
 
@@ -47,7 +46,6 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
-            <Route path="/outlook-integration-plan" element={<OutlookIntegrationPlan />} />
             
             {/* Rep Routes */}
             <Route path="/rep" element={
