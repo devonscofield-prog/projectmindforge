@@ -201,9 +201,9 @@ export default function CallDetailPage() {
     );
   }
 
-  const callTitle = transcript.prospect_name && transcript.account_name 
-    ? `${transcript.prospect_name} - ${transcript.account_name}`
-    : transcript.account_name || transcript.prospect_name || transcript.notes || 'Call Details';
+  const callTitle = transcript.primary_stakeholder_name && transcript.account_name 
+    ? `${transcript.primary_stakeholder_name} - ${transcript.account_name}`
+    : transcript.account_name || transcript.primary_stakeholder_name || transcript.notes || 'Call Details';
 
   return (
     <AppLayout>
@@ -241,13 +241,13 @@ export default function CallDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {/* Prospect Name */}
-              {transcript.prospect_name && (
+              {/* Primary Stakeholder Name */}
+              {transcript.primary_stakeholder_name && (
                 <div className="flex items-center gap-2">
                   <User className="h-4 w-4 text-muted-foreground" />
                   <div>
                     <p className="text-xs text-muted-foreground">Primary Stakeholder</p>
-                    <p className="font-medium">{transcript.prospect_name}</p>
+                    <p className="font-medium">{transcript.primary_stakeholder_name}</p>
                   </div>
                 </div>
               )}
