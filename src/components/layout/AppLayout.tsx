@@ -25,6 +25,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from '@/components/ui/sidebar';
+import { MobileBottomNav } from './MobileBottomNav';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -143,12 +144,15 @@ export function AppLayout({ children }: AppLayoutProps) {
           </header>
           
           {/* Main content */}
-          <main className="flex-1 overflow-auto">
+          <main className="flex-1 overflow-auto pb-20 md:pb-0">
             <div className="p-4 md:p-6 lg:p-8">
               {children}
             </div>
           </main>
         </SidebarInset>
+        
+        {/* Mobile bottom navigation */}
+        <MobileBottomNav />
       </div>
     </SidebarProvider>
   );

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -21,6 +21,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PullToRefresh } from '@/components/ui/pull-to-refresh';
 import { Search, Users, Flame, Calendar, DollarSign, ChevronRight, Building2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { 
@@ -129,6 +130,11 @@ export default function RepProspects() {
       setIsLoading(false);
     }
   };
+
+  // Pull-to-refresh handler
+  const handleRefresh = useCallback(async () => {
+    await loadProspects();
+  }, [user?.id, statusFilter, sortBy]);
 
   const filteredProspects = prospects.filter(prospect => {
     if (!search) return true;
@@ -288,18 +294,20 @@ export default function RepProspects() {
               </div>
             ) : (
               <>
-                {/* Mobile Card View */}
-                <div className="space-y-3 md:hidden">
-                  {filteredProspects.map((prospect) => (
-                    <MobileProspectCard
-                      key={prospect.id}
-                      prospect={prospect}
-                      stakeholderCount={stakeholderCounts[prospect.id] || 0}
-                      callCount={callCounts[prospect.id] || 0}
-                      onClick={() => navigate(`/rep/prospects/${prospect.id}`)}
-                    />
-                  ))}
-                </div>
+                {/* Mobile Card View with Pull-to-Refresh */}
+                <PullToRefresh onRefresh={handleRefresh} className="md:hidden">
+                  <div className="space-y-3">
+                    {filteredProspects.map((prospect) => (
+                      <MobileProspectCard
+                        key={prospect.id}
+                        prospect={prospect}
+                        stakeholderCount={stakeholderCounts[prospect.id] || 0}
+                        callCount={callCounts[prospect.id] || 0}
+                        onClick={() => navigate(`/rep/prospects/${prospect.id}`)}
+                      />
+                    ))}
+                  </div>
+                </PullToRefresh>
 
                 {/* Desktop Table View */}
                 <div className="hidden md:block">
