@@ -39,6 +39,10 @@ export interface CallTranscript {
   call_type_other: string | null;
 }
 
+export interface CallTranscriptWithHeat extends CallTranscript {
+  heat_score: number | null;
+}
+
 type AnalysisStatus = 'pending' | 'processing' | 'completed' | 'error';
 
 export interface CallHistoryFilters {
@@ -230,14 +234,15 @@ export async function listCallTranscriptsForRep(repId: string): Promise<CallTran
 
 /**
  * Lists call transcripts for a rep with comprehensive filtering.
+ * Includes heat_score from ai_call_analysis.
  * @param repId - The rep's user ID
  * @param filters - Filter options
- * @returns Object with data array and total count
+ * @returns Object with data array (with heat scores) and total count
  */
 export async function listCallTranscriptsForRepWithFilters(
   repId: string,
   filters: CallHistoryFilters
-): Promise<{ data: CallTranscript[]; count: number }> {
+): Promise<{ data: CallTranscriptWithHeat[]; count: number }> {
   let query = supabase
     .from('call_transcripts')
     .select('*', { count: 'exact' })
@@ -294,8 +299,47 @@ export async function listCallTranscriptsForRepWithFilters(
     throw new Error(`Failed to list call transcripts: ${error.message}`);
   }
 
+  const transcripts = (data || []) as CallTranscript[];
+
+  // Fetch heat scores from ai_call_analysis for all transcripts
+  if (transcripts.length > 0) {
+    const callIds = transcripts.map(t => t.id);
+    const { data: analyses, error: analysisError } = await supabase
+      .from('ai_call_analysis')
+      .select('call_id, coach_output')
+      .in('call_id', callIds);
+
+    if (analysisError) {
+      console.error('[listCallTranscriptsForRepWithFilters] Analysis fetch error:', analysisError);
+      // Continue without heat scores if fetch fails
+      return {
+        data: transcripts.map(t => ({ ...t, heat_score: null })),
+        count: count || 0,
+      };
+    }
+
+    // Create a map of call_id -> heat_score
+    const heatMap = new Map<string, number | null>();
+    analyses?.forEach(a => {
+      const coachOutput = a.coach_output as unknown as CoachOutput | null;
+      const heatScore = coachOutput?.heat_signature?.score ?? null;
+      heatMap.set(a.call_id, heatScore);
+    });
+
+    // Merge heat scores into transcripts
+    const transcriptsWithHeat: CallTranscriptWithHeat[] = transcripts.map(t => ({
+      ...t,
+      heat_score: heatMap.get(t.id) ?? null,
+    }));
+
+    return {
+      data: transcriptsWithHeat,
+      count: count || 0,
+    };
+  }
+
   return {
-    data: (data || []) as CallTranscript[],
+    data: [],
     count: count || 0,
   };
 }
