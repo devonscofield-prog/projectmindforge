@@ -29,6 +29,10 @@ export interface ProspectIntel {
     budget_signals?: string;
   };
   competitors_mentioned?: string[];
+  communication_summary?: string;
+  key_opportunities?: string[];
+  relationship_health?: string;
+  last_analyzed_at?: string;
 }
 
 export interface ProspectActivity {
@@ -357,4 +361,20 @@ export async function getCallCountsForProspects(prospectIds: string[]): Promise<
   }
 
   return counts;
+}
+
+/**
+ * Regenerate AI insights for a prospect from all available data
+ */
+export async function regenerateAccountInsights(prospectId: string): Promise<{ success: boolean; error?: string }> {
+  const { data, error } = await supabase.functions.invoke('regenerate-account-insights', {
+    body: { prospect_id: prospectId }
+  });
+
+  if (error) {
+    console.error('[regenerateAccountInsights] Error:', error);
+    return { success: false, error: error.message };
+  }
+
+  return data;
 }

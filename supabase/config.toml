@@ -14,3 +14,6 @@ verify_jwt = true
 
 [functions.generate-account-follow-ups]
 verify_jwt = true
+
+[functions.regenerate-account-insights]
+verify_jwt = true

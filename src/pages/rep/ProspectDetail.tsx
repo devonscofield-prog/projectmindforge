@@ -51,6 +51,7 @@ import {
   listActivitiesForProspect,
   createProspectActivity,
   getCallsForProspect,
+  regenerateAccountInsights,
   type Prospect,
   type ProspectActivity,
   type ProspectStatus,
@@ -157,6 +158,7 @@ export default function ProspectDetail() {
   const [isCompletedDialogOpen, setIsCompletedDialogOpen] = useState(false);
   const [isDismissedDialogOpen, setIsDismissedDialogOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isRefreshingInsights, setIsRefreshingInsights] = useState(false);
   const [newActivity, setNewActivity] = useState({
     type: 'note' as ProspectActivityType,
     description: '',
@@ -366,6 +368,69 @@ export default function ProspectDetail() {
     if (!id) return;
     const emailLogsData = await listEmailLogsForProspect(id);
     setEmailLogs(emailLogsData);
+    
+    // Auto-trigger follow-ups and insights regeneration
+    toast({ title: 'Refreshing AI analysis with new email data...' });
+    handleRefreshAll();
+  };
+
+  const handleRefreshAll = async () => {
+    if (!id || isRefreshing || isRefreshingInsights) return;
+    
+    setIsRefreshing(true);
+    setIsRefreshingInsights(true);
+    
+    try {
+      // Run both regenerations in parallel
+      const [followUpsResult, insightsResult] = await Promise.all([
+        refreshFollowUps(id),
+        regenerateAccountInsights(id)
+      ]);
+      
+      // Reload all data
+      const [pendingFollowUps, completedFollowUpsData, dismissedFollowUpsData, prospectData] = await Promise.all([
+        listFollowUpsForProspect(id, 'pending'),
+        listFollowUpsForProspect(id, 'completed'),
+        listFollowUpsForProspect(id, 'dismissed'),
+        getProspectById(id)
+      ]);
+      
+      setFollowUps(pendingFollowUps);
+      setCompletedFollowUps(completedFollowUpsData);
+      setDismissedFollowUps(dismissedFollowUpsData);
+      if (prospectData) setProspect(prospectData);
+      
+      if (followUpsResult.success && insightsResult.success) {
+        toast({ title: 'AI analysis updated successfully' });
+      } else {
+        toast({ title: 'AI analysis partially updated', variant: 'default' });
+      }
+    } catch (error) {
+      toast({ title: 'Failed to refresh AI analysis', variant: 'destructive' });
+    } finally {
+      setIsRefreshing(false);
+      setIsRefreshingInsights(false);
+    }
+  };
+
+  const handleRefreshInsightsOnly = async () => {
+    if (!id || isRefreshingInsights) return;
+    
+    setIsRefreshingInsights(true);
+    try {
+      const result = await regenerateAccountInsights(id);
+      if (result.success) {
+        const prospectData = await getProspectById(id);
+        if (prospectData) setProspect(prospectData);
+        toast({ title: 'AI insights updated' });
+      } else {
+        toast({ title: 'Failed to refresh insights', variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Failed to refresh insights', variant: 'destructive' });
+    } finally {
+      setIsRefreshingInsights(false);
+    }
   };
 
   return (
@@ -524,63 +589,130 @@ export default function ProspectDetail() {
             )}
 
             {/* AI Insights */}
-            {aiInfo && (
-              <Card>
-                <CardHeader>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                <div>
                   <CardTitle className="flex items-center gap-2">
                     <Flame className="h-5 w-5 text-primary" />
                     AI Insights
                   </CardTitle>
                   <CardDescription>
-                    Extracted from call transcripts
+                    {aiInfo?.last_analyzed_at 
+                      ? `Last analyzed ${format(new Date(aiInfo.last_analyzed_at), 'MMM d, yyyy h:mm a')}`
+                      : 'Extracted from calls and emails'
+                    }
                   </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {aiInfo.business_context && (
-                    <div>
-                      <h4 className="font-medium mb-1">Business Context</h4>
-                      <p className="text-sm text-muted-foreground">{aiInfo.business_context}</p>
-                    </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRefreshInsightsOnly}
+                  disabled={isRefreshingInsights}
+                >
+                  {isRefreshingInsights ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
                   )}
-                  {aiInfo.pain_points && aiInfo.pain_points.length > 0 && (
-                    <div>
-                      <h4 className="font-medium mb-2">Pain Points</h4>
-                      <ul className="space-y-1">
-                        {aiInfo.pain_points.map((point, i) => (
-                          <li key={i} className="flex items-start gap-2 text-sm">
-                            <AlertCircle className="h-4 w-4 text-orange-500 mt-0.5 shrink-0" />
-                            {point}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {aiInfo.decision_process && (
-                    <div>
-                      <h4 className="font-medium mb-2">Decision Process</h4>
-                      <div className="text-sm space-y-1">
-                        {aiInfo.decision_process.timeline && (
-                          <p><span className="text-muted-foreground">Timeline:</span> {aiInfo.decision_process.timeline}</p>
-                        )}
-                        {aiInfo.decision_process.budget_signals && (
-                          <p><span className="text-muted-foreground">Budget:</span> {aiInfo.decision_process.budget_signals}</p>
-                        )}
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {!aiInfo ? (
+                  <div className="text-center py-8">
+                    <Flame className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                    <p className="text-sm text-muted-foreground mb-3">No AI insights yet</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRefreshInsightsOnly}
+                      disabled={isRefreshingInsights}
+                    >
+                      {isRefreshingInsights ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Analyzing...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Generate Insights
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    {aiInfo.business_context && (
+                      <div>
+                        <h4 className="font-medium mb-1">Business Context</h4>
+                        <p className="text-sm text-muted-foreground">{aiInfo.business_context}</p>
                       </div>
-                    </div>
-                  )}
-                  {aiInfo.competitors_mentioned && aiInfo.competitors_mentioned.length > 0 && (
-                    <div>
-                      <h4 className="font-medium mb-1">Competitors Mentioned</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {aiInfo.competitors_mentioned.map((comp, i) => (
-                          <Badge key={i} variant="outline">{comp}</Badge>
-                        ))}
+                    )}
+                    {aiInfo.pain_points && aiInfo.pain_points.length > 0 && (
+                      <div>
+                        <h4 className="font-medium mb-2">Pain Points</h4>
+                        <ul className="space-y-1">
+                          {aiInfo.pain_points.map((point, i) => (
+                            <li key={i} className="flex items-start gap-2 text-sm">
+                              <AlertCircle className="h-4 w-4 text-orange-500 mt-0.5 shrink-0" />
+                              {point}
+                            </li>
+                          ))}
+                        </ul>
                       </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
+                    )}
+                    {aiInfo.communication_summary && (
+                      <div>
+                        <h4 className="font-medium mb-1">Communication Summary</h4>
+                        <p className="text-sm text-muted-foreground">{aiInfo.communication_summary}</p>
+                      </div>
+                    )}
+                    {aiInfo.key_opportunities && aiInfo.key_opportunities.length > 0 && (
+                      <div>
+                        <h4 className="font-medium mb-2">Key Opportunities</h4>
+                        <ul className="space-y-1">
+                          {aiInfo.key_opportunities.map((opp, i) => (
+                            <li key={i} className="flex items-start gap-2 text-sm">
+                              <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+                              {opp}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {aiInfo.decision_process && (
+                      <div>
+                        <h4 className="font-medium mb-2">Decision Process</h4>
+                        <div className="text-sm space-y-1">
+                          {aiInfo.decision_process.timeline && (
+                            <p><span className="text-muted-foreground">Timeline:</span> {aiInfo.decision_process.timeline}</p>
+                          )}
+                          {aiInfo.decision_process.budget_signals && (
+                            <p><span className="text-muted-foreground">Budget:</span> {aiInfo.decision_process.budget_signals}</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {aiInfo.relationship_health && (
+                      <div>
+                        <h4 className="font-medium mb-1">Relationship Health</h4>
+                        <p className="text-sm text-muted-foreground">{aiInfo.relationship_health}</p>
+                      </div>
+                    )}
+                    {aiInfo.competitors_mentioned && aiInfo.competitors_mentioned.length > 0 && (
+                      <div>
+                        <h4 className="font-medium mb-1">Competitors Mentioned</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {aiInfo.competitors_mentioned.map((comp, i) => (
+                            <Badge key={i} variant="outline">{comp}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
 
             {/* Suggested Follow-Up Steps */}
             <Card>
