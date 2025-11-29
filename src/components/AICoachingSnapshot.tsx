@@ -1,12 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Brain, TrendingUp, AlertTriangle, Sparkles, Target, Ear, Flame } from 'lucide-react';
+import { Brain, TrendingUp, AlertTriangle, Sparkles, Target, Ear, Flame, ArrowRight } from 'lucide-react';
 import { listRecentAiAnalysisForRep, CallAnalysis } from '@/api/aiCallAnalysis';
 
 interface AICoachingSnapshotProps {
   repId: string;
+  showTrendsLink?: boolean;
 }
 
 interface AverageScores {
@@ -182,7 +185,7 @@ function ScoreBar({ label, value }: { label: string; value: number | null }) {
   );
 }
 
-export function AICoachingSnapshot({ repId }: AICoachingSnapshotProps) {
+export function AICoachingSnapshot({ repId, showTrendsLink }: AICoachingSnapshotProps) {
   const { data: analyses = [], isLoading } = useQuery({
     queryKey: ['ai-snapshot', repId],
     queryFn: () => listRecentAiAnalysisForRep(repId, 5),
@@ -246,14 +249,23 @@ export function AICoachingSnapshot({ repId }: AICoachingSnapshotProps) {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Brain className="h-5 w-5 text-primary" />
-          AI Coaching Snapshot
-        </CardTitle>
-        <CardDescription>
-          Based on {analyses.length} recent call{analyses.length !== 1 ? 's' : ''}
-        </CardDescription>
+      <CardHeader className="flex flex-row items-start justify-between space-y-0">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <Brain className="h-5 w-5 text-primary" />
+            AI Coaching Snapshot
+          </CardTitle>
+          <CardDescription>
+            Based on {analyses.length} recent call{analyses.length !== 1 ? 's' : ''}
+          </CardDescription>
+        </div>
+        {showTrendsLink && (
+          <Button variant="ghost" size="sm" asChild>
+            <Link to={`/rep/coaching-summary/${repId}`}>
+              View Trends <ArrowRight className="h-4 w-4 ml-1" />
+            </Link>
+          </Button>
+        )}
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid md:grid-cols-3 gap-6">
