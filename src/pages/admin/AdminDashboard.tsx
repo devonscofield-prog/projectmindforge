@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Users, Building2, BarChart3, RefreshCw, Activity, MessageSquare, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
-import { AiModeCard } from '@/components/admin/AiModeCard';
+
 
 interface Stats {
   totalUsers: number;
@@ -341,7 +341,6 @@ export default function AdminDashboard() {
               </p>
             </CardContent>
           </Card>
-          <AiModeCard />
           <Card>
             <CardHeader>
               <CardTitle>System Status</CardTitle>
