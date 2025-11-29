@@ -35,6 +35,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     : role === 'manager'
     ? [
         { href: '/manager', label: 'Team Overview', icon: LayoutDashboard },
+        { href: '/manager/accounts', label: 'Accounts', icon: UserCheck },
         { href: '/manager/coaching', label: 'Coaching', icon: MessageSquare },
       ]
     : [

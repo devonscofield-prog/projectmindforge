@@ -1,6 +1,26 @@
 import { supabase } from '@/integrations/supabase/client';
 
 export type ProspectStatus = 'active' | 'won' | 'lost' | 'dormant';
+
+export interface ProspectWithRep {
+  id: string;
+  rep_id: string;
+  rep_name: string;
+  prospect_name: string;
+  account_name: string | null;
+  salesforce_link: string | null;
+  potential_revenue: number | null;
+  status: ProspectStatus;
+  industry: string | null;
+  ai_extracted_info: ProspectIntel | null;
+  suggested_follow_ups: string[] | null;
+  last_contact_date: string | null;
+  heat_score: number | null;
+  follow_ups_generation_status: string | null;
+  follow_ups_last_generated_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
 export type ProspectActivityType = 'call' | 'email' | 'meeting' | 'note' | 'linkedin' | 'demo';
 
 export interface Prospect {
@@ -381,4 +401,142 @@ export async function regenerateAccountInsights(prospectId: string): Promise<{ s
   }
 
   return data;
+}
+
+/**
+ * Lists all prospects for a manager's team with optional filtering
+ */
+export async function listProspectsForTeam(
+  managerId: string,
+  filters?: ProspectFilters & { repId?: string }
+): Promise<ProspectWithRep[]> {
+  // First get all teams managed by this manager
+  const { data: teams, error: teamsError } = await supabase
+    .from('teams')
+    .select('id')
+    .eq('manager_id', managerId);
+
+  if (teamsError) {
+    console.error('[listProspectsForTeam] Error fetching teams:', teamsError);
+    throw new Error(`Failed to fetch teams: ${teamsError.message}`);
+  }
+
+  if (!teams || teams.length === 0) {
+    return [];
+  }
+
+  // Get all rep IDs in those teams
+  const teamIds = teams.map(t => t.id);
+  const { data: profiles, error: profilesError } = await supabase
+    .from('profiles')
+    .select('id, name')
+    .in('team_id', teamIds);
+
+  if (profilesError) {
+    console.error('[listProspectsForTeam] Error fetching profiles:', profilesError);
+    throw new Error(`Failed to fetch profiles: ${profilesError.message}`);
+  }
+
+  if (!profiles || profiles.length === 0) {
+    return [];
+  }
+
+  // Build rep ID to name map
+  const repIdToName: Record<string, string> = {};
+  profiles.forEach(p => {
+    repIdToName[p.id] = p.name;
+  });
+
+  let repIds = profiles.map(p => p.id);
+
+  // If filtering by specific rep, only include that rep
+  if (filters?.repId && filters.repId !== 'all') {
+    if (repIds.includes(filters.repId)) {
+      repIds = [filters.repId];
+    } else {
+      return []; // Rep not in team
+    }
+  }
+
+  // Now fetch prospects for those reps
+  let query = supabase
+    .from('prospects')
+    .select('*')
+    .in('rep_id', repIds);
+
+  // Text search
+  if (filters?.search) {
+    const searchTerm = `%${filters.search}%`;
+    query = query.or(
+      `prospect_name.ilike.${searchTerm},account_name.ilike.${searchTerm}`
+    );
+  }
+
+  // Status filter
+  if (filters?.statuses && filters.statuses.length > 0) {
+    query = query.in('status', filters.statuses);
+  }
+
+  // Heat score range
+  if (filters?.heatScoreMin !== undefined) {
+    query = query.gte('heat_score', filters.heatScoreMin);
+  }
+  if (filters?.heatScoreMax !== undefined) {
+    query = query.lte('heat_score', filters.heatScoreMax);
+  }
+
+  // Sorting
+  const sortBy = filters?.sortBy || 'last_contact_date';
+  const sortOrder = filters?.sortOrder || 'desc';
+  query = query.order(sortBy, { ascending: sortOrder === 'asc', nullsFirst: false });
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error('[listProspectsForTeam] Error:', error);
+    throw new Error(`Failed to list team prospects: ${error.message}`);
+  }
+
+  // Add rep names to prospects
+  const prospectsWithRep: ProspectWithRep[] = (data || []).map(p => ({
+    ...p,
+    rep_name: repIdToName[p.rep_id] || 'Unknown',
+  })) as unknown as ProspectWithRep[];
+
+  return prospectsWithRep;
+}
+
+/**
+ * Gets team reps for a manager (for filter dropdown)
+ */
+export async function getTeamRepsForManager(managerId: string): Promise<{ id: string; name: string }[]> {
+  // Get all teams managed by this manager
+  const { data: teams, error: teamsError } = await supabase
+    .from('teams')
+    .select('id')
+    .eq('manager_id', managerId);
+
+  if (teamsError) {
+    console.error('[getTeamRepsForManager] Error fetching teams:', teamsError);
+    throw new Error(`Failed to fetch teams: ${teamsError.message}`);
+  }
+
+  if (!teams || teams.length === 0) {
+    return [];
+  }
+
+  // Get all reps in those teams
+  const teamIds = teams.map(t => t.id);
+  const { data: profiles, error: profilesError } = await supabase
+    .from('profiles')
+    .select('id, name')
+    .in('team_id', teamIds)
+    .order('name');
+
+  if (profilesError) {
+    console.error('[getTeamRepsForManager] Error fetching profiles:', profilesError);
+    throw new Error(`Failed to fetch profiles: ${profilesError.message}`);
+  }
+
+  return profiles || [];
 }

@@ -21,6 +21,7 @@ import RepActivity from "./pages/rep/RepActivity";
 
 // Manager pages
 import ManagerDashboard from "./pages/manager/ManagerDashboard";
+import ManagerAccounts from "./pages/manager/ManagerAccounts";
 import ManagerCoaching from "./pages/manager/ManagerCoaching";
 import RepDetail from "./pages/manager/RepDetail";
 
@@ -62,7 +63,7 @@ const App = () => (
               </ProtectedRoute>
             } />
             <Route path="/rep/prospects/:id" element={
-              <ProtectedRoute allowedRoles={['rep']}>
+              <ProtectedRoute allowedRoles={['rep', 'manager']}>
                 <ProspectDetail />
               </ProtectedRoute>
             } />
@@ -88,6 +89,16 @@ const App = () => (
             <Route path="/manager" element={
               <ProtectedRoute allowedRoles={['manager']}>
                 <ManagerDashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/manager/accounts" element={
+              <ProtectedRoute allowedRoles={['manager']}>
+                <ManagerAccounts />
+              </ProtectedRoute>
+            } />
+            <Route path="/manager/prospects/:id" element={
+              <ProtectedRoute allowedRoles={['manager']}>
+                <ProspectDetail />
               </ProtectedRoute>
             } />
             <Route path="/manager/coaching" element={
