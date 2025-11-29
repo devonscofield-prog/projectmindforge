@@ -89,6 +89,7 @@ import { CompletedFollowUpsDialog } from '@/components/prospects/CompletedFollow
 import { DismissedFollowUpsDialog } from '@/components/prospects/DismissedFollowUpsDialog';
 import { AddEmailLogDialog } from '@/components/prospects/AddEmailLogDialog';
 import { EmailLogItem } from '@/components/prospects/EmailLogItem';
+import { SalesCoachChat } from '@/components/prospects/SalesCoachChat';
 
 const statusLabels: Record<ProspectStatus, string> = {
   active: 'Active',
@@ -1165,6 +1166,11 @@ export default function ProspectDetail() {
           onEmailAdded={handleEmailAdded}
         />
       )}
+      {/* AI Sales Coach Chat */}
+      <SalesCoachChat 
+        prospectId={prospect.id} 
+        accountName={prospect.account_name || prospect.prospect_name} 
+      />
     </AppLayout>
   );
 }
