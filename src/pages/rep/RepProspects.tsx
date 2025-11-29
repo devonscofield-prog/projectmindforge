@@ -4,7 +4,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
   Select,
@@ -22,7 +21,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Search, Users, Flame, Calendar, DollarSign, ChevronRight } from 'lucide-react';
+import { Search, Users, Flame, Calendar, DollarSign, ChevronRight, Building2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { 
   listProspectsForRep, 
@@ -31,6 +30,7 @@ import {
   type ProspectStatus,
   type ProspectFilters 
 } from '@/api/prospects';
+import { getStakeholderCountsForProspects } from '@/api/stakeholders';
 
 const statusLabels: Record<ProspectStatus, string> = {
   active: 'Active',
@@ -69,6 +69,7 @@ export default function RepProspects() {
   
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [callCounts, setCallCounts] = useState<Record<string, number>>({});
+  const [stakeholderCounts, setStakeholderCounts] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -96,10 +97,15 @@ export default function RepProspects() {
       const data = await listProspectsForRep(user.id, filters);
       setProspects(data);
 
-      // Get call counts
+      // Get call counts and stakeholder counts
       if (data.length > 0) {
-        const counts = await getCallCountsForProspects(data.map(p => p.id));
+        const prospectIds = data.map(p => p.id);
+        const [counts, sCounts] = await Promise.all([
+          getCallCountsForProspects(prospectIds),
+          getStakeholderCountsForProspects(prospectIds),
+        ]);
         setCallCounts(counts);
+        setStakeholderCounts(sCounts);
       }
     } catch (error) {
       console.error('Failed to load prospects:', error);
@@ -112,8 +118,8 @@ export default function RepProspects() {
     if (!search) return true;
     const searchLower = search.toLowerCase();
     return (
-      prospect.prospect_name.toLowerCase().includes(searchLower) ||
-      (prospect.account_name?.toLowerCase().includes(searchLower) ?? false)
+      (prospect.account_name?.toLowerCase().includes(searchLower) ?? false) ||
+      prospect.prospect_name.toLowerCase().includes(searchLower)
     );
   });
 
@@ -132,9 +138,9 @@ export default function RepProspects() {
       <div className="space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Prospects</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Accounts</h1>
           <p className="text-muted-foreground">
-            Manage your prospect profiles and track interactions
+            Manage your accounts and track stakeholder relationships
           </p>
         </div>
 
@@ -144,10 +150,10 @@ export default function RepProspects() {
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-full bg-primary/10">
-                  <Users className="h-5 w-5 text-primary" />
+                  <Building2 className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Total Prospects</p>
+                  <p className="text-sm text-muted-foreground">Total Accounts</p>
                   <p className="text-2xl font-bold">{prospects.length}</p>
                 </div>
               </div>
@@ -211,7 +217,7 @@ export default function RepProspects() {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search prospects..."
+                  placeholder="Search accounts..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-9"
@@ -235,8 +241,7 @@ export default function RepProspects() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="last_contact_date">Last Contact</SelectItem>
-                  <SelectItem value="prospect_name">Name</SelectItem>
-                  <SelectItem value="account_name">Account</SelectItem>
+                  <SelectItem value="account_name">Account Name</SelectItem>
                   <SelectItem value="heat_score">Heat Score</SelectItem>
                   <SelectItem value="potential_revenue">Revenue</SelectItem>
                 </SelectContent>
@@ -248,7 +253,7 @@ export default function RepProspects() {
         {/* Prospects Table */}
         <Card>
           <CardHeader>
-            <CardTitle>All Prospects</CardTitle>
+            <CardTitle>All Accounts</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -259,21 +264,21 @@ export default function RepProspects() {
               </div>
             ) : filteredProspects.length === 0 ? (
               <div className="text-center py-12">
-                <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium">No prospects yet</h3>
+                <Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium">No accounts yet</h3>
                 <p className="text-muted-foreground mt-1">
-                  Prospects are automatically created when you submit calls
+                  Accounts are automatically created when you submit calls
                 </p>
               </div>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Prospect</TableHead>
                     <TableHead>Account</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Heat</TableHead>
                     <TableHead>Revenue</TableHead>
+                    <TableHead>Stakeholders</TableHead>
                     <TableHead>Calls</TableHead>
                     <TableHead>Last Contact</TableHead>
                     <TableHead className="w-10"></TableHead>
@@ -286,11 +291,17 @@ export default function RepProspects() {
                       className="cursor-pointer hover:bg-muted/50"
                       onClick={() => navigate(`/rep/prospects/${prospect.id}`)}
                     >
-                      <TableCell className="font-medium">
-                        {prospect.prospect_name}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {prospect.account_name || '—'}
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">
+                            {prospect.account_name || prospect.prospect_name}
+                          </p>
+                          {prospect.account_name && prospect.prospect_name && (
+                            <p className="text-xs text-muted-foreground">
+                              Primary: {prospect.prospect_name}
+                            </p>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Badge variant={statusVariants[prospect.status]}>
@@ -302,6 +313,12 @@ export default function RepProspects() {
                       </TableCell>
                       <TableCell>
                         {formatCurrency(prospect.potential_revenue)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1 text-muted-foreground">
+                          <Users className="h-3.5 w-3.5" />
+                          {stakeholderCounts[prospect.id] || 0}
+                        </div>
                       </TableCell>
                       <TableCell>
                         {callCounts[prospect.id] || 0}

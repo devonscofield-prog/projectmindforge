@@ -40,7 +40,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     : [
         { href: '/rep', label: 'Submit a Call', icon: Mic },
         { href: '/rep/history', label: 'Call History', icon: History },
-        { href: '/rep/prospects', label: 'Prospects', icon: UserCheck },
+        { href: '/rep/prospects', label: 'Accounts', icon: UserCheck },
       ];
 
   return (

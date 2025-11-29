@@ -195,6 +195,48 @@ export type Database = {
         }
         Relationships: []
       }
+      call_stakeholder_mentions: {
+        Row: {
+          call_id: string
+          context_notes: string | null
+          created_at: string
+          id: string
+          stakeholder_id: string
+          was_present: boolean | null
+        }
+        Insert: {
+          call_id: string
+          context_notes?: string | null
+          created_at?: string
+          id?: string
+          stakeholder_id: string
+          was_present?: boolean | null
+        }
+        Update: {
+          call_id?: string
+          context_notes?: string | null
+          created_at?: string
+          id?: string
+          stakeholder_id?: string
+          was_present?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_stakeholder_mentions_call_id_fkey"
+            columns: ["call_id"]
+            isOneToOne: false
+            referencedRelation: "call_transcripts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_stakeholder_mentions_stakeholder_id_fkey"
+            columns: ["stakeholder_id"]
+            isOneToOne: false
+            referencedRelation: "stakeholders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       call_transcripts: {
         Row: {
           account_name: string | null
@@ -539,6 +581,74 @@ export type Database = {
         }
         Relationships: []
       }
+      stakeholders: {
+        Row: {
+          ai_extracted_info: Json | null
+          champion_score: number | null
+          champion_score_reasoning: string | null
+          created_at: string
+          email: string | null
+          id: string
+          influence_level:
+            | Database["public"]["Enums"]["stakeholder_influence_level"]
+            | null
+          is_primary_contact: boolean | null
+          job_title: string | null
+          last_interaction_date: string | null
+          name: string
+          phone: string | null
+          prospect_id: string
+          rep_id: string
+          updated_at: string
+        }
+        Insert: {
+          ai_extracted_info?: Json | null
+          champion_score?: number | null
+          champion_score_reasoning?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          influence_level?:
+            | Database["public"]["Enums"]["stakeholder_influence_level"]
+            | null
+          is_primary_contact?: boolean | null
+          job_title?: string | null
+          last_interaction_date?: string | null
+          name: string
+          phone?: string | null
+          prospect_id: string
+          rep_id: string
+          updated_at?: string
+        }
+        Update: {
+          ai_extracted_info?: Json | null
+          champion_score?: number | null
+          champion_score_reasoning?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          influence_level?:
+            | Database["public"]["Enums"]["stakeholder_influence_level"]
+            | null
+          is_primary_contact?: boolean | null
+          job_title?: string | null
+          last_interaction_date?: string | null
+          name?: string
+          phone?: string | null
+          prospect_id?: string
+          rep_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stakeholders_prospect_id_fkey"
+            columns: ["prospect_id"]
+            isOneToOne: false
+            referencedRelation: "prospects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       teams: {
         Row: {
           created_at: string
@@ -643,6 +753,11 @@ export type Database = {
         | "linkedin"
         | "demo"
       prospect_status: "active" | "won" | "lost" | "dormant"
+      stakeholder_influence_level:
+        | "light_influencer"
+        | "heavy_influencer"
+        | "secondary_dm"
+        | "final_dm"
       user_role: "rep" | "manager" | "admin"
     }
     CompositeTypes: {
@@ -790,6 +905,12 @@ export const Constants = {
         "demo",
       ],
       prospect_status: ["active", "won", "lost", "dormant"],
+      stakeholder_influence_level: [
+        "light_influencer",
+        "heavy_influencer",
+        "secondary_dm",
+        "final_dm",
+      ],
       user_role: ["rep", "manager", "admin"],
     },
   },
