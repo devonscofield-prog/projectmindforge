@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { PullToRefresh } from '@/components/ui/pull-to-refresh';
-import { listCallTranscriptsForRepWithFilters, CallHistoryFilters, CallTranscript } from '@/api/aiCallAnalysis';
+import { listCallTranscriptsForRepWithFilters, CallHistoryFilters, CallTranscriptWithHeat } from '@/api/aiCallAnalysis';
 import { CallType, callTypeLabels, callTypeOptions } from '@/constants/callTypes';
 import { MobileCallCard } from '@/components/calls/MobileCallCard';
 import { format } from 'date-fns';
@@ -31,8 +31,10 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  ChevronDown
+  ChevronDown,
+  Flame
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
@@ -172,7 +174,7 @@ export default function RepCallHistory() {
     }
   };
 
-  const getCallTypeDisplay = (t: CallTranscript) => {
+  const getCallTypeDisplay = (t: CallTranscriptWithHeat) => {
     if (t.call_type === 'other' && t.call_type_other) {
       return t.call_type_other;
     }
@@ -180,6 +182,25 @@ export default function RepCallHistory() {
       return callTypeLabels[t.call_type as CallType] || t.call_type;
     }
     return '-';
+  };
+
+  const getHeatBadge = (heatScore: number | null) => {
+    if (heatScore === null) return <span className="text-muted-foreground">-</span>;
+    
+    return (
+      <Badge 
+        variant="outline" 
+        className={cn(
+          "gap-1",
+          heatScore >= 7 && "border-orange-500 text-orange-600 dark:border-orange-400 dark:text-orange-400",
+          heatScore >= 4 && heatScore < 7 && "border-yellow-500 text-yellow-600 dark:border-yellow-400 dark:text-yellow-400",
+          heatScore < 4 && "border-blue-500 text-blue-600 dark:border-blue-400 dark:text-blue-400"
+        )}
+      >
+        <Flame className="h-3 w-3" />
+        {heatScore}/10
+      </Badge>
+    );
   };
 
   const formatCurrency = (value: number | null) => {
@@ -419,6 +440,7 @@ export default function RepCallHistory() {
                           </div>
                         </TableHead>
                         <TableHead>Call Type</TableHead>
+                        <TableHead>Heat</TableHead>
                         <TableHead>Revenue</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="w-[50px]"></TableHead>
@@ -439,6 +461,7 @@ export default function RepCallHistory() {
                           <TableCell>
                             <Badge variant="outline">{getCallTypeDisplay(t)}</Badge>
                           </TableCell>
+                          <TableCell>{getHeatBadge(t.heat_score)}</TableCell>
                           <TableCell>{formatCurrency(t.potential_revenue)}</TableCell>
                           <TableCell>{getStatusBadge(t.analysis_status)}</TableCell>
                           <TableCell>

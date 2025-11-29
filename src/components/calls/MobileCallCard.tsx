@@ -1,8 +1,9 @@
 import { format } from 'date-fns';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle, AlertCircle, Clock, ChevronRight } from 'lucide-react';
+import { CheckCircle, AlertCircle, Clock, ChevronRight, Flame } from 'lucide-react';
 import { CallType, callTypeLabels } from '@/constants/callTypes';
+import { cn } from '@/lib/utils';
 
 interface MobileCallCardProps {
   call: {
@@ -14,6 +15,7 @@ interface MobileCallCardProps {
     call_type_other?: string | null;
     potential_revenue?: number | null;
     analysis_status: string;
+    heat_score?: number | null;
   };
   onClick: () => void;
 }
@@ -73,9 +75,20 @@ export function MobileCallCard({ call, onClick }: MobileCallCardProps) {
               </p>
             )}
             
-            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
               <span>{format(new Date(call.call_date), 'MMM d, yyyy')}</span>
               <Badge variant="outline" className="text-xs">{getCallTypeDisplay()}</Badge>
+              {call.heat_score != null && (
+                <span className={cn(
+                  "flex items-center gap-1 font-medium",
+                  call.heat_score >= 7 && "text-orange-600 dark:text-orange-400",
+                  call.heat_score >= 4 && call.heat_score < 7 && "text-yellow-600 dark:text-yellow-400",
+                  call.heat_score < 4 && "text-blue-600 dark:text-blue-400"
+                )}>
+                  <Flame className="h-3 w-3" />
+                  {call.heat_score}/10
+                </span>
+              )}
               {formatCurrency(call.potential_revenue) && (
                 <span className="text-green-600">{formatCurrency(call.potential_revenue)}</span>
               )}
