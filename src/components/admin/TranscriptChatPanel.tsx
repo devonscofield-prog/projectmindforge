@@ -25,6 +25,10 @@ import {
   Search,
   Lightbulb,
   Download,
+  DollarSign,
+  Trophy,
+  AlertTriangle,
+  Swords,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -48,34 +52,44 @@ interface TranscriptChatPanelProps {
 
 const STARTER_QUESTIONS = [
   {
+    icon: DollarSign,
+    label: 'Revenue at Risk',
+    prompt: 'Which deals have the highest revenue at risk? Look for warning signs: vague timelines, missing economic buyers, competitor momentum, price objections without value anchors, or "we\'ll get back to you" endings. Prioritize by deal size and give me specific rescue actions for each.',
+  },
+  {
     icon: Target,
-    label: 'Deal Health (MEDDIC)',
-    prompt: 'Score these deals using MEDDIC criteria (Metrics, Economic Buyer, Decision Criteria, Decision Process, Identify Pain, Champion). Which deals have the weakest qualification? What specific gaps should reps address?',
+    label: 'Forecast Reality Check',
+    prompt: 'Based on the actual conversations (not what reps reported), which deals are likely to slip from their expected close dates? What concrete evidence supports or contradicts the committed timelines? Flag any deals where the prospect hasn\'t confirmed next steps.',
   },
   {
-    icon: AlertCircle,
-    label: 'Pipeline Risk',
-    prompt: 'Identify deals showing warning signs: price sensitivity without value anchor, competitor mentions with momentum, vague next steps, single-threaded relationships, or missing decision makers. Rank by revenue at risk.',
+    icon: Swords,
+    label: 'Competitive Intelligence',
+    prompt: 'Build me a competitive battle card from these calls: Which competitors were mentioned? What specific objections came up? Where are we winning vs losing and why? Include exact quotes I can use for sales training.',
   },
   {
-    icon: Users,
-    label: 'Rep Performance',
-    prompt: 'Compare rep techniques across these calls. Who is doing deep discovery? Who rushes to demo? What language patterns differentiate top performers? Provide specific coaching recommendations.',
+    icon: Trophy,
+    label: 'Top Rep Playbook',
+    prompt: 'What are the best reps doing differently? Find specific examples of excellent discovery questions, objection handling, or closing techniques. I want teachable moments with exact quotes I can share in our next team meeting.',
+  },
+  {
+    icon: AlertTriangle,
+    label: 'Urgent Coaching Needed',
+    prompt: 'Which reps need immediate coaching intervention? Identify specific skill gaps: Are they talking too much? Missing buying signals? Failing to multi-thread? Weak on discovery? Give me the top 3 coaching priorities with evidence.',
   },
   {
     icon: TrendingUp,
-    label: 'Win/Loss Patterns',
-    prompt: 'What language patterns and behaviors differentiate calls that are progressing well vs stalling? Look for commitment language, objection handling, and next step quality.',
+    label: 'Deal Velocity Check',
+    prompt: 'Are these deals actually progressing or just activity without advancement? Look for: concrete next steps with dates, new stakeholders being introduced, deepening business case discussions, vs. recycled conversations and stall tactics.',
+  },
+  {
+    icon: Users,
+    label: 'Champion Assessment',
+    prompt: 'Do we have real champions or just friendly contacts? Look for evidence of: internal selling on our behalf, access to economic buyers, sharing of internal politics/process, and advocacy language. Flag any single-threaded deals.',
   },
   {
     icon: Zap,
-    label: 'Competitive Intel',
-    prompt: 'Build a competitive intelligence summary: Which competitors are mentioned? What positioning or objections come up? What win themes emerge? Provide battle card insights.',
-  },
-  {
-    icon: Search,
-    label: 'Buying Committee',
-    prompt: 'Map the organizational dynamics across these deals. Where are we single-threaded? Who are the real decision makers vs influencers? Are we engaging champions effectively?',
+    label: 'Monday Morning Actions',
+    prompt: 'Give me 5 specific, high-impact actions we should take THIS WEEK based on these calls. Focus on deals we can save, coaching we can deliver, and competitive responses we need to prepare. Be specific about who should do what.',
   },
 ];
 
