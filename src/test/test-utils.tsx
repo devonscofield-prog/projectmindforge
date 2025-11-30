@@ -1,11 +1,11 @@
 import React, { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { renderHook, RenderHookOptions, act } from '@testing-library/react';
+import { renderHook, RenderHookOptions, RenderHookResult, act } from '@testing-library/react';
 
 /**
  * Create a fresh QueryClient for each test
  */
-export function createTestQueryClient() {
+export function createTestQueryClient(): QueryClient {
   return new QueryClient({
     defaultOptions: {
       queries: {
@@ -20,7 +20,7 @@ export function createTestQueryClient() {
 /**
  * Wrapper component that provides QueryClient context
  */
-export function createWrapper() {
+export function createWrapper(): React.FC<{ children: ReactNode }> {
   const queryClient = createTestQueryClient();
   return function Wrapper({ children }: { children: ReactNode }) {
     return (
@@ -37,7 +37,7 @@ export function createWrapper() {
 export function renderHookWithClient<TResult, TProps>(
   hook: (props: TProps) => TResult,
   options?: Omit<RenderHookOptions<TProps>, 'wrapper'>
-) {
+): RenderHookResult<TResult, TProps> {
   return renderHook(hook, {
     wrapper: createWrapper(),
     ...options,
@@ -66,3 +66,6 @@ export async function waitFor(
     }
   }
 }
+
+// Re-export act for convenience
+export { act };

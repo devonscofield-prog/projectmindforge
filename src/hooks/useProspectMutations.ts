@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, UseMutationResult } from '@tanstack/react-query';
 import { createLogger } from '@/lib/logger';
 import { toast } from 'sonner';
 
@@ -34,7 +34,7 @@ interface OptimisticProspectContext {
 /**
  * Hook for updating a prospect with optimistic update
  */
-export function useUpdateProspect() {
+export function useUpdateProspect(): UseMutationResult<Prospect, Error, UpdateProspectParams, OptimisticProspectContext> {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -104,7 +104,7 @@ export function useUpdateProspect() {
 /**
  * Hook for updating prospect status with optimistic update
  */
-export function useUpdateProspectStatus() {
+export function useUpdateProspectStatus(): UseMutationResult<Prospect, Error, { prospectId: string; status: ProspectStatus }, OptimisticProspectContext> {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -192,7 +192,7 @@ interface OptimisticActivityContext {
 /**
  * Hook for creating a prospect activity with optimistic update
  */
-export function useCreateProspectActivity(prospectId: string) {
+export function useCreateProspectActivity(prospectId: string): UseMutationResult<ProspectActivity, Error, CreateActivityParams, OptimisticActivityContext> {
   const queryClient = useQueryClient();
 
   return useMutation({

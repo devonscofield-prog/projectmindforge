@@ -49,7 +49,40 @@ export interface CallRecord {
   primary_stakeholder_name: string | null;
 }
 
-export function useProspectData(prospectId: string | undefined) {
+export interface UseProspectDataReturn {
+  // Data
+  prospect: Prospect | null;
+  stakeholders: Stakeholder[];
+  relationships: StakeholderRelationship[];
+  activities: ProspectActivity[];
+  calls: CallRecord[];
+  followUps: AccountFollowUp[];
+  completedFollowUps: AccountFollowUp[];
+  dismissedFollowUps: AccountFollowUp[];
+  emailLogs: EmailLog[];
+  user: ReturnType<typeof useAuth>['user'];
+  
+  // Loading states
+  isLoading: boolean;
+  isRefreshing: boolean;
+  isRefreshingInsights: boolean;
+  
+  // Handlers
+  loadProspectData: () => Promise<void>;
+  handleStatusChange: (newStatus: ProspectStatus) => Promise<void>;
+  handleAddActivity: (newActivity: { type: ProspectActivityType; description: string; date: string }) => Promise<ProspectActivity | undefined>;
+  handleCompleteFollowUp: (followUpId: string) => Promise<void>;
+  handleReopenFollowUp: (followUpId: string) => Promise<void>;
+  handleDismissFollowUp: (followUpId: string) => Promise<void>;
+  handleRestoreFollowUp: (followUpId: string) => Promise<void>;
+  handleRefreshFollowUps: () => Promise<void>;
+  handleDeleteEmailLog: (emailId: string) => Promise<void>;
+  handleRefreshInsightsOnly: () => Promise<void>;
+  handleEmailAdded: () => void;
+  handleUpdateProspect: (updates: Partial<Prospect>) => Promise<boolean>;
+}
+
+export function useProspectData(prospectId: string | undefined): UseProspectDataReturn {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();

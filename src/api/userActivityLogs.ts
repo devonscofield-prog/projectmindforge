@@ -14,7 +14,7 @@ interface ActivityLogEntry {
   metadata?: Json;
 }
 
-export async function logUserActivity(entry: ActivityLogEntry) {
+export async function logUserActivity(entry: ActivityLogEntry): Promise<void> {
   const { error } = await supabase
     .from('user_activity_logs')
     .insert([{

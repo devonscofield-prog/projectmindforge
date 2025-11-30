@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, UseMutationResult } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -44,7 +44,7 @@ interface OptimisticStakeholderContext {
 /**
  * Hook for creating a stakeholder with optimistic update
  */
-export function useCreateStakeholder(prospectId: string) {
+export function useCreateStakeholder(prospectId: string): UseMutationResult<Stakeholder, Error, CreateStakeholderParams, OptimisticStakeholderContext> {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -127,7 +127,7 @@ export function useCreateStakeholder(prospectId: string) {
 /**
  * Hook for updating a stakeholder with optimistic update
  */
-export function useUpdateStakeholder(prospectId: string) {
+export function useUpdateStakeholder(prospectId: string): UseMutationResult<Stakeholder, Error, UpdateStakeholderParams, OptimisticStakeholderContext> {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -212,7 +212,7 @@ export function useUpdateStakeholder(prospectId: string) {
 /**
  * Hook for deleting a stakeholder with optimistic update
  */
-export function useDeleteStakeholder(prospectId: string) {
+export function useDeleteStakeholder(prospectId: string): UseMutationResult<void, Error, string, OptimisticStakeholderContext> {
   const queryClient = useQueryClient();
 
   return useMutation({

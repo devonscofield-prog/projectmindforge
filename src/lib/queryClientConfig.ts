@@ -71,7 +71,7 @@ export function createQueryClient(): QueryClient {
 }
 
 // Track query fetching for start time logging
-export function setupQueryLogging(queryClient: QueryClient) {
+export function setupQueryLogging(queryClient: QueryClient): void {
   if (import.meta.env.PROD) return;
 
   // Subscribe to query state changes to track start times

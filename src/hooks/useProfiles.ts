@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, UseQueryResult } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface Profile {
@@ -22,7 +22,7 @@ export interface ProfileBasic {
 /**
  * Fetch all profiles (basic info: id and name)
  */
-export function useProfilesBasic() {
+export function useProfilesBasic(): UseQueryResult<ProfileBasic[], Error> {
   return useQuery({
     queryKey: ['profiles-basic'],
     queryFn: async () => {
@@ -40,7 +40,7 @@ export function useProfilesBasic() {
 /**
  * Fetch all profiles with full details
  */
-export function useProfilesFull() {
+export function useProfilesFull(): UseQueryResult<Profile[], Error> {
   return useQuery({
     queryKey: ['profiles-full'],
     queryFn: async () => {
@@ -58,7 +58,7 @@ export function useProfilesFull() {
 /**
  * Fetch a single profile by ID
  */
-export function useProfile(profileId: string | null | undefined) {
+export function useProfile(profileId: string | null | undefined): UseQueryResult<Profile | null, Error> {
   return useQuery({
     queryKey: ['profile', profileId],
     queryFn: async () => {
@@ -79,7 +79,7 @@ export function useProfile(profileId: string | null | undefined) {
 /**
  * Fetch multiple profiles by IDs
  */
-export function useProfilesByIds(profileIds: string[]) {
+export function useProfilesByIds(profileIds: string[]): UseQueryResult<(ProfileBasic & { team_id: string | null })[], Error> {
   return useQuery({
     queryKey: ['profiles-by-ids', profileIds.sort().join(',')],
     queryFn: async () => {
@@ -99,7 +99,7 @@ export function useProfilesByIds(profileIds: string[]) {
 /**
  * Fetch managers (users with manager role)
  */
-export function useManagers() {
+export function useManagers(): UseQueryResult<ProfileBasic[], Error> {
   return useQuery({
     queryKey: ['managers'],
     queryFn: async () => {

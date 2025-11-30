@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, UseQueryResult } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface RepBasic {
@@ -32,7 +32,7 @@ interface UseRepsOptions {
 /**
  * Fetch all reps (basic info)
  */
-export function useReps(options: UseRepsOptions = {}) {
+export function useReps(options: UseRepsOptions = {}): UseQueryResult<RepBasic[], Error> {
   const { teamId, activeOnly = true } = options;
   
   return useQuery({
@@ -62,7 +62,7 @@ export function useReps(options: UseRepsOptions = {}) {
 /**
  * Fetch all reps with email
  */
-export function useRepsWithEmail(options: UseRepsOptions = {}) {
+export function useRepsWithEmail(options: UseRepsOptions = {}): UseQueryResult<RepWithEmail[], Error> {
   const { teamId, activeOnly = true } = options;
   
   return useQuery({
@@ -92,7 +92,7 @@ export function useRepsWithEmail(options: UseRepsOptions = {}) {
 /**
  * Fetch rep count
  */
-export function useRepCount(options: UseRepsOptions = {}) {
+export function useRepCount(options: UseRepsOptions = {}): UseQueryResult<number, Error> {
   const { teamId, activeOnly = true } = options;
   
   return useQuery({
@@ -122,7 +122,7 @@ export function useRepCount(options: UseRepsOptions = {}) {
 /**
  * Fetch reps in a team (by team ID)
  */
-export function useTeamReps(teamId: string | null | undefined) {
+export function useTeamReps(teamId: string | null | undefined): UseQueryResult<RepBasic[], Error> {
   return useQuery({
     queryKey: ['team-reps', teamId],
     queryFn: async () => {
@@ -143,7 +143,7 @@ export function useTeamReps(teamId: string | null | undefined) {
 /**
  * Fetch rep IDs for a team (useful for filtering)
  */
-export function useTeamRepIds(teamId: string | null | undefined) {
+export function useTeamRepIds(teamId: string | null | undefined): UseQueryResult<string[], Error> {
   return useQuery({
     queryKey: ['team-rep-ids', teamId],
     queryFn: async () => {

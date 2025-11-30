@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, UseQueryResult } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface Team {
@@ -17,7 +17,7 @@ export interface TeamBasic {
 /**
  * Fetch all teams (basic info: id and name only)
  */
-export function useTeams() {
+export function useTeams(): UseQueryResult<TeamBasic[], Error> {
   return useQuery({
     queryKey: ['teams'],
     queryFn: async () => {
@@ -35,7 +35,7 @@ export function useTeams() {
 /**
  * Fetch all teams with full details
  */
-export function useTeamsFull() {
+export function useTeamsFull(): UseQueryResult<Team[], Error> {
   return useQuery({
     queryKey: ['teams-full'],
     queryFn: async () => {
@@ -53,7 +53,7 @@ export function useTeamsFull() {
 /**
  * Fetch a single team by ID
  */
-export function useTeam(teamId: string | null | undefined) {
+export function useTeam(teamId: string | null | undefined): UseQueryResult<Team | null, Error> {
   return useQuery({
     queryKey: ['team', teamId],
     queryFn: async () => {
@@ -74,7 +74,7 @@ export function useTeam(teamId: string | null | undefined) {
 /**
  * Fetch teams managed by a specific manager
  */
-export function useManagerTeams(managerId: string | null | undefined) {
+export function useManagerTeams(managerId: string | null | undefined): UseQueryResult<TeamBasic[], Error> {
   return useQuery({
     queryKey: ['manager-teams', managerId],
     queryFn: async () => {
@@ -95,7 +95,7 @@ export function useManagerTeams(managerId: string | null | undefined) {
 /**
  * Get team member counts
  */
-export function useTeamMemberCounts() {
+export function useTeamMemberCounts(): UseQueryResult<Map<string, number>, Error> {
   return useQuery({
     queryKey: ['team-member-counts'],
     queryFn: async () => {

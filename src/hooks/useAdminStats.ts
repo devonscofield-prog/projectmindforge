@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, UseQueryResult } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface AdminDashboardStats {
@@ -16,7 +16,7 @@ export interface AdminDashboardStats {
 /**
  * Fetch admin dashboard overview stats
  */
-export function useAdminDashboardStats() {
+export function useAdminDashboardStats(): UseQueryResult<AdminDashboardStats, Error> {
   return useQuery({
     queryKey: ['admin-dashboard-stats'],
     queryFn: async (): Promise<AdminDashboardStats> => {
@@ -64,7 +64,7 @@ export interface ProspectStats {
 /**
  * Fetch prospect statistics
  */
-export function useProspectStats() {
+export function useProspectStats(): UseQueryResult<ProspectStats, Error> {
   return useQuery({
     queryKey: ['prospect-stats'],
     queryFn: async (): Promise<ProspectStats> => {
