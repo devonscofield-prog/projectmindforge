@@ -161,6 +161,9 @@ export default function RepCoachingSummary() {
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>(() => createDateRange(30));
   const [selectedPreset, setSelectedPreset] = useState<string>('30');
   
+  // Manual generation control - user must click to generate
+  const [generateRequested, setGenerateRequested] = useState(false);
+  
   // Comparison mode state
   const [isComparisonMode, setIsComparisonMode] = useState(false);
   const [comparisonConfirmed, setComparisonConfirmed] = useState(false);
@@ -226,7 +229,7 @@ export default function RepCoachingSummary() {
     enabled: !!targetRepId && !isOwnSummary,
   });
 
-  // AI Trend Analysis query (Period A / Main period)
+  // AI Trend Analysis query (Period A / Main period) - only runs when user clicks generate
   const { 
     data: trendAnalysis, 
     isLoading, 
@@ -237,7 +240,7 @@ export default function RepCoachingSummary() {
   } = useQuery({
     queryKey: ['coaching-trends', targetRepId, dateRange.from.toISOString(), dateRange.to.toISOString()],
     queryFn: () => generateCoachingTrends(targetRepId!, dateRange),
-    enabled: !!targetRepId,
+    enabled: !!targetRepId && generateRequested,
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: 1,
   });
@@ -259,6 +262,7 @@ export default function RepCoachingSummary() {
   const handlePresetChange = (value: string) => {
     setSelectedPreset(value);
     setLoadedAnalysis(null); // Clear loaded analysis when date changes
+    setGenerateRequested(false); // Reset generate state when date changes
     if (value !== 'custom') {
       const newRange = createDateRange(parseInt(value));
       // Update both internal and debounced immediately for presets
@@ -283,6 +287,7 @@ export default function RepCoachingSummary() {
       const newRange = { ...dateRangeInternal, from: date };
       setSelectedPreset('custom');
       setLoadedAnalysis(null);
+      setGenerateRequested(false); // Reset generate state when date changes
       
       debounceDateRangeUpdate(newRange, setDateRangeInternal, setDateRange, () => {
         if (isComparisonMode && comparisonPreset === 'previous') {
@@ -303,6 +308,7 @@ export default function RepCoachingSummary() {
       const newRange = { ...dateRangeInternal, to: date };
       setSelectedPreset('custom');
       setLoadedAnalysis(null);
+      setGenerateRequested(false); // Reset generate state when date changes
       
       debounceDateRangeUpdate(newRange, setDateRangeInternal, setDateRange, () => {
         if (isComparisonMode && comparisonPreset === 'previous') {
@@ -368,15 +374,22 @@ export default function RepCoachingSummary() {
   const handleForceRefresh = () => {
     // Force refresh bypasses cache
     setLoadedAnalysis(null); // Clear any loaded analysis
+    setGenerateRequested(true); // Ensure generation is triggered
     generateCoachingTrends(targetRepId!, dateRange, { forceRefresh: true })
       .then(() => refetch());
+  };
+
+  const handleGenerateTrends = () => {
+    setGenerateRequested(true);
   };
 
   const handleLoadFromHistory = (analysis: CoachingTrendAnalysis, historyDateRange: { from: Date; to: Date }) => {
     // Set the date range to match the loaded analysis
     setDateRange(historyDateRange);
+    setDateRangeInternal(historyDateRange);
     setSelectedPreset('custom');
     setLoadedAnalysis(analysis);
+    setGenerateRequested(true); // Mark as generated since we loaded from history
     setHistoryComparisonAnalysis(null); // Clear any history comparison
     // Invalidate history query to refresh the list
     queryClient.invalidateQueries({ queryKey: ['coaching-trend-history', targetRepId] });
@@ -461,38 +474,42 @@ export default function RepCoachingSummary() {
             
             {/* Actions */}
             <div className="flex items-center gap-2">
-              {/* Comparison Mode Toggle */}
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/50">
-                <GitCompare className="h-4 w-4 text-muted-foreground" />
-                <Switch 
-                  id="comparison-mode"
-                  checked={isComparisonMode} 
-                  onCheckedChange={handleComparisonToggle}
-                />
-                <Label htmlFor="comparison-mode" className="text-sm cursor-pointer">
-                  Compare Periods
-                </Label>
-              </div>
+              {/* Comparison Mode Toggle - only show when results are available */}
+              {(generateRequested || loadedAnalysis) && (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/50">
+                  <GitCompare className="h-4 w-4 text-muted-foreground" />
+                  <Switch 
+                    id="comparison-mode"
+                    checked={isComparisonMode} 
+                    onCheckedChange={handleComparisonToggle}
+                  />
+                  <Label htmlFor="comparison-mode" className="text-sm cursor-pointer">
+                    Compare Periods
+                  </Label>
+                </div>
+              )}
               
-              {/* Refresh Button */}
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={handleForceRefresh}
-                      disabled={isAnyFetching}
-                    >
-                      <RefreshCw className={cn("h-4 w-4 mr-2", isAnyFetching && "animate-spin")} />
-                      Refresh
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Force refresh bypasses cache</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              {/* Refresh Button - only show when results are available */}
+              {(generateRequested || loadedAnalysis) && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={handleForceRefresh}
+                        disabled={isAnyFetching}
+                      >
+                        <RefreshCw className={cn("h-4 w-4 mr-2", isAnyFetching && "animate-spin")} />
+                        Refresh
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Force refresh bypasses cache</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
               
               {/* History Button */}
               <Button 
@@ -752,8 +769,46 @@ export default function RepCoachingSummary() {
           </div>
         </div>
 
-        {/* Loading State */}
-        {isAnyLoading ? (
+        {/* Initial State - Before Generation */}
+        {!generateRequested && !loadedAnalysis ? (
+          <Card className="border-dashed border-2">
+            <CardContent className="py-12">
+              <div className="flex flex-col items-center justify-center gap-6 max-w-lg mx-auto text-center">
+                <div className="relative">
+                  <div className="p-4 bg-primary/10 rounded-full">
+                    <Sparkles className="h-12 w-12 text-primary" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-xl font-semibold">AI-Powered Coaching Trends</h3>
+                  <p className="text-muted-foreground">
+                    Get personalized insights from your sales calls. Our AI will analyze your calls 
+                    to identify patterns, strengths, and areas for improvement.
+                  </p>
+                </div>
+                <div className="flex flex-col items-center gap-2 w-full">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <CalendarIcon className="h-4 w-4" />
+                    <span>
+                      {format(dateRangeInternal.from, 'MMM d, yyyy')} - {format(dateRangeInternal.to, 'MMM d, yyyy')}
+                    </span>
+                  </div>
+                  <Button 
+                    size="lg" 
+                    onClick={handleGenerateTrends}
+                    className="mt-2"
+                  >
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Generate Trends
+                  </Button>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Analysis takes 15-30 seconds
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : isAnyLoading ? (
           <div className="space-y-6">
             <Card className="border-dashed">
               <CardContent className="py-12">
