@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { createLogger } from '@/lib/logger';
+import { getAccountDetailUrl } from '@/lib/routes';
 
 const log = createLogger('RepProspects');
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -315,7 +316,7 @@ export default function RepProspects() {
                         prospect={prospect}
                         stakeholderCount={stakeholderCounts[prospect.id] || 0}
                         callCount={callCounts[prospect.id] || 0}
-                        onClick={() => navigate(`/rep/prospects/${prospect.id}`)}
+                        onClick={() => navigate(getAccountDetailUrl('rep', prospect.id))}
                       />
                     ))}
                   </div>
@@ -342,7 +343,7 @@ export default function RepProspects() {
                         <TableRow
                           key={prospect.id}
                           className="cursor-pointer hover:bg-muted/50"
-                          onClick={() => navigate(`/rep/prospects/${prospect.id}`)}
+                          onClick={() => navigate(getAccountDetailUrl('rep', prospect.id))}
                         >
                           <TableCell>
                             <div>

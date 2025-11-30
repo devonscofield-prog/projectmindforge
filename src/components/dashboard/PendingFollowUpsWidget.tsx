@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/contexts/AuthContext';
+import { getAccountDetailUrl } from '@/lib/routes';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -55,6 +57,7 @@ const categoryLabels: Record<FollowUpCategory, string> = {
 
 export function PendingFollowUpsWidget({ repId }: PendingFollowUpsWidgetProps) {
   const navigate = useNavigate();
+  const { role } = useAuth();
   const isMobile = useIsMobile();
   const [confirmDismissItem, setConfirmDismissItem] = useState<AccountFollowUpWithProspect | null>(null);
 
@@ -94,7 +97,7 @@ export function PendingFollowUpsWidget({ repId }: PendingFollowUpsWidgetProps) {
   };
 
   const handleNavigate = (prospectId: string) => {
-    navigate(`/rep/prospects/${prospectId}`);
+    navigate(getAccountDetailUrl(role, prospectId));
   };
 
   // Group by priority for display

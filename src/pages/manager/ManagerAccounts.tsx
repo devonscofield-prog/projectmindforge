@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { createLogger } from '@/lib/logger';
+import { getAccountDetailUrl } from '@/lib/routes';
 
 const log = createLogger('ManagerAccounts');
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -352,7 +353,7 @@ export default function ManagerAccounts() {
                     <TableRow
                       key={prospect.id}
                       className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => navigate(`/manager/accounts/${prospect.id}`)}
+                      onClick={() => navigate(getAccountDetailUrl('manager', prospect.id))}
                     >
                       <TableCell>
                         <p className="font-medium">
