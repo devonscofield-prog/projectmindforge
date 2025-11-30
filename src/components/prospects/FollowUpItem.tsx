@@ -197,8 +197,8 @@ export function FollowUpItem({ followUp, onComplete, onDismiss, isCompleting, is
         <SwipeableCard
           onSwipeRight={handleComplete}
           onSwipeLeft={onDismiss ? handleSwipeDismiss : undefined}
-          swipeRightLabel="Complete"
-          swipeLeftLabel="Dismiss"
+          rightAction={{ label: 'Complete', icon: CheckCircle2, bgColor: 'bg-success', color: 'text-success-foreground' }}
+          leftAction={{ label: 'Dismiss', icon: X, bgColor: 'bg-muted', color: 'text-muted-foreground' }}
           disabled={isLoadingComplete || isLoadingDismiss || isCompleting || isDismissing}
         >
           {cardContent}
