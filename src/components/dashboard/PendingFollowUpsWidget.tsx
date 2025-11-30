@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { SwipeableCard } from '@/components/ui/swipeable-card';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useCompleteFollowUp, useDismissFollowUp } from '@/hooks/useFollowUpMutations';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,8 +29,6 @@ import {
 } from 'lucide-react';
 import {
   listAllPendingFollowUpsForRep,
-  completeFollowUp,
-  dismissFollowUp,
   type AccountFollowUpWithProspect,
   type FollowUpPriority,
   type FollowUpCategory,
@@ -56,54 +56,30 @@ const categoryLabels: Record<FollowUpCategory, string> = {
 export function PendingFollowUpsWidget({ repId }: PendingFollowUpsWidgetProps) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const [followUps, setFollowUps] = useState<AccountFollowUpWithProspect[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [completingId, setCompletingId] = useState<string | null>(null);
-  const [dismissingId, setDismissingId] = useState<string | null>(null);
   const [confirmDismissItem, setConfirmDismissItem] = useState<AccountFollowUpWithProspect | null>(null);
 
-  useEffect(() => {
-    loadFollowUps();
-  }, [repId]);
+  // Fetch follow-ups with React Query
+  const { data: followUps = [], isLoading } = useQuery({
+    queryKey: ['all-follow-ups', repId],
+    queryFn: () => listAllPendingFollowUpsForRep(repId),
+    staleTime: 60 * 1000,
+  });
 
-  const loadFollowUps = async () => {
-    try {
-      const data = await listAllPendingFollowUpsForRep(repId);
-      setFollowUps(data);
-    } catch (error) {
-      console.error('Failed to load follow-ups:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // Optimistic mutation hooks
+  const completeFollowUpMutation = useCompleteFollowUp();
+  const dismissFollowUpMutation = useDismissFollowUp();
 
   const handleComplete = async (followUpId: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    setCompletingId(followUpId);
-    try {
-      await completeFollowUp(followUpId);
-      setFollowUps(prev => prev.filter(f => f.id !== followUpId));
-    } catch (error) {
-      console.error('Failed to complete follow-up:', error);
-    } finally {
-      setCompletingId(null);
-    }
+    completeFollowUpMutation.mutate(followUpId);
   };
 
   const handleSwipeComplete = async (followUpId: string) => {
-    await handleComplete(followUpId);
+    completeFollowUpMutation.mutate(followUpId);
   };
 
   const handleSwipeDismiss = async (followUpId: string) => {
-    setDismissingId(followUpId);
-    try {
-      await dismissFollowUp(followUpId);
-      setFollowUps(prev => prev.filter(f => f.id !== followUpId));
-    } catch (error) {
-      console.error('Failed to dismiss follow-up:', error);
-    } finally {
-      setDismissingId(null);
-    }
+    dismissFollowUpMutation.mutate(followUpId);
   };
 
   const handleDismissClick = (followUp: AccountFollowUpWithProspect, e: React.MouseEvent) => {
@@ -113,16 +89,8 @@ export function PendingFollowUpsWidget({ repId }: PendingFollowUpsWidgetProps) {
 
   const handleConfirmDismiss = async () => {
     if (!confirmDismissItem) return;
-    setDismissingId(confirmDismissItem.id);
-    try {
-      await dismissFollowUp(confirmDismissItem.id);
-      setFollowUps(prev => prev.filter(f => f.id !== confirmDismissItem.id));
-    } catch (error) {
-      console.error('Failed to dismiss follow-up:', error);
-    } finally {
-      setDismissingId(null);
-      setConfirmDismissItem(null);
-    }
+    dismissFollowUpMutation.mutate(confirmDismissItem.id);
+    setConfirmDismissItem(null);
   };
 
   const handleNavigate = (prospectId: string) => {
@@ -188,8 +156,8 @@ export function PendingFollowUpsWidget({ repId }: PendingFollowUpsWidgetProps) {
                           onComplete={handleComplete}
                           onDismissClick={handleDismissClick}
                           onNavigate={handleNavigate}
-                          isCompleting={completingId === followUp.id}
-                          isDismissing={dismissingId === followUp.id}
+                          isCompleting={completeFollowUpMutation.isPending && completeFollowUpMutation.variables === followUp.id}
+                          isDismissing={dismissFollowUpMutation.isPending && dismissFollowUpMutation.variables === followUp.id}
                           isMobile={isMobile}
                           onSwipeComplete={() => handleSwipeComplete(followUp.id)}
                           onSwipeDismiss={() => handleSwipeDismiss(followUp.id)}
@@ -215,8 +183,8 @@ export function PendingFollowUpsWidget({ repId }: PendingFollowUpsWidgetProps) {
                           onComplete={handleComplete}
                           onDismissClick={handleDismissClick}
                           onNavigate={handleNavigate}
-                          isCompleting={completingId === followUp.id}
-                          isDismissing={dismissingId === followUp.id}
+                          isCompleting={completeFollowUpMutation.isPending && completeFollowUpMutation.variables === followUp.id}
+                          isDismissing={dismissFollowUpMutation.isPending && dismissFollowUpMutation.variables === followUp.id}
                           isMobile={isMobile}
                           onSwipeComplete={() => handleSwipeComplete(followUp.id)}
                           onSwipeDismiss={() => handleSwipeDismiss(followUp.id)}
@@ -245,8 +213,9 @@ export function PendingFollowUpsWidget({ repId }: PendingFollowUpsWidgetProps) {
             <AlertDialogAction
               onClick={handleConfirmDismiss}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={dismissFollowUpMutation.isPending}
             >
-              {dismissingId ? (
+              {dismissFollowUpMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
               ) : null}
               Dismiss
