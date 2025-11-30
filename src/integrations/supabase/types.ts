@@ -361,6 +361,42 @@ export type Database = {
           },
         ]
       }
+      analysis_sessions: {
+        Row: {
+          analysis_mode: string | null
+          created_at: string
+          id: string
+          messages: Json
+          title: string | null
+          transcript_ids: string[]
+          updated_at: string
+          use_rag: boolean | null
+          user_id: string
+        }
+        Insert: {
+          analysis_mode?: string | null
+          created_at?: string
+          id?: string
+          messages?: Json
+          title?: string | null
+          transcript_ids: string[]
+          updated_at?: string
+          use_rag?: boolean | null
+          user_id: string
+        }
+        Update: {
+          analysis_mode?: string | null
+          created_at?: string
+          id?: string
+          messages?: Json
+          title?: string | null
+          transcript_ids?: string[]
+          updated_at?: string
+          use_rag?: boolean | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       app_settings: {
         Row: {
           key: string

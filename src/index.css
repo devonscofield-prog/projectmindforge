@@ -185,4 +185,81 @@
   .skip-link {
     @apply sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[100] focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-md focus:shadow-lg;
   }
+
+  /* Analysis markdown styles */
+  .analysis-markdown {
+    @apply text-foreground;
+  }
+  
+  .analysis-markdown table {
+    @apply w-full border-collapse;
+  }
+  
+  .analysis-markdown th,
+  .analysis-markdown td {
+    @apply border border-border px-3 py-2 text-sm;
+  }
+  
+  .analysis-markdown th {
+    @apply bg-muted/50 font-semibold text-left;
+  }
+  
+  .analysis-markdown tr:nth-child(even) {
+    @apply bg-muted/20;
+  }
+  
+  .analysis-markdown tr:hover {
+    @apply bg-muted/40;
+  }
+  
+  .analysis-markdown blockquote {
+    @apply border-l-2 border-primary/50 pl-4 italic text-muted-foreground my-4;
+  }
+  
+  .analysis-markdown code:not(pre code) {
+    @apply px-1.5 py-0.5 rounded bg-muted text-sm font-mono;
+  }
+  
+  .analysis-markdown pre {
+    @apply p-4 rounded-lg bg-muted overflow-x-auto my-4;
+  }
+  
+  .analysis-markdown ul,
+  .analysis-markdown ol {
+    @apply my-2 ml-4;
+  }
+  
+  .analysis-markdown li {
+    @apply my-1;
+  }
+  
+  .analysis-markdown h1,
+  .analysis-markdown h2,
+  .analysis-markdown h3 {
+    @apply font-semibold text-foreground;
+  }
+  
+  .analysis-markdown h1 {
+    @apply text-lg mt-6 mb-3;
+  }
+  
+  .analysis-markdown h2 {
+    @apply text-base mt-5 mb-2;
+  }
+  
+  .analysis-markdown h3 {
+    @apply text-sm mt-4 mb-2;
+  }
+  
+  .analysis-markdown p {
+    @apply my-2 leading-relaxed;
+  }
+  
+  .analysis-markdown strong {
+    @apply font-semibold text-primary;
+  }
+  
+  .analysis-markdown a {
+    @apply text-primary underline hover:text-primary/80;
+  }
 }
