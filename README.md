@@ -6,20 +6,30 @@ A role-based sales performance management application built with React, TypeScri
 
 **URL**: https://lovable.dev/projects/7147383f-fa7b-4ad5-8fca-cd94fb4039d8
 
+## Documentation
+
+- **[Architecture Overview](docs/ARCHITECTURE.md)** - System design, data flow, and security
+- **[API Reference](docs/API.md)** - Hooks, mutations, and API functions
+- **[Component Library](docs/COMPONENTS.md)** - UI components and usage
+- **[Development Guide](docs/DEVELOPMENT.md)** - Setup, conventions, and best practices
+
 ## Features
 
 - **Admin Dashboard**: View all teams, users, and system-wide metrics
 - **Manager Dashboard**: Track team performance, coaching sessions, and rep details
 - **Rep Dashboard**: Log activities, view personal performance, and track goals
+- **AI Call Analysis**: Automated transcript analysis with coaching insights
+- **Prospect Management**: Track stakeholders, follow-ups, and deal progress
+- **Performance Monitoring**: React Query devtools and query logging
 
 ## Technology Stack
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-- Supabase (Auth, Database, Edge Functions)
+- **Frontend**: React 18, TypeScript, Vite
+- **UI**: shadcn/ui, Tailwind CSS, Radix UI
+- **State**: React Query (TanStack Query)
+- **Backend**: Supabase (Auth, PostgreSQL, Edge Functions)
+- **Testing**: Vitest, Playwright
+- **AI**: Lovable AI integration
 
 ## Getting Started
 
