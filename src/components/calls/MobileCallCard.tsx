@@ -56,7 +56,7 @@ export function MobileCallCard({ call, onClick }: MobileCallCardProps) {
 
   return (
     <Card 
-      className="cursor-pointer hover:bg-muted/50 active:bg-muted/70 transition-colors"
+      variant="interactive"
       onClick={onClick}
     >
       <CardContent className="p-4">

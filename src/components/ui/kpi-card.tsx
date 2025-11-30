@@ -29,7 +29,7 @@ export function KPICard({ title, value, goal, icon: Icon, format = 'number', cla
   };
 
   return (
-    <Card className={cn("relative overflow-hidden", className)}>
+    <Card variant="elevated" className={cn("relative overflow-hidden", className)}>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
         {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
