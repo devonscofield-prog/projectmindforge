@@ -242,6 +242,117 @@ function PageSkeleton({
   );
 }
 
+/**
+ * Skeleton for breadcrumb navigation
+ */
+function BreadcrumbSkeleton() {
+  return (
+    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/40 border border-border/50">
+      <Skeleton className="h-4 w-4 rounded" />
+      <Skeleton className="h-4 w-24 hidden sm:block" />
+      <Skeleton className="h-3 w-3" />
+      <Skeleton className="h-4 w-16" />
+    </div>
+  );
+}
+
+/**
+ * Dashboard page skeleton with stats and content
+ */
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-6 animate-pulse-subtle">
+      <BreadcrumbSkeleton />
+      <PageHeaderSkeleton />
+      <StatCardGridSkeleton count={4} />
+      <div className="grid gap-6 lg:grid-cols-2">
+        <ChartSkeleton height="h-72" />
+        <ContentCardSkeleton lines={5} />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * List page skeleton (accounts, users, etc.)
+ */
+function ListPageSkeleton() {
+  return (
+    <div className="space-y-6 animate-pulse-subtle">
+      <BreadcrumbSkeleton />
+      <PageHeaderSkeleton />
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <Skeleton className="h-6 w-32" />
+          <div className="flex gap-2">
+            <Skeleton className="h-9 w-32" />
+            <Skeleton className="h-9 w-24" />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <TableSkeleton rows={8} columns={6} />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+/**
+ * Detail page skeleton (account detail, call detail, etc.)
+ */
+function DetailPageSkeleton() {
+  return (
+    <div className="space-y-6 animate-pulse-subtle">
+      <BreadcrumbSkeleton />
+      <div className="flex items-start justify-between">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-4 w-48" />
+        </div>
+        <Skeleton className="h-9 w-32" />
+      </div>
+      <StatCardGridSkeleton count={4} />
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2 space-y-6">
+          <ContentCardSkeleton lines={4} />
+          <ContentCardSkeleton lines={6} />
+        </div>
+        <div className="space-y-6">
+          <ContentCardSkeleton lines={5} />
+          <ContentCardSkeleton lines={3} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Form page skeleton
+ */
+function FormPageSkeleton() {
+  return (
+    <div className="space-y-6 animate-pulse-subtle">
+      <BreadcrumbSkeleton />
+      <PageHeaderSkeleton />
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-6 w-48" />
+          <Skeleton className="h-4 w-64" />
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormFieldSkeleton />
+            <FormFieldSkeleton />
+          </div>
+          <FormFieldSkeleton />
+          <Skeleton className="h-32 w-full rounded-md" />
+          <Skeleton className="h-10 w-full rounded-md" />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export {
   StatCardSkeleton,
   StatCardGridSkeleton,
@@ -254,4 +365,9 @@ export {
   FormFieldSkeleton,
   ContentCardSkeleton,
   PageSkeleton,
+  BreadcrumbSkeleton,
+  DashboardSkeleton,
+  ListPageSkeleton,
+  DetailPageSkeleton,
+  FormPageSkeleton,
 };
