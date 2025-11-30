@@ -3,14 +3,13 @@ import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Users, Building2, BarChart3, RefreshCw, Activity, MessageSquare, TrendingUp } from 'lucide-react';
+import { Users, Building2, BarChart3, RefreshCw, Activity, MessageSquare, TrendingUp, FileText } from 'lucide-react';
 import { toast } from 'sonner';
-
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { ChevronDown } from 'lucide-react';
 
 interface Stats {
   totalUsers: number;
@@ -20,20 +19,6 @@ interface Stats {
   totalPerformanceSnapshots: number;
   totalCoachingSessions: number;
   totalActivityLogs: number;
-}
-
-interface Team {
-  id: string;
-  name: string;
-}
-
-interface RepProfile {
-  id: string;
-  name: string;
-  email: string;
-  is_active: boolean;
-  team_id: string | null;
-  team_name?: string;
 }
 
 export default function AdminDashboard() {
@@ -47,9 +32,6 @@ export default function AdminDashboard() {
     totalCoachingSessions: 0,
     totalActivityLogs: 0,
   });
-  const [reps, setReps] = useState<RepProfile[]>([]);
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [teamFilter, setTeamFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
 
@@ -59,19 +41,15 @@ export default function AdminDashboard() {
       .from('profiles')
       .select('*', { count: 'exact', head: true });
 
-    // Fetch teams
-    const { data: teamsData, count: teamCount } = await supabase
+    // Fetch teams count
+    const { count: teamCount } = await supabase
       .from('teams')
-      .select('id, name', { count: 'exact' });
-    
-    if (teamsData) {
-      setTeams(teamsData);
-    }
+      .select('*', { count: 'exact', head: true });
 
     // Fetch role counts
     const { data: roles } = await supabase
       .from('user_roles')
-      .select('role, user_id');
+      .select('role');
 
     // Fetch performance snapshots count
     const { count: perfCount } = await supabase
@@ -88,26 +66,8 @@ export default function AdminDashboard() {
       .from('activity_logs')
       .select('*', { count: 'exact', head: true });
 
-    const repRoles = roles?.filter((r) => r.role === 'rep') || [];
-    const repCount = repRoles.length;
+    const repCount = roles?.filter((r) => r.role === 'rep').length || 0;
     const managerCount = roles?.filter((r) => r.role === 'manager').length || 0;
-
-    // Fetch rep profiles for the table with team info
-    if (repRoles.length > 0) {
-      const repUserIds = repRoles.map((r) => r.user_id);
-      const { data: repProfiles } = await supabase
-        .from('profiles')
-        .select('id, name, email, is_active, team_id, teams(name)')
-        .in('id', repUserIds);
-      
-      if (repProfiles) {
-        const repsWithTeam = repProfiles.map((rep) => ({
-          ...rep,
-          team_name: (rep.teams as { name: string } | null)?.name || 'Unassigned',
-        }));
-        setReps(repsWithTeam);
-      }
-    }
 
     setStats({
       totalUsers: userCount || 0,
@@ -242,129 +202,81 @@ export default function AdminDashboard() {
           </Card>
         </div>
 
-        {/* Rep Table */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle>Sales Reps</CardTitle>
-              <CardDescription>Click on a rep to view their details</CardDescription>
-            </div>
-            <Select value={teamFilter} onValueChange={setTeamFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by team" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Teams</SelectItem>
-                <SelectItem value="unassigned">Unassigned</SelectItem>
-                {teams.map((team) => (
-                  <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </CardHeader>
-          <CardContent>
-            {(() => {
-              const filteredReps = teamFilter === 'all' 
-                ? reps 
-                : teamFilter === 'unassigned'
-                  ? reps.filter((rep) => !rep.team_id)
-                  : reps.filter((rep) => rep.team_id === teamFilter);
-              
-              return filteredReps.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Team</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredReps.map((rep) => (
-                      <TableRow key={rep.id}>
-                        <TableCell className="font-medium">{rep.name}</TableCell>
-                        <TableCell>{rep.email}</TableCell>
-                        <TableCell>{rep.team_name || 'Unassigned'}</TableCell>
-                        <TableCell>
-                          <Badge variant={rep.is_active ? 'default' : 'secondary'}>
-                            {rep.is_active ? 'Active' : 'Inactive'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Button variant="outline" size="sm" asChild>
-                            <Link to={`/manager/rep/${rep.id}`}>View</Link>
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <p className="text-muted-foreground text-center py-8">No reps found.</p>
-              );
-            })()}
-          </CardContent>
-        </Card>
-
-        <div className="grid gap-6 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Button variant="outline" className="w-full justify-start" asChild>
-                <Link to="/admin/teams">Manage Teams</Link>
-              </Button>
-              <Button variant="outline" className="w-full justify-start" asChild>
-                <Link to="/admin/users">Manage Users</Link>
-              </Button>
-              <Button variant="outline" className="w-full justify-start" asChild>
-                <Link to="/admin/coaching">
-                  <TrendingUp className="mr-2 h-4 w-4" />
-                  Org Coaching Trends
-                </Link>
-              </Button>
-            </CardContent>
+        {/* Quick Actions */}
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          <Card className="hover:bg-muted/50 transition-colors">
+            <Link to="/admin/users">
+              <CardHeader className="flex flex-row items-center gap-3 pb-2">
+                <Users className="h-5 w-5 text-primary" />
+                <CardTitle className="text-base">Manage Users</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">View and manage all users</p>
+              </CardContent>
+            </Link>
           </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Developer Tools</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Button 
-                variant="destructive" 
-                className="w-full justify-start"
-                onClick={handleSeedData}
-                disabled={seeding}
-              >
-                <RefreshCw className={`mr-2 h-4 w-4 ${seeding ? 'animate-spin' : ''}`} />
-                {seeding ? 'Seeding...' : 'Reset demo data (dev only)'}
-              </Button>
-              <p className="text-xs text-muted-foreground">
-                Resets all demo users, teams, and performance data.
-              </p>
-            </CardContent>
+          <Card className="hover:bg-muted/50 transition-colors">
+            <Link to="/admin/teams">
+              <CardHeader className="flex flex-row items-center gap-3 pb-2">
+                <Building2 className="h-5 w-5 text-primary" />
+                <CardTitle className="text-base">Manage Teams</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">Organize team structure</p>
+              </CardContent>
+            </Link>
           </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>System Status</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">Database</span>
-                  <span className="text-sm text-success">Connected</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">Authentication</span>
-                  <span className="text-sm text-success">Active</span>
-                </div>
-              </div>
-            </CardContent>
+          <Card className="hover:bg-muted/50 transition-colors">
+            <Link to="/admin/coaching">
+              <CardHeader className="flex flex-row items-center gap-3 pb-2">
+                <TrendingUp className="h-5 w-5 text-primary" />
+                <CardTitle className="text-base">Coaching Trends</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">Org-wide coaching analytics</p>
+              </CardContent>
+            </Link>
+          </Card>
+          <Card className="hover:bg-muted/50 transition-colors">
+            <Link to="/admin/transcripts">
+              <CardHeader className="flex flex-row items-center gap-3 pb-2">
+                <FileText className="h-5 w-5 text-primary" />
+                <CardTitle className="text-base">Transcripts</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">Analyze call transcripts</p>
+              </CardContent>
+            </Link>
           </Card>
         </div>
+
+        {/* Developer Tools - Collapsible */}
+        <Collapsible>
+          <Card>
+            <CollapsibleTrigger className="w-full">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-base">Developer Tools</CardTitle>
+                <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="space-y-3 pt-0">
+                <Button 
+                  variant="destructive" 
+                  className="w-full justify-start"
+                  onClick={handleSeedData}
+                  disabled={seeding}
+                >
+                  <RefreshCw className={`mr-2 h-4 w-4 ${seeding ? 'animate-spin' : ''}`} />
+                  {seeding ? 'Seeding...' : 'Reset demo data (dev only)'}
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Resets all demo users, teams, and performance data.
+                </p>
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
       </div>
     </AppLayout>
   );
