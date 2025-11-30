@@ -37,12 +37,20 @@ import {
   Users,
 } from 'lucide-react';
 
+interface SelectionFilters {
+  dateRange?: { from: string; to: string };
+  selectedTeamId?: string;
+  selectedRepId?: string;
+  accountSearch?: string;
+  selectedCallTypes?: string[];
+}
+
 interface SavedSelection {
   id: string;
   name: string;
   description: string | null;
   transcript_ids: string[];
-  filters: any;
+  filters: SelectionFilters | null;
   share_token: string | null;
   is_shared: boolean;
   created_at: string;
