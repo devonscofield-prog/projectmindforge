@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { getPerformanceSummary } from './performanceMetrics';
+import { toImplementedRecommendation } from '@/lib/supabaseAdapters';
 import type { Json } from '@/integrations/supabase/types';
 
 export interface BaselineMetrics {
@@ -102,7 +103,12 @@ export async function markRecommendationImplemented(
 
   if (error) throw error;
 
-  return data as unknown as ImplementedRecommendation;
+  const adapted = toImplementedRecommendation(data);
+  return {
+    ...adapted,
+    affected_operations: adapted.affected_operations ?? [],
+    status: adapted.status as ImplementedRecommendation['status'],
+  };
 }
 
 /**
@@ -122,7 +128,8 @@ export async function measureRecommendationImpact(
 
   if (fetchError) throw fetchError;
 
-  const baseline = existing.baseline_metrics as unknown as BaselineMetrics;
+  const existingAdapted = toImplementedRecommendation(existing);
+  const baseline = existingAdapted.baseline_metrics;
 
   // Calculate improvement percentage (positive = improvement)
   const queryImprovement =
@@ -157,7 +164,12 @@ export async function measureRecommendationImpact(
 
   if (error) throw error;
 
-  return data as unknown as ImplementedRecommendation;
+  const adapted = toImplementedRecommendation(data);
+  return {
+    ...adapted,
+    affected_operations: adapted.affected_operations ?? [],
+    status: adapted.status as ImplementedRecommendation['status'],
+  };
 }
 
 /**
@@ -171,7 +183,14 @@ export async function getImplementedRecommendations(): Promise<ImplementedRecomm
 
   if (error) throw error;
 
-  return (data || []) as unknown as ImplementedRecommendation[];
+  return (data || []).map((row) => {
+    const adapted = toImplementedRecommendation(row);
+    return {
+      ...adapted,
+      affected_operations: adapted.affected_operations ?? [],
+      status: adapted.status as ImplementedRecommendation['status'],
+    };
+  });
 }
 
 /**

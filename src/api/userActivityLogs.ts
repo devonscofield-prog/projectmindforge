@@ -1,6 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { createLogger } from '@/lib/logger';
-import { Json } from '@/integrations/supabase/types';
+import { toUserActivityLog } from '@/lib/supabaseAdapters';
+import type { Json } from '@/integrations/supabase/types';
 
 const log = createLogger('activityLogs');
 
@@ -53,7 +54,7 @@ export async function fetchUserActivityLogs(userId: string, limit = 50): Promise
     return [];
   }
 
-  return (data || []) as unknown as UserActivityLog[];
+  return (data || []).map(toUserActivityLog);
 }
 
 export interface UserActivityLogWithProfile extends UserActivityLog {
@@ -77,7 +78,7 @@ export async function fetchAllRecentActivityLogs(limit = 20): Promise<UserActivi
   if (!logs || logs.length === 0) return [];
 
   // Get unique user IDs
-  const userIds = [...new Set(logs.map(log => log.user_id))];
+  const userIds = [...new Set(logs.map(logEntry => logEntry.user_id))];
 
   // Fetch profiles for those users
   const { data: profiles, error: profilesError } = await supabase
@@ -92,9 +93,12 @@ export async function fetchAllRecentActivityLogs(limit = 20): Promise<UserActivi
   // Create a map for quick lookup
   const profileMap = new Map((profiles || []).map(p => [p.id, p]));
 
-  return logs.map((log) => ({
-    ...log,
-    user_name: profileMap.get(log.user_id)?.name || 'Unknown',
-    user_email: profileMap.get(log.user_id)?.email || '',
-  })) as UserActivityLogWithProfile[];
+  return logs.map((logEntry) => {
+    const baseLog = toUserActivityLog(logEntry);
+    return {
+      ...baseLog,
+      user_name: profileMap.get(logEntry.user_id)?.name || 'Unknown',
+      user_email: profileMap.get(logEntry.user_id)?.email || '',
+    };
+  });
 }

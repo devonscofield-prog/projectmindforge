@@ -1,6 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { createLogger } from '@/lib/logger';
-import { CoachingTrendAnalysis } from './aiCallAnalysis';
+import { toCoachingTrendHistoryItem } from '@/lib/supabaseAdapters';
+import type { CoachingTrendAnalysis } from './aiCallAnalysis';
 
 const log = createLogger('coachingHistory');
 
@@ -48,10 +49,9 @@ export async function listCoachingTrendHistory(
     throw new Error(`Failed to fetch coaching trend history: ${error.message}`);
   }
 
-  return (data || []).map(item => ({
-    ...item,
-    analysis_data: item.analysis_data as unknown as CoachingTrendAnalysis,
-  })) as CoachingTrendHistoryItem[];
+  return (data || [])
+    .map(toCoachingTrendHistoryItem)
+    .filter((item): item is CoachingTrendHistoryItem => item !== null);
 }
 
 /**
@@ -75,10 +75,7 @@ export async function getCoachingTrendAnalysis(
 
   if (!data) return null;
 
-  return {
-    ...data,
-    analysis_data: data.analysis_data as unknown as CoachingTrendAnalysis,
-  } as CoachingTrendHistoryItem;
+  return toCoachingTrendHistoryItem(data);
 }
 
 /**
@@ -106,10 +103,11 @@ export async function saveCoachingTrendSnapshot(
     throw new Error(`Failed to save snapshot: ${error.message}`);
   }
 
-  return {
-    ...data,
-    analysis_data: data.analysis_data as unknown as CoachingTrendAnalysis,
-  } as CoachingTrendHistoryItem;
+  const item = toCoachingTrendHistoryItem(data);
+  if (!item) {
+    throw new Error('Failed to parse snapshot data');
+  }
+  return item;
 }
 
 /**
@@ -134,10 +132,11 @@ export async function updateSnapshotTitle(
     throw new Error(`Failed to update snapshot title: ${error.message}`);
   }
 
-  return {
-    ...data,
-    analysis_data: data.analysis_data as unknown as CoachingTrendAnalysis,
-  } as CoachingTrendHistoryItem;
+  const item = toCoachingTrendHistoryItem(data);
+  if (!item) {
+    throw new Error('Failed to parse snapshot data');
+  }
+  return item;
 }
 
 /**
