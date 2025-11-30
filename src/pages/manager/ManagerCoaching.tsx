@@ -12,10 +12,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 import { CoachingSession, Profile } from '@/types/database';
 import { format } from 'date-fns';
-import { Plus, ArrowUpDown, Pencil, Trash2 } from 'lucide-react';
+import { Plus, ArrowUpDown, Pencil, Trash2, Calendar, User, Target, FileText, CheckSquare, CalendarClock } from 'lucide-react';
 import { getTeamRepsForManager } from '@/api/prospects';
 import { useToast } from '@/hooks/use-toast';
 
@@ -51,6 +54,9 @@ export default function ManagerCoaching() {
   // Delete state
   const [deletingSession, setDeletingSession] = useState<CoachingWithRep | null>(null);
   const [deleting, setDeleting] = useState(false);
+  
+  // View details state
+  const [viewingSession, setViewingSession] = useState<CoachingWithRep | null>(null);
   
   // Filter state
   const [repFilter, setRepFilter] = useState<string>('all');
@@ -486,7 +492,11 @@ export default function ManagerCoaching() {
                   </TableHeader>
                   <TableBody>
                     {paginatedSessions.map((session) => (
-                      <TableRow key={session.id}>
+                      <TableRow 
+                        key={session.id} 
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => setViewingSession(session)}
+                      >
                         <TableCell>{format(new Date(session.session_date), 'MMM d, yyyy')}</TableCell>
                         <TableCell className="font-medium">{session.rep?.name || 'Unknown'}</TableCell>
                         <TableCell>{session.focus_area}</TableCell>
@@ -496,7 +506,7 @@ export default function ManagerCoaching() {
                             : '-'}
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center justify-end gap-1">
+                          <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                             <Button 
                               variant="ghost" 
                               size="icon" 
@@ -600,6 +610,124 @@ export default function ManagerCoaching() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Session Details Sheet */}
+      <Sheet open={!!viewingSession} onOpenChange={(open) => !open && setViewingSession(null)}>
+        <SheetContent className="sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Session Details</SheetTitle>
+            <SheetDescription>
+              Coaching session information and notes
+            </SheetDescription>
+          </SheetHeader>
+          
+          {viewingSession && (
+            <div className="mt-6 space-y-6">
+              {/* Meta info */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Calendar className="h-4 w-4" />
+                    Session Date
+                  </div>
+                  <p className="font-medium">
+                    {format(new Date(viewingSession.session_date), 'MMMM d, yyyy')}
+                  </p>
+                </div>
+                
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <User className="h-4 w-4" />
+                    Team Member
+                  </div>
+                  <p className="font-medium">{viewingSession.rep?.name || 'Unknown'}</p>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Focus Area */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Target className="h-4 w-4" />
+                  Focus Area
+                </div>
+                <Badge variant="secondary" className="text-sm">
+                  {viewingSession.focus_area}
+                </Badge>
+              </div>
+
+              {/* Notes */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <FileText className="h-4 w-4" />
+                  Notes
+                </div>
+                {viewingSession.notes ? (
+                  <p className="text-sm whitespace-pre-wrap bg-muted/50 rounded-md p-3">
+                    {viewingSession.notes}
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">No notes recorded</p>
+                )}
+              </div>
+
+              {/* Action Items */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <CheckSquare className="h-4 w-4" />
+                  Action Items
+                </div>
+                {viewingSession.action_items ? (
+                  <p className="text-sm whitespace-pre-wrap bg-muted/50 rounded-md p-3">
+                    {viewingSession.action_items}
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">No action items recorded</p>
+                )}
+              </div>
+
+              {/* Follow-up Date */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <CalendarClock className="h-4 w-4" />
+                  Follow-up Date
+                </div>
+                {viewingSession.follow_up_date ? (
+                  <p className="font-medium">
+                    {format(new Date(viewingSession.follow_up_date), 'MMMM d, yyyy')}
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">No follow-up scheduled</p>
+                )}
+              </div>
+
+              <Separator />
+
+              {/* Actions */}
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  className="flex-1"
+                  onClick={() => {
+                    setViewingSession(null);
+                    startEdit(viewingSession);
+                  }}
+                >
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Edit Session
+                </Button>
+                <Button variant="outline" asChild className="flex-1">
+                  <Link to={`/manager/rep/${viewingSession.rep_id}`}>
+                    <User className="h-4 w-4 mr-2" />
+                    View Rep
+                  </Link>
+                </Button>
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </AppLayout>
   );
 }
