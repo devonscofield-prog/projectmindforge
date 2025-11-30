@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { CallAnalysis, CallTranscript, editRecapEmail } from '@/api/aiCallAnalysis';
 import { 
   Copy,
@@ -21,7 +23,10 @@ import {
   HelpCircle,
   RefreshCw,
   Undo2,
-  Loader2
+  Loader2,
+  Download,
+  ChevronDown,
+  Search
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
@@ -583,6 +588,143 @@ export function CallAnalysisResultsView({ call, analysis, isOwner, isManager }: 
           </CardContent>
         </Card>
       )}
+
+      {/* Full Transcript Section */}
+      <FullTranscriptSection call={call} />
     </div>
+  );
+}
+
+// Separate component for transcript to avoid cluttering main component
+function FullTranscriptSection({ call }: { call: CallTranscript | null }) {
+  const { toast } = useToast();
+  const [isOpen, setIsOpen] = useState(false);
+  const [transcriptSearch, setTranscriptSearch] = useState('');
+
+  const transcript = call?.raw_text || '';
+
+  const transcriptStats = useMemo(() => {
+    if (!transcript) return { words: 0, characters: 0 };
+    const words = transcript.trim().split(/\s+/).filter(Boolean).length;
+    return { words, characters: transcript.length };
+  }, [transcript]);
+
+  const highlightedTranscript = useMemo(() => {
+    if (!transcriptSearch.trim() || !transcript) return null;
+    
+    const searchTerm = transcriptSearch.trim();
+    const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    const parts = transcript.split(regex);
+    
+    return parts.map((part, i) => 
+      regex.test(part) ? (
+        <mark key={i} className="bg-yellow-300 dark:bg-yellow-600 rounded px-0.5">{part}</mark>
+      ) : (
+        part
+      )
+    );
+  }, [transcript, transcriptSearch]);
+
+  const matchCount = useMemo(() => {
+    if (!transcriptSearch.trim() || !transcript) return 0;
+    const regex = new RegExp(transcriptSearch.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    return (transcript.match(regex) || []).length;
+  }, [transcript, transcriptSearch]);
+
+  const handleCopyTranscript = async () => {
+    try {
+      await navigator.clipboard.writeText(transcript);
+      toast({ title: 'Copied', description: 'Full transcript copied to clipboard.' });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to copy transcript.', variant: 'destructive' });
+    }
+  };
+
+  const handleDownloadTranscript = () => {
+    const accountName = call?.account_name || 'Unknown Account';
+    const callDate = call?.call_date ? new Date(call.call_date).toISOString().split('T')[0] : 'unknown-date';
+    const filename = `${accountName.replace(/[^a-z0-9]/gi, '_')}_${callDate}_transcript.txt`;
+    
+    const blob = new Blob([transcript], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    toast({ title: 'Downloaded', description: `Transcript saved as ${filename}` });
+  };
+
+  if (!transcript) return null;
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <Card>
+        <CardHeader className="pb-3">
+          <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-muted/50 -m-2 p-2 rounded-lg transition-colors">
+            <CardTitle className="flex items-center gap-2 text-left">
+              <FileText className="h-5 w-5" />
+              Full Transcript
+              <Badge variant="outline" className="ml-2">
+                {transcriptStats.words.toLocaleString()} words
+              </Badge>
+            </CardTitle>
+            <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+          </CollapsibleTrigger>
+          <CardDescription>
+            Complete word-for-word recording of the call
+          </CardDescription>
+        </CardHeader>
+        <CollapsibleContent>
+          <CardContent className="space-y-4 pt-0">
+            {/* Search and Actions */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search transcript..."
+                  value={transcriptSearch}
+                  onChange={(e) => setTranscriptSearch(e.target.value)}
+                  className="pl-9"
+                />
+                {transcriptSearch && matchCount > 0 && (
+                  <Badge variant="secondary" className="absolute right-2 top-1/2 -translate-y-1/2">
+                    {matchCount} {matchCount === 1 ? 'match' : 'matches'}
+                  </Badge>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={handleCopyTranscript}>
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleDownloadTranscript}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download
+                </Button>
+              </div>
+            </div>
+
+            {/* Transcript Content */}
+            <ScrollArea className="h-[500px] border rounded-lg">
+              <div className="p-4">
+                <pre className="whitespace-pre-wrap font-mono text-sm text-foreground leading-relaxed">
+                  {highlightedTranscript || transcript}
+                </pre>
+              </div>
+            </ScrollArea>
+
+            {/* Stats Footer */}
+            <div className="flex items-center gap-4 text-xs text-muted-foreground pt-2 border-t">
+              <span>{transcriptStats.words.toLocaleString()} words</span>
+              <span>{transcriptStats.characters.toLocaleString()} characters</span>
+            </div>
+          </CardContent>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
   );
 }
