@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { PullToRefresh } from '@/components/ui/pull-to-refresh';
 import { MobileCallCard } from '@/components/calls/MobileCallCard';
 import { ListSkeleton, TableSkeleton } from '@/components/ui/skeletons';
+import { ComponentErrorBoundary } from '@/components/ui/component-error-boundary';
 import { CallTranscriptWithHeat } from '@/api/aiCallAnalysis';
 import { CallType, callTypeLabels } from '@/constants/callTypes';
 import { format } from 'date-fns';
@@ -114,6 +115,7 @@ export function CallHistoryTable({
   };
 
   return (
+    <ComponentErrorBoundary onReset={onRefresh}>
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
@@ -312,5 +314,6 @@ export function CallHistoryTable({
         )}
       </CardContent>
     </Card>
+    </ComponentErrorBoundary>
   );
 }

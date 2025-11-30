@@ -12,6 +12,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { GlobalActivityFeed } from '@/components/admin/GlobalActivityFeed';
 import { CallTrendsChart } from '@/components/admin/CallTrendsChart';
 import { StatCardGridSkeleton, ChartSkeleton, ContentCardSkeleton } from '@/components/ui/skeletons';
+import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
 import { subDays } from 'date-fns';
 
 export default function AdminDashboard() {
@@ -156,10 +157,14 @@ export default function AdminDashboard() {
         </div>
 
         {/* Call Trends Chart */}
-        <CallTrendsChart />
+        <QueryErrorBoundary>
+          <CallTrendsChart />
+        </QueryErrorBoundary>
 
         {/* Global Activity Feed */}
-        <GlobalActivityFeed />
+        <QueryErrorBoundary>
+          <GlobalActivityFeed />
+        </QueryErrorBoundary>
 
         {/* Developer Tools - Collapsible */}
         <Collapsible>

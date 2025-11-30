@@ -12,6 +12,7 @@ import { Profile, CoachingSession } from '@/types/database';
 import { Users, Phone, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { getAiScoreStatsForReps, getCallCountsLast30DaysForReps, AiScoreStats } from '@/api/aiCallAnalysis';
+import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
 
 interface RepWithData extends Profile {
   lastCoaching?: CoachingSession;
@@ -213,6 +214,7 @@ export default function ManagerDashboard() {
         </div>
 
         {/* Team Table */}
+        <QueryErrorBoundary>
         <Card>
           <CardHeader className="pb-4">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -350,6 +352,7 @@ export default function ManagerDashboard() {
             )}
           </CardContent>
         </Card>
+        </QueryErrorBoundary>
       </div>
     </AppLayout>
   );
