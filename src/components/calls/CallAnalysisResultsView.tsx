@@ -199,8 +199,26 @@ export function CallAnalysisResultsView({ call, analysis, isOwner, isManager }: 
                 </Tooltip>
               </TooltipProvider>
             )}
-            <span className="text-xs text-muted-foreground">Model: {analysis.model_name}</span>
-            <span className="text-xs text-muted-foreground">Version: {analysis.prompt_version}</span>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-xs text-muted-foreground cursor-help">Model: {analysis.model_name}</span>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p className="text-sm">The AI model used to analyze this call transcript and generate insights.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-xs text-muted-foreground cursor-help">Version: {analysis.prompt_version}</span>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p className="text-sm">The version of the analysis prompt template used. Newer versions may include improved scoring and insights.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </CardContent>
       </Card>
