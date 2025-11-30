@@ -10,9 +10,11 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { MessageSquare, Send, Loader2, Sparkles, User } from 'lucide-react';
+import { Send, Loader2, Sparkles, User } from 'lucide-react';
 import { streamCoachResponse, type ChatMessage } from '@/api/salesCoach';
 import { useToast } from '@/hooks/use-toast';
+import { useRateLimitCountdown } from '@/hooks/useRateLimitCountdown';
+import { RateLimitCountdown } from '@/components/ui/rate-limit-countdown';
 import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
 
@@ -37,6 +39,7 @@ export function SalesCoachChat({ prospectId, accountName }: SalesCoachChatProps)
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const { secondsRemaining, isRateLimited, startCountdown } = useRateLimitCountdown(60);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -53,7 +56,7 @@ export function SalesCoachChat({ prospectId, accountName }: SalesCoachChatProps)
   }, [isOpen]);
 
   const sendMessage = async (content: string) => {
-    if (!content.trim() || isLoading) return;
+    if (!content.trim() || isLoading || isRateLimited) return;
 
     const userMessage: ChatMessage = { role: 'user', content: content.trim() };
     const newMessages = [...messages, userMessage];
@@ -86,11 +89,12 @@ export function SalesCoachChat({ prospectId, accountName }: SalesCoachChatProps)
         onError: (err) => {
           setError(err);
           setIsLoading(false);
-          // Show toast for rate limit errors
+          // Start countdown for rate limit errors
           if (err.toLowerCase().includes('rate limit')) {
+            startCountdown(60);
             toast({
               title: 'Too many requests',
-              description: 'Please wait a moment before sending another message.',
+              description: 'Please wait before sending another message.',
               variant: 'destructive',
             });
           }
@@ -165,7 +169,7 @@ export function SalesCoachChat({ prospectId, accountName }: SalesCoachChatProps)
                         size="sm"
                         className="text-xs h-auto py-2 px-3"
                         onClick={() => sendMessage(q)}
-                        disabled={isLoading}
+                        disabled={isLoading || isRateLimited}
                       >
                         {q}
                       </Button>
@@ -247,26 +251,33 @@ export function SalesCoachChat({ prospectId, accountName }: SalesCoachChatProps)
           </div>
         </ScrollArea>
 
-        <form onSubmit={handleSubmit} className="p-4 border-t bg-background">
-          <div className="flex gap-2">
-            <Input
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Ask your sales coach..."
-              disabled={isLoading}
-              className="flex-1"
-            />
-            <Button type="submit" size="icon" disabled={isLoading || !input.trim()}>
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
-        </form>
+        <div className="border-t bg-background">
+          {isRateLimited && (
+            <div className="px-4 pt-3">
+              <RateLimitCountdown secondsRemaining={secondsRemaining} />
+            </div>
+          )}
+          <form onSubmit={handleSubmit} className="p-4">
+            <div className="flex gap-2">
+              <Input
+                ref={inputRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={isRateLimited ? "Please wait..." : "Ask your sales coach..."}
+                disabled={isLoading || isRateLimited}
+                className="flex-1"
+              />
+              <Button type="submit" size="icon" disabled={isLoading || isRateLimited || !input.trim()}>
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+          </form>
+        </div>
       </SheetContent>
     </Sheet>
   );

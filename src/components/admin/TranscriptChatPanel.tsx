@@ -8,6 +8,8 @@ import { streamAdminTranscriptChat, ChatMessage } from '@/api/adminTranscriptCha
 import { SaveInsightDialog } from '@/components/admin/SaveInsightDialog';
 import { ExportChatDialog } from '@/components/admin/ExportChatDialog';
 import { useToast } from '@/hooks/use-toast';
+import { useRateLimitCountdown } from '@/hooks/useRateLimitCountdown';
+import { RateLimitCountdown } from '@/components/ui/rate-limit-countdown';
 import ReactMarkdown from 'react-markdown';
 import {
   Send,
@@ -81,6 +83,7 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
   const [insightToSave, setInsightToSave] = useState<string>('');
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const { toast } = useToast();
+  const { secondsRemaining, isRateLimited, startCountdown } = useRateLimitCountdown(60);
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -101,7 +104,7 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
   }, []);
 
   const sendMessage = useCallback(async (content: string) => {
-    if (!content.trim() || isLoading || selectedTranscripts.length === 0) return;
+    if (!content.trim() || isLoading || isRateLimited || selectedTranscripts.length === 0) return;
 
     setError(null);
     const userMessage: ChatMessage = { role: 'user', content: content.trim() };
@@ -135,11 +138,12 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
         onError: (err) => {
           setError(err);
           setIsLoading(false);
-          // Show toast for rate limit errors
+          // Start countdown for rate limit errors
           if (err.toLowerCase().includes('rate limit')) {
+            startCountdown(60);
             toast({
               title: 'Too many requests',
-              description: 'Please wait a moment before sending another message.',
+              description: 'Please wait before sending another message.',
               variant: 'destructive',
             });
           }
@@ -149,7 +153,7 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
       setError(err instanceof Error ? err.message : 'Failed to get response');
       setIsLoading(false);
     }
-  }, [messages, isLoading, selectedTranscripts, useRag, toast]);
+  }, [messages, isLoading, isRateLimited, selectedTranscripts, useRag, toast, startCountdown]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -234,7 +238,7 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
                     <button
                       key={i}
                       onClick={() => handleStarterQuestion(q.prompt)}
-                      disabled={isLoading}
+                      disabled={isLoading || isRateLimited}
                       className="flex items-center gap-3 p-3 text-left text-sm rounded-lg border hover:bg-muted/50 transition-colors disabled:opacity-50"
                     >
                       <q.icon className="h-4 w-4 text-primary shrink-0" />
@@ -316,28 +320,35 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
       </ScrollArea>
 
       {/* Input */}
-      <div className="border-t p-4">
-        <form onSubmit={handleSubmit} className="flex gap-2">
-          <Input
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Ask about these transcripts..."
-            disabled={isLoading}
-            className="flex-1"
-          />
-          <Button type="submit" size="icon" disabled={!input.trim() || isLoading}>
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
-          </Button>
-        </form>
-        <p className="text-xs text-muted-foreground mt-2 text-center">
-          Responses are grounded only in the selected transcripts
-        </p>
+      <div className="border-t">
+        {isRateLimited && (
+          <div className="px-4 pt-3">
+            <RateLimitCountdown secondsRemaining={secondsRemaining} />
+          </div>
+        )}
+        <div className="p-4">
+          <form onSubmit={handleSubmit} className="flex gap-2">
+            <Input
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={isRateLimited ? "Please wait..." : "Ask about these transcripts..."}
+              disabled={isLoading || isRateLimited}
+              className="flex-1"
+            />
+            <Button type="submit" size="icon" disabled={!input.trim() || isLoading || isRateLimited}>
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+            </Button>
+          </form>
+          <p className="text-xs text-muted-foreground mt-2 text-center">
+            Responses are grounded only in the selected transcripts
+          </p>
+        </div>
       </div>
 
       {/* Save Insight Dialog */}
