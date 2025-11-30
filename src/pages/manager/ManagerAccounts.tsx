@@ -352,7 +352,7 @@ export default function ManagerAccounts() {
                     <TableRow
                       key={prospect.id}
                       className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => navigate(`/manager/prospects/${prospect.id}`)}
+                      onClick={() => navigate(`/manager/accounts/${prospect.id}`)}
                     >
                       <TableCell>
                         <p className="font-medium">
