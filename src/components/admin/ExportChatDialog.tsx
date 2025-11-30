@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createLogger } from '@/lib/logger';
 import { format } from 'date-fns';
 import {
   Dialog,
@@ -15,6 +16,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { ChatMessage } from '@/api/adminTranscriptChat';
 import { Download, FileText, File, Loader2 } from 'lucide-react';
+
+const log = createLogger('ExportChatDialog');
 
 interface Transcript {
   id: string;
@@ -134,7 +137,7 @@ export function ExportChatDialog({
 
       document.body.removeChild(element);
     } catch (error) {
-      console.error('PDF export failed:', error);
+      log.error('PDF export failed', { error });
     } finally {
       setIsExporting(false);
     }

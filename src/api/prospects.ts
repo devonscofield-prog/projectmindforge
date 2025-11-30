@@ -1,4 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('prospects');
 
 export type ProspectStatus = 'active' | 'won' | 'lost' | 'dormant';
 
@@ -112,7 +115,7 @@ export async function createProspect(params: {
     .single();
 
   if (error) {
-    console.error('[createProspect] Error:', error);
+    log.error('Failed to create prospect', { error });
     throw new Error(`Failed to create prospect: ${error.message}`);
   }
 
@@ -140,7 +143,7 @@ export async function findProspectByNameAndAccount(
   const { data, error } = await query.maybeSingle();
 
   if (error) {
-    console.error('[findProspectByNameAndAccount] Error:', error);
+    log.error('Failed to find prospect', { error });
     throw new Error(`Failed to find prospect: ${error.message}`);
   }
 
@@ -239,7 +242,7 @@ export async function listProspectsForRep(
   const { data, error, count } = await query;
 
   if (error) {
-    console.error('[listProspectsForRep] Error:', error);
+    log.error('Failed to list prospects', { error });
     throw new Error(`Failed to list prospects: ${error.message}`);
   }
 
@@ -270,7 +273,7 @@ export async function getProspectById(prospectId: string): Promise<Prospect | nu
     .maybeSingle();
 
   if (error) {
-    console.error('[getProspectById] Error:', error);
+    log.error('Failed to get prospect', { error });
     throw new Error(`Failed to get prospect: ${error.message}`);
   }
 
@@ -301,7 +304,7 @@ export async function updateProspect(
     .single();
 
   if (error) {
-    console.error('[updateProspect] Error:', error);
+    log.error('Failed to update prospect', { error });
     throw new Error(`Failed to update prospect: ${error.message}`);
   }
 
@@ -320,7 +323,7 @@ export async function listActivitiesForProspect(prospectId: string): Promise<Pro
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('[listActivitiesForProspect] Error:', error);
+    log.error('Failed to list activities', { error });
     throw new Error(`Failed to list activities: ${error.message}`);
   }
 
@@ -350,7 +353,7 @@ export async function createProspectActivity(params: {
     .single();
 
   if (error) {
-    console.error('[createProspectActivity] Error:', error);
+    log.error('Failed to create activity', { error });
     throw new Error(`Failed to create activity: ${error.message}`);
   }
 
@@ -380,7 +383,7 @@ export async function getCallsForProspect(prospectId: string): Promise<{
     .order('call_date', { ascending: false });
 
   if (error) {
-    console.error('[getCallsForProspect] Error:', error);
+    log.error('Failed to get calls', { error });
     throw new Error(`Failed to get calls: ${error.message}`);
   }
 
@@ -397,7 +400,7 @@ export async function linkCallToProspect(callId: string, prospectId: string): Pr
     .eq('id', callId);
 
   if (error) {
-    console.error('[linkCallToProspect] Error:', error);
+    log.error('Failed to link call', { error });
     throw new Error(`Failed to link call: ${error.message}`);
   }
 }
@@ -414,7 +417,7 @@ export async function getCallCountsForProspects(prospectIds: string[]): Promise<
     .in('prospect_id', prospectIds);
 
   if (error) {
-    console.error('[getCallCountsForProspects] Error:', error);
+    log.error('Failed to get call counts', { error });
     throw new Error(`Failed to get call counts: ${error.message}`);
   }
 
@@ -439,7 +442,7 @@ export async function regenerateAccountInsights(prospectId: string): Promise<{ s
   });
 
   if (error) {
-    console.error('[regenerateAccountInsights] Error:', error);
+    log.error('Failed to regenerate account insights', { error });
     const isRateLimited = error.message?.toLowerCase().includes('rate limit') ||
                           error.message?.includes('429');
     return { success: false, error: error.message, isRateLimited };
@@ -467,7 +470,7 @@ export async function listProspectsForTeam(
     .eq('manager_id', managerId);
 
   if (teamsError) {
-    console.error('[listProspectsForTeam] Error fetching teams:', teamsError);
+    log.error('Error fetching teams for team prospects', { error: teamsError });
     throw new Error(`Failed to fetch teams: ${teamsError.message}`);
   }
 
@@ -483,7 +486,7 @@ export async function listProspectsForTeam(
     .in('team_id', teamIds);
 
   if (profilesError) {
-    console.error('[listProspectsForTeam] Error fetching profiles:', profilesError);
+    log.error('Error fetching profiles for team prospects', { error: profilesError });
     throw new Error(`Failed to fetch profiles: ${profilesError.message}`);
   }
 
@@ -543,7 +546,7 @@ export async function listProspectsForTeam(
   const { data, error } = await query;
 
   if (error) {
-    console.error('[listProspectsForTeam] Error:', error);
+    log.error('Failed to list team prospects', { error });
     throw new Error(`Failed to list team prospects: ${error.message}`);
   }
 
@@ -567,7 +570,7 @@ export async function getTeamRepsForManager(managerId: string): Promise<{ id: st
     .eq('manager_id', managerId);
 
   if (teamsError) {
-    console.error('[getTeamRepsForManager] Error fetching teams:', teamsError);
+    log.error('Error fetching teams for manager reps', { error: teamsError });
     throw new Error(`Failed to fetch teams: ${teamsError.message}`);
   }
 
@@ -584,7 +587,7 @@ export async function getTeamRepsForManager(managerId: string): Promise<{ id: st
     .order('name');
 
   if (profilesError) {
-    console.error('[getTeamRepsForManager] Error fetching profiles:', profilesError);
+    log.error('Error fetching profiles for manager reps', { error: profilesError });
     throw new Error(`Failed to fetch profiles: ${profilesError.message}`);
   }
 

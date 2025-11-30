@@ -1,5 +1,8 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { createLogger } from '@/lib/logger';
 import { useToast } from '@/hooks/use-toast';
+
+const log = createLogger('CallAnalysisResultsView');
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Badge } from '@/components/ui/badge';
@@ -129,7 +132,7 @@ export function CallAnalysisResultsView({ call, analysis, isOwner, isManager }: 
         description: 'Your recap email has been updated.',
       });
     } catch (error) {
-      console.error('Error refining email:', error);
+      log.error('Error refining email', { error });
       toast({
         title: 'Error',
         description: error instanceof Error ? error.message : 'Failed to refine email',

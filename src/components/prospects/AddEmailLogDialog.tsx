@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createLogger } from '@/lib/logger';
 import {
   Dialog,
   DialogContent,
@@ -8,6 +9,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+
+const log = createLogger('AddEmailLogDialog');
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowUpRight, ArrowDownLeft, Loader2, Crown, User, Check, Link2, Link2Off } from 'lucide-react';
@@ -118,7 +121,7 @@ export function AddEmailLogDialog({
       onOpenChange(false);
       onEmailAdded();
     } catch (error) {
-      console.error('Failed to log email:', error);
+      log.error('Failed to log email', { error });
       toast({ title: 'Failed to log email', variant: 'destructive' });
     } finally {
       setIsSubmitting(false);

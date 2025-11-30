@@ -3,8 +3,11 @@ import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
+import { createLogger } from '@/lib/logger';
 import { Json } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
+
+const log = createLogger('transcriptAnalysis');
 import { useTeams, useReps } from '@/hooks';
 import { createDateRange, Transcript } from './constants';
 
@@ -69,7 +72,7 @@ export function useTranscriptAnalysis() {
       toast.success(`Loaded shared selection: ${data.name}`);
       setSearchParams({});
     } catch (err) {
-      console.error('Error loading shared selection:', err);
+      log.error('Error loading shared selection', { error: err });
       toast.error('Failed to load shared selection');
       setSearchParams({});
     }
@@ -243,7 +246,7 @@ export function useTranscriptAnalysis() {
       toast.success(`Indexed ${result.new_chunks || 0} new chunks from ${result.transcripts_chunked || 0} transcripts`);
       refetchChunkStatus();
     } catch (err) {
-      console.error('Pre-index error:', err);
+      log.error('Pre-index error', { error: err });
       toast.error(err instanceof Error ? err.message : 'Failed to pre-index transcripts');
     } finally {
       setIsIndexing(false);

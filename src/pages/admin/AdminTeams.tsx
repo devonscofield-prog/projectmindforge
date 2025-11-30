@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('AdminTeams');
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -149,7 +152,7 @@ export default function AdminTeams() {
       setFormData({ name: '', manager_id: '' });
       await fetchData();
     } catch (error) {
-      console.error('Failed to create team:', error);
+      log.error('Failed to create team', { error });
       toast.error('Failed to create team');
     } finally {
       setSaving(false);
@@ -180,7 +183,7 @@ export default function AdminTeams() {
       setFormData({ name: '', manager_id: '' });
       await fetchData();
     } catch (error) {
-      console.error('Failed to update team:', error);
+      log.error('Failed to update team', { error });
       toast.error('Failed to update team');
     } finally {
       setSaving(false);
@@ -213,7 +216,7 @@ export default function AdminTeams() {
       setDeletingTeam(null);
       await fetchData();
     } catch (error) {
-      console.error('Failed to delete team:', error);
+      log.error('Failed to delete team', { error });
       toast.error('Failed to delete team');
     } finally {
       setSaving(false);

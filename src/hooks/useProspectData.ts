@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { createLogger } from '@/lib/logger';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -19,6 +20,8 @@ import {
   listStakeholdersForProspect,
   type Stakeholder,
 } from '@/api/stakeholders';
+
+const log = createLogger('prospectData');
 import {
   listRelationshipsForProspect,
   type StakeholderRelationship,
@@ -99,7 +102,7 @@ export function useProspectData(prospectId: string | undefined) {
       setDismissedFollowUps(dismissedFollowUpsData);
       setEmailLogs(emailLogsData);
     } catch (error) {
-      console.error('Failed to load prospect:', error);
+      log.error('Failed to load prospect', { error });
       toast({ title: 'Failed to load account', variant: 'destructive' });
     } finally {
       setIsLoading(false);
@@ -133,7 +136,7 @@ export function useProspectData(prospectId: string | undefined) {
             newRecord.analysis_status === 'completed' &&
             oldRecord.analysis_status !== 'completed'
           ) {
-            console.log('[useProspectData] Call analysis completed, refreshing AI data...');
+            log.info('Call analysis completed, refreshing AI data...');
             toast({ title: 'New call analysis available, refreshing insights...' });
             
             getCallsForProspect(prospectId).then(setCalls);

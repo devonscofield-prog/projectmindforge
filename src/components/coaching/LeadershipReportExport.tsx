@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('LeadershipReportExport');
 import {
   Dialog,
   DialogContent,
@@ -241,7 +244,7 @@ export function LeadershipReportExport({
       document.body.removeChild(container);
       toast.success('Leadership report exported');
     } catch (error) {
-      console.error('PDF export error:', error);
+      log.error('PDF export error', { error });
       toast.error('Failed to export report');
     } finally {
       setIsExporting(false);

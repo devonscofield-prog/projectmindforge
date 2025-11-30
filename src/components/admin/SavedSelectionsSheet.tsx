@@ -2,9 +2,12 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
+import { createLogger } from '@/lib/logger';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Json } from '@/integrations/supabase/types';
+
+const log = createLogger('SavedSelectionsSheet');
 import {
   Sheet,
   SheetContent,
@@ -97,7 +100,7 @@ export function SavedSelectionsSheet({
       setDeleteId(null);
     },
     onError: (error) => {
-      console.error('Delete error:', error);
+      log.error('Delete selection error', { error });
       toast.error('Failed to delete selection');
     },
   });

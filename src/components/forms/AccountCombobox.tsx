@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
+import { createLogger } from '@/lib/logger';
 import { Check, ChevronsUpDown, Plus, Building2 } from 'lucide-react';
+
+const log = createLogger('AccountCombobox');
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -48,7 +51,7 @@ export function AccountCombobox({
         const data = await listProspectsForRep(repId);
         setProspects(data);
       } catch (error) {
-        console.error('Failed to fetch prospects:', error);
+        log.error('Failed to fetch prospects', { error });
       } finally {
         setLoading(false);
       }

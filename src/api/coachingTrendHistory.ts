@@ -1,5 +1,8 @@
 import { supabase } from '@/integrations/supabase/client';
+import { createLogger } from '@/lib/logger';
 import { CoachingTrendAnalysis } from './aiCallAnalysis';
+
+const log = createLogger('coachingHistory');
 
 export interface CoachingTrendHistoryItem {
   id: string;
@@ -41,7 +44,7 @@ export async function listCoachingTrendHistory(
   const { data, error } = await query;
 
   if (error) {
-    console.error('[listCoachingTrendHistory] Error:', error);
+    log.error('Failed to fetch coaching trend history', { error });
     throw new Error(`Failed to fetch coaching trend history: ${error.message}`);
   }
 
@@ -66,7 +69,7 @@ export async function getCoachingTrendAnalysis(
     .maybeSingle();
 
   if (error) {
-    console.error('[getCoachingTrendAnalysis] Error:', error);
+    log.error('Failed to fetch coaching trend analysis', { error });
     throw new Error(`Failed to fetch coaching trend analysis: ${error.message}`);
   }
 
@@ -99,7 +102,7 @@ export async function saveCoachingTrendSnapshot(
     .single();
 
   if (error) {
-    console.error('[saveCoachingTrendSnapshot] Error:', error);
+    log.error('Failed to save snapshot', { error });
     throw new Error(`Failed to save snapshot: ${error.message}`);
   }
 
@@ -127,7 +130,7 @@ export async function updateSnapshotTitle(
     .single();
 
   if (error) {
-    console.error('[updateSnapshotTitle] Error:', error);
+    log.error('Failed to update snapshot title', { error });
     throw new Error(`Failed to update snapshot title: ${error.message}`);
   }
 
@@ -148,7 +151,7 @@ export async function removeFromSnapshots(analysisId: string): Promise<void> {
     .eq('id', analysisId);
 
   if (error) {
-    console.error('[removeFromSnapshots] Error:', error);
+    log.error('Failed to remove snapshot', { error });
     throw new Error(`Failed to remove snapshot: ${error.message}`);
   }
 }
@@ -164,7 +167,7 @@ export async function deleteCoachingTrendAnalysis(analysisId: string): Promise<v
     .eq('id', analysisId);
 
   if (error) {
-    console.error('[deleteCoachingTrendAnalysis] Error:', error);
+    log.error('Failed to delete analysis', { error });
     throw new Error(`Failed to delete analysis: ${error.message}`);
   }
 }

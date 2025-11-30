@@ -1,5 +1,8 @@
 import { supabase } from '@/integrations/supabase/client';
+import { createLogger } from '@/lib/logger';
 import { Json } from '@/integrations/supabase/types';
+
+const log = createLogger('activityLogs');
 
 export type UserActivityType = 'login' | 'logout' | 'session_refresh';
 
@@ -23,7 +26,7 @@ export async function logUserActivity(entry: ActivityLogEntry) {
     }]);
 
   if (error) {
-    console.error('Failed to log user activity:', error);
+    log.error('Failed to log user activity', { error });
   }
 }
 
@@ -46,7 +49,7 @@ export async function fetchUserActivityLogs(userId: string, limit = 50): Promise
     .limit(limit);
 
   if (error) {
-    console.error('Failed to fetch user activity logs:', error);
+    log.error('Failed to fetch user activity logs', { error });
     return [];
   }
 
@@ -67,7 +70,7 @@ export async function fetchAllRecentActivityLogs(limit = 20): Promise<UserActivi
     .limit(limit);
 
   if (logsError) {
-    console.error('Failed to fetch all activity logs:', logsError);
+    log.error('Failed to fetch all activity logs', { error: logsError });
     return [];
   }
 
@@ -83,7 +86,7 @@ export async function fetchAllRecentActivityLogs(limit = 20): Promise<UserActivi
     .in('id', userIds);
 
   if (profilesError) {
-    console.error('Failed to fetch profiles:', profilesError);
+    log.error('Failed to fetch profiles', { error: profilesError });
   }
 
   // Create a map for quick lookup

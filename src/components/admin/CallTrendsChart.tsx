@@ -1,9 +1,12 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { createLogger } from '@/lib/logger';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { subDays, format, startOfDay } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
+
+const log = createLogger('CallTrendsChart');
 
 interface DailyCount {
   date: string;
@@ -56,7 +59,7 @@ export function CallTrendsChart() {
 
       setData(chartData);
     } catch (err) {
-      console.error('Error fetching call trends:', err);
+      log.error('Error fetching call trends', { error: err });
       setError(err instanceof Error ? err : new Error('Failed to load trends'));
     } finally {
       setLoading(false);

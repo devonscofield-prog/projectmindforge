@@ -1,4 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('relationships');
 
 export type RelationshipType = 'reports_to' | 'influences' | 'collaborates_with' | 'opposes';
 
@@ -37,7 +40,7 @@ export async function listRelationshipsForProspect(prospectId: string): Promise<
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('Error fetching relationships:', error);
+    log.error('Error fetching relationships', { error });
     throw error;
   }
 
@@ -68,7 +71,7 @@ export async function createRelationship(params: {
     .single();
 
   if (error) {
-    console.error('Error creating relationship:', error);
+    log.error('Error creating relationship', { error });
     throw error;
   }
 
@@ -87,7 +90,7 @@ export async function updateRelationship(
     .single();
 
   if (error) {
-    console.error('Error updating relationship:', error);
+    log.error('Error updating relationship', { error });
     throw error;
   }
 
@@ -101,7 +104,7 @@ export async function deleteRelationship(relationshipId: string): Promise<void> 
     .eq('id', relationshipId);
 
   if (error) {
-    console.error('Error deleting relationship:', error);
+    log.error('Error deleting relationship', { error });
     throw error;
   }
 }

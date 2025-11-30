@@ -1,4 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('stakeholders');
 
 export type StakeholderInfluenceLevel = 'light_influencer' | 'heavy_influencer' | 'secondary_dm' | 'final_dm';
 
@@ -84,7 +87,7 @@ export async function createStakeholder(params: {
     .single();
 
   if (error) {
-    console.error('[createStakeholder] Error:', error);
+    log.error('Failed to create stakeholder', { error });
     throw new Error(`Failed to create stakeholder: ${error.message}`);
   }
 
@@ -106,7 +109,7 @@ export async function findStakeholderByName(
     .maybeSingle();
 
   if (error) {
-    console.error('[findStakeholderByName] Error:', error);
+    log.error('Failed to find stakeholder', { error });
     throw new Error(`Failed to find stakeholder: ${error.message}`);
   }
 
@@ -152,7 +155,7 @@ export async function listStakeholdersForProspect(prospectId: string): Promise<S
     .order('influence_level', { ascending: true });
 
   if (error) {
-    console.error('[listStakeholdersForProspect] Error:', error);
+    log.error('Failed to list stakeholders', { error });
     throw new Error(`Failed to list stakeholders: ${error.message}`);
   }
 
@@ -177,7 +180,7 @@ export async function getStakeholderById(stakeholderId: string): Promise<Stakeho
     .maybeSingle();
 
   if (error) {
-    console.error('[getStakeholderById] Error:', error);
+    log.error('Failed to get stakeholder', { error });
     throw new Error(`Failed to get stakeholder: ${error.message}`);
   }
 
@@ -209,7 +212,7 @@ export async function updateStakeholder(
     .single();
 
   if (error) {
-    console.error('[updateStakeholder] Error:', error);
+    log.error('Failed to update stakeholder', { error });
     throw new Error(`Failed to update stakeholder: ${error.message}`);
   }
 
@@ -226,7 +229,7 @@ export async function deleteStakeholder(stakeholderId: string): Promise<void> {
     .eq('id', stakeholderId);
 
   if (error) {
-    console.error('[deleteStakeholder] Error:', error);
+    log.error('Failed to delete stakeholder', { error });
     throw new Error(`Failed to delete stakeholder: ${error.message}`);
   }
 }
@@ -245,7 +248,7 @@ export async function getStakeholderCountsForProspects(
     .in('prospect_id', prospectIds);
 
   if (error) {
-    console.error('[getStakeholderCountsForProspects] Error:', error);
+    log.error('Failed to get stakeholder counts', { error });
     throw new Error(`Failed to get stakeholder counts: ${error.message}`);
   }
 
@@ -284,10 +287,10 @@ export async function createCallStakeholderMention(params: {
   if (error) {
     // If it's a duplicate, just return silently
     if (error.code === '23505') {
-      console.log('[createCallStakeholderMention] Mention already exists');
+      log.info('Mention already exists');
       return {} as StakeholderMention;
     }
-    console.error('[createCallStakeholderMention] Error:', error);
+    log.error('Failed to create call mention', { error });
     throw new Error(`Failed to create call mention: ${error.message}`);
   }
 
@@ -310,7 +313,7 @@ export async function getStakeholdersForCall(callId: string): Promise<{
     .eq('call_id', callId);
 
   if (error) {
-    console.error('[getStakeholdersForCall] Error:', error);
+    log.error('Failed to get stakeholders for call', { error });
     throw new Error(`Failed to get stakeholders for call: ${error.message}`);
   }
 
@@ -352,7 +355,7 @@ export async function getPrimaryStakeholder(prospectId: string): Promise<Stakeho
     .maybeSingle();
 
   if (error) {
-    console.error('[getPrimaryStakeholder] Error:', error);
+    log.error('Failed to get primary stakeholder', { error });
     throw new Error(`Failed to get primary stakeholder: ${error.message}`);
   }
 
@@ -375,7 +378,7 @@ export async function setPrimaryStakeholder(
     .eq('is_primary_contact', true);
 
   if (unsetError) {
-    console.error('[setPrimaryStakeholder] Error unsetting old primary:', unsetError);
+    log.error('Failed to unset old primary stakeholder', { error: unsetError });
     throw new Error(`Failed to unset old primary: ${unsetError.message}`);
   }
 
@@ -388,7 +391,7 @@ export async function setPrimaryStakeholder(
     .single();
 
   if (error) {
-    console.error('[setPrimaryStakeholder] Error setting new primary:', error);
+    log.error('Failed to set primary stakeholder', { error });
     throw new Error(`Failed to set primary stakeholder: ${error.message}`);
   }
 
@@ -410,7 +413,7 @@ export async function getPrimaryStakeholdersForProspects(
     .eq('is_primary_contact', true);
 
   if (error) {
-    console.error('[getPrimaryStakeholdersForProspects] Error:', error);
+    log.error('Failed to get primary stakeholders', { error });
     throw new Error(`Failed to get primary stakeholders: ${error.message}`);
   }
 

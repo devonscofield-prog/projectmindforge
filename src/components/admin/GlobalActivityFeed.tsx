@@ -3,8 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { LogIn, LogOut, RefreshCw, Activity } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { createLogger } from '@/lib/logger';
 import { fetchAllRecentActivityLogs, UserActivityLogWithProfile, UserActivityType } from '@/api/userActivityLogs';
 import { supabase } from '@/integrations/supabase/client';
+
+const log = createLogger('GlobalActivityFeed');
 
 const activityIcons: Record<UserActivityType, typeof LogIn> = {
   login: LogIn,
@@ -35,7 +38,7 @@ export function GlobalActivityFeed() {
       const data = await fetchAllRecentActivityLogs(15);
       setLogs(data);
     } catch (err) {
-      console.error('Error loading activity logs:', err);
+      log.error('Error loading activity logs', { error: err });
       setError(err instanceof Error ? err : new Error('Failed to load activity'));
     } finally {
       setLoading(false);
