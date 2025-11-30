@@ -153,6 +153,45 @@ export type Database = {
           },
         ]
       }
+      admin_custom_presets: {
+        Row: {
+          admin_id: string
+          created_at: string
+          description: string | null
+          icon_name: string | null
+          id: string
+          is_shared: boolean | null
+          mode_ids: string[]
+          name: string
+          starter_prompt: string
+          updated_at: string
+        }
+        Insert: {
+          admin_id: string
+          created_at?: string
+          description?: string | null
+          icon_name?: string | null
+          id?: string
+          is_shared?: boolean | null
+          mode_ids: string[]
+          name: string
+          starter_prompt: string
+          updated_at?: string
+        }
+        Update: {
+          admin_id?: string
+          created_at?: string
+          description?: string | null
+          icon_name?: string | null
+          id?: string
+          is_shared?: boolean | null
+          mode_ids?: string[]
+          name?: string
+          starter_prompt?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       admin_transcript_selections: {
         Row: {
           admin_id: string
