@@ -4,10 +4,12 @@ import { getOrCreateProspect, linkCallToProspect, updateProspect, type ProspectI
 
 // ============= ANALYSIS TIER CONSTANTS =============
 // Tier 1: Direct analysis (optimal quality)
-export const DIRECT_ANALYSIS_MAX = 50;
+// NOTE: Temporarily lowered for testing hierarchical analysis
+// Production values: DIRECT_ANALYSIS_MAX = 50, SAMPLING_MAX = 100
+export const DIRECT_ANALYSIS_MAX = 1;
 // Tier 2: Smart sampling (good quality, representative sample)
-export const SAMPLING_MAX = 100;
-// Tier 3: Hierarchical analysis (100+ calls - two-stage process)
+export const SAMPLING_MAX = 2;
+// Tier 3: Hierarchical analysis (3+ calls for testing - two-stage process)
 
 export type AnalysisTier = 'direct' | 'sampled' | 'hierarchical';
 
