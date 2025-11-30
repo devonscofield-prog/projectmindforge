@@ -140,6 +140,36 @@ export default {
 				'50%': {
 					opacity: '0.7'
 				}
+			},
+			'toast-slide-in': {
+				'0%': {
+					opacity: '0',
+					transform: 'translateX(100%) scale(0.95)'
+				},
+				'100%': {
+					opacity: '1',
+					transform: 'translateX(0) scale(1)'
+				}
+			},
+			'toast-slide-out': {
+				'0%': {
+					opacity: '1',
+					transform: 'translateX(0) scale(1)'
+				},
+				'100%': {
+					opacity: '0',
+					transform: 'translateX(100%) scale(0.95)'
+				}
+			},
+			'toast-swipe-out': {
+				'0%': {
+					opacity: '1',
+					transform: 'translateX(var(--radix-toast-swipe-end-x))'
+				},
+				'100%': {
+					opacity: '0',
+					transform: 'translateX(100%)'
+				}
 			}
 		},
 		animation: {
@@ -150,7 +180,10 @@ export default {
 			'scale-in': 'scale-in 0.2s ease-out forwards',
 			'slide-in-right': 'slide-in-right 0.2s ease-out forwards',
 			'shimmer': 'shimmer 2s infinite',
-			'pulse-subtle': 'pulse-subtle 2s ease-in-out infinite'
+			'pulse-subtle': 'pulse-subtle 2s ease-in-out infinite',
+			'toast-slide-in': 'toast-slide-in 0.35s cubic-bezier(0.21, 1.02, 0.73, 1) forwards',
+			'toast-slide-out': 'toast-slide-out 0.3s cubic-bezier(0.06, 0.71, 0.55, 1) forwards',
+			'toast-swipe-out': 'toast-swipe-out 0.2s ease-out forwards'
 		},
   		fontFamily: {
   			sans: [
