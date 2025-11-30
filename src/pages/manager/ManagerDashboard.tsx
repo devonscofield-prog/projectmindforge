@@ -325,19 +325,14 @@ export default function ManagerDashboard() {
                             )}
                           </TableCell>
                           <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Button 
-                                variant="default" 
-                                size="sm" 
-                                onClick={() => navigate(`/manager/rep/${rep.id}?tab=call-history`)}
-                              >
-                                <Phone className="h-3.5 w-3.5 mr-1" />
-                                View Calls
-                              </Button>
-                              <Button variant="ghost" size="sm" asChild className="hover:bg-primary/10 hover:text-primary">
-                                <Link to={`/manager/rep/${rep.id}`}>Details →</Link>
-                              </Button>
-                            </div>
+                            <Button 
+                              variant="default" 
+                              size="sm" 
+                              onClick={() => navigate(`/manager/rep/${rep.id}?tab=call-history`)}
+                            >
+                              <Phone className="h-3.5 w-3.5 mr-1" />
+                              View Calls
+                            </Button>
                           </TableCell>
                         </TableRow>
                       );
