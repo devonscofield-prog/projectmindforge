@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { createLogger } from '@/lib/logger';
+import { toStakeholder, toStakeholderMention } from '@/lib/supabaseAdapters';
 
 const log = createLogger('stakeholders');
 
@@ -91,7 +92,7 @@ export async function createStakeholder(params: {
     throw new Error(`Failed to create stakeholder: ${error.message}`);
   }
 
-  return data as unknown as Stakeholder;
+  return toStakeholder(data);
 }
 
 /**
@@ -113,7 +114,7 @@ export async function findStakeholderByName(
     throw new Error(`Failed to find stakeholder: ${error.message}`);
   }
 
-  return data as unknown as Stakeholder | null;
+  return data ? toStakeholder(data) : null;
 }
 
 /**
@@ -160,7 +161,7 @@ export async function listStakeholdersForProspect(prospectId: string): Promise<S
   }
 
   // Sort by influence level using our custom order
-  const stakeholders = (data || []) as unknown as Stakeholder[];
+  const stakeholders = (data || []).map(toStakeholder);
   return stakeholders.sort((a, b) => {
     if (a.is_primary_contact !== b.is_primary_contact) {
       return a.is_primary_contact ? -1 : 1;
@@ -184,7 +185,7 @@ export async function getStakeholderById(stakeholderId: string): Promise<Stakeho
     throw new Error(`Failed to get stakeholder: ${error.message}`);
   }
 
-  return data as unknown as Stakeholder | null;
+  return data ? toStakeholder(data) : null;
 }
 
 /**
@@ -216,7 +217,7 @@ export async function updateStakeholder(
     throw new Error(`Failed to update stakeholder: ${error.message}`);
   }
 
-  return data as unknown as Stakeholder;
+  return toStakeholder(data);
 }
 
 /**
@@ -288,13 +289,20 @@ export async function createCallStakeholderMention(params: {
     // If it's a duplicate, just return silently
     if (error.code === '23505') {
       log.info('Mention already exists');
-      return {} as StakeholderMention;
+      return {
+        id: '',
+        call_id: params.callId,
+        stakeholder_id: params.stakeholderId,
+        was_present: params.wasPresent ?? true,
+        context_notes: params.contextNotes || null,
+        created_at: new Date().toISOString(),
+      };
     }
     log.error('Failed to create call mention', { error });
     throw new Error(`Failed to create call mention: ${error.message}`);
   }
 
-  return data as unknown as StakeholderMention;
+  return toStakeholderMention(data);
 }
 
 /**
@@ -317,28 +325,28 @@ export async function getStakeholdersForCall(callId: string): Promise<{
     throw new Error(`Failed to get stakeholders for call: ${error.message}`);
   }
 
-  interface CallMentionRow {
-    id: string;
-    call_id: string;
-    stakeholder_id: string;
-    was_present: boolean;
-    context_notes: string | null;
-    created_at: string;
-    stakeholders: Stakeholder | null;
-  }
-  
   return (data || []).map((row) => {
-    const typedRow = row as unknown as CallMentionRow;
+    // The joined stakeholders data comes as the 'stakeholders' property
+    const stakeholderData = row.stakeholders;
     return {
-      stakeholder: typedRow.stakeholders as Stakeholder,
-      mention: {
-        id: typedRow.id,
-        call_id: typedRow.call_id,
-        stakeholder_id: typedRow.stakeholder_id,
-        was_present: typedRow.was_present,
-        context_notes: typedRow.context_notes,
-        created_at: typedRow.created_at,
-      } as StakeholderMention,
+      stakeholder: stakeholderData ? toStakeholder(stakeholderData) : {
+        id: row.stakeholder_id,
+        prospect_id: '',
+        rep_id: '',
+        name: 'Unknown',
+        job_title: null,
+        email: null,
+        phone: null,
+        influence_level: 'light_influencer' as StakeholderInfluenceLevel,
+        champion_score: null,
+        champion_score_reasoning: null,
+        ai_extracted_info: null,
+        is_primary_contact: false,
+        last_interaction_date: null,
+        created_at: row.created_at,
+        updated_at: row.created_at,
+      },
+      mention: toStakeholderMention(row),
     };
   });
 }
@@ -359,7 +367,7 @@ export async function getPrimaryStakeholder(prospectId: string): Promise<Stakeho
     throw new Error(`Failed to get primary stakeholder: ${error.message}`);
   }
 
-  return data as unknown as Stakeholder | null;
+  return data ? toStakeholder(data) : null;
 }
 
 /**
@@ -395,7 +403,7 @@ export async function setPrimaryStakeholder(
     throw new Error(`Failed to set primary stakeholder: ${error.message}`);
   }
 
-  return data as unknown as Stakeholder;
+  return toStakeholder(data);
 }
 
 /**

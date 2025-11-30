@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { createLogger } from '@/lib/logger';
+import { toProspect, toProspectWithRep, toProspectActivity } from '@/lib/supabaseAdapters';
 
 const log = createLogger('prospects');
 
@@ -119,7 +120,7 @@ export async function createProspect(params: {
     throw new Error(`Failed to create prospect: ${error.message}`);
   }
 
-  return data as unknown as Prospect;
+  return toProspect(data);
 }
 
 /**
@@ -147,7 +148,7 @@ export async function findProspectByNameAndAccount(
     throw new Error(`Failed to find prospect: ${error.message}`);
   }
 
-  return data as unknown as Prospect | null;
+  return data ? toProspect(data) : null;
 }
 
 /**
@@ -246,7 +247,7 @@ export async function listProspectsForRep(
     throw new Error(`Failed to list prospects: ${error.message}`);
   }
 
-  const prospects = (data || []) as unknown as Prospect[];
+  const prospects = (data || []).map(toProspect);
 
   if (usePagination) {
     const totalCount = count ?? 0;
@@ -277,7 +278,7 @@ export async function getProspectById(prospectId: string): Promise<Prospect | nu
     throw new Error(`Failed to get prospect: ${error.message}`);
   }
 
-  return data as unknown as Prospect | null;
+  return data ? toProspect(data) : null;
 }
 
 /**
@@ -295,7 +296,6 @@ export async function updateProspect(
     heat_score?: number;
   }
 ): Promise<Prospect> {
-  // Cast to any to handle JSON type compatibility
   const { data, error } = await supabase
     .from('prospects')
     .update(updates as Record<string, unknown>)
@@ -308,7 +308,7 @@ export async function updateProspect(
     throw new Error(`Failed to update prospect: ${error.message}`);
   }
 
-  return data as unknown as Prospect;
+  return toProspect(data);
 }
 
 /**
@@ -327,7 +327,7 @@ export async function listActivitiesForProspect(prospectId: string): Promise<Pro
     throw new Error(`Failed to list activities: ${error.message}`);
   }
 
-  return (data || []) as unknown as ProspectActivity[];
+  return (data || []).map(toProspectActivity);
 }
 
 /**
@@ -363,7 +363,7 @@ export async function createProspectActivity(params: {
     .update({ last_contact_date: params.activityDate || new Date().toISOString().split('T')[0] })
     .eq('id', params.prospectId);
 
-  return data as unknown as ProspectActivity;
+  return toProspectActivity(data);
 }
 
 /**
@@ -500,22 +500,18 @@ export async function listProspectsForTeam(
     repIdToName[p.id] = p.name;
   });
 
-  let repIds = profiles.map(p => p.id);
+  const repIds = profiles.map(p => p.id);
 
-  // If filtering by specific rep, only include that rep
-  if (filters?.repId && filters.repId !== 'all') {
-    if (repIds.includes(filters.repId)) {
-      repIds = [filters.repId];
-    } else {
-      return []; // Rep not in team
-    }
-  }
-
-  // Now fetch prospects for those reps
+  // Build the prospects query
   let query = supabase
     .from('prospects')
     .select('*')
     .in('rep_id', repIds);
+
+  // Apply rep filter if provided
+  if (filters?.repId) {
+    query = query.eq('rep_id', filters.repId);
+  }
 
   // Text search
   if (filters?.search) {
@@ -546,39 +542,33 @@ export async function listProspectsForTeam(
   const { data, error } = await query;
 
   if (error) {
-    log.error('Failed to list team prospects', { error });
-    throw new Error(`Failed to list team prospects: ${error.message}`);
+    log.error('Error fetching team prospects', { error });
+    throw new Error(`Failed to fetch team prospects: ${error.message}`);
   }
 
-  // Add rep names to prospects
-  const prospectsWithRep: ProspectWithRep[] = (data || []).map(p => ({
-    ...p,
-    rep_name: repIdToName[p.rep_id] || 'Unknown',
-  })) as unknown as ProspectWithRep[];
-
-  return prospectsWithRep;
+  return (data || []).map(row => toProspectWithRep(row, repIdToName[row.rep_id] || 'Unknown'));
 }
 
 /**
- * Gets team reps for a manager (for filter dropdown)
+ * Gets reps in a manager's team for filter dropdown
  */
 export async function getTeamRepsForManager(managerId: string): Promise<{ id: string; name: string }[]> {
-  // Get all teams managed by this manager
+  // Get teams for this manager
   const { data: teams, error: teamsError } = await supabase
     .from('teams')
     .select('id')
     .eq('manager_id', managerId);
 
   if (teamsError) {
-    log.error('Error fetching teams for manager reps', { error: teamsError });
-    throw new Error(`Failed to fetch teams: ${teamsError.message}`);
+    log.error('Error fetching teams for manager', { error: teamsError });
+    return [];
   }
 
   if (!teams || teams.length === 0) {
     return [];
   }
 
-  // Get all reps in those teams
+  // Get reps in those teams
   const teamIds = teams.map(t => t.id);
   const { data: profiles, error: profilesError } = await supabase
     .from('profiles')
@@ -587,8 +577,8 @@ export async function getTeamRepsForManager(managerId: string): Promise<{ id: st
     .order('name');
 
   if (profilesError) {
-    log.error('Error fetching profiles for manager reps', { error: profilesError });
-    throw new Error(`Failed to fetch profiles: ${profilesError.message}`);
+    log.error('Error fetching profiles for manager', { error: profilesError });
+    return [];
   }
 
   return profiles || [];

@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { createLogger } from '@/lib/logger';
+import { toCallAnalysis } from '@/lib/supabaseAdapters';
 import type { CallAnalysis, AiScoreStats } from './types';
 
 const log = createLogger('aiAnalysis');
@@ -21,7 +22,7 @@ export async function getAnalysisForCall(callId: string): Promise<CallAnalysis |
     throw new Error(`Failed to get call analysis: ${error.message}`);
   }
 
-  return data as unknown as CallAnalysis | null;
+  return data ? toCallAnalysis(data) : null;
 }
 
 /**
@@ -43,7 +44,7 @@ export async function listRecentAiAnalysisForRep(repId: string, limit: number = 
     throw new Error(`Failed to list AI analyses: ${error.message}`);
   }
 
-  return (data || []) as unknown as CallAnalysis[];
+  return (data || []).map(toCallAnalysis);
 }
 
 /**
@@ -73,7 +74,8 @@ export async function getLatestAiAnalysisForReps(repIds: string[]): Promise<Map<
   repIds.forEach(id => result.set(id, null));
 
   if (data) {
-    for (const analysis of data as unknown as CallAnalysis[]) {
+    for (const row of data) {
+      const analysis = toCallAnalysis(row);
       if (!result.get(analysis.rep_id)) {
         result.set(analysis.rep_id, analysis);
       }

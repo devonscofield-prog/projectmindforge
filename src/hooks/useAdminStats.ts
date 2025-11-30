@@ -1,5 +1,12 @@
 import { useQuery, UseQueryResult } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { 
+  isCachedAdminStats, 
+  isCachedProspectStats,
+  type CachedAdminStats,
+  type CachedProspectStats,
+} from '@/lib/supabaseAdapters';
+import { parseJsonField } from '@/lib/typeUtils';
 
 export interface AdminDashboardStats {
   userCount: number;
@@ -10,18 +17,6 @@ export interface AdminDashboardStats {
     rep: number;
     manager: number;
     admin: number;
-  };
-}
-
-interface CachedAdminStats {
-  totalUsers: number;
-  totalTeams: number;
-  totalCalls: number;
-  totalProspects: number;
-  roleDistribution: {
-    admin: number;
-    manager: number;
-    rep: number;
   };
 }
 
@@ -36,18 +31,20 @@ export function useAdminDashboardStats(): UseQueryResult<AdminDashboardStats, Er
       const { data: cachedData, error: cacheError } = await supabase.rpc('get_cached_admin_stats');
       
       if (!cacheError && cachedData) {
-        const stats = cachedData as unknown as CachedAdminStats;
-        return {
-          userCount: stats.totalUsers ?? 0,
-          teamCount: stats.totalTeams ?? 0,
-          callCount: stats.totalCalls ?? 0,
-          prospectCount: stats.totalProspects ?? 0,
-          roleCounts: {
-            admin: stats.roleDistribution?.admin ?? 0,
-            manager: stats.roleDistribution?.manager ?? 0,
-            rep: stats.roleDistribution?.rep ?? 0,
-          },
-        };
+        const stats = parseJsonField<CachedAdminStats>(cachedData, isCachedAdminStats);
+        if (stats) {
+          return {
+            userCount: stats.totalUsers ?? 0,
+            teamCount: stats.totalTeams ?? 0,
+            callCount: stats.totalCalls ?? 0,
+            prospectCount: stats.totalProspects ?? 0,
+            roleCounts: {
+              admin: stats.roleDistribution?.admin ?? 0,
+              manager: stats.roleDistribution?.manager ?? 0,
+              rep: stats.roleDistribution?.rep ?? 0,
+            },
+          };
+        }
       }
 
       // Fallback to direct queries if cache fails
@@ -92,13 +89,6 @@ export interface ProspectStats {
   pipelineValue: number;
 }
 
-interface CachedProspectStats {
-  total: number;
-  active: number;
-  hotProspects: number;
-  pipelineValue: number;
-}
-
 /**
  * Fetch prospect statistics (with server-side caching)
  */
@@ -110,13 +100,15 @@ export function useProspectStats(): UseQueryResult<ProspectStats, Error> {
       const { data: cachedData, error: cacheError } = await supabase.rpc('get_cached_prospect_stats');
       
       if (!cacheError && cachedData) {
-        const stats = cachedData as unknown as CachedProspectStats;
-        return {
-          total: stats.total ?? 0,
-          active: stats.active ?? 0,
-          hot: stats.hotProspects ?? 0,
-          pipelineValue: stats.pipelineValue ?? 0,
-        };
+        const stats = parseJsonField<CachedProspectStats>(cachedData, isCachedProspectStats);
+        if (stats) {
+          return {
+            total: stats.total ?? 0,
+            active: stats.active ?? 0,
+            hot: stats.hotProspects ?? 0,
+            pipelineValue: stats.pipelineValue ?? 0,
+          };
+        }
       }
 
       // Fallback to direct queries if cache fails
