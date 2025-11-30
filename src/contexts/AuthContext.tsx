@@ -25,7 +25,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [presenceChannel, setPresenceChannel] = useState<RealtimeChannel | null>(null);
 
-  // Set up presence tracking
+  // Update last_seen_at in database
+  const updateLastSeen = async (userId: string) => {
+    await supabase
+      .from('profiles')
+      .update({ last_seen_at: new Date().toISOString() })
+      .eq('id', userId);
+  };
+
+  // Set up presence tracking and last_seen updates
   useEffect(() => {
     if (!user) {
       if (presenceChannel) {
@@ -49,13 +57,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           user_id: user.id,
           online_at: new Date().toISOString(),
         });
+        // Update last_seen when first connecting
+        updateLastSeen(user.id);
       }
     });
 
     setPresenceChannel(channel);
 
+    // Periodically update last_seen_at (every 30 seconds)
+    const lastSeenInterval = setInterval(() => {
+      updateLastSeen(user.id);
+    }, 30000);
+
     return () => {
       channel.unsubscribe();
+      clearInterval(lastSeenInterval);
     };
   }, [user?.id]);
 
