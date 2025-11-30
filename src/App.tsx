@@ -1,13 +1,15 @@
-import React, { Suspense, lazy } from "react";
+import React, { Suspense, lazy, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ThemeProvider } from "next-themes";
+import { DevTools } from "@/components/DevTools";
+import { createQueryClient, setupQueryLogging } from "@/lib/queryClientConfig";
 
 // Eager load - these are accessed immediately
 import Index from "./pages/Index";
@@ -38,7 +40,13 @@ const AdminTranscriptAnalysis = lazy(() => import("./pages/admin/AdminTranscript
 // Lazy load - Shared pages
 const CallDetailPage = lazy(() => import("./pages/calls/CallDetailPage"));
 
-const queryClient = new QueryClient();
+// Create query client with logging
+const queryClient = createQueryClient();
+
+// Setup logging in development
+if (import.meta.env.DEV) {
+  setupQueryLogging(queryClient);
+}
 
 // Loading fallback component
 function PageLoader() {
@@ -171,6 +179,7 @@ const App = () => (
         </BrowserRouter>
         </TooltipProvider>
       </ThemeProvider>
+      <DevTools />
     </QueryClientProvider>
   </ErrorBoundary>
 );
