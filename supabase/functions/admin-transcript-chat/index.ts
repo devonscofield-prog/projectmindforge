@@ -1,10 +1,18 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// CORS: Restrict to production domains
+function getCorsHeaders(origin?: string | null): Record<string, string> {
+  const allowedOrigins = ['https://lovable.dev', 'https://www.lovable.dev'];
+  const devPatterns = [/^https?:\/\/localhost(:\d+)?$/, /^https:\/\/[a-z0-9-]+\.lovableproject\.com$/, /^https:\/\/[a-z0-9-]+\.lovable\.app$/];
+  const requestOrigin = origin || '';
+  const isAllowed = allowedOrigins.includes(requestOrigin) || devPatterns.some(pattern => pattern.test(requestOrigin));
+  return {
+    'Access-Control-Allow-Origin': isAllowed ? requestOrigin : allowedOrigins[0],
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  };
+}
 
 // Strict system prompt to prevent hallucination and ensure grounded responses
 const ADMIN_TRANSCRIPT_ANALYSIS_PROMPT = `You are an expert sales analyst with access to a specific set of call transcripts. Your job is to analyze these transcripts and provide insights based ONLY on what is explicitly stated in them.
@@ -45,6 +53,9 @@ const DIRECT_INJECTION_MAX = 20;
 const RAG_CHUNK_LIMIT = 50;
 
 serve(async (req) => {
+  const origin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(origin);
+  
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

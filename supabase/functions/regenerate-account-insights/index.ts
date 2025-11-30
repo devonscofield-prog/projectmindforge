@@ -1,10 +1,18 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// CORS: Restrict to production domains
+function getCorsHeaders(origin?: string | null): Record<string, string> {
+  const allowedOrigins = ['https://lovable.dev', 'https://www.lovable.dev'];
+  const devPatterns = [/^https?:\/\/localhost(:\d+)?$/, /^https:\/\/[a-z0-9-]+\.lovableproject\.com$/, /^https:\/\/[a-z0-9-]+\.lovable\.app$/];
+  const requestOrigin = origin || '';
+  const isAllowed = allowedOrigins.includes(requestOrigin) || devPatterns.some(pattern => pattern.test(requestOrigin));
+  return {
+    'Access-Control-Allow-Origin': isAllowed ? requestOrigin : allowedOrigins[0],
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  };
+}
 
 // System prompt for generating consolidated account insights
 const INSIGHTS_SYSTEM_PROMPT = `You are a senior B2B sales analyst. Your task is to analyze ALL available data about an account (calls, emails, stakeholders) and generate comprehensive, actionable insights.
@@ -50,6 +58,9 @@ interface AccountInsights {
 }
 
 serve(async (req) => {
+  const origin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(origin);
+  
   // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });

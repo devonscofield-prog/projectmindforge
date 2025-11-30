@@ -1,10 +1,28 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// CORS: Restrict to production domains
+function getCorsHeaders(origin?: string | null): Record<string, string> {
+  const allowedOrigins = [
+    'https://lovable.dev',
+    'https://www.lovable.dev',
+  ];
+  const devPatterns = [
+    /^https?:\/\/localhost(:\d+)?$/,
+    /^https:\/\/[a-z0-9-]+\.lovableproject\.com$/,
+    /^https:\/\/[a-z0-9-]+\.lovable\.app$/,
+  ];
+  
+  const requestOrigin = origin || '';
+  const isAllowed = allowedOrigins.includes(requestOrigin) || 
+    devPatterns.some(pattern => pattern.test(requestOrigin));
+  
+  return {
+    'Access-Control-Allow-Origin': isAllowed ? requestOrigin : allowedOrigins[0],
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  };
+}
 
 const SALES_COACH_SYSTEM_PROMPT = `You are a 30-year veteran sales manager who has seen it all and closed deals at every level. You're friendly, direct, and tactical. You've managed hundreds of reps and have a sixth sense for what works and what doesn't.
 
@@ -39,6 +57,9 @@ interface Message {
 }
 
 serve(async (req) => {
+  const origin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(origin);
+  
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
