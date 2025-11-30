@@ -11,9 +11,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 import { CoachingSession, Profile } from '@/types/database';
 import { format } from 'date-fns';
-import { Plus, ArrowUpDown } from 'lucide-react';
+import { Plus, ArrowUpDown, Pencil, Trash2 } from 'lucide-react';
 import { getTeamRepsForManager } from '@/api/prospects';
 import { useToast } from '@/hooks/use-toast';
 
@@ -24,6 +26,8 @@ interface CoachingWithRep extends CoachingSession {
 type SortField = 'date' | 'follow-up';
 type SortOrder = 'asc' | 'desc';
 
+const ITEMS_PER_PAGE = 10;
+
 export default function ManagerCoaching() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -33,6 +37,7 @@ export default function ManagerCoaching() {
   
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingSession, setEditingSession] = useState<CoachingWithRep | null>(null);
   const [formData, setFormData] = useState({
     rep_id: '',
     session_date: format(new Date(), 'yyyy-MM-dd'),
@@ -43,6 +48,10 @@ export default function ManagerCoaching() {
   });
   const [submitting, setSubmitting] = useState(false);
   
+  // Delete state
+  const [deletingSession, setDeletingSession] = useState<CoachingWithRep | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  
   // Filter state
   const [repFilter, setRepFilter] = useState<string>('all');
   const [followUpFilter, setFollowUpFilter] = useState<string>('all');
@@ -50,6 +59,13 @@ export default function ManagerCoaching() {
   // Sort state
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Computed dialog state
+  const isDialogOpen = dialogOpen || editingSession !== null;
+  const isEditMode = editingSession !== null;
 
   const fetchData = async () => {
     if (!user) return;
@@ -96,6 +112,42 @@ export default function ManagerCoaching() {
     }
   }, [user]);
 
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [repFilter, followUpFilter]);
+
+  const resetForm = () => {
+    setFormData({
+      rep_id: '',
+      session_date: format(new Date(), 'yyyy-MM-dd'),
+      focus_area: '',
+      notes: '',
+      action_items: '',
+      follow_up_date: '',
+    });
+  };
+
+  const handleDialogClose = (open: boolean) => {
+    if (!open) {
+      setDialogOpen(false);
+      setEditingSession(null);
+      resetForm();
+    }
+  };
+
+  const startEdit = (session: CoachingWithRep) => {
+    setFormData({
+      rep_id: session.rep_id,
+      session_date: session.session_date,
+      focus_area: session.focus_area,
+      notes: session.notes || '',
+      action_items: session.action_items || '',
+      follow_up_date: session.follow_up_date || '',
+    });
+    setEditingSession(session);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !formData.rep_id || !formData.focus_area) {
@@ -104,31 +156,70 @@ export default function ManagerCoaching() {
     }
 
     setSubmitting(true);
-    const { error } = await supabase.from('coaching_sessions').insert({
-      rep_id: formData.rep_id,
-      manager_id: user.id,
-      session_date: formData.session_date,
-      focus_area: formData.focus_area,
-      notes: formData.notes || null,
-      action_items: formData.action_items || null,
-      follow_up_date: formData.follow_up_date || null,
-    });
 
-    setSubmitting(false);
-    
+    if (isEditMode && editingSession) {
+      // Update existing session
+      const { error } = await supabase
+        .from('coaching_sessions')
+        .update({
+          rep_id: formData.rep_id,
+          session_date: formData.session_date,
+          focus_area: formData.focus_area,
+          notes: formData.notes || null,
+          action_items: formData.action_items || null,
+          follow_up_date: formData.follow_up_date || null,
+        })
+        .eq('id', editingSession.id);
+
+      setSubmitting(false);
+
+      if (error) {
+        toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      } else {
+        toast({ title: 'Success', description: 'Coaching session updated' });
+        handleDialogClose(false);
+        fetchData();
+      }
+    } else {
+      // Create new session
+      const { error } = await supabase.from('coaching_sessions').insert({
+        rep_id: formData.rep_id,
+        manager_id: user.id,
+        session_date: formData.session_date,
+        focus_area: formData.focus_area,
+        notes: formData.notes || null,
+        action_items: formData.action_items || null,
+        follow_up_date: formData.follow_up_date || null,
+      });
+
+      setSubmitting(false);
+      
+      if (error) {
+        toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      } else {
+        toast({ title: 'Success', description: 'Coaching session created' });
+        handleDialogClose(false);
+        fetchData();
+      }
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deletingSession) return;
+
+    setDeleting(true);
+    const { error } = await supabase
+      .from('coaching_sessions')
+      .delete()
+      .eq('id', deletingSession.id);
+
+    setDeleting(false);
+
     if (error) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } else {
-      toast({ title: 'Success', description: 'Coaching session created' });
-      setDialogOpen(false);
-      setFormData({
-        rep_id: '',
-        session_date: format(new Date(), 'yyyy-MM-dd'),
-        focus_area: '',
-        notes: '',
-        action_items: '',
-        follow_up_date: '',
-      });
+      toast({ title: 'Success', description: 'Coaching session deleted' });
+      setDeletingSession(null);
       fetchData();
     }
   };
@@ -192,6 +283,26 @@ export default function ManagerCoaching() {
     return sorted;
   }, [sessions, repFilter, followUpFilter, sortField, sortOrder]);
 
+  // Pagination calculations
+  const totalPages = Math.ceil(displayedSessions.length / ITEMS_PER_PAGE);
+  const paginatedSessions = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    return displayedSessions.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [displayedSessions, currentPage]);
+
+  // Generate page numbers to display
+  const getPageNumbers = () => {
+    const pages: (number | 'ellipsis')[] = [];
+    for (let i = 1; i <= totalPages; i++) {
+      if (i === 1 || i === totalPages || Math.abs(i - currentPage) <= 1) {
+        pages.push(i);
+      } else if (pages[pages.length - 1] !== 'ellipsis') {
+        pages.push('ellipsis');
+      }
+    }
+    return pages;
+  };
+
   if (loading) {
     return (
       <AppLayout>
@@ -211,16 +322,16 @@ export default function ManagerCoaching() {
             <p className="text-muted-foreground mt-1">All your coaching sessions with team members</p>
           </div>
           
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
             <DialogTrigger asChild>
-              <Button>
+              <Button onClick={() => setDialogOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 New Session
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
               <DialogHeader>
-                <DialogTitle>Create Coaching Session</DialogTitle>
+                <DialogTitle>{isEditMode ? 'Edit Coaching Session' : 'Create Coaching Session'}</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
@@ -295,11 +406,13 @@ export default function ManagerCoaching() {
                 </div>
                 
                 <div className="flex justify-end gap-2 pt-4">
-                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                  <Button type="button" variant="outline" onClick={() => handleDialogClose(false)}>
                     Cancel
                   </Button>
                   <Button type="submit" disabled={submitting}>
-                    {submitting ? 'Creating...' : 'Create Session'}
+                    {submitting 
+                      ? (isEditMode ? 'Saving...' : 'Creating...') 
+                      : (isEditMode ? 'Save Changes' : 'Create Session')}
                   </Button>
                 </div>
               </form>
@@ -344,52 +457,115 @@ export default function ManagerCoaching() {
           </CardHeader>
           <CardContent>
             {displayedSessions.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead 
-                      className="cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() => toggleSort('date')}
-                    >
-                      <div className="flex items-center gap-1">
-                        Date
-                        <ArrowUpDown className={`h-4 w-4 ${sortField === 'date' ? 'text-primary' : 'text-muted-foreground'}`} />
-                      </div>
-                    </TableHead>
-                    <TableHead>Rep</TableHead>
-                    <TableHead>Focus Area</TableHead>
-                    <TableHead 
-                      className="cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() => toggleSort('follow-up')}
-                    >
-                      <div className="flex items-center gap-1">
-                        Follow-up
-                        <ArrowUpDown className={`h-4 w-4 ${sortField === 'follow-up' ? 'text-primary' : 'text-muted-foreground'}`} />
-                      </div>
-                    </TableHead>
-                    <TableHead></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {displayedSessions.map((session) => (
-                    <TableRow key={session.id}>
-                      <TableCell>{format(new Date(session.session_date), 'MMM d, yyyy')}</TableCell>
-                      <TableCell className="font-medium">{session.rep?.name || 'Unknown'}</TableCell>
-                      <TableCell>{session.focus_area}</TableCell>
-                      <TableCell>
-                        {session.follow_up_date
-                          ? format(new Date(session.follow_up_date), 'MMM d, yyyy')
-                          : '-'}
-                      </TableCell>
-                      <TableCell>
-                        <Button variant="outline" size="sm" asChild>
-                          <Link to={`/manager/rep/${session.rep_id}`}>View Rep</Link>
-                        </Button>
-                      </TableCell>
+              <>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead 
+                        className="cursor-pointer hover:bg-muted/50 transition-colors"
+                        onClick={() => toggleSort('date')}
+                      >
+                        <div className="flex items-center gap-1">
+                          Date
+                          <ArrowUpDown className={`h-4 w-4 ${sortField === 'date' ? 'text-primary' : 'text-muted-foreground'}`} />
+                        </div>
+                      </TableHead>
+                      <TableHead>Rep</TableHead>
+                      <TableHead>Focus Area</TableHead>
+                      <TableHead 
+                        className="cursor-pointer hover:bg-muted/50 transition-colors"
+                        onClick={() => toggleSort('follow-up')}
+                      >
+                        <div className="flex items-center gap-1">
+                          Follow-up
+                          <ArrowUpDown className={`h-4 w-4 ${sortField === 'follow-up' ? 'text-primary' : 'text-muted-foreground'}`} />
+                        </div>
+                      </TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedSessions.map((session) => (
+                      <TableRow key={session.id}>
+                        <TableCell>{format(new Date(session.session_date), 'MMM d, yyyy')}</TableCell>
+                        <TableCell className="font-medium">{session.rep?.name || 'Unknown'}</TableCell>
+                        <TableCell>{session.focus_area}</TableCell>
+                        <TableCell>
+                          {session.follow_up_date
+                            ? format(new Date(session.follow_up_date), 'MMM d, yyyy')
+                            : '-'}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-end gap-1">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => startEdit(session)}
+                              title="Edit session"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => setDeletingSession(session)}
+                              title="Delete session"
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                            <Button variant="outline" size="sm" asChild>
+                              <Link to={`/manager/rep/${session.rep_id}`}>View Rep</Link>
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <p className="text-sm text-muted-foreground">
+                      Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, displayedSessions.length)} of {displayedSessions.length} sessions
+                    </p>
+                    <Pagination>
+                      <PaginationContent>
+                        <PaginationItem>
+                          <PaginationPrevious 
+                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                            className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                          />
+                        </PaginationItem>
+                        {getPageNumbers().map((page, index) => (
+                          page === 'ellipsis' ? (
+                            <PaginationItem key={`ellipsis-${index}`}>
+                              <PaginationEllipsis />
+                            </PaginationItem>
+                          ) : (
+                            <PaginationItem key={page}>
+                              <PaginationLink
+                                isActive={currentPage === page}
+                                onClick={() => setCurrentPage(page)}
+                                className="cursor-pointer"
+                              >
+                                {page}
+                              </PaginationLink>
+                            </PaginationItem>
+                          )
+                        ))}
+                        <PaginationItem>
+                          <PaginationNext 
+                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                            className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                          />
+                        </PaginationItem>
+                      </PaginationContent>
+                    </Pagination>
+                  </div>
+                )}
+              </>
             ) : (
               <p className="text-muted-foreground text-center py-8">
                 {sessions.length === 0 
@@ -400,6 +576,30 @@ export default function ManagerCoaching() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deletingSession} onOpenChange={(open) => !open && setDeletingSession(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Coaching Session?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the coaching session with {deletingSession?.rep?.name || 'this rep'} 
+              {deletingSession && ` on ${format(new Date(deletingSession.session_date), 'MMM d, yyyy')}`}. 
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDelete} 
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }
