@@ -23,6 +23,7 @@ import {
   QueryBreakdownChart,
 } from '@/components/admin/PerformanceCharts';
 import { AlertConfigPanel } from '@/components/admin/AlertConfigPanel';
+import { PerformanceReportExport } from '@/components/admin/PerformanceReportExport';
 import {
   getSystemHealth,
   getPerformanceSummary,
@@ -99,6 +100,7 @@ export default function AdminPerformanceMonitor() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <PerformanceReportExport />
             <Select value={timeRange} onValueChange={setTimeRange}>
               <SelectTrigger className="w-[150px]">
                 <SelectValue />
