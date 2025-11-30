@@ -39,7 +39,6 @@ export default function RepCallHistory() {
     handlePageSizeChange,
     clearFilters,
     toggleSort,
-    updateUrlParams,
   } = useCallHistoryFilters();
 
   // Fetch filtered transcripts

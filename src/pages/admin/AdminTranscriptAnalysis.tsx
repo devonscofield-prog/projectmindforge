@@ -18,7 +18,6 @@ export default function AdminTranscriptAnalysis() {
   const { role } = useAuth();
   const isAdmin = role === 'admin';
   const isManager = role === 'manager';
-  const isRep = role === 'rep';
   
   const {
     // Scope info
