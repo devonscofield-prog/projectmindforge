@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { format } from 'date-fns';
+import { format, subDays, subMonths } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { generateAggregateCoachingTrends, CoachingTrendAnalysis } from '@/api/aiCallAnalysis';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,6 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Label } from '@/components/ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import {
   Building2,
@@ -21,8 +24,8 @@ import {
   MessageSquareQuote,
   Ear,
   BarChart3,
-  ArrowRight,
   X,
+  CalendarIcon,
 } from 'lucide-react';
 
 interface TeamComparisonViewProps {
@@ -38,10 +41,40 @@ interface TeamAnalysisResult {
   error: string | null;
 }
 
+type TimePreset = 'last7' | 'last30' | 'last90' | 'last6months' | 'custom';
+
+const TIME_PRESETS: { value: TimePreset; label: string }[] = [
+  { value: 'last7', label: 'Last 7 days' },
+  { value: 'last30', label: 'Last 30 days' },
+  { value: 'last90', label: 'Last 90 days' },
+  { value: 'last6months', label: 'Last 6 months' },
+  { value: 'custom', label: 'Custom range' },
+];
+
+function getPresetDateRange(preset: TimePreset): { from: Date; to: Date } {
+  const to = new Date();
+  switch (preset) {
+    case 'last7':
+      return { from: subDays(to, 7), to };
+    case 'last30':
+      return { from: subDays(to, 30), to };
+    case 'last90':
+      return { from: subDays(to, 90), to };
+    case 'last6months':
+      return { from: subMonths(to, 6), to };
+    default:
+      return { from: subDays(to, 30), to };
+  }
+}
+
 export function TeamComparisonView({ dateRange, onClose }: TeamComparisonViewProps) {
   const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
   const [teamAnalyses, setTeamAnalyses] = useState<Map<string, TeamAnalysisResult>>(new Map());
   const [isComparing, setIsComparing] = useState(false);
+  
+  // Local date range state for independent control
+  const [localDateRange, setLocalDateRange] = useState<{ from: Date; to: Date }>(dateRange);
+  const [selectedPreset, setSelectedPreset] = useState<TimePreset>('last30');
 
   // Fetch all teams
   const { data: teams } = useQuery({
@@ -55,6 +88,39 @@ export function TeamComparisonView({ dateRange, onClose }: TeamComparisonViewPro
       return data || [];
     },
   });
+
+  // Handle preset change
+  const handlePresetChange = (preset: TimePreset) => {
+    setSelectedPreset(preset);
+    if (preset !== 'custom') {
+      setLocalDateRange(getPresetDateRange(preset));
+    }
+    // Clear results when date range changes
+    if (teamAnalyses.size > 0) {
+      setTeamAnalyses(new Map());
+    }
+  };
+
+  // Handle custom date changes
+  const handleFromDateChange = (date: Date | undefined) => {
+    if (date) {
+      setSelectedPreset('custom');
+      setLocalDateRange(prev => ({ ...prev, from: date }));
+      if (teamAnalyses.size > 0) {
+        setTeamAnalyses(new Map());
+      }
+    }
+  };
+
+  const handleToDateChange = (date: Date | undefined) => {
+    if (date) {
+      setSelectedPreset('custom');
+      setLocalDateRange(prev => ({ ...prev, to: date }));
+      if (teamAnalyses.size > 0) {
+        setTeamAnalyses(new Map());
+      }
+    }
+  };
 
   const handleAddTeam = (teamId: string) => {
     if (selectedTeams.length < 3 && !selectedTeams.includes(teamId)) {
@@ -90,14 +156,14 @@ export function TeamComparisonView({ dateRange, onClose }: TeamComparisonViewPro
     });
     setTeamAnalyses(initialResults);
 
-    // Fetch analyses in parallel
+    // Fetch analyses in parallel using localDateRange
     await Promise.all(
       selectedTeams.map(async (teamId) => {
         try {
           const result = await generateAggregateCoachingTrends({
             scope: 'team',
             teamId,
-            dateRange,
+            dateRange: localDateRange,
           });
           
           setTeamAnalyses(prev => {
@@ -182,6 +248,84 @@ export function TeamComparisonView({ dateRange, onClose }: TeamComparisonViewPro
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Time Period Selection */}
+        <div className="p-3 bg-muted/50 rounded-lg space-y-3">
+          <Label className="text-sm font-medium">Time Period</Label>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex-1 min-w-[140px]">
+              <Select value={selectedPreset} onValueChange={(v) => handlePresetChange(v as TimePreset)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select period" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TIME_PRESETS.map(preset => (
+                    <SelectItem key={preset.value} value={preset.value}>
+                      {preset.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* Custom date pickers */}
+            <div className="flex items-center gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={cn(
+                      "justify-start text-left font-normal w-[130px]",
+                      !localDateRange.from && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {format(localDateRange.from, 'MMM d, yyyy')}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={localDateRange.from}
+                    onSelect={handleFromDateChange}
+                    disabled={(date) => date > localDateRange.to || date > new Date()}
+                    initialFocus
+                    className="p-3 pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+              
+              <span className="text-sm text-muted-foreground">to</span>
+              
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={cn(
+                      "justify-start text-left font-normal w-[130px]",
+                      !localDateRange.to && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {format(localDateRange.to, 'MMM d, yyyy')}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={localDateRange.to}
+                    onSelect={handleToDateChange}
+                    disabled={(date) => date < localDateRange.from || date > new Date()}
+                    initialFocus
+                    className="p-3 pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+        </div>
+
         {/* Team Selection */}
         <div className="flex flex-wrap items-center gap-3">
           {selectedTeams.map((teamId, idx) => {
@@ -223,7 +367,7 @@ export function TeamComparisonView({ dateRange, onClose }: TeamComparisonViewPro
 
         {/* Date range indicator */}
         <div className="text-xs text-muted-foreground">
-          Comparing data from {format(dateRange.from, 'MMM d, yyyy')} to {format(dateRange.to, 'MMM d, yyyy')}
+          Comparing data from {format(localDateRange.from, 'MMM d, yyyy')} to {format(localDateRange.to, 'MMM d, yyyy')}
         </div>
 
         {/* Compare Button */}
