@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { toAnalysisSession } from '@/lib/supabaseAdapters';
 import type { ChatMessage } from './adminTranscriptChat';
 import type { Json } from '@/integrations/supabase/types';
 
@@ -90,10 +91,7 @@ export async function fetchRecentSessions(limit: number = 10): Promise<AnalysisS
     return [];
   }
   
-  return (data || []).map(session => ({
-    ...session,
-    messages: (session.messages as unknown as ChatMessage[]) || [],
-  }));
+  return (data || []).map(toAnalysisSession);
 }
 
 export async function fetchSessionByTranscripts(transcriptIds: string[]): Promise<AnalysisSession | null> {
@@ -121,10 +119,7 @@ export async function fetchSessionByTranscripts(transcriptIds: string[]): Promis
   
   if (!matchingSession) return null;
   
-  return {
-    ...matchingSession,
-    messages: (matchingSession.messages as unknown as ChatMessage[]) || [],
-  };
+  return toAnalysisSession(matchingSession);
 }
 
 export async function deleteAnalysisSession(sessionId: string): Promise<boolean> {

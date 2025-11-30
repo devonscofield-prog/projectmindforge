@@ -268,6 +268,7 @@ export interface BaselineMetrics {
   avgEdgeFunctionTime: number;
   errorRate: number;
   p99Latency: number;
+  timestamp: string;
 }
 
 export interface ImplementedRecommendation {
@@ -298,7 +299,8 @@ export function isBaselineMetrics(value: unknown): value is BaselineMetrics {
     'avgQueryTime' in value &&
     'avgEdgeFunctionTime' in value &&
     'errorRate' in value &&
-    'p99Latency' in value
+    'p99Latency' in value &&
+    'timestamp' in value
   );
 }
 
@@ -306,6 +308,21 @@ export function isBaselineMetrics(value: unknown): value is BaselineMetrics {
  * Converts a Supabase implemented recommendation row to domain object.
  */
 export function toImplementedRecommendation(row: Database['public']['Tables']['implemented_recommendations']['Row']): ImplementedRecommendation {
+  const baselineMetrics = parseJsonField<BaselineMetrics>(row.baseline_metrics, isBaselineMetrics) ?? {
+    avgQueryTime: 0,
+    avgEdgeFunctionTime: 0,
+    errorRate: 0,
+    p99Latency: 0,
+    timestamp: row.implemented_at,
+  };
+  
+  // Ensure timestamp is always present
+  if (!baselineMetrics.timestamp) {
+    baselineMetrics.timestamp = row.implemented_at;
+  }
+  
+  const postMetrics = parseJsonField<BaselineMetrics>(row.post_metrics, isBaselineMetrics);
+  
   return {
     id: row.id,
     user_id: row.user_id,
@@ -313,13 +330,8 @@ export function toImplementedRecommendation(row: Database['public']['Tables']['i
     recommendation_category: row.recommendation_category,
     recommendation_priority: row.recommendation_priority,
     recommendation_action: row.recommendation_action,
-    baseline_metrics: parseJsonField<BaselineMetrics>(row.baseline_metrics, isBaselineMetrics) ?? {
-      avgQueryTime: 0,
-      avgEdgeFunctionTime: 0,
-      errorRate: 0,
-      p99Latency: 0,
-    },
-    post_metrics: parseJsonField<BaselineMetrics>(row.post_metrics, isBaselineMetrics),
+    baseline_metrics: baselineMetrics,
+    post_metrics: postMetrics,
     improvement_percent: row.improvement_percent,
     implemented_at: row.implemented_at,
     measured_at: row.measured_at,
