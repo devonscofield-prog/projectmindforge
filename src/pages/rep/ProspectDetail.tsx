@@ -5,6 +5,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useProspectData } from '@/hooks/useProspectData';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
+import { getAccountsUrl, getAccountsLabel } from '@/lib/routes';
 
 // Detail section components
 import {
@@ -75,19 +76,6 @@ export default function ProspectDetail() {
   // Get primary stakeholder for header display
   const primaryStakeholder = stakeholders.find(s => s.is_primary_contact);
 
-  // Get role-specific path for accounts
-  const getAccountsPath = () => {
-    switch (role) {
-      case 'admin': return '/admin/accounts';
-      case 'manager': return '/manager/accounts';
-      default: return '/rep/prospects';
-    }
-  };
-
-  const getAccountsLabel = () => {
-    return role === 'rep' ? 'My Accounts' : 'Accounts';
-  };
-
   if (isLoading) {
     return (
       <AppLayout>
@@ -112,7 +100,7 @@ export default function ProspectDetail() {
         {/* Breadcrumb Navigation */}
         <PageBreadcrumb 
           items={[
-            { label: getAccountsLabel(), href: getAccountsPath() },
+            { label: getAccountsLabel(role), href: getAccountsUrl(role) },
             { label: prospect.account_name || prospect.prospect_name }
           ]}
         />

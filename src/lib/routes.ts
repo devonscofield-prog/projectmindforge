@@ -60,3 +60,30 @@ export function getDashboardUrl(role: UserRole | null): string {
       return '/rep';
   }
 }
+
+/**
+ * Generates the correct accounts/prospects list URL based on user role.
+ * - Admin: /admin/accounts
+ * - Manager: /manager/accounts
+ * - Rep: /rep/prospects
+ */
+export function getAccountsUrl(role: UserRole | null): string {
+  switch (role) {
+    case 'admin':
+      return '/admin/accounts';
+    case 'manager':
+      return '/manager/accounts';
+    case 'rep':
+    default:
+      return '/rep/prospects';
+  }
+}
+
+/**
+ * Gets the display label for accounts based on user role.
+ * - Rep: "My Accounts"
+ * - Others: "Accounts"
+ */
+export function getAccountsLabel(role: UserRole | null): string {
+  return role === 'rep' ? 'My Accounts' : 'Accounts';
+}
