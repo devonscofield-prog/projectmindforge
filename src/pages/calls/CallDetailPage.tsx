@@ -14,7 +14,8 @@ import { getCallWithAnalysis, getAnalysisForCall, CallAnalysis, CallTranscript }
 import { CallAnalysisResultsView } from '@/components/calls/CallAnalysisResultsView';
 import { CallType, callTypeLabels } from '@/constants/callTypes';
 import { format } from 'date-fns';
-import { getDashboardUrl, getCallHistoryUrl, getCallHistoryLabel } from '@/lib/routes';
+import { getDashboardUrl, getCallHistoryUrl } from '@/lib/routes';
+import { getCallDetailBreadcrumbs } from '@/lib/breadcrumbConfig';
 import { 
   ArrowLeft, 
   Calendar, 
@@ -210,12 +211,7 @@ export default function CallDetailPage() {
     <AppLayout>
       <div className="space-y-6">
         {/* Breadcrumb Navigation */}
-        <PageBreadcrumb 
-          items={[
-            { label: getCallHistoryLabel(role), href: getCallHistoryUrl(role) },
-            { label: callTitle }
-          ]}
-        />
+        <PageBreadcrumb items={getCallDetailBreadcrumbs(role, callTitle)} />
 
         {/* Header */}
         <div className="flex items-center justify-between">

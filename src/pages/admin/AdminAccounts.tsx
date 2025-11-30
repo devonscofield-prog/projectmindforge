@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 const log = createLogger('AdminAccounts');
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
+import { getAdminPageBreadcrumb } from '@/lib/breadcrumbConfig';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -332,7 +333,7 @@ export default function AdminAccounts() {
   return (
     <AppLayout>
       <div className="space-y-6">
-        <PageBreadcrumb items={[{ label: 'Accounts' }]} />
+        <PageBreadcrumb items={getAdminPageBreadcrumb('accounts')} />
         
         {/* Header */}
         <div>

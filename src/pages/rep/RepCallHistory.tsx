@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
+import { getRepPageBreadcrumb } from '@/lib/breadcrumbConfig';
 import { Input } from '@/components/ui/input';
 import { listCallTranscriptsForRepWithFilters } from '@/api/aiCallAnalysis';
 import { Search, History } from 'lucide-react';
@@ -60,7 +61,7 @@ export default function RepCallHistory() {
   return (
     <AppLayout>
       <div className="space-y-4 md:space-y-6">
-        <PageBreadcrumb items={[{ label: 'Call History' }]} />
+        <PageBreadcrumb items={getRepPageBreadcrumb('callHistory')} />
         
         {/* Header */}
         <div>

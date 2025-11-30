@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useParams, Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { getRepDetailUrl, getDashboardUrl } from '@/lib/routes';
+import { getCoachingSummaryBreadcrumbs } from '@/lib/breadcrumbConfig';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -447,12 +448,9 @@ export default function RepCoachingSummary() {
 
   const getBreadcrumbItems = () => {
     if ((role === 'manager' || role === 'admin') && repId) {
-      return [
-        { label: repProfile?.name || 'Rep', href: getRepDetailUrl(repId) },
-        { label: 'Coaching Trends' }
-      ];
+      return getCoachingSummaryBreadcrumbs(role, repProfile?.name || 'Rep', getRepDetailUrl(repId));
     }
-    return [{ label: 'Coaching Trends' }];
+    return getCoachingSummaryBreadcrumbs(role);
   };
 
   const getTrendIcon = (trend: 'improving' | 'declining' | 'stable') => {

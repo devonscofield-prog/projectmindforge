@@ -7,6 +7,7 @@ import { getAccountDetailUrl } from '@/lib/routes';
 const log = createLogger('ManagerAccounts');
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
+import { getManagerPageBreadcrumb } from '@/lib/breadcrumbConfig';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -185,7 +186,7 @@ export default function ManagerAccounts() {
   return (
     <AppLayout>
       <div className="space-y-6">
-        <PageBreadcrumb items={[{ label: 'Accounts' }]} />
+        <PageBreadcrumb items={getManagerPageBreadcrumb('accounts')} />
         
         {/* Header */}
         <div>
