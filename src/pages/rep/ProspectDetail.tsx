@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useProspectData } from '@/hooks/useProspectData';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
 import { getAccountDetailBreadcrumbs } from '@/lib/breadcrumbConfig';
+import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 
 // Detail section components
 import {
@@ -29,7 +30,7 @@ import { SalesCoachChat } from '@/components/prospects/SalesCoachChat';
 
 import type { Stakeholder } from '@/api/stakeholders';
 
-export default function ProspectDetail() {
+function ProspectDetail() {
   const { id } = useParams<{ id: string }>();
   const { role } = useAuth();
   
@@ -233,3 +234,5 @@ export default function ProspectDetail() {
     </AppLayout>
   );
 }
+
+export default withPageErrorBoundary(ProspectDetail, 'Account Details');

@@ -13,9 +13,10 @@ import { GlobalActivityFeed } from '@/components/admin/GlobalActivityFeed';
 import { CallTrendsChart } from '@/components/admin/CallTrendsChart';
 import { StatCardGridSkeleton, ChartSkeleton, ContentCardSkeleton } from '@/components/ui/skeletons';
 import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
+import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 import { subDays } from 'date-fns';
 
-export default function AdminDashboard() {
+function AdminDashboard() {
   const { role } = useAuth();
   const [seeding, setSeeding] = useState(false);
 
@@ -197,3 +198,5 @@ export default function AdminDashboard() {
     </AppLayout>
   );
 }
+
+export default withPageErrorBoundary(AdminDashboard, 'Admin Dashboard');
