@@ -161,6 +161,11 @@ const App = () => (
                     <AdminAccounts />
                   </ProtectedRoute>
                 } />
+                <Route path="/admin/accounts/:id" element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <ProspectDetail />
+                  </ProtectedRoute>
+                } />
                 <Route path="/admin/coaching" element={
                   <ProtectedRoute allowedRoles={['admin']}>
                     <AdminCoachingTrends />
