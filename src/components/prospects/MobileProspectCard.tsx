@@ -64,7 +64,7 @@ export function MobileProspectCard({ prospect, stakeholderCount, callCount, onCl
 
   return (
     <Card 
-      className="cursor-pointer hover:bg-muted/50 active:bg-muted/70 transition-colors"
+      variant="interactive"
       onClick={onClick}
     >
       <CardContent className="p-4">
