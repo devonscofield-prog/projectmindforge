@@ -247,10 +247,9 @@ export default function AdminTranscriptAnalysis() {
 
   const getAnalysisModeLabel = () => {
     const count = selectedTranscriptIds.size;
-    if (count === 0) return { label: 'Select transcripts', color: 'text-muted-foreground' };
-    if (count <= 20) return { label: 'Direct Analysis Mode', color: 'text-green-500' };
-    if (count <= 100) return { label: 'Smart Excerpting Mode', color: 'text-yellow-500' };
-    return { label: 'RAG Mode (Coming Soon)', color: 'text-orange-500' };
+    if (count === 0) return { label: 'Select transcripts', color: 'text-muted-foreground', useRag: false };
+    if (count <= 20) return { label: 'Direct Analysis Mode', color: 'text-green-500', useRag: false };
+    return { label: 'RAG Mode', color: 'text-amber-500', useRag: true };
   };
 
   const analysisMode = getAnalysisModeLabel();
@@ -459,9 +458,8 @@ export default function AdminTranscriptAnalysis() {
                 </HoverCardTrigger>
                 <HoverCardContent className="w-80">
                   <div className="space-y-2 text-sm">
-                    <p><strong>Direct Analysis (1-20):</strong> Full transcript text sent to AI</p>
-                    <p><strong>Smart Excerpting (21-100):</strong> Relevant sections extracted per query</p>
-                    <p><strong>RAG Mode (100+):</strong> Semantic search across all transcripts</p>
+                    <p><strong>Direct Analysis (1-20):</strong> Full transcript text sent to AI for complete context</p>
+                    <p><strong>RAG Mode (20+):</strong> AI searches for relevant sections using semantic search, enabling analysis of unlimited transcripts</p>
                   </div>
                 </HoverCardContent>
               </HoverCard>
@@ -470,19 +468,20 @@ export default function AdminTranscriptAnalysis() {
             <Sheet open={chatOpen} onOpenChange={setChatOpen}>
               <SheetTrigger asChild>
                 <Button
-                  disabled={selectedTranscriptIds.size === 0 || selectedTranscriptIds.size > 20}
+                  disabled={selectedTranscriptIds.size === 0}
                   className="gap-2"
                 >
                   <Sparkles className="h-4 w-4" />
                   Analyze with AI
-                  {selectedTranscriptIds.size > 20 && (
-                    <Badge variant="secondary" className="ml-1">Max 20</Badge>
+                  {analysisMode.useRag && (
+                    <Badge variant="secondary" className="ml-1">RAG</Badge>
                   )}
                 </Button>
               </SheetTrigger>
               <SheetContent className="w-full sm:max-w-xl flex flex-col p-0">
                 <TranscriptChatPanel
                   selectedTranscripts={selectedTranscripts}
+                  useRag={analysisMode.useRag}
                   onClose={() => setChatOpen(false)}
                 />
               </SheetContent>

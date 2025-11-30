@@ -26,12 +26,23 @@ FORMAT GUIDELINES:
 - Provide specific examples with quotes when available
 - Start responses with a direct answer, then provide supporting evidence
 
-You have access to ${'{TRANSCRIPT_COUNT}'} transcripts from various sales calls. Analyze them carefully and provide grounded, evidence-based insights.`;
+You have access to transcripts from various sales calls. Analyze them carefully and provide grounded, evidence-based insights.`;
+
+const RAG_SEARCH_PROMPT = `Extract 3-5 key search terms from this user question to find relevant transcript sections. Return ONLY a JSON array of search terms, nothing else.
+
+Question: "{QUERY}"
+
+Return format: ["term1", "term2", "term3"]`;
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
 }
+
+// Maximum transcripts for direct injection
+const DIRECT_INJECTION_MAX = 20;
+// Maximum chunks to include in RAG context
+const RAG_CHUNK_LIMIT = 50;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -39,9 +50,10 @@ serve(async (req) => {
   }
 
   try {
-    const { transcript_ids, messages } = await req.json() as { 
+    const { transcript_ids, messages, use_rag } = await req.json() as { 
       transcript_ids: string[]; 
       messages: Message[];
+      use_rag?: boolean;
     };
     
     if (!transcript_ids || transcript_ids.length === 0) {
@@ -51,14 +63,9 @@ serve(async (req) => {
       );
     }
 
-    if (transcript_ids.length > 20) {
-      return new Response(
-        JSON.stringify({ error: 'Maximum 20 transcripts allowed for direct analysis' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    const shouldUseRag = use_rag || transcript_ids.length > DIRECT_INJECTION_MAX;
 
-    console.log(`[admin-transcript-chat] Starting analysis for ${transcript_ids.length} transcripts`);
+    console.log(`[admin-transcript-chat] Starting analysis for ${transcript_ids.length} transcripts (RAG: ${shouldUseRag})`);
 
     // Get auth token and verify admin role
     const authHeader = req.headers.get('Authorization');
@@ -84,7 +91,6 @@ serve(async (req) => {
       );
     }
 
-    // Check admin role
     const { data: roleData } = await supabase
       .from('user_roles')
       .select('role')
@@ -98,47 +104,27 @@ serve(async (req) => {
       );
     }
 
-    // Fetch all transcripts
-    const { data: transcripts, error: transcriptError } = await supabase
-      .from('call_transcripts')
-      .select('id, call_date, account_name, call_type, raw_text, rep_id')
-      .in('id', transcript_ids);
-
-    if (transcriptError) {
-      console.error('[admin-transcript-chat] Error fetching transcripts:', transcriptError);
-      throw new Error('Failed to fetch transcripts');
-    }
-
-    if (!transcripts || transcripts.length === 0) {
-      return new Response(
-        JSON.stringify({ error: 'No transcripts found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Get rep names for context
-    const repIds = [...new Set(transcripts.map(t => t.rep_id))];
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, name')
-      .in('id', repIds);
-
-    const repMap = new Map((profiles || []).map(p => [p.id, p.name]));
-
-    // Build transcript context
-    const transcriptContext = buildTranscriptContext(transcripts, repMap);
-
-    // Calculate total characters for logging
-    const totalChars = transcripts.reduce((sum, t) => sum + (t.raw_text?.length || 0), 0);
-    console.log(`[admin-transcript-chat] Total context: ${totalChars} chars (~${Math.round(totalChars/4)} tokens)`);
-
-    // Call Lovable AI Gateway with streaming
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
-    const systemPrompt = ADMIN_TRANSCRIPT_ANALYSIS_PROMPT.replace('{TRANSCRIPT_COUNT}', transcripts.length.toString());
+    let transcriptContext: string;
+
+    if (shouldUseRag) {
+      // RAG mode: Use chunked search
+      transcriptContext = await buildRagContext(
+        supabase, 
+        transcript_ids, 
+        messages, 
+        LOVABLE_API_KEY
+      );
+    } else {
+      // Direct injection mode: Fetch full transcripts
+      transcriptContext = await buildDirectContext(supabase, transcript_ids);
+    }
+
+    const systemPrompt = ADMIN_TRANSCRIPT_ANALYSIS_PROMPT;
 
     console.log(`[admin-transcript-chat] Calling Lovable AI with ${messages.length} messages`);
 
@@ -149,7 +135,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-pro', // Use pro for larger context handling
+        model: 'google/gemini-2.5-pro',
         messages: [
           { 
             role: 'system', 
@@ -158,7 +144,7 @@ serve(async (req) => {
           ...messages
         ],
         stream: true,
-        temperature: 0.3, // Lower temperature for more factual responses
+        temperature: 0.3,
       })
     });
 
@@ -180,7 +166,6 @@ serve(async (req) => {
       throw new Error(`AI Gateway error: ${aiResponse.status}`);
     }
 
-    // Stream the response back
     return new Response(aiResponse.body, {
       headers: { ...corsHeaders, 'Content-Type': 'text/event-stream' },
     });
@@ -194,20 +179,37 @@ serve(async (req) => {
   }
 });
 
-function buildTranscriptContext(
-  transcripts: any[],
-  repMap: Map<string, string>
-): string {
-  let context = '';
+async function buildDirectContext(
+  supabase: any,
+  transcriptIds: string[]
+): Promise<string> {
+  const { data: transcripts, error } = await supabase
+    .from('call_transcripts')
+    .select('id, call_date, account_name, call_type, raw_text, rep_id')
+    .in('id', transcriptIds);
 
+  if (error) {
+    console.error('[admin-transcript-chat] Error fetching transcripts:', error);
+    throw new Error('Failed to fetch transcripts');
+  }
+
+  if (!transcripts || transcripts.length === 0) {
+    throw new Error('No transcripts found');
+  }
+
+  const repIds = [...new Set(transcripts.map((t: any) => t.rep_id))];
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, name')
+    .in('id', repIds);
+
+  const repMap = new Map((profiles || []).map((p: any) => [p.id, p.name]));
+
+  let context = '';
   for (const transcript of transcripts) {
     const repName = repMap.get(transcript.rep_id) || 'Unknown Rep';
-    const accountName = transcript.account_name || 'Unknown Account';
-    const callDate = transcript.call_date;
-    const callType = transcript.call_type || 'Call';
-
     context += `\n${'='.repeat(60)}\n`;
-    context += `TRANSCRIPT: ${accountName} | ${callDate} | ${callType}\n`;
+    context += `TRANSCRIPT: ${transcript.account_name || 'Unknown'} | ${transcript.call_date} | ${transcript.call_type || 'Call'}\n`;
     context += `Rep: ${repName}\n`;
     context += `${'='.repeat(60)}\n\n`;
     context += transcript.raw_text || '[No transcript text available]';
@@ -215,4 +217,256 @@ function buildTranscriptContext(
   }
 
   return context;
+}
+
+async function buildRagContext(
+  supabase: any,
+  transcriptIds: string[],
+  messages: Message[],
+  apiKey: string
+): Promise<string> {
+  // Get the latest user message for search
+  const latestUserMessage = [...messages].reverse().find(m => m.role === 'user');
+  if (!latestUserMessage) {
+    throw new Error('No user message found');
+  }
+
+  console.log(`[admin-transcript-chat] RAG mode for ${transcriptIds.length} transcripts`);
+
+  // First, ensure transcripts are chunked
+  const { data: existingChunks } = await supabase
+    .from('transcript_chunks')
+    .select('transcript_id')
+    .in('transcript_id', transcriptIds);
+
+  const chunkedIds = new Set((existingChunks || []).map((c: any) => c.transcript_id));
+  const unchunkedIds = transcriptIds.filter(id => !chunkedIds.has(id));
+
+  // If there are unchunked transcripts, chunk them inline
+  if (unchunkedIds.length > 0) {
+    console.log(`[admin-transcript-chat] Chunking ${unchunkedIds.length} transcripts inline`);
+    await chunkTranscriptsInline(supabase, unchunkedIds);
+  }
+
+  // Extract search terms from the query using AI
+  const searchTerms = await extractSearchTerms(latestUserMessage.content, apiKey);
+  console.log(`[admin-transcript-chat] Search terms: ${searchTerms.join(', ')}`);
+
+  // Build full-text search query
+  const searchQuery = searchTerms.join(' | ');
+
+  // Search chunks using full-text search
+  const { data: searchResults, error: searchError } = await supabase
+    .from('transcript_chunks')
+    .select('id, chunk_text, metadata, transcript_id')
+    .in('transcript_id', transcriptIds)
+    .textSearch('search_vector', searchQuery, { type: 'websearch' })
+    .limit(RAG_CHUNK_LIMIT);
+
+  if (searchError) {
+    console.error('[admin-transcript-chat] Search error:', searchError);
+    // Fallback to getting first chunks from each transcript
+    return await buildFallbackContext(supabase, transcriptIds);
+  }
+
+  console.log(`[admin-transcript-chat] Found ${searchResults?.length || 0} relevant chunks`);
+
+  // If no results from search, use fallback
+  if (!searchResults || searchResults.length === 0) {
+    return await buildFallbackContext(supabase, transcriptIds);
+  }
+
+  // Build context from search results
+  let context = `Note: Using semantic search across ${transcriptIds.length} transcripts. Showing ${searchResults.length} most relevant sections.\n\n`;
+
+  // Group chunks by transcript for better organization
+  const chunksByTranscript = new Map<string, any[]>();
+  for (const chunk of searchResults) {
+    const tid = chunk.transcript_id;
+    if (!chunksByTranscript.has(tid)) {
+      chunksByTranscript.set(tid, []);
+    }
+    chunksByTranscript.get(tid)!.push(chunk);
+  }
+
+  for (const [transcriptId, chunks] of chunksByTranscript) {
+    const meta = chunks[0].metadata;
+    context += `\n${'='.repeat(60)}\n`;
+    context += `TRANSCRIPT: ${meta.account_name || 'Unknown'} | ${meta.call_date} | ${meta.call_type || 'Call'}\n`;
+    context += `Rep: ${meta.rep_name || 'Unknown'}\n`;
+    context += `${'='.repeat(60)}\n\n`;
+    
+    for (const chunk of chunks.sort((a: any, b: any) => (a.chunk_index || 0) - (b.chunk_index || 0))) {
+      context += chunk.chunk_text + '\n\n---\n\n';
+    }
+  }
+
+  return context;
+}
+
+async function extractSearchTerms(query: string, apiKey: string): Promise<string[]> {
+  try {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash',
+        messages: [
+          { 
+            role: 'user', 
+            content: RAG_SEARCH_PROMPT.replace('{QUERY}', query)
+          }
+        ],
+        temperature: 0,
+      })
+    });
+
+    if (!response.ok) {
+      console.error('[admin-transcript-chat] Failed to extract search terms');
+      return query.toLowerCase().split(/\s+/).filter(w => w.length > 3).slice(0, 5);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '';
+    
+    // Parse JSON array from response
+    const match = content.match(/\[.*\]/s);
+    if (match) {
+      return JSON.parse(match[0]);
+    }
+    
+    // Fallback: extract words from response
+    return query.toLowerCase().split(/\s+/).filter(w => w.length > 3).slice(0, 5);
+  } catch (error) {
+    console.error('[admin-transcript-chat] Error extracting search terms:', error);
+    return query.toLowerCase().split(/\s+/).filter(w => w.length > 3).slice(0, 5);
+  }
+}
+
+async function buildFallbackContext(
+  supabase: any,
+  transcriptIds: string[]
+): Promise<string> {
+  // Get first few chunks from each transcript
+  const chunksPerTranscript = Math.ceil(RAG_CHUNK_LIMIT / transcriptIds.length);
+  
+  const { data: chunks } = await supabase
+    .from('transcript_chunks')
+    .select('id, chunk_text, metadata, transcript_id, chunk_index')
+    .in('transcript_id', transcriptIds)
+    .order('chunk_index', { ascending: true })
+    .limit(RAG_CHUNK_LIMIT);
+
+  if (!chunks || chunks.length === 0) {
+    throw new Error('No chunks available. Please try with fewer transcripts.');
+  }
+
+  let context = `Note: Showing first sections from ${transcriptIds.length} transcripts.\n\n`;
+
+  const chunksByTranscript = new Map<string, any[]>();
+  for (const chunk of chunks) {
+    const tid = chunk.transcript_id;
+    if (!chunksByTranscript.has(tid)) {
+      chunksByTranscript.set(tid, []);
+    }
+    if (chunksByTranscript.get(tid)!.length < chunksPerTranscript) {
+      chunksByTranscript.get(tid)!.push(chunk);
+    }
+  }
+
+  for (const [transcriptId, transcriptChunks] of chunksByTranscript) {
+    const meta = transcriptChunks[0].metadata;
+    context += `\n${'='.repeat(60)}\n`;
+    context += `TRANSCRIPT: ${meta.account_name || 'Unknown'} | ${meta.call_date} | ${meta.call_type || 'Call'}\n`;
+    context += `Rep: ${meta.rep_name || 'Unknown'}\n`;
+    context += `${'='.repeat(60)}\n\n`;
+    
+    for (const chunk of transcriptChunks) {
+      context += chunk.chunk_text + '\n\n---\n\n';
+    }
+  }
+
+  return context;
+}
+
+async function chunkTranscriptsInline(
+  supabase: any,
+  transcriptIds: string[]
+): Promise<void> {
+  const CHUNK_SIZE = 2000;
+  const CHUNK_OVERLAP = 200;
+
+  const { data: transcripts } = await supabase
+    .from('call_transcripts')
+    .select('id, call_date, account_name, call_type, raw_text, rep_id')
+    .in('id', transcriptIds);
+
+  if (!transcripts || transcripts.length === 0) return;
+
+  const repIds = [...new Set(transcripts.map((t: any) => t.rep_id))];
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, name')
+    .in('id', repIds);
+
+  const repMap = new Map((profiles || []).map((p: any) => [p.id, p.name]));
+
+  const allChunks: any[] = [];
+  
+  for (const transcript of transcripts) {
+    const chunks = chunkText(transcript.raw_text || '', CHUNK_SIZE, CHUNK_OVERLAP);
+    const repName = repMap.get(transcript.rep_id) || 'Unknown';
+    
+    chunks.forEach((chunkText, index) => {
+      allChunks.push({
+        transcript_id: transcript.id,
+        chunk_index: index,
+        chunk_text: chunkText,
+        metadata: {
+          account_name: transcript.account_name || 'Unknown',
+          call_date: transcript.call_date,
+          call_type: transcript.call_type || 'Call',
+          rep_name: repName,
+          rep_id: transcript.rep_id,
+        }
+      });
+    });
+  }
+
+  if (allChunks.length > 0) {
+    const { error } = await supabase
+      .from('transcript_chunks')
+      .insert(allChunks);
+    
+    if (error) {
+      console.error('[admin-transcript-chat] Error inserting chunks:', error);
+    }
+  }
+}
+
+function chunkText(text: string, chunkSize: number, overlap: number): string[] {
+  const chunks: string[] = [];
+  if (!text || text.length === 0) return chunks;
+
+  const paragraphs = text.split(/\n\n+/);
+  let currentChunk = '';
+
+  for (const paragraph of paragraphs) {
+    if (currentChunk.length + paragraph.length > chunkSize && currentChunk.length > 0) {
+      chunks.push(currentChunk.trim());
+      const overlapText = currentChunk.slice(-overlap);
+      currentChunk = overlapText + '\n\n' + paragraph;
+    } else {
+      currentChunk += (currentChunk ? '\n\n' : '') + paragraph;
+    }
+  }
+
+  if (currentChunk.trim()) {
+    chunks.push(currentChunk.trim());
+  }
+
+  return chunks;
 }
