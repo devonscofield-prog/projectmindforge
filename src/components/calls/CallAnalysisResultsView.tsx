@@ -27,7 +27,8 @@ import {
   Download,
   ChevronDown,
   ChevronUp,
-  Search
+  Search,
+  ChevronsUpDown
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
@@ -48,10 +49,25 @@ export function CallAnalysisResultsView({ call, analysis, isOwner, isManager }: 
   const [isRefining, setIsRefining] = useState(false);
   const [showEmailPreview, setShowEmailPreview] = useState(false);
   
-  // Collapsible state for Call Notes, Recap Email, and AI Coach
-  const [notesOpen, setNotesOpen] = useState(true);
-  const [recapOpen, setRecapOpen] = useState(true);
-  const [coachOpen, setCoachOpen] = useState(true);
+  // Collapsible state for Call Notes, Recap Email, and AI Coach (collapsed by default)
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [recapOpen, setRecapOpen] = useState(false);
+  const [coachOpen, setCoachOpen] = useState(false);
+
+  // Computed state and toggle functions for expand/collapse all
+  const allExpanded = notesOpen && recapOpen && coachOpen;
+  
+  const expandAll = () => {
+    setNotesOpen(true);
+    setRecapOpen(true);
+    setCoachOpen(true);
+  };
+
+  const collapseAll = () => {
+    setNotesOpen(false);
+    setRecapOpen(false);
+    setCoachOpen(false);
+  };
 
   // Shared markdown components for recap email rendering
   const recapMarkdownComponents = {
@@ -178,6 +194,19 @@ export function CallAnalysisResultsView({ call, analysis, isOwner, isManager }: 
           </div>
         </CardContent>
       </Card>
+
+      {/* Expand/Collapse All Button */}
+      <div className="flex justify-end">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={allExpanded ? collapseAll : expandAll}
+          className="text-muted-foreground"
+        >
+          <ChevronsUpDown className="h-4 w-4 mr-2" />
+          {allExpanded ? 'Collapse All' : 'Expand All'}
+        </Button>
+      </div>
 
       {/* Call Notes - Collapsible, moved above AI Call Coach */}
       {analysis.call_notes && (
