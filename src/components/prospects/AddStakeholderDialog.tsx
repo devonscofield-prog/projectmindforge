@@ -10,17 +10,13 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Loader2 } from 'lucide-react';
+  FormInput,
+  FormSelect,
+  FormCheckbox,
+  FormFieldGroup,
+  SubmitButton,
+} from '@/components/ui/form-fields';
 import {
   createStakeholder,
   type StakeholderInfluenceLevel,
@@ -35,6 +31,11 @@ interface AddStakeholderDialogProps {
   repId: string;
   onStakeholderAdded: () => void;
 }
+
+const influenceOptions = Object.entries(influenceLevelLabels).map(([value, label]) => ({
+  value,
+  label,
+}));
 
 export function AddStakeholderDialog({
   open,
@@ -96,6 +97,10 @@ export function AddStakeholderDialog({
     }
   };
 
+  const updateField = <K extends keyof typeof formData>(field: K, value: typeof formData[K]) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -103,96 +108,58 @@ export function AddStakeholderDialog({
           <DialogTitle>Add Stakeholder</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Name *</Label>
-            <Input
-              id="name"
-              placeholder="e.g., John Smith"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              required
+          <FormInput
+            label="Name"
+            required
+            placeholder="e.g., John Smith"
+            value={formData.name}
+            onChange={(e) => updateField('name', e.target.value)}
+          />
+
+          <FormInput
+            label="Job Title"
+            placeholder="e.g., VP of Operations"
+            value={formData.jobTitle}
+            onChange={(e) => updateField('jobTitle', e.target.value)}
+          />
+
+          <FormFieldGroup columns={2}>
+            <FormInput
+              label="Email"
+              type="email"
+              placeholder="john@acme.com"
+              value={formData.email}
+              onChange={(e) => updateField('email', e.target.value)}
             />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="jobTitle">Job Title</Label>
-            <Input
-              id="jobTitle"
-              placeholder="e.g., VP of Operations"
-              value={formData.jobTitle}
-              onChange={(e) => setFormData({ ...formData, jobTitle: e.target.value })}
+            <FormInput
+              label="Phone"
+              type="tel"
+              placeholder="(555) 123-4567"
+              value={formData.phone}
+              onChange={(e) => updateField('phone', e.target.value)}
             />
-          </div>
+          </FormFieldGroup>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="john@acme.com"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="phone">Phone</Label>
-              <Input
-                id="phone"
-                type="tel"
-                placeholder="(555) 123-4567"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              />
-            </div>
-          </div>
+          <FormSelect
+            label="Influence Level"
+            value={formData.influenceLevel}
+            onValueChange={(v) => updateField('influenceLevel', v as StakeholderInfluenceLevel)}
+            options={influenceOptions}
+          />
 
-          <div className="space-y-2">
-            <Label htmlFor="influenceLevel">Influence Level</Label>
-            <Select
-              value={formData.influenceLevel}
-              onValueChange={(v) => setFormData({ ...formData, influenceLevel: v as StakeholderInfluenceLevel })}
-            >
-              <SelectTrigger id="influenceLevel">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(influenceLevelLabels).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="isPrimary"
-              checked={formData.isPrimaryContact}
-              onCheckedChange={(checked) => 
-                setFormData({ ...formData, isPrimaryContact: checked === true })
-              }
-            />
-            <Label htmlFor="isPrimary" className="text-sm font-normal">
-              Primary contact for this account
-            </Label>
-          </div>
+          <FormCheckbox
+            label="Primary contact for this account"
+            checked={formData.isPrimaryContact}
+            onCheckedChange={(checked) => updateField('isPrimaryContact', checked)}
+          />
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Adding...
-                </>
-              ) : (
-                'Add Stakeholder'
-              )}
-            </Button>
+            <SubmitButton isLoading={isSubmitting} loadingText="Adding...">
+              Add Stakeholder
+            </SubmitButton>
           </DialogFooter>
         </form>
       </DialogContent>
