@@ -1,4 +1,4 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,35 +7,49 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ThemeProvider } from "next-themes";
+
+// Eager load - these are accessed immediately
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
-// Rep pages
-import RepDashboard from "./pages/rep/RepDashboard";
-import RepCallHistory from "./pages/rep/RepCallHistory";
-import RepProspects from "./pages/rep/RepProspects";
-import ProspectDetail from "./pages/rep/ProspectDetail";
-import RepCoachingSummary from "./pages/rep/RepCoachingSummary";
+// Lazy load - Rep pages
+const RepDashboard = lazy(() => import("./pages/rep/RepDashboard"));
+const RepCallHistory = lazy(() => import("./pages/rep/RepCallHistory"));
+const RepProspects = lazy(() => import("./pages/rep/RepProspects"));
+const ProspectDetail = lazy(() => import("./pages/rep/ProspectDetail"));
+const RepCoachingSummary = lazy(() => import("./pages/rep/RepCoachingSummary"));
 
-// Manager pages
-import ManagerDashboard from "./pages/manager/ManagerDashboard";
-import ManagerAccounts from "./pages/manager/ManagerAccounts";
-import ManagerCoaching from "./pages/manager/ManagerCoaching";
-import RepDetail from "./pages/manager/RepDetail";
+// Lazy load - Manager pages
+const ManagerDashboard = lazy(() => import("./pages/manager/ManagerDashboard"));
+const ManagerAccounts = lazy(() => import("./pages/manager/ManagerAccounts"));
+const ManagerCoaching = lazy(() => import("./pages/manager/ManagerCoaching"));
+const RepDetail = lazy(() => import("./pages/manager/RepDetail"));
 
-// Admin pages
-import AdminDashboard from "./pages/admin/AdminDashboard";
-import AdminTeams from "./pages/admin/AdminTeams";
-import AdminUsers from "./pages/admin/AdminUsers";
-import AdminAccounts from "./pages/admin/AdminAccounts";
-import AdminCoachingTrends from "./pages/admin/AdminCoachingTrends";
-import AdminTranscriptAnalysis from "./pages/admin/AdminTranscriptAnalysis";
+// Lazy load - Admin pages
+const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
+const AdminTeams = lazy(() => import("./pages/admin/AdminTeams"));
+const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
+const AdminAccounts = lazy(() => import("./pages/admin/AdminAccounts"));
+const AdminCoachingTrends = lazy(() => import("./pages/admin/AdminCoachingTrends"));
+const AdminTranscriptAnalysis = lazy(() => import("./pages/admin/AdminTranscriptAnalysis"));
 
-// Shared pages
-import CallDetailPage from "./pages/calls/CallDetailPage";
+// Lazy load - Shared pages
+const CallDetailPage = lazy(() => import("./pages/calls/CallDetailPage"));
 
 const queryClient = new QueryClient();
+
+// Loading fallback component
+function PageLoader() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-4">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
+        <p className="text-sm text-muted-foreground">Loading...</p>
+      </div>
+    </div>
+  );
+}
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -45,109 +59,112 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/auth" element={<Auth />} />
-            {/* Rep Routes */}
-            <Route path="/rep" element={
-              <ProtectedRoute allowedRoles={['rep']}>
-                <RepDashboard />
-              </ProtectedRoute>
-            } />
-            <Route path="/rep/history" element={
-              <ProtectedRoute allowedRoles={['rep']}>
-                <RepCallHistory />
-              </ProtectedRoute>
-            } />
-            <Route path="/rep/prospects" element={
-              <ProtectedRoute allowedRoles={['rep']}>
-                <RepProspects />
-              </ProtectedRoute>
-            } />
-            <Route path="/rep/prospects/:id" element={
-              <ProtectedRoute allowedRoles={['rep', 'manager']}>
-                <ProspectDetail />
-              </ProtectedRoute>
-            } />
-            <Route path="/rep/coaching-summary" element={
-              <ProtectedRoute allowedRoles={['rep']}>
-                <RepCoachingSummary />
-              </ProtectedRoute>
-            } />
-            <Route path="/rep/coaching-summary/:repId" element={
-              <ProtectedRoute allowedRoles={['manager', 'admin']}>
-                <RepCoachingSummary />
-              </ProtectedRoute>
-            } />
+            <Suspense fallback={<PageLoader />}>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/auth" element={<Auth />} />
 
-            {/* Shared Call Detail Route */}
-            <Route path="/calls/:id" element={
-              <ProtectedRoute allowedRoles={['rep', 'manager', 'admin']}>
-                <CallDetailPage />
-              </ProtectedRoute>
-            } />
+                {/* Rep Routes */}
+                <Route path="/rep" element={
+                  <ProtectedRoute allowedRoles={['rep']}>
+                    <RepDashboard />
+                  </ProtectedRoute>
+                } />
+                <Route path="/rep/history" element={
+                  <ProtectedRoute allowedRoles={['rep']}>
+                    <RepCallHistory />
+                  </ProtectedRoute>
+                } />
+                <Route path="/rep/prospects" element={
+                  <ProtectedRoute allowedRoles={['rep']}>
+                    <RepProspects />
+                  </ProtectedRoute>
+                } />
+                <Route path="/rep/prospects/:id" element={
+                  <ProtectedRoute allowedRoles={['rep', 'manager']}>
+                    <ProspectDetail />
+                  </ProtectedRoute>
+                } />
+                <Route path="/rep/coaching-summary" element={
+                  <ProtectedRoute allowedRoles={['rep']}>
+                    <RepCoachingSummary />
+                  </ProtectedRoute>
+                } />
+                <Route path="/rep/coaching-summary/:repId" element={
+                  <ProtectedRoute allowedRoles={['manager', 'admin']}>
+                    <RepCoachingSummary />
+                  </ProtectedRoute>
+                } />
 
-            {/* Manager Routes */}
-            <Route path="/manager" element={
-              <ProtectedRoute allowedRoles={['manager']}>
-                <ManagerDashboard />
-              </ProtectedRoute>
-            } />
-            <Route path="/manager/accounts" element={
-              <ProtectedRoute allowedRoles={['manager']}>
-                <ManagerAccounts />
-              </ProtectedRoute>
-            } />
-            <Route path="/manager/prospects/:id" element={
-              <ProtectedRoute allowedRoles={['manager']}>
-                <ProspectDetail />
-              </ProtectedRoute>
-            } />
-            <Route path="/manager/coaching" element={
-              <ProtectedRoute allowedRoles={['manager']}>
-                <ManagerCoaching />
-              </ProtectedRoute>
-            } />
-            <Route path="/manager/rep/:repId" element={
-              <ProtectedRoute allowedRoles={['manager', 'admin']}>
-                <RepDetail />
-              </ProtectedRoute>
-            } />
+                {/* Shared Call Detail Route */}
+                <Route path="/calls/:id" element={
+                  <ProtectedRoute allowedRoles={['rep', 'manager', 'admin']}>
+                    <CallDetailPage />
+                  </ProtectedRoute>
+                } />
 
-            {/* Admin Routes */}
-            <Route path="/admin" element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <AdminDashboard />
-              </ProtectedRoute>
-            } />
-            <Route path="/admin/teams" element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <AdminTeams />
-              </ProtectedRoute>
-            } />
-            <Route path="/admin/users" element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <AdminUsers />
-              </ProtectedRoute>
-            } />
-            <Route path="/admin/accounts" element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <AdminAccounts />
-              </ProtectedRoute>
-            } />
-            <Route path="/admin/coaching" element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <AdminCoachingTrends />
-              </ProtectedRoute>
-            } />
-            <Route path="/admin/transcripts" element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <AdminTranscriptAnalysis />
-              </ProtectedRoute>
-            } />
+                {/* Manager Routes */}
+                <Route path="/manager" element={
+                  <ProtectedRoute allowedRoles={['manager']}>
+                    <ManagerDashboard />
+                  </ProtectedRoute>
+                } />
+                <Route path="/manager/accounts" element={
+                  <ProtectedRoute allowedRoles={['manager']}>
+                    <ManagerAccounts />
+                  </ProtectedRoute>
+                } />
+                <Route path="/manager/prospects/:id" element={
+                  <ProtectedRoute allowedRoles={['manager']}>
+                    <ProspectDetail />
+                  </ProtectedRoute>
+                } />
+                <Route path="/manager/coaching" element={
+                  <ProtectedRoute allowedRoles={['manager']}>
+                    <ManagerCoaching />
+                  </ProtectedRoute>
+                } />
+                <Route path="/manager/rep/:repId" element={
+                  <ProtectedRoute allowedRoles={['manager', 'admin']}>
+                    <RepDetail />
+                  </ProtectedRoute>
+                } />
 
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+                {/* Admin Routes */}
+                <Route path="/admin" element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <AdminDashboard />
+                  </ProtectedRoute>
+                } />
+                <Route path="/admin/teams" element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <AdminTeams />
+                  </ProtectedRoute>
+                } />
+                <Route path="/admin/users" element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <AdminUsers />
+                  </ProtectedRoute>
+                } />
+                <Route path="/admin/accounts" element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <AdminAccounts />
+                  </ProtectedRoute>
+                } />
+                <Route path="/admin/coaching" element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <AdminCoachingTrends />
+                  </ProtectedRoute>
+                } />
+                <Route path="/admin/transcripts" element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <AdminTranscriptAnalysis />
+                  </ProtectedRoute>
+                } />
+
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Suspense>
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>
