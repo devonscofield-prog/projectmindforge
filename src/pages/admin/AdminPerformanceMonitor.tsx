@@ -30,6 +30,8 @@ import {
   getMetricsTimeline,
   cleanupOldMetrics,
 } from '@/api/performanceMetrics';
+import { getBenchmarkComparison } from '@/api/performanceBenchmarks';
+import { PerformanceBenchmarkCard } from '@/components/admin/PerformanceBenchmarkCard';
 import { toast } from 'sonner';
 
 const TIME_RANGE_OPTIONS = [
@@ -70,10 +72,21 @@ export default function AdminPerformanceMonitor() {
     queryFn: () => getMetricsTimeline(parseInt(timeRange)),
   });
 
+  const {
+    data: benchmarkComparison,
+    isLoading: benchmarkLoading,
+    refetch: refetchBenchmark,
+  } = useQuery({
+    queryKey: ['benchmark-comparison'],
+    queryFn: () => getBenchmarkComparison(1, 7),
+    refetchInterval: 60000,
+  });
+
   const handleRefresh = () => {
     refetchHealth();
     refetchSummary();
     refetchTimeline();
+    refetchBenchmark();
     toast.success('Metrics refreshed');
   };
 
@@ -331,6 +344,12 @@ export default function AdminPerformanceMonitor() {
             </>
           )}
         </div>
+
+        {/* Benchmark Comparison */}
+        <PerformanceBenchmarkCard
+          comparisons={benchmarkComparison || []}
+          isLoading={benchmarkLoading}
+        />
 
         {/* Maintenance Actions */}
         <Card>
