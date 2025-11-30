@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { LogIn, LogOut, RefreshCw, Activity } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { fetchAllRecentActivityLogs, UserActivityLogWithProfile, UserActivityType } from '@/api/userActivityLogs';
+import { supabase } from '@/integrations/supabase/client';
 
 const activityIcons: Record<UserActivityType, typeof LogIn> = {
   login: LogIn,
@@ -27,14 +28,36 @@ export function GlobalActivityFeed() {
   const [logs, setLogs] = useState<UserActivityLogWithProfile[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const loadLogs = async () => {
-      const data = await fetchAllRecentActivityLogs(15);
-      setLogs(data);
-      setLoading(false);
-    };
-    loadLogs();
+  const loadLogs = useCallback(async () => {
+    const data = await fetchAllRecentActivityLogs(15);
+    setLogs(data);
+    setLoading(false);
   }, []);
+
+  useEffect(() => {
+    loadLogs();
+
+    // Subscribe to real-time updates
+    const channel = supabase
+      .channel('user-activity-feed')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'user_activity_logs',
+        },
+        () => {
+          // Refresh the logs when a new activity is inserted
+          loadLogs();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loadLogs]);
 
   return (
     <Card>
@@ -42,6 +65,10 @@ export function GlobalActivityFeed() {
         <CardTitle className="text-base flex items-center gap-2">
           <Activity className="h-4 w-4" />
           Recent Activity
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+          </span>
         </CardTitle>
       </CardHeader>
       <CardContent>
