@@ -454,190 +454,190 @@ export default function AdminCoachingTrends() {
               </div>
             </div>
 
-        {/* Initial State - Before Generation */}
-        {!generateRequested ? (
-          <Card className="border-dashed border-2">
-            <CardContent className="py-12">
-              <div className="flex flex-col items-center justify-center gap-6 max-w-lg mx-auto text-center">
-                <div className="relative">
-                  <div className="p-4 bg-primary/10 rounded-full">
-                    <Sparkles className="h-12 w-12 text-primary" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <h3 className="text-xl font-semibold">
-                    {scope === 'organization' ? 'Organization-Wide' : scope === 'team' ? 'Team-Level' : 'Individual'} Coaching Analysis
-                  </h3>
-                  <p className="text-muted-foreground">
-                    {scope === 'organization' 
-                      ? 'Analyze coaching trends across all teams to identify organization-wide patterns and opportunities.'
-                      : scope === 'team'
-                        ? 'Analyze coaching trends for a specific team to identify team-specific strengths and areas for improvement.'
-                        : 'Analyze coaching trends for an individual rep.'}
-                  </p>
-                </div>
-                <div className="flex flex-col items-center gap-3 w-full">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <CalendarIcon className="h-4 w-4" />
-                    <span>
-                      {format(dateRange.from, 'MMM d, yyyy')} - {format(dateRange.to, 'MMM d, yyyy')}
-                    </span>
-                  </div>
-                  
-                  {/* Scope and call count preview */}
-                  <div className="flex flex-col items-center gap-2 px-4 py-3 bg-muted/50 rounded-lg">
-                    {/* Scope indicator */}
-                    <div className="flex items-center gap-2 text-sm">
-                      {scope === 'organization' && <Globe className="h-4 w-4 text-primary" />}
-                      {scope === 'team' && <Building2 className="h-4 w-4 text-primary" />}
-                      {scope === 'rep' && <User className="h-4 w-4 text-primary" />}
-                      <span className="font-medium">{scopeLabel}</span>
-                      {scope !== 'rep' && repCountPreview !== undefined && (
-                        <span className="text-muted-foreground">
-                          ({repCountPreview} rep{repCountPreview !== 1 ? 's' : ''})
-                        </span>
-                      )}
+            {/* Initial State - Before Generation */}
+            {!generateRequested ? (
+              <Card className="border-dashed border-2">
+                <CardContent className="py-12">
+                  <div className="flex flex-col items-center justify-center gap-6 max-w-lg mx-auto text-center">
+                    <div className="relative">
+                      <div className="p-4 bg-primary/10 rounded-full">
+                        <Sparkles className="h-12 w-12 text-primary" />
+                      </div>
                     </div>
-                    
-                    {/* Call count */}
-                    <div className="flex items-center gap-2">
-                      <BarChart3 className="h-4 w-4 text-primary" />
-                      {isLoadingCallCount ? (
-                        <span className="text-sm text-muted-foreground">Counting calls...</span>
-                      ) : !canGenerate ? (
-                        <span className="text-sm text-amber-600 dark:text-amber-400">
-                          Select a {scope === 'team' ? 'team' : 'rep'} to continue
-                        </span>
-                      ) : callCountPreview === 0 ? (
-                        <span className="text-sm text-amber-600 dark:text-amber-400">
-                          No analyzed calls found in this period
-                        </span>
-                      ) : (
-                        <span className="text-sm font-medium">
-                          <span className="text-primary">{callCountPreview}</span>
-                          <span className="text-muted-foreground"> call{callCountPreview !== 1 ? 's' : ''} to analyze</span>
-                        </span>
-                      )}
+                    <div className="space-y-2">
+                      <h3 className="text-xl font-semibold">
+                        {scope === 'organization' ? 'Organization-Wide' : scope === 'team' ? 'Team-Level' : 'Individual'} Coaching Analysis
+                      </h3>
+                      <p className="text-muted-foreground">
+                        {scope === 'organization' 
+                          ? 'Analyze coaching trends across all teams to identify organization-wide patterns and opportunities.'
+                          : scope === 'team'
+                            ? 'Analyze coaching trends for a specific team to identify team-specific strengths and areas for improvement.'
+                            : 'Analyze coaching trends for an individual rep.'}
+                      </p>
                     </div>
+                    <div className="flex flex-col items-center gap-3 w-full">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <CalendarIcon className="h-4 w-4" />
+                        <span>
+                          {format(dateRange.from, 'MMM d, yyyy')} - {format(dateRange.to, 'MMM d, yyyy')}
+                        </span>
+                      </div>
+                      
+                      {/* Scope and call count preview */}
+                      <div className="flex flex-col items-center gap-2 px-4 py-3 bg-muted/50 rounded-lg">
+                        {/* Scope indicator */}
+                        <div className="flex items-center gap-2 text-sm">
+                          {scope === 'organization' && <Globe className="h-4 w-4 text-primary" />}
+                          {scope === 'team' && <Building2 className="h-4 w-4 text-primary" />}
+                          {scope === 'rep' && <User className="h-4 w-4 text-primary" />}
+                          <span className="font-medium">{scopeLabel}</span>
+                          {scope !== 'rep' && repCountPreview !== undefined && (
+                            <span className="text-muted-foreground">
+                              ({repCountPreview} rep{repCountPreview !== 1 ? 's' : ''})
+                            </span>
+                          )}
+                        </div>
+                        
+                        {/* Call count */}
+                        <div className="flex items-center gap-2">
+                          <BarChart3 className="h-4 w-4 text-primary" />
+                          {isLoadingCallCount ? (
+                            <span className="text-sm text-muted-foreground">Counting calls...</span>
+                          ) : !canGenerate ? (
+                            <span className="text-sm text-amber-600 dark:text-amber-400">
+                              Select a {scope === 'team' ? 'team' : 'rep'} to continue
+                            </span>
+                          ) : callCountPreview === 0 ? (
+                            <span className="text-sm text-amber-600 dark:text-amber-400">
+                              No analyzed calls found in this period
+                            </span>
+                          ) : (
+                            <span className="text-sm font-medium">
+                              <span className="text-primary">{callCountPreview}</span>
+                              <span className="text-muted-foreground"> call{callCountPreview !== 1 ? 's' : ''} to analyze</span>
+                            </span>
+                          )}
+                        </div>
 
-                    {/* Tier indicator */}
-                    {previewTier && callCountPreview && callCountPreview > 0 && (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger>
-                            <Badge 
-                              variant="outline" 
-                              className={cn(
-                                "text-xs gap-1",
-                                previewTier === 'direct' && "border-green-500/50 text-green-600",
-                                previewTier === 'sampled' && "border-amber-500/50 text-amber-600",
-                                previewTier === 'hierarchical' && "border-orange-500/50 text-orange-600"
-                              )}
-                            >
-                              {previewTier === 'direct' && <Zap className="h-3 w-3" />}
-                              {previewTier === 'sampled' && <Layers className="h-3 w-3" />}
-                              {previewTier === 'hierarchical' && <Layers className="h-3 w-3" />}
-                              {previewTier === 'direct' ? 'Direct Analysis' : 
-                               previewTier === 'sampled' ? 'Smart Sampling' : 'Two-Stage Analysis'}
-                            </Badge>
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-xs">
-                            {previewTier === 'direct' && (
-                              <p>All {callCountPreview} calls will be analyzed directly for optimal quality.</p>
-                            )}
-                            {previewTier === 'sampled' && (
-                              <p>Large dataset ({callCountPreview} calls). A representative sample of ~{DIRECT_ANALYSIS_MAX} calls will be analyzed.</p>
-                            )}
-                            {previewTier === 'hierarchical' && (
-                              <p>Very large dataset ({callCountPreview} calls). Two-stage hierarchical analysis will be used.</p>
-                            )}
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
+                        {/* Tier indicator */}
+                        {previewTier && callCountPreview && callCountPreview > 0 && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <Badge 
+                                  variant="outline" 
+                                  className={cn(
+                                    "text-xs gap-1",
+                                    previewTier === 'direct' && "border-green-500/50 text-green-600",
+                                    previewTier === 'sampled' && "border-amber-500/50 text-amber-600",
+                                    previewTier === 'hierarchical' && "border-orange-500/50 text-orange-600"
+                                  )}
+                                >
+                                  {previewTier === 'direct' && <Zap className="h-3 w-3" />}
+                                  {previewTier === 'sampled' && <Layers className="h-3 w-3" />}
+                                  {previewTier === 'hierarchical' && <Layers className="h-3 w-3" />}
+                                  {previewTier === 'direct' ? 'Direct Analysis' : 
+                                   previewTier === 'sampled' ? 'Smart Sampling' : 'Two-Stage Analysis'}
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs">
+                                {previewTier === 'direct' && (
+                                  <p>All {callCountPreview} calls will be analyzed directly for optimal quality.</p>
+                                )}
+                                {previewTier === 'sampled' && (
+                                  <p>Large dataset ({callCountPreview} calls). A representative sample of ~{DIRECT_ANALYSIS_MAX} calls will be analyzed.</p>
+                                )}
+                                {previewTier === 'hierarchical' && (
+                                  <p>Very large dataset ({callCountPreview} calls). Two-stage hierarchical analysis will be used.</p>
+                                )}
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                      </div>
+                      
+                      <Button 
+                        size="lg" 
+                        onClick={handleGenerateTrends}
+                        className="mt-2"
+                        disabled={!canGenerate || callCountPreview === 0}
+                      >
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        Generate {scope === 'organization' ? 'Org' : scope === 'team' ? 'Team' : ''} Trends
+                      </Button>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {!canGenerate
+                          ? `Select a ${scope === 'team' ? 'team' : 'rep'} to generate trends`
+                          : callCountPreview === 0 
+                            ? 'No calls to analyze in this period' 
+                            : previewTier === 'hierarchical' 
+                              ? 'Two-stage analysis may take 1-2 minutes'
+                              : 'Analysis takes 15-30 seconds'}
+                      </p>
+                    </div>
                   </div>
-                  
-                  <Button 
-                    size="lg" 
-                    onClick={handleGenerateTrends}
-                    className="mt-2"
-                    disabled={!canGenerate || callCountPreview === 0}
-                  >
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    Generate {scope === 'organization' ? 'Org' : scope === 'team' ? 'Team' : ''} Trends
-                  </Button>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {!canGenerate
-                      ? `Select a ${scope === 'team' ? 'team' : 'rep'} to generate trends`
-                      : callCountPreview === 0 
-                        ? 'No calls to analyze in this period' 
-                        : previewTier === 'hierarchical' 
-                          ? 'Two-stage analysis may take 1-2 minutes'
-                          : 'Analysis takes 15-30 seconds'}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ) : isLoading || isFetching ? (
-          <div className="space-y-6">
-            <Card className="border-dashed">
-              <CardContent className="py-12">
-                <div className="flex flex-col items-center justify-center gap-4">
-                  <div className="relative">
-                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                    <Sparkles className="h-5 w-5 text-primary absolute -top-1 -right-1 animate-pulse" />
-                  </div>
-                  <div className="text-center">
-                    <p className="text-lg font-medium">
-                      Analyzing {scopeLabel} coaching data...
-                    </p>
-                    <p className="text-muted-foreground text-sm">
-                      Our AI is reviewing call data to identify trends and patterns.
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <div className="grid gap-4 md:grid-cols-3">
-              {[1, 2, 3].map(i => (
-                <Card key={i}>
-                  <CardContent className="pt-6">
-                    <Skeleton className="h-8 w-24" />
-                    <Skeleton className="h-4 w-32 mt-2" />
-                    <Skeleton className="h-20 w-full mt-4" />
+                </CardContent>
+              </Card>
+            ) : isLoading || isFetching ? (
+              <div className="space-y-6">
+                <Card className="border-dashed">
+                  <CardContent className="py-12">
+                    <div className="flex flex-col items-center justify-center gap-4">
+                      <div className="relative">
+                        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                        <Sparkles className="h-5 w-5 text-primary absolute -top-1 -right-1 animate-pulse" />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-lg font-medium">
+                          Analyzing {scopeLabel} coaching data...
+                        </p>
+                        <p className="text-muted-foreground text-sm">
+                          Our AI is reviewing call data to identify trends and patterns.
+                        </p>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
-              ))}
-            </div>
-          </div>
-        ) : error ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium">Unable to Generate Analysis</h3>
-              <p className="text-muted-foreground mt-2 max-w-md mx-auto">
-                {error instanceof Error ? error.message : 'Failed to generate coaching trends'}
-              </p>
-              <Button className="mt-4" onClick={() => setGenerateRequested(false)}>
-                Try Again
-              </Button>
-            </CardContent>
-          </Card>
-        ) : displayAnalysis && (
-          <>
-            {/* Executive Summary */}
-            <Card className="bg-gradient-to-br from-primary/5 via-background to-background border-primary/20">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <Sparkles className="h-5 w-5 text-primary" />
-                    Executive Summary - {scopeLabel}
-                  </CardTitle>
-                  <Badge variant="outline" className="gap-1">
-                    {scope === 'organization' && <Globe className="h-3 w-3" />}
-                    {scope === 'team' && <Building2 className="h-3 w-3" />}
-                    {scope === 'rep' && <User className="h-3 w-3" />}
+                <div className="grid gap-4 md:grid-cols-3">
+                  {[1, 2, 3].map(i => (
+                    <Card key={i}>
+                      <CardContent className="pt-6">
+                        <Skeleton className="h-8 w-24" />
+                        <Skeleton className="h-4 w-32 mt-2" />
+                        <Skeleton className="h-20 w-full mt-4" />
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            ) : error ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-medium">Unable to Generate Analysis</h3>
+                  <p className="text-muted-foreground mt-2 max-w-md mx-auto">
+                    {error instanceof Error ? error.message : 'Failed to generate coaching trends'}
+                  </p>
+                  <Button className="mt-4" onClick={() => setGenerateRequested(false)}>
+                    Try Again
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : displayAnalysis && (
+              <>
+                {/* Executive Summary */}
+                <Card className="bg-gradient-to-br from-primary/5 via-background to-background border-primary/20">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        <Sparkles className="h-5 w-5 text-primary" />
+                        Executive Summary - {scopeLabel}
+                      </CardTitle>
+                      <Badge variant="outline" className="gap-1">
+                        {scope === 'organization' && <Globe className="h-3 w-3" />}
+                        {scope === 'team' && <Building2 className="h-3 w-3" />}
+                        {scope === 'rep' && <User className="h-3 w-3" />}
                     {scope.charAt(0).toUpperCase() + scope.slice(1)} Analysis
                   </Badge>
                 </div>
