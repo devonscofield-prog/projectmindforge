@@ -12,6 +12,7 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { MessageSquare, Send, Loader2, Sparkles, User } from 'lucide-react';
 import { streamCoachResponse, type ChatMessage } from '@/api/salesCoach';
+import { useToast } from '@/hooks/use-toast';
 import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
 
@@ -35,6 +36,7 @@ export function SalesCoachChat({ prospectId, accountName }: SalesCoachChatProps)
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -84,6 +86,14 @@ export function SalesCoachChat({ prospectId, accountName }: SalesCoachChatProps)
         onError: (err) => {
           setError(err);
           setIsLoading(false);
+          // Show toast for rate limit errors
+          if (err.toLowerCase().includes('rate limit')) {
+            toast({
+              title: 'Too many requests',
+              description: 'Please wait a moment before sending another message.',
+              variant: 'destructive',
+            });
+          }
         },
       });
     } catch (err) {

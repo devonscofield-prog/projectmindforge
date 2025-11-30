@@ -80,6 +80,7 @@ export interface AnalyzeCallResponse {
   call_id?: string;
   analysis_id?: string;
   error?: string;
+  isRateLimited?: boolean;
 }
 
 // ============= COACH OUTPUT TYPES =============

@@ -238,6 +238,12 @@ export function useProspectData(prospectId: string | undefined) {
         setCompletedFollowUps(completedFollowUpsData);
         setDismissedFollowUps(dismissedFollowUpsData);
         toast({ title: `Generated ${result.count || 0} new follow-up steps` });
+      } else if (result.isRateLimited) {
+        toast({ 
+          title: 'Too many requests', 
+          description: 'Please wait a moment before refreshing again.',
+          variant: 'destructive' 
+        });
       } else {
         toast({ title: 'Failed to refresh follow-ups', variant: 'destructive' });
       }
@@ -282,7 +288,16 @@ export function useProspectData(prospectId: string | undefined) {
       setDismissedFollowUps(dismissedFollowUpsData);
       if (prospectData) setProspect(prospectData);
       
-      if (followUpsResult.success && insightsResult.success) {
+      // Check for rate limiting
+      const hasRateLimiting = followUpsResult.isRateLimited || insightsResult.isRateLimited;
+      
+      if (hasRateLimiting) {
+        toast({ 
+          title: 'Too many requests', 
+          description: 'Please wait a moment before refreshing again.',
+          variant: 'destructive' 
+        });
+      } else if (followUpsResult.success && insightsResult.success) {
         toast({ title: 'AI analysis updated successfully' });
       } else {
         toast({ title: 'AI analysis partially updated', variant: 'default' });
@@ -307,6 +322,12 @@ export function useProspectData(prospectId: string | undefined) {
         const prospectData = await getProspectById(prospectId);
         if (prospectData) setProspect(prospectData);
         toast({ title: 'AI insights updated' });
+      } else if (result.isRateLimited) {
+        toast({ 
+          title: 'Too many requests', 
+          description: 'Please wait a moment before refreshing again.',
+          variant: 'destructive' 
+        });
       } else {
         toast({ title: 'Failed to refresh insights', variant: 'destructive' });
       }

@@ -433,14 +433,21 @@ export async function getCallCountsForProspects(prospectIds: string[]): Promise<
 /**
  * Regenerate AI insights for a prospect from all available data
  */
-export async function regenerateAccountInsights(prospectId: string): Promise<{ success: boolean; error?: string }> {
+export async function regenerateAccountInsights(prospectId: string): Promise<{ success: boolean; error?: string; isRateLimited?: boolean }> {
   const { data, error } = await supabase.functions.invoke('regenerate-account-insights', {
     body: { prospect_id: prospectId }
   });
 
   if (error) {
     console.error('[regenerateAccountInsights] Error:', error);
-    return { success: false, error: error.message };
+    const isRateLimited = error.message?.toLowerCase().includes('rate limit') ||
+                          error.message?.includes('429');
+    return { success: false, error: error.message, isRateLimited };
+  }
+
+  // Check if the response indicates rate limiting
+  if (data?.error?.toLowerCase().includes('rate limit')) {
+    return { success: false, error: data.error, isRateLimited: true };
   }
 
   return data;
