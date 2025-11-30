@@ -1,7 +1,7 @@
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
-import { getAdminPageBreadcrumb, getManagerPageBreadcrumb } from '@/lib/breadcrumbConfig';
+import { getAdminPageBreadcrumb, getManagerPageBreadcrumb, getRepPageBreadcrumb } from '@/lib/breadcrumbConfig';
 import { SaveSelectionDialog } from '@/components/admin/SaveSelectionDialog';
 import { SavedSelectionsSheet } from '@/components/admin/SavedSelectionsSheet';
 import { SavedInsightsSheet } from '@/components/admin/SavedInsightsSheet';
@@ -17,10 +17,13 @@ import {
 export default function AdminTranscriptAnalysis() {
   const { role } = useAuth();
   const isAdmin = role === 'admin';
+  const isManager = role === 'manager';
+  const isRep = role === 'rep';
   
   const {
     // Scope info
     isTeamScoped,
+    isSelfScoped,
     managerTeam,
     
     // Filter state
@@ -83,7 +86,9 @@ export default function AdminTranscriptAnalysis() {
 
   const breadcrumbItems = isAdmin 
     ? getAdminPageBreadcrumb('transcriptAnalysis')
-    : getManagerPageBreadcrumb('transcriptAnalysis');
+    : isManager
+    ? getManagerPageBreadcrumb('transcriptAnalysis')
+    : getRepPageBreadcrumb('transcriptAnalysis');
 
   return (
     <AppLayout>
@@ -99,14 +104,16 @@ export default function AdminTranscriptAnalysis() {
               Transcript Analysis
             </h1>
             <p className="text-muted-foreground">
-              {isTeamScoped 
+              {isSelfScoped 
+                ? 'Analyze your own call transcripts with AI'
+                : isTeamScoped 
                 ? `Analyze transcripts from ${managerTeam?.name || 'your team'}`
                 : 'Select transcripts to analyze with AI across all teams'
               }
             </p>
           </div>
           <Badge variant="outline">
-            {isAdmin ? 'Admin View' : 'Team View'}
+            {isAdmin ? 'Admin View' : isManager ? 'Team View' : 'My Calls'}
           </Badge>
         </div>
 
@@ -127,7 +134,8 @@ export default function AdminTranscriptAnalysis() {
           onRepChange={setSelectedRepId}
           onAccountSearchChange={setAccountSearch}
           onToggleCallType={toggleCallType}
-          hideTeamFilter={isTeamScoped}
+          hideTeamFilter={isTeamScoped || isSelfScoped}
+          hideRepFilter={isSelfScoped}
         />
 
         {/* Selection Info Bar */}

@@ -508,12 +508,35 @@ serve(async (req) => {
     const userRole = roleData?.role;
     const isAdmin = userRole === 'admin';
     const isManager = userRole === 'manager';
+    const isRep = userRole === 'rep';
 
-    if (!isAdmin && !isManager) {
+    if (!isAdmin && !isManager && !isRep) {
       return new Response(
-        JSON.stringify({ error: 'Admin or Manager access required' }),
+        JSON.stringify({ error: 'Authentication required' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // For reps, validate they can only access their OWN transcripts
+    if (isRep) {
+      const { data: transcripts } = await supabase
+        .from('call_transcripts')
+        .select('id, rep_id')
+        .in('id', validatedTranscriptIds);
+
+      const unauthorizedIds = (transcripts || [])
+        .filter((t: { id: string; rep_id: string }) => t.rep_id !== user.id)
+        .map((t: { id: string }) => t.id);
+
+      if (unauthorizedIds.length > 0) {
+        console.log(`[admin-transcript-chat] Rep ${user.id} attempted to access transcripts outside their own: ${unauthorizedIds.join(', ')}`);
+        return new Response(
+          JSON.stringify({ error: 'You can only analyze your own transcripts' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      console.log(`[admin-transcript-chat] Rep ${user.id} authorized for ${validatedTranscriptIds.length} own transcripts`);
     }
 
     // For managers, validate they can only access their team's transcripts

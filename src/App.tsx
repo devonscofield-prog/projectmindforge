@@ -107,6 +107,11 @@ const App = () => (
                     <RepCoachingSummary />
                   </ProtectedRoute>
                 } />
+                <Route path="/rep/transcripts" element={
+                  <ProtectedRoute allowedRoles={['rep']}>
+                    <AdminTranscriptAnalysis />
+                  </ProtectedRoute>
+                } />
 
                 {/* Shared Call Detail Route */}
                 <Route path="/calls/:id" element={
