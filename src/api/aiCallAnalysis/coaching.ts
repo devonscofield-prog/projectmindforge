@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { createLogger } from '@/lib/logger';
+import { toCallAnalysis, toCoachingTrendAnalysis } from '@/lib/supabaseAdapters';
 import type {
   CallAnalysis,
   CoachingSummary,
@@ -45,7 +46,7 @@ export async function getCoachingSummaryForRep(
     throw new Error(`Failed to fetch coaching summary: ${error.message}`);
   }
 
-  const analyses = (data || []) as unknown as CallAnalysis[];
+  const analyses = (data || []).map(toCallAnalysis);
   
   // Build framework trends
   const frameworkTrends = analyses.map(a => ({
@@ -131,7 +132,7 @@ export async function getCoachingSummaryForRep(
 
   analyses.forEach(a => {
     if (a.strengths && Array.isArray(a.strengths)) {
-      a.strengths.forEach((s: Record<string, unknown>) => {
+      a.strengths.forEach((s) => {
         const area = (s.area as string)?.toLowerCase() || 'unknown';
         if (!strengthsMap.has(area)) {
           strengthsMap.set(area, { count: 0, examples: [] });
@@ -144,7 +145,7 @@ export async function getCoachingSummaryForRep(
       });
     }
     if (a.opportunities && Array.isArray(a.opportunities)) {
-      a.opportunities.forEach((o: Record<string, unknown>) => {
+      a.opportunities.forEach((o) => {
         const area = (o.area as string)?.toLowerCase() || 'unknown';
         if (!opportunitiesMap.has(area)) {
           opportunitiesMap.set(area, { count: 0, examples: [] });
@@ -260,15 +261,17 @@ export async function generateCoachingTrends(
 
     if (!cacheError && cached && cached.call_count === callCount && cached.analysis_data) {
       log.debug('Using cached analysis');
-      const cachedAnalysis = cached.analysis_data as unknown as CoachingTrendAnalysis;
-      return {
-        analysis: cachedAnalysis,
-        metadata: {
-          tier,
-          totalCalls: callCount,
-          analyzedCalls: cachedAnalysis.periodAnalysis?.totalCalls || callCount,
-        }
-      };
+      const cachedAnalysis = toCoachingTrendAnalysis(cached.analysis_data);
+      if (cachedAnalysis) {
+        return {
+          analysis: cachedAnalysis,
+          metadata: {
+            tier,
+            totalCalls: callCount,
+            analyzedCalls: cachedAnalysis.periodAnalysis?.totalCalls || callCount,
+          }
+        };
+      }
     }
   }
 
@@ -286,7 +289,7 @@ export async function generateCoachingTrends(
     throw new Error(`Failed to fetch call analyses: ${error.message}`);
   }
 
-  const analyses = (data || []) as unknown as CallAnalysis[];
+  const analyses = (data || []).map(toCallAnalysis);
 
   if (analyses.length === 0) {
     throw new Error('No analyzed calls found in the selected period');
@@ -480,7 +483,7 @@ export async function generateAggregateCoachingTrends(
     throw new Error(`Failed to fetch call analyses: ${error.message}`);
   }
 
-  const analyses = (data || []) as unknown as CallAnalysis[];
+  const analyses = (data || []).map(toCallAnalysis);
   const callCount = count || analyses.length;
 
   if (analyses.length === 0) {
@@ -524,6 +527,7 @@ export async function generateAggregateCoachingTrends(
       totalCalls: callCount,
       analyzedCalls: formattedCalls.length,
       scope,
+      teamId,
       repsIncluded: repIds.length,
       repContributions,
     };
@@ -543,6 +547,7 @@ export async function generateAggregateCoachingTrends(
         sampledCount: sampled.length,
       },
       scope,
+      teamId,
       repsIncluded: repIds.length,
       repContributions,
     };
@@ -563,12 +568,13 @@ export async function generateAggregateCoachingTrends(
         callsPerChunk,
       },
       scope,
+      teamId,
       repsIncluded: repIds.length,
       repContributions,
     };
   }
 
-  log.debug('Successfully completed aggregate analysis');
+  log.debug('Successfully generated aggregate trend analysis');
 
   return { analysis: trendData, metadata };
 }

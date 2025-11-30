@@ -1,13 +1,13 @@
 import { supabase } from '@/integrations/supabase/client';
 import { createLogger } from '@/lib/logger';
 import { getOrCreateProspect, linkCallToProspect } from '@/api/prospects';
+import { toCallTranscript, toCallAnalysis, toCoachOutput } from '@/lib/supabaseAdapters';
 import type {
   CreateCallTranscriptParams,
   CallTranscript,
   CallTranscriptWithHeat,
   CallHistoryFilters,
   AnalyzeCallResponse,
-  CoachOutput,
   CallAnalysis,
 } from './types';
 
@@ -96,7 +96,7 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
     const isRateLimited = analyzeError.message?.toLowerCase().includes('rate limit') ||
                           analyzeError.message?.includes('429');
     return {
-      transcript: transcript as CallTranscript,
+      transcript: toCallTranscript(transcript),
       analyzeResponse: { error: analyzeError.message, isRateLimited }
     };
   }
@@ -104,7 +104,7 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
   // Check if the response indicates rate limiting
   if (analyzeData?.error?.toLowerCase().includes('rate limit')) {
     return {
-      transcript: transcript as CallTranscript,
+      transcript: toCallTranscript(transcript),
       analyzeResponse: { error: analyzeData.error, isRateLimited: true }
     };
   }
@@ -112,7 +112,7 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
   log.debug('Analysis response received', { transcriptId: transcript.id });
 
   return {
-    transcript: transcript as CallTranscript,
+    transcript: toCallTranscript(transcript),
     analyzeResponse: analyzeData as AnalyzeCallResponse
   };
 }
@@ -135,7 +135,7 @@ export async function listCallTranscriptsForRep(repId: string): Promise<CallTran
     throw new Error(`Failed to list call transcripts: ${error.message}`);
   }
 
-  return (data || []) as CallTranscript[];
+  return (data || []).map(toCallTranscript);
 }
 
 /**
@@ -214,7 +214,7 @@ export async function listCallTranscriptsForRepWithFilters(
     throw new Error(`Failed to list call transcripts: ${error.message}`);
   }
 
-  const transcripts = (data || []) as CallTranscript[];
+  const transcripts = (data || []).map(toCallTranscript);
 
   if (transcripts.length === 0) {
     return { data: [], count: 0 };
@@ -238,7 +238,7 @@ export async function listCallTranscriptsForRepWithFilters(
   // Create a map of call_id -> heat_score
   const heatMap = new Map<string, number | null>();
   analyses?.forEach(a => {
-    const coachOutput = a.coach_output as unknown as CoachOutput | null;
+    const coachOutput = toCoachOutput(a.coach_output);
     const heatScore = coachOutput?.heat_signature?.score ?? null;
     heatMap.set(a.call_id, heatScore);
   });
@@ -329,7 +329,7 @@ export async function getCallWithAnalysis(callId: string): Promise<{
   }
 
   return {
-    transcript: transcript as CallTranscript,
-    analysis: analysis as unknown as CallAnalysis | null,
+    transcript: toCallTranscript(transcript),
+    analysis: analysis ? toCallAnalysis(analysis) : null,
   };
 }

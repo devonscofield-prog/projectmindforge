@@ -64,7 +64,7 @@ export function useOnlineUsers(): Set<string> {
       .on('presence', { event: 'join' }, ({ newPresences }) => {
         setOnlineUsers((prev) => {
           const updated = new Set(prev);
-          (newPresences as unknown as PresencePayload[]).forEach((presence) => {
+          (newPresences as PresencePayload[]).forEach((presence) => {
             if (presence.user_id) {
               updated.add(presence.user_id);
             }
@@ -75,7 +75,7 @@ export function useOnlineUsers(): Set<string> {
       .on('presence', { event: 'leave' }, ({ leftPresences }) => {
         setOnlineUsers((prev) => {
           const updated = new Set(prev);
-          (leftPresences as unknown as PresencePayload[]).forEach((presence) => {
+          (leftPresences as PresencePayload[]).forEach((presence) => {
             if (presence.user_id) {
               updated.delete(presence.user_id);
             }
