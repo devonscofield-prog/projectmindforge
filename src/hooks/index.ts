@@ -15,3 +15,6 @@ export * from './useAdminStats';
 export * from './useFollowUpMutations';
 export * from './useProspectMutations';
 export * from './useStakeholderMutations';
+
+// Pull-to-refresh hooks
+export { useRegisterRefresh, useDisablePullToRefresh } from '@/contexts/PullToRefreshContext';
