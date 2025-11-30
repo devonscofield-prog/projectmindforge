@@ -1,6 +1,6 @@
 # E2E Tests
 
-This directory contains end-to-end tests using Playwright.
+This directory contains end-to-end tests using Playwright, including visual regression tests.
 
 ## Prerequisites
 
@@ -20,6 +20,11 @@ This directory contains end-to-end tests using Playwright.
 ### Run all tests
 ```bash
 npx playwright test
+```
+
+### Run only visual regression tests
+```bash
+npx playwright test e2e/visual/
 ```
 
 ### Run tests in headed mode (see the browser)
@@ -46,6 +51,25 @@ npx playwright test --project=chromium
 ```bash
 npx playwright show-report
 ```
+
+## Visual Regression Tests
+
+### Update baseline screenshots
+When UI changes are intentional, update the baseline screenshots:
+```bash
+npx playwright test --update-snapshots
+```
+
+### Visual test categories
+- `visual/auth-visual.spec.ts` - Auth page screenshots
+- `visual/components-visual.spec.ts` - Dashboard and form components
+- `visual/loading-states-visual.spec.ts` - Loading, skeleton, empty, and error states
+- `visual/responsive-visual.spec.ts` - Responsive layouts across viewports
+
+### Screenshot comparison settings
+- `maxDiffPixels: 100` - Allow up to 100 different pixels
+- `threshold: 0.2` - Color difference threshold (0-1)
+- Screenshots are stored in `e2e/__snapshots__/`
 
 ## Test Structure
 
