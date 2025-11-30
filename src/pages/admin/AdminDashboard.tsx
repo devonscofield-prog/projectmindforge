@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { GlobalActivityFeed } from '@/components/admin/GlobalActivityFeed';
 import { CallTrendsChart } from '@/components/admin/CallTrendsChart';
+import { StatCardGridSkeleton, ChartSkeleton, ContentCardSkeleton } from '@/components/ui/skeletons';
 import { subDays } from 'date-fns';
 
 export default function AdminDashboard() {
@@ -76,8 +77,17 @@ export default function AdminDashboard() {
   if (isLoading) {
     return (
       <AppLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+        <div className="space-y-8">
+          <div className="flex items-center justify-between">
+            <div className="space-y-2">
+              <div className="h-8 w-48 bg-muted animate-pulse rounded" />
+              <div className="h-4 w-72 bg-muted animate-pulse rounded" />
+            </div>
+            <div className="h-6 w-24 bg-muted animate-pulse rounded-full" />
+          </div>
+          <StatCardGridSkeleton count={5} columns="md:grid-cols-5" />
+          <ChartSkeleton height="h-80" />
+          <ContentCardSkeleton lines={5} />
         </div>
       </AppLayout>
     );

@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PullToRefresh } from '@/components/ui/pull-to-refresh';
 import { MobileCallCard } from '@/components/calls/MobileCallCard';
+import { ListSkeleton, TableSkeleton } from '@/components/ui/skeletons';
 import { CallTranscriptWithHeat } from '@/api/aiCallAnalysis';
 import { CallType, callTypeLabels } from '@/constants/callTypes';
 import { format } from 'date-fns';
@@ -21,8 +22,8 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  Loader2,
   Flame,
+  Mic,
 } from 'lucide-react';
 import { PAGE_SIZE_OPTIONS, SortColumn } from './constants';
 
@@ -126,20 +127,28 @@ export function CallHistoryTable({
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
+          <>
+            <div className="md:hidden">
+              <ListSkeleton count={5} />
+            </div>
+            <div className="hidden md:block">
+              <TableSkeleton rows={8} columns={8} />
+            </div>
+          </>
         ) : transcripts.length === 0 ? (
           <div className="text-center py-12">
-            <History className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium mb-2">No calls found</h3>
-            <p className="text-muted-foreground mb-4">
+            <div className="mx-auto mb-4 rounded-full bg-muted p-4 w-fit">
+              <History className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
+            </div>
+            <h3 className="text-lg font-semibold">No calls found</h3>
+            <p className="text-muted-foreground mt-2 mb-4 max-w-sm mx-auto">
               {hasActiveFilters
-                ? 'Try adjusting your filters or search terms'
-                : 'Submit your first call to get started'}
+                ? 'Try adjusting your filters or search terms to find what you\'re looking for.'
+                : 'Submit your first call transcript to get AI-powered coaching and insights.'}
             </p>
             {!hasActiveFilters && (
               <Button onClick={() => navigate('/rep')}>
+                <Mic className="h-4 w-4 mr-2" />
                 Submit a Call
               </Button>
             )}

@@ -18,9 +18,11 @@ import {
 } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { PaginationControls } from '@/components/ui/pagination-controls';
+import { TableSkeleton } from '@/components/ui/skeletons';
+import { EmptyState } from '@/components/ui/empty-state';
 import { Profile, Team, UserRole } from '@/types/database';
 import { format, formatDistanceToNow } from 'date-fns';
-import { Pencil, History } from 'lucide-react';
+import { Pencil, History, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { useOnlineUsers } from '@/hooks/usePresence';
 import { UserActivityLogSheet } from '@/components/admin/UserActivityLogSheet';
@@ -177,8 +179,23 @@ export default function AdminUsers() {
   if (loading) {
     return (
       <AppLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+        <div className="space-y-8">
+          <div className="space-y-2">
+            <div className="h-8 w-32 bg-muted animate-pulse rounded" />
+            <div className="h-4 w-64 bg-muted animate-pulse rounded" />
+          </div>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div className="space-y-2">
+                <div className="h-6 w-24 bg-muted animate-pulse rounded" />
+                <div className="h-4 w-32 bg-muted animate-pulse rounded" />
+              </div>
+              <div className="h-10 w-36 bg-muted animate-pulse rounded" />
+            </CardHeader>
+            <CardContent>
+              <TableSkeleton rows={10} columns={7} />
+            </CardContent>
+          </Card>
         </div>
       </AppLayout>
     );
@@ -281,6 +298,7 @@ export default function AdminUsers() {
                                     variant="ghost"
                                     size="icon"
                                     onClick={() => handleActivityClick(user)}
+                                    aria-label={`View activity log for ${user.name}`}
                                   >
                                     <History className="h-4 w-4" />
                                   </Button>
@@ -293,6 +311,7 @@ export default function AdminUsers() {
                                     variant="ghost"
                                     size="icon"
                                     onClick={() => handleEditClick(user)}
+                                    aria-label={`Edit ${user.name}`}
                                   >
                                     <Pencil className="h-4 w-4" />
                                   </Button>
@@ -322,7 +341,14 @@ export default function AdminUsers() {
                 )}
               </>
             ) : (
-              <p className="text-muted-foreground text-center py-8">No users found.</p>
+              <EmptyState
+                icon={Users}
+                title="No users found"
+                description={roleFilter !== 'all' 
+                  ? `No users with the ${roleFilter} role found. Try changing the filter.`
+                  : "No users have been added to the system yet."
+                }
+              />
             )}
           </CardContent>
         </Card>

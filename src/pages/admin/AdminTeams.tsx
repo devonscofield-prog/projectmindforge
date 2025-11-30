@@ -25,9 +25,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { TableSkeleton } from '@/components/ui/skeletons';
+import { EmptyState } from '@/components/ui/empty-state';
 import { Team, Profile } from '@/types/database';
 import { format } from 'date-fns';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface TeamWithManager extends Team {
@@ -235,8 +237,23 @@ export default function AdminTeams() {
   if (loading) {
     return (
       <AppLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+        <div className="space-y-8">
+          <div className="flex items-center justify-between">
+            <div className="space-y-2">
+              <div className="h-8 w-32 bg-muted animate-pulse rounded" />
+              <div className="h-4 w-56 bg-muted animate-pulse rounded" />
+            </div>
+            <div className="h-10 w-28 bg-muted animate-pulse rounded" />
+          </div>
+          <Card>
+            <CardHeader>
+              <div className="h-6 w-24 bg-muted animate-pulse rounded" />
+              <div className="h-4 w-48 bg-muted animate-pulse rounded mt-2" />
+            </CardHeader>
+            <CardContent>
+              <TableSkeleton rows={5} columns={5} />
+            </CardContent>
+          </Card>
         </div>
       </AppLayout>
     );
@@ -289,6 +306,7 @@ export default function AdminTeams() {
                             variant="ghost"
                             size="icon"
                             onClick={() => openEditDialog(team)}
+                            aria-label={`Edit ${team.name}`}
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
@@ -296,6 +314,7 @@ export default function AdminTeams() {
                             variant="ghost"
                             size="icon"
                             onClick={() => openDeleteDialog(team)}
+                            aria-label={`Delete ${team.name}`}
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
@@ -306,9 +325,18 @@ export default function AdminTeams() {
                 </TableBody>
               </Table>
             ) : (
-              <p className="text-muted-foreground text-center py-8">
-                No teams created yet.
-              </p>
+              <EmptyState
+                icon={Building2}
+                title="No teams yet"
+                description="Create your first team to organize your sales reps."
+                action={{
+                  label: "Create Team",
+                  onClick: () => {
+                    setFormData({ name: '', manager_id: '' });
+                    setCreateDialogOpen(true);
+                  }
+                }}
+              />
             )}
           </CardContent>
         </Card>

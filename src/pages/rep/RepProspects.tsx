@@ -286,10 +286,15 @@ export default function RepProspects() {
               </div>
             ) : filteredProspects.length === 0 ? (
               <div className="text-center py-12">
-                <Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium">No accounts yet</h3>
-                <p className="text-muted-foreground mt-1">
-                  Accounts are automatically created when you submit calls
+                <div className="mx-auto mb-4 rounded-full bg-muted p-4 w-fit">
+                  <Building2 className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
+                </div>
+                <h3 className="text-lg font-semibold">No accounts yet</h3>
+                <p className="text-muted-foreground mt-2 max-w-sm mx-auto">
+                  {search 
+                    ? `No accounts match "${search}". Try a different search term.`
+                    : "Accounts are automatically created when you submit call transcripts. Submit your first call to get started."
+                  }
                 </p>
               </div>
             ) : (
