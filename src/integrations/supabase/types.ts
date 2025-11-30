@@ -243,6 +243,8 @@ export type Database = {
           deal_advancement_score: number | null
           deal_gaps: Json | null
           deal_tags: string[] | null
+          deleted_at: string | null
+          deleted_by: string | null
           discovery_score: number | null
           id: string
           meta_tags: string[] | null
@@ -271,6 +273,8 @@ export type Database = {
           deal_advancement_score?: number | null
           deal_gaps?: Json | null
           deal_tags?: string[] | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           discovery_score?: number | null
           id?: string
           meta_tags?: string[] | null
@@ -299,6 +303,8 @@ export type Database = {
           deal_advancement_score?: number | null
           deal_gaps?: Json | null
           deal_tags?: string[] | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           discovery_score?: number | null
           id?: string
           meta_tags?: string[] | null
@@ -467,6 +473,8 @@ export type Database = {
           call_type: string | null
           call_type_other: string | null
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           id: string
           manager_id: string | null
           notes: string | null
@@ -488,6 +496,8 @@ export type Database = {
           call_type?: string | null
           call_type_other?: string | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           manager_id?: string | null
           notes?: string | null
@@ -509,6 +519,8 @@ export type Database = {
           call_type?: string | null
           call_type_other?: string | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           manager_id?: string | null
           notes?: string | null
@@ -689,12 +701,53 @@ export type Database = {
         }
         Relationships: []
       }
+      data_access_logs: {
+        Row: {
+          access_reason: string | null
+          access_type: string
+          created_at: string
+          id: string
+          ip_address: string | null
+          metadata: Json | null
+          record_id: string
+          table_name: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          access_reason?: string | null
+          access_type: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          record_id: string
+          table_name: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          access_reason?: string | null
+          access_type?: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          record_id?: string
+          table_name?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       email_logs: {
         Row: {
           body: string
           contact_email: string | null
           contact_name: string | null
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           direction: Database["public"]["Enums"]["email_direction"]
           email_date: string
           id: string
@@ -710,6 +763,8 @@ export type Database = {
           contact_email?: string | null
           contact_name?: string | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           direction: Database["public"]["Enums"]["email_direction"]
           email_date?: string
           id?: string
@@ -725,6 +780,8 @@ export type Database = {
           contact_email?: string | null
           contact_name?: string | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           direction?: Database["public"]["Enums"]["email_direction"]
           email_date?: string
           id?: string
@@ -1009,6 +1066,8 @@ export type Database = {
           account_name: string | null
           ai_extracted_info: Json | null
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           follow_ups_generation_status: string | null
           follow_ups_last_generated_at: string | null
           heat_score: number | null
@@ -1027,6 +1086,8 @@ export type Database = {
           account_name?: string | null
           ai_extracted_info?: Json | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           follow_ups_generation_status?: string | null
           follow_ups_last_generated_at?: string | null
           heat_score?: number | null
@@ -1045,6 +1106,8 @@ export type Database = {
           account_name?: string | null
           ai_extracted_info?: Json | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           follow_ups_generation_status?: string | null
           follow_ups_last_generated_at?: string | null
           heat_score?: number | null
@@ -1173,6 +1236,8 @@ export type Database = {
           champion_score: number | null
           champion_score_reasoning: string | null
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           email: string | null
           id: string
           influence_level:
@@ -1192,6 +1257,8 @@ export type Database = {
           champion_score?: number | null
           champion_score_reasoning?: string | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           email?: string | null
           id?: string
           influence_level?:
@@ -1211,6 +1278,8 @@ export type Database = {
           champion_score?: number | null
           champion_score_reasoning?: string | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           email?: string | null
           id?: string
           influence_level?:
@@ -1347,6 +1416,23 @@ export type Database = {
       }
     }
     Views: {
+      data_access_logs_with_user: {
+        Row: {
+          access_reason: string | null
+          access_type: string | null
+          created_at: string | null
+          id: string | null
+          ip_address: string | null
+          metadata: Json | null
+          record_id: string | null
+          table_name: string | null
+          user_agent: string | null
+          user_email: string | null
+          user_id: string | null
+          user_name: string | null
+        }
+        Relationships: []
+      }
       user_with_role: {
         Row: {
           created_at: string | null
@@ -1371,6 +1457,10 @@ export type Database = {
       }
     }
     Functions: {
+      can_access_historical_data: {
+        Args: { p_user_id: string }
+        Returns: boolean
+      }
       cleanup_expired_cache: { Args: never; Returns: number }
       cleanup_old_metrics: { Args: never; Returns: number }
       get_cached_admin_stats: { Args: never; Returns: Json }
@@ -1405,6 +1495,20 @@ export type Database = {
       invalidate_cache: { Args: { p_cache_key: string }; Returns: undefined }
       is_manager_of_user: {
         Args: { _manager_id: string; _rep_id: string }
+        Returns: boolean
+      }
+      log_data_access: {
+        Args: {
+          p_access_reason?: string
+          p_access_type: string
+          p_metadata?: Json
+          p_record_id: string
+          p_table_name: string
+        }
+        Returns: string
+      }
+      soft_delete_record: {
+        Args: { p_record_id: string; p_table_name: string }
         Returns: boolean
       }
     }
