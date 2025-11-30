@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -26,6 +26,7 @@ import {
   Loader2,
   Download,
   ChevronDown,
+  ChevronUp,
   Search
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -600,12 +601,48 @@ function FullTranscriptSection({ call }: { call: CallTranscript | null }) {
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [transcriptSearch, setTranscriptSearch] = useState('');
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const transcript = call?.raw_text || '';
 
-  // Keyboard shortcuts: Ctrl+F to focus search, Escape to close
+  // Reset current match when search changes
+  useEffect(() => {
+    setCurrentMatchIndex(0);
+  }, [transcriptSearch]);
+
+  const matchCount = useMemo(() => {
+    if (!transcriptSearch.trim() || !transcript) return 0;
+    const regex = new RegExp(transcriptSearch.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    return (transcript.match(regex) || []).length;
+  }, [transcript, transcriptSearch]);
+
+  const goToNextMatch = useCallback(() => {
+    if (matchCount > 0) {
+      setCurrentMatchIndex((prev) => (prev + 1) % matchCount);
+    }
+  }, [matchCount]);
+
+  const goToPrevMatch = useCallback(() => {
+    if (matchCount > 0) {
+      setCurrentMatchIndex((prev) => (prev - 1 + matchCount) % matchCount);
+    }
+  }, [matchCount]);
+
+  // Scroll to current match
+  useEffect(() => {
+    if (matchCount > 0 && scrollContainerRef.current) {
+      const marks = scrollContainerRef.current.querySelectorAll('mark[data-match-index]');
+      const currentMark = marks[currentMatchIndex] as HTMLElement;
+      if (currentMark) {
+        currentMark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [currentMatchIndex, matchCount]);
+
+  // Keyboard shortcuts: Ctrl+F to focus search, Escape to close, Enter/Shift+Enter for navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Only handle if transcript section is open
@@ -622,6 +659,16 @@ function FullTranscriptSection({ call }: { call: CallTranscript | null }) {
         }
       }
 
+      // Enter to go to next match, Shift+Enter for previous
+      if (e.key === 'Enter' && document.activeElement === searchInputRef.current) {
+        e.preventDefault();
+        if (e.shiftKey) {
+          goToPrevMatch();
+        } else {
+          goToNextMatch();
+        }
+      }
+
       // Escape to close transcript section
       if (e.key === 'Escape') {
         // Only close if focus is within the transcript card
@@ -634,7 +681,7 @@ function FullTranscriptSection({ call }: { call: CallTranscript | null }) {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen]);
+  }, [isOpen, goToNextMatch, goToPrevMatch]);
 
   const transcriptStats = useMemo(() => {
     if (!transcript) return { words: 0, characters: 0 };
@@ -649,20 +696,29 @@ function FullTranscriptSection({ call }: { call: CallTranscript | null }) {
     const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
     const parts = transcript.split(regex);
     
-    return parts.map((part, i) => 
-      regex.test(part) ? (
-        <mark key={i} className="bg-yellow-300 dark:bg-yellow-600 rounded px-0.5">{part}</mark>
-      ) : (
-        part
-      )
-    );
-  }, [transcript, transcriptSearch]);
-
-  const matchCount = useMemo(() => {
-    if (!transcriptSearch.trim() || !transcript) return 0;
-    const regex = new RegExp(transcriptSearch.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-    return (transcript.match(regex) || []).length;
-  }, [transcript, transcriptSearch]);
+    let matchIdx = 0;
+    return parts.map((part, i) => {
+      if (regex.test(part)) {
+        const isCurrentMatch = matchIdx === currentMatchIndex;
+        const idx = matchIdx;
+        matchIdx++;
+        return (
+          <mark 
+            key={i} 
+            data-match-index={idx}
+            className={`rounded px-0.5 ${
+              isCurrentMatch 
+                ? 'bg-orange-400 dark:bg-orange-500 ring-2 ring-orange-500' 
+                : 'bg-yellow-300 dark:bg-yellow-600'
+            }`}
+          >
+            {part}
+          </mark>
+        );
+      }
+      return part;
+    });
+  }, [transcript, transcriptSearch, currentMatchIndex]);
 
   const handleCopyTranscript = async () => {
     try {
@@ -715,19 +771,44 @@ function FullTranscriptSection({ call }: { call: CallTranscript | null }) {
           <CardContent className="space-y-4 pt-0">
             {/* Search and Actions */}
             <div className="flex flex-col sm:flex-row gap-3">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  ref={searchInputRef}
-                  placeholder="Search transcript... (Ctrl+F)"
-                  value={transcriptSearch}
-                  onChange={(e) => setTranscriptSearch(e.target.value)}
-                  className="pl-9"
-                />
+              <div className="relative flex-1 flex gap-1">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    ref={searchInputRef}
+                    placeholder="Search transcript... (Ctrl+F)"
+                    value={transcriptSearch}
+                    onChange={(e) => setTranscriptSearch(e.target.value)}
+                    className="pl-9 pr-20"
+                  />
+                  {transcriptSearch && matchCount > 0 && (
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                      {currentMatchIndex + 1} / {matchCount}
+                    </span>
+                  )}
+                </div>
+                {/* Navigation buttons */}
                 {transcriptSearch && matchCount > 0 && (
-                  <Badge variant="secondary" className="absolute right-2 top-1/2 -translate-y-1/2">
-                    {matchCount} {matchCount === 1 ? 'match' : 'matches'}
-                  </Badge>
+                  <div className="flex">
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="h-10 w-8 rounded-r-none border-r-0"
+                      onClick={goToPrevMatch}
+                      title="Previous match (Shift+Enter)"
+                    >
+                      <ChevronUp className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="h-10 w-8 rounded-l-none"
+                      onClick={goToNextMatch}
+                      title="Next match (Enter)"
+                    >
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </div>
                 )}
               </div>
               <div className="flex gap-2">
@@ -744,7 +825,7 @@ function FullTranscriptSection({ call }: { call: CallTranscript | null }) {
 
             {/* Transcript Content */}
             <ScrollArea className="h-[500px] border rounded-lg">
-              <div className="p-4">
+              <div className="p-4" ref={scrollContainerRef}>
                 <pre className="whitespace-pre-wrap font-mono text-sm text-foreground leading-relaxed">
                   {highlightedTranscript || transcript}
                 </pre>
