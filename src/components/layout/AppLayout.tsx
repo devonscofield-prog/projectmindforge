@@ -11,6 +11,7 @@ import {
   UserCheck,
   Menu,
   FileText,
+  TrendingUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -47,8 +48,9 @@ function SidebarNav() {
   const navItems = role === 'admin' 
     ? [
         { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-        { href: '/admin/teams', label: 'Teams', icon: Users },
         { href: '/admin/users', label: 'Users', icon: Users },
+        { href: '/admin/teams', label: 'Teams', icon: Users },
+        { href: '/admin/coaching', label: 'Coaching', icon: TrendingUp },
         { href: '/admin/transcripts', label: 'Transcripts', icon: FileText },
       ]
     : role === 'manager'

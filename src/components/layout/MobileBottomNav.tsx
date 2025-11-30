@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
-import { Mic, History, UserCheck, LayoutDashboard, Users, MessageSquare } from 'lucide-react';
+import { Mic, History, UserCheck, LayoutDashboard, Users, MessageSquare, TrendingUp, FileText } from 'lucide-react';
 
 export function MobileBottomNav() {
   const { role } = useAuth();
@@ -9,9 +9,10 @@ export function MobileBottomNav() {
 
   const navItems = role === 'admin' 
     ? [
-        { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-        { href: '/admin/teams', label: 'Teams', icon: Users },
+        { href: '/admin', label: 'Home', icon: LayoutDashboard },
         { href: '/admin/users', label: 'Users', icon: Users },
+        { href: '/admin/coaching', label: 'Coaching', icon: TrendingUp },
+        { href: '/admin/transcripts', label: 'Transcripts', icon: FileText },
       ]
     : role === 'manager'
     ? [
