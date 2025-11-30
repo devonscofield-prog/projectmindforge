@@ -4,9 +4,17 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { streamAdminTranscriptChat, ChatMessage } from '@/api/adminTranscriptChat';
 import { SaveInsightDialog } from '@/components/admin/SaveInsightDialog';
 import { ExportChatDialog } from '@/components/admin/ExportChatDialog';
+import { ANALYSIS_MODES, getAnalysisModeById } from '@/components/admin/transcript-analysis/analysisModesConfig';
 import { useToast } from '@/hooks/use-toast';
 import { useRateLimitCountdown } from '@/hooks/useRateLimitCountdown';
 import { RateLimitCountdown } from '@/components/ui/rate-limit-countdown';
@@ -18,17 +26,10 @@ import {
   FileText,
   AlertCircle,
   MessageSquare,
-  TrendingUp,
-  Users,
-  Target,
-  Zap,
   Search,
   Lightbulb,
   Download,
-  DollarSign,
-  Trophy,
-  AlertTriangle,
-  Swords,
+  ChevronDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -50,49 +51,6 @@ interface TranscriptChatPanelProps {
   onClose: () => void;
 }
 
-const STARTER_QUESTIONS = [
-  {
-    icon: DollarSign,
-    label: 'Revenue at Risk',
-    prompt: 'Which deals have the highest revenue at risk? Look for warning signs: vague timelines, missing economic buyers, competitor momentum, price objections without value anchors, or "we\'ll get back to you" endings. Prioritize by deal size and give me specific rescue actions for each.',
-  },
-  {
-    icon: Target,
-    label: 'Forecast Reality Check',
-    prompt: 'Based on the actual conversations (not what reps reported), which deals are likely to slip from their expected close dates? What concrete evidence supports or contradicts the committed timelines? Flag any deals where the prospect hasn\'t confirmed next steps.',
-  },
-  {
-    icon: Swords,
-    label: 'Competitive Intelligence',
-    prompt: 'Build me a competitive battle card from these calls: Which competitors were mentioned? What specific objections came up? Where are we winning vs losing and why? Include exact quotes I can use for sales training.',
-  },
-  {
-    icon: Trophy,
-    label: 'Top Rep Playbook',
-    prompt: 'What are the best reps doing differently? Find specific examples of excellent discovery questions, objection handling, or closing techniques. I want teachable moments with exact quotes I can share in our next team meeting.',
-  },
-  {
-    icon: AlertTriangle,
-    label: 'Urgent Coaching Needed',
-    prompt: 'Which reps need immediate coaching intervention? Identify specific skill gaps: Are they talking too much? Missing buying signals? Failing to multi-thread? Weak on discovery? Give me the top 3 coaching priorities with evidence.',
-  },
-  {
-    icon: TrendingUp,
-    label: 'Deal Velocity Check',
-    prompt: 'Are these deals actually progressing or just activity without advancement? Look for: concrete next steps with dates, new stakeholders being introduced, deepening business case discussions, vs. recycled conversations and stall tactics.',
-  },
-  {
-    icon: Users,
-    label: 'Champion Assessment',
-    prompt: 'Do we have real champions or just friendly contacts? Look for evidence of: internal selling on our behalf, access to economic buyers, sharing of internal politics/process, and advocacy language. Flag any single-threaded deals.',
-  },
-  {
-    icon: Zap,
-    label: 'Monday Morning Actions',
-    prompt: 'Give me 5 specific, high-impact actions we should take THIS WEEK based on these calls. Focus on deals we can save, coaching we can deliver, and competitive responses we need to prepare. Be specific about who should do what.',
-  },
-];
-
 export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selectionId, onClose }: TranscriptChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -101,11 +59,15 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
   const [saveInsightOpen, setSaveInsightOpen] = useState(false);
   const [insightToSave, setInsightToSave] = useState<string>('');
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [selectedModeId, setSelectedModeId] = useState('general');
   const { toast } = useToast();
   const { secondsRemaining, isRateLimited, startCountdown } = useRateLimitCountdown(60);
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const selectedMode = getAnalysisModeById(selectedModeId) || ANALYSIS_MODES[0];
+  const starterQuestions = selectedMode.starterQuestions;
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -139,6 +101,7 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
         transcriptIds: selectedTranscripts.map(t => t.id),
         messages: newMessages,
         useRag,
+        analysisMode: selectedModeId,
         onDelta: (delta) => {
           assistantContent += delta;
           setMessages(prev => {
@@ -172,7 +135,7 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
       setError(err instanceof Error ? err.message : 'Failed to get response');
       setIsLoading(false);
     }
-  }, [messages, isLoading, isRateLimited, selectedTranscripts, useRag, toast, startCountdown]);
+  }, [messages, isLoading, isRateLimited, selectedTranscripts, useRag, selectedModeId, toast, startCountdown]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -189,6 +152,8 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
   const handleStarterQuestion = (prompt: string) => {
     sendMessage(prompt);
   };
+
+  const ModeIcon = selectedMode.icon;
 
   return (
     <div className="flex flex-col h-full">
@@ -226,6 +191,34 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
             </Badge>
           )}
         </div>
+        
+        {/* Analysis Mode Selector */}
+        <div className="pt-2">
+          <Select value={selectedModeId} onValueChange={setSelectedModeId}>
+            <SelectTrigger className="w-full bg-muted/50">
+              <div className="flex items-center gap-2">
+                <ModeIcon className="h-4 w-4 text-primary" />
+                <SelectValue placeholder="Select analysis mode" />
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              {ANALYSIS_MODES.map((mode) => {
+                const Icon = mode.icon;
+                return (
+                  <SelectItem key={mode.id} value={mode.id}>
+                    <div className="flex items-center gap-2">
+                      <Icon className="h-4 w-4" />
+                      <div className="flex flex-col items-start">
+                        <span>{mode.label}</span>
+                        <span className="text-xs text-muted-foreground">{mode.description}</span>
+                      </div>
+                    </div>
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
+        </div>
       </SheetHeader>
 
       {/* Messages */}
@@ -236,13 +229,13 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
               {/* Introduction */}
               <div className="text-center py-6">
                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-3">
-                  {useRag ? <Search className="h-6 w-6 text-primary" /> : <MessageSquare className="h-6 w-6 text-primary" />}
+                  <ModeIcon className="h-6 w-6 text-primary" />
                 </div>
-                <h3 className="font-semibold mb-1">Analyze Your Transcripts</h3>
+                <h3 className="font-semibold mb-1">{selectedMode.label}</h3>
                 <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                  {useRag 
-                    ? `Using semantic search across ${selectedTranscripts.length} transcripts to find relevant sections for your questions.`
-                    : `Ask questions about the ${selectedTranscripts.length} selected transcripts. I'll only reference information explicitly stated in the calls.`
+                  {selectedMode.description}. {useRag 
+                    ? `Using semantic search across ${selectedTranscripts.length} transcripts.`
+                    : `Analyzing ${selectedTranscripts.length} selected transcripts.`
                   }
                 </p>
               </div>
@@ -253,7 +246,7 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
                   Suggested questions
                 </p>
                 <div className="grid gap-2">
-                  {STARTER_QUESTIONS.map((q, i) => (
+                  {starterQuestions.map((q, i) => (
                     <button
                       key={i}
                       onClick={() => handleStarterQuestion(q.prompt)}

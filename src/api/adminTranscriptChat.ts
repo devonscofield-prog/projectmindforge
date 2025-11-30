@@ -9,6 +9,7 @@ interface StreamAdminTranscriptChatParams {
   transcriptIds: string[];
   messages: ChatMessage[];
   useRag?: boolean;
+  analysisMode?: string;
   onDelta: (delta: string) => void;
   onDone: () => void;
   onError: (error: string) => void;
@@ -18,6 +19,7 @@ export async function streamAdminTranscriptChat({
   transcriptIds,
   messages,
   useRag = false,
+  analysisMode = 'general',
   onDelta,
   onDone,
   onError,
@@ -41,6 +43,7 @@ export async function streamAdminTranscriptChat({
         transcript_ids: transcriptIds, 
         messages,
         use_rag: useRag,
+        analysis_mode: analysisMode,
       }),
     });
 

@@ -139,6 +139,243 @@ Question: "{QUERY}"
 
 Return format: ["term1", "term2", "term3"]`;
 
+// Analysis mode-specific prompts
+const ANALYSIS_MODE_PROMPTS: Record<string, string> = {
+  general: '',
+  deal_scoring: `
+## DEAL SCORING MODE - MEDDIC FRAMEWORK ANALYSIS
+
+In this mode, focus EXCLUSIVELY on deal qualification using MEDDIC criteria. For each deal:
+
+**SCORING RUBRIC (1-5 scale):**
+- 5 = Fully qualified, explicit evidence in transcript
+- 4 = Strong signals, minor gaps
+- 3 = Moderate evidence, notable gaps
+- 2 = Weak signals, significant gaps
+- 1 = No evidence or red flags
+
+**ALWAYS structure your response as:**
+
+### Deal: [Account Name]
+| Criterion | Score | Evidence |
+|-----------|-------|----------|
+| **M**etrics | X/5 | [Specific quote or observation] |
+| **E**conomic Buyer | X/5 | [Specific quote or observation] |
+| **D**ecision Criteria | X/5 | [Specific quote or observation] |
+| **D**ecision Process | X/5 | [Specific quote or observation] |
+| **I**dentify Pain | X/5 | [Specific quote or observation] |
+| **C**hampion | X/5 | [Specific quote or observation] |
+
+**Overall Score: XX/30**
+**Risk Level:** High/Medium/Low
+**Top Priority Gap:** [What to fix first]
+`,
+  rep_comparison: `
+## REP COMPARISON MODE - PERFORMANCE BENCHMARKING
+
+In this mode, focus on comparing rep techniques and identifying coaching opportunities.
+
+**ANALYSIS FRAMEWORK:**
+
+1. **Discovery Skills** - Quality and depth of questions asked
+2. **Objection Handling** - How effectively concerns are addressed
+3. **Value Articulation** - Connecting features to business outcomes
+4. **Call Control** - Talk ratio, agenda setting, next steps
+5. **Closing Technique** - Commitment language, urgency creation
+
+**OUTPUT FORMAT:**
+
+### Rep Performance Matrix
+| Rep Name | Discovery | Objections | Value | Control | Closing | Overall |
+|----------|-----------|------------|-------|---------|---------|---------|
+| [Name]   | X/5       | X/5        | X/5   | X/5     | X/5     | X/5     |
+
+### Teachable Moments
+For each skill gap, include:
+- **Rep:** [Name]
+- **Skill:** [Area]
+- **What They Did:** [Quote/observation]
+- **Better Approach:** [Specific coaching]
+
+### Top Performer Techniques
+Highlight specific techniques from best reps that others can emulate.
+`,
+  competitive: `
+## COMPETITIVE WAR ROOM MODE
+
+In this mode, focus EXCLUSIVELY on competitive intelligence gathering.
+
+**EXTRACT AND ORGANIZE:**
+
+1. **Competitor Mentions** - Every competitor named and context
+2. **Competitive Objections** - Specific concerns about us vs. them
+3. **Their Strengths** - What prospects said competitors do well
+4. **Their Weaknesses** - Gaps or concerns mentioned about competitors
+5. **Win/Loss Themes** - Patterns in why we win or lose
+
+**OUTPUT FORMAT:**
+
+### Competitor: [Name]
+**Frequency:** Mentioned in X of Y calls
+
+**Positioning Against Us:**
+- [Quote] - [Context]
+
+**Their Perceived Strengths:**
+- [Quote] - [Impact]
+
+**Their Perceived Weaknesses:**
+- [Quote] - [Opportunity]
+
+**Effective Counter-Responses (from our reps):**
+- [What worked]
+
+**Battle Card Recommendation:**
+[How to position against this competitor]
+`,
+  discovery_audit: `
+## DISCOVERY AUDIT MODE
+
+In this mode, deeply analyze the quality of discovery conversations.
+
+**EVALUATION CRITERIA:**
+
+1. **Situation Questions** - Understanding current state
+2. **Problem Questions** - Uncovering pain points  
+3. **Implication Questions** - Expanding impact
+4. **Need-Payoff Questions** - Building value
+
+**DISCOVERY QUALITY INDICATORS:**
+- Multi-level questioning (surface → root cause)
+- Business impact quantification
+- Stakeholder discovery
+- Timeline/urgency establishment
+- Budget/resource discussion
+
+**OUTPUT FORMAT:**
+
+### Discovery Scorecard: [Account/Rep]
+| Dimension | Score | Evidence |
+|-----------|-------|----------|
+| Pain Depth | X/5 | [Quote showing pain uncovered or missed] |
+| Business Impact | X/5 | [Was ROI/impact quantified?] |
+| Stakeholder Map | X/5 | [Were all buyers identified?] |
+| Urgency Established | X/5 | [Compelling event found?] |
+| Budget Discussed | X/5 | [Investment comfort explored?] |
+
+**Best Discovery Question Asked:**
+[Quote]
+
+**Missed Opportunity:**
+[What should have been asked]
+`,
+  forecast_validation: `
+## FORECAST VALIDATION MODE
+
+In this mode, act as a ruthless forecast auditor. Challenge every deal.
+
+**VALIDATION CRITERIA:**
+
+Look for CONCRETE evidence of:
+1. **Verbal Commitments** - Did the prospect commit to dates/actions?
+2. **Process Confirmation** - Is the buying process mapped?
+3. **Budget Approval** - Is budget allocated/approved?
+4. **Decision Timeline** - Is there a compelling event driving urgency?
+5. **Next Steps Quality** - Are next steps specific and confirmed?
+
+**RED FLAGS TO IDENTIFY:**
+- Vague "we'll be in touch" endings
+- No confirmed next meeting
+- Missing stakeholders from discussions
+- "We need to think about it" without timeline
+- Price discussed without value anchor
+
+**OUTPUT FORMAT:**
+
+### Deal: [Account Name]
+**Reported Close Date:** [If known]
+**Likelihood Assessment:** High/Medium/Low/At Risk
+
+**Evidence FOR this deal closing:**
+- [Specific quote/commitment]
+
+**Evidence AGAINST:**
+- [Warning sign with quote]
+
+**Forecast Recommendation:**
+Commit / Best Case / Pipeline / Remove
+`,
+  objection_library: `
+## OBJECTION LIBRARY MODE
+
+In this mode, build a comprehensive objection handling reference.
+
+**CATEGORIZE OBJECTIONS:**
+1. **Price/Budget** - Cost concerns
+2. **Timing** - Not now, maybe later
+3. **Authority** - Need to check with others
+4. **Need** - Not sure we need this
+5. **Competition** - Comparing alternatives
+6. **Risk** - Concerns about change/implementation
+
+**FOR EACH OBJECTION FOUND:**
+
+### Objection: [Category] - [Specific concern]
+**Frequency:** Found in X calls
+
+**Verbatim Examples:**
+- "[Exact quote]" - [Account, Date]
+
+**Effective Responses Found:**
+- "[How rep handled it]" - [Did it work?]
+
+**Recommended Handling:**
+[Best practice based on what worked]
+
+**Prevention Strategy:**
+[How to avoid this objection earlier in cycle]
+`,
+  customer_voice: `
+## CUSTOMER VOICE MODE
+
+In this mode, focus on understanding the buyer's perspective.
+
+**EXTRACT:**
+1. **Stated Needs** - What they say they want
+2. **Implied Needs** - What they actually need (between the lines)
+3. **Decision Criteria** - How they'll choose
+4. **Success Metrics** - How they'll measure value
+5. **Fears/Concerns** - What keeps them up at night
+6. **Buying Process** - How decisions get made
+
+**OUTPUT FORMAT:**
+
+### Voice of Customer: [Account]
+
+**What They Said They Need:**
+- "[Quote]" - [Interpretation]
+
+**What They Actually Need:**
+- [Implied need] - Evidence: [Quote]
+
+**Their Decision Criteria:**
+1. [Criterion] - "[Supporting quote]"
+
+**Success Looks Like:**
+- [How they define success]
+
+**Their Concerns:**
+- [Fear/risk] - "[Quote]"
+
+**Key Insight:**
+[What we learned about this buyer]
+`,
+};
+
+function getModePrompt(modeId: string): string {
+  return ANALYSIS_MODE_PROMPTS[modeId] || '';
+}
+
 interface Message {
   role: 'user' | 'assistant';
   content: string;
@@ -205,10 +442,11 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { transcript_ids, messages, use_rag } = body as { 
+    const { transcript_ids, messages, use_rag, analysis_mode } = body as { 
       transcript_ids: unknown; 
       messages: unknown;
       use_rag?: unknown;
+      analysis_mode?: string;
     };
     
     // Validate transcript_ids
@@ -233,8 +471,9 @@ serve(async (req) => {
     const validatedTranscriptIds = transcript_ids as string[];
     const validatedMessages = messages as Message[];
     const shouldUseRag = Boolean(use_rag) || validatedTranscriptIds.length > DIRECT_INJECTION_MAX;
+    const validatedAnalysisMode = typeof analysis_mode === 'string' ? analysis_mode : 'general';
 
-    console.log(`[admin-transcript-chat] Starting analysis for ${validatedTranscriptIds.length} transcripts (RAG: ${shouldUseRag})`);
+    console.log(`[admin-transcript-chat] Starting analysis for ${validatedTranscriptIds.length} transcripts (RAG: ${shouldUseRag}, Mode: ${validatedAnalysisMode})`);
 
     // Get auth token and verify admin role
     const authHeader = req.headers.get('Authorization');
@@ -311,6 +550,7 @@ serve(async (req) => {
     }
 
     const systemPrompt = ADMIN_TRANSCRIPT_ANALYSIS_PROMPT;
+    const modePrompt = getModePrompt(validatedAnalysisMode);
 
     console.log(`[admin-transcript-chat] Calling Lovable AI with ${validatedMessages.length} messages`);
 
@@ -325,7 +565,7 @@ serve(async (req) => {
         messages: [
           { 
             role: 'system', 
-            content: `${systemPrompt}\n\n## TRANSCRIPTS FOR ANALYSIS\n\n${transcriptContext}` 
+            content: `${systemPrompt}${modePrompt ? '\n\n' + modePrompt : ''}\n\n## TRANSCRIPTS FOR ANALYSIS\n\n${transcriptContext}` 
           },
           ...validatedMessages
         ],
