@@ -30,6 +30,7 @@ import RepDetail from "./pages/manager/RepDetail";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminTeams from "./pages/admin/AdminTeams";
 import AdminUsers from "./pages/admin/AdminUsers";
+import AdminCoachingTrends from "./pages/admin/AdminCoachingTrends";
 
 // Shared pages
 import CallDetailPage from "./pages/calls/CallDetailPage";
@@ -137,6 +138,11 @@ const App = () => (
             <Route path="/admin/users" element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <AdminUsers />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/coaching" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminCoachingTrends />
               </ProtectedRoute>
             } />
 

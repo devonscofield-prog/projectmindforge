@@ -320,6 +320,12 @@ export default function AdminDashboard() {
               <Button variant="outline" className="w-full justify-start" asChild>
                 <Link to="/admin/users">Manage Users</Link>
               </Button>
+              <Button variant="outline" className="w-full justify-start" asChild>
+                <Link to="/admin/coaching">
+                  <TrendingUp className="mr-2 h-4 w-4" />
+                  Org Coaching Trends
+                </Link>
+              </Button>
             </CardContent>
           </Card>
           <Card>

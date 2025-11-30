@@ -1478,5 +1478,181 @@ async function invokeCoachingTrendsFunction(
   }
 }
 
+// ============= AGGREGATE ANALYSIS FOR ADMIN =============
+
+export interface AggregateAnalysisMetadata extends AnalysisMetadata {
+  scope: 'organization' | 'team' | 'rep';
+  teamId?: string;
+  repsIncluded: number;
+}
+
+export interface AggregateCoachingTrendAnalysisWithMeta {
+  analysis: CoachingTrendAnalysis;
+  metadata: AggregateAnalysisMetadata;
+}
+
+interface AggregateAnalysisParams {
+  scope: 'organization' | 'team' | 'rep';
+  teamId?: string;
+  repId?: string;
+  dateRange: { from: Date; to: Date };
+  options?: { forceRefresh?: boolean };
+}
+
+/**
+ * Generates AI-powered coaching trend analysis across multiple reps.
+ * Supports organization-wide, team-level, or individual rep analysis.
+ * 
+ * @param params - Analysis parameters including scope, filters, and date range
+ * @returns AI-generated trend analysis with insights and metadata
+ */
+export async function generateAggregateCoachingTrends(
+  params: AggregateAnalysisParams
+): Promise<AggregateCoachingTrendAnalysisWithMeta> {
+  const { scope, teamId, repId, dateRange, options } = params;
+  const fromDate = dateRange.from.toISOString().split('T')[0];
+  const toDate = dateRange.to.toISOString().split('T')[0];
+
+  // If individual rep, delegate to existing function
+  if (scope === 'rep' && repId) {
+    const result = await generateCoachingTrends(repId, dateRange, options);
+    return {
+      analysis: result.analysis,
+      metadata: {
+        ...result.metadata,
+        scope: 'rep',
+        repsIncluded: 1,
+      },
+    };
+  }
+
+  // Get rep IDs based on scope
+  let repIds: string[] = [];
+  
+  if (scope === 'team' && teamId) {
+    const { data: teamReps, error } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('team_id', teamId);
+    
+    if (error) throw new Error(`Failed to fetch team reps: ${error.message}`);
+    repIds = (teamReps || []).map(r => r.id);
+  } else {
+    // Organization scope - get all active reps
+    const { data: allReps, error } = await supabase
+      .from('user_with_role')
+      .select('id')
+      .eq('role', 'rep')
+      .eq('is_active', true);
+    
+    if (error) throw new Error(`Failed to fetch reps: ${error.message}`);
+    repIds = (allReps || []).map(r => r.id);
+  }
+
+  if (repIds.length === 0) {
+    throw new Error('No reps found for the selected scope');
+  }
+
+  console.log(`[generateAggregateCoachingTrends] Analyzing ${repIds.length} reps for ${scope} scope`);
+
+  // Fetch all call analyses across selected reps
+  const { data, error, count } = await supabase
+    .from('ai_call_analysis')
+    .select('*', { count: 'exact' })
+    .in('rep_id', repIds)
+    .gte('created_at', dateRange.from.toISOString())
+    .lte('created_at', dateRange.to.toISOString())
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('[generateAggregateCoachingTrends] Error fetching analyses:', error);
+    throw new Error(`Failed to fetch call analyses: ${error.message}`);
+  }
+
+  const analyses = (data || []) as unknown as CallAnalysis[];
+  const callCount = count || analyses.length;
+
+  if (analyses.length === 0) {
+    throw new Error('No analyzed calls found for the selected scope and period');
+  }
+
+  const tier = determineAnalysisTier(callCount);
+  console.log(`[generateAggregateCoachingTrends] ${callCount} calls found, using tier: ${tier}`);
+
+  // Format calls for AI
+  const formattedCalls: FormattedCall[] = analyses.map(a => ({
+    date: a.created_at.split('T')[0],
+    framework_scores: a.coach_output?.framework_scores ?? null,
+    bant_improvements: a.coach_output?.bant_improvements ?? [],
+    gap_selling_improvements: a.coach_output?.gap_selling_improvements ?? [],
+    active_listening_improvements: a.coach_output?.active_listening_improvements ?? [],
+    critical_info_missing: a.coach_output?.critical_info_missing ?? [],
+    follow_up_questions: a.coach_output?.recommended_follow_up_questions ?? [],
+    heat_score: a.coach_output?.heat_signature?.score ?? null,
+  }));
+
+  let trendData: CoachingTrendAnalysis;
+  let metadata: AggregateAnalysisMetadata;
+
+  // Execute analysis based on tier
+  if (tier === 'direct') {
+    console.log(`[generateAggregateCoachingTrends] Direct analysis of ${formattedCalls.length} calls`);
+    
+    const response = await invokeCoachingTrendsFunction(formattedCalls, { from: fromDate, to: toDate });
+    trendData = response;
+    metadata = {
+      tier: 'direct',
+      totalCalls: callCount,
+      analyzedCalls: formattedCalls.length,
+      scope,
+      teamId,
+      repsIncluded: repIds.length,
+    };
+  } else if (tier === 'sampled') {
+    const { sampled, originalCount } = stratifiedSample(formattedCalls, DIRECT_ANALYSIS_MAX);
+    console.log(`[generateAggregateCoachingTrends] Sampled ${sampled.length} from ${originalCount} calls`);
+    
+    const response = await invokeCoachingTrendsFunction(sampled, { from: fromDate, to: toDate });
+    trendData = response;
+    metadata = {
+      tier: 'sampled',
+      totalCalls: callCount,
+      analyzedCalls: sampled.length,
+      samplingInfo: {
+        method: 'stratified',
+        originalCount,
+        sampledCount: sampled.length,
+      },
+      scope,
+      teamId,
+      repsIncluded: repIds.length,
+    };
+  } else {
+    console.log(`[generateAggregateCoachingTrends] Hierarchical analysis of ${formattedCalls.length} calls`);
+    
+    const { analysis, chunksAnalyzed, callsPerChunk } = await analyzeHierarchically(
+      formattedCalls,
+      { from: fromDate, to: toDate }
+    );
+    trendData = analysis;
+    metadata = {
+      tier: 'hierarchical',
+      totalCalls: callCount,
+      analyzedCalls: formattedCalls.length,
+      hierarchicalInfo: {
+        chunksAnalyzed,
+        callsPerChunk,
+      },
+      scope,
+      teamId,
+      repsIncluded: repIds.length,
+    };
+  }
+
+  console.log('[generateAggregateCoachingTrends] Successfully received AI trend analysis');
+
+  return { analysis: trendData, metadata };
+}
+
 // Export types for use in components
 export type { CallAnalysis, AnalyzeCallResponse };
