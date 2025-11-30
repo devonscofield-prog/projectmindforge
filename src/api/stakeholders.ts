@@ -381,3 +381,32 @@ export async function setPrimaryStakeholder(
 
   return data as unknown as Stakeholder;
 }
+
+/**
+ * Gets primary stakeholders for multiple prospects
+ */
+export async function getPrimaryStakeholdersForProspects(
+  prospectIds: string[]
+): Promise<Record<string, { name: string; job_title: string | null }>> {
+  if (prospectIds.length === 0) return {};
+
+  const { data, error } = await supabase
+    .from('stakeholders')
+    .select('prospect_id, name, job_title')
+    .in('prospect_id', prospectIds)
+    .eq('is_primary_contact', true);
+
+  if (error) {
+    console.error('[getPrimaryStakeholdersForProspects] Error:', error);
+    throw new Error(`Failed to get primary stakeholders: ${error.message}`);
+  }
+
+  const result: Record<string, { name: string; job_title: string | null }> = {};
+  for (const row of data || []) {
+    if (row.prospect_id) {
+      result[row.prospect_id] = { name: row.name, job_title: row.job_title };
+    }
+  }
+
+  return result;
+}

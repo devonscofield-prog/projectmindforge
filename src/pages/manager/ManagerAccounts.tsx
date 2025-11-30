@@ -31,7 +31,7 @@ import {
   type ProspectStatus,
   type ProspectFilters 
 } from '@/api/prospects';
-import { getStakeholderCountsForProspects } from '@/api/stakeholders';
+import { getStakeholderCountsForProspects, getPrimaryStakeholdersForProspects } from '@/api/stakeholders';
 
 const statusLabels: Record<ProspectStatus, string> = {
   active: 'Active',
@@ -87,6 +87,7 @@ export default function ManagerAccounts() {
   const [teamReps, setTeamReps] = useState<{ id: string; name: string }[]>([]);
   const [callCounts, setCallCounts] = useState<Record<string, number>>({});
   const [stakeholderCounts, setStakeholderCounts] = useState<Record<string, number>>({});
+  const [primaryStakeholders, setPrimaryStakeholders] = useState<Record<string, { name: string; job_title: string | null }>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -131,18 +132,21 @@ export default function ManagerAccounts() {
       const data = await listProspectsForTeam(user.id, filters);
       setProspects(data);
 
-      // Get call counts and stakeholder counts
+      // Get call counts, stakeholder counts, and primary stakeholders
       if (data.length > 0) {
         const prospectIds = data.map(p => p.id);
-        const [counts, sCounts] = await Promise.all([
+        const [counts, sCounts, primaryData] = await Promise.all([
           getCallCountsForProspects(prospectIds),
           getStakeholderCountsForProspects(prospectIds),
+          getPrimaryStakeholdersForProspects(prospectIds),
         ]);
         setCallCounts(counts);
         setStakeholderCounts(sCounts);
+        setPrimaryStakeholders(primaryData);
       } else {
         setCallCounts({});
         setStakeholderCounts({});
+        setPrimaryStakeholders({});
       }
     } catch (error) {
       console.error('Failed to load prospects:', error);
@@ -326,6 +330,7 @@ export default function ManagerAccounts() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Account</TableHead>
+                    <TableHead>Primary Stakeholder</TableHead>
                     <TableHead>Rep</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Industry</TableHead>
@@ -345,16 +350,21 @@ export default function ManagerAccounts() {
                       onClick={() => navigate(`/manager/prospects/${prospect.id}`)}
                     >
                       <TableCell>
-                        <div>
-                          <p className="font-medium">
-                            {prospect.account_name || prospect.prospect_name}
-                          </p>
-                          {prospect.account_name && prospect.prospect_name && (
-                            <p className="text-xs text-muted-foreground">
-                              Primary: {prospect.prospect_name}
-                            </p>
-                          )}
-                        </div>
+                        <p className="font-medium">
+                          {prospect.account_name || prospect.prospect_name}
+                        </p>
+                      </TableCell>
+                      <TableCell>
+                        {primaryStakeholders[prospect.id] ? (
+                          <div>
+                            <p className="font-medium text-sm">{primaryStakeholders[prospect.id].name}</p>
+                            {primaryStakeholders[prospect.id].job_title && (
+                              <p className="text-xs text-muted-foreground">{primaryStakeholders[prospect.id].job_title}</p>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">—</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-xs font-normal">
