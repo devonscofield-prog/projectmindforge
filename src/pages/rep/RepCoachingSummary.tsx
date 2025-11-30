@@ -1061,6 +1061,87 @@ export default function RepCoachingSummary() {
                     {getTrendIcon(displayAnalysis.periodAnalysis.heatScoreTrend)}
                   </div>
                 </div>
+                
+                {/* Analysis Metadata - shows tier, sampling, and hierarchical info */}
+                {currentMetadata && (
+                  <div className="flex flex-wrap items-center gap-4 mt-3 pt-3 border-t border-dashed">
+                    {/* Tier Badge */}
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <Badge 
+                            variant="outline" 
+                            className={cn(
+                              "text-xs gap-1",
+                              currentMetadata.tier === 'direct' && "border-green-500/50 text-green-600 bg-green-500/5",
+                              currentMetadata.tier === 'sampled' && "border-amber-500/50 text-amber-600 bg-amber-500/5",
+                              currentMetadata.tier === 'hierarchical' && "border-orange-500/50 text-orange-600 bg-orange-500/5"
+                            )}
+                          >
+                            {currentMetadata.tier === 'direct' && <Zap className="h-3 w-3" />}
+                            {currentMetadata.tier === 'sampled' && <Layers className="h-3 w-3" />}
+                            {currentMetadata.tier === 'hierarchical' && <Layers className="h-3 w-3" />}
+                            {currentMetadata.tier === 'direct' ? 'Direct Analysis' : 
+                             currentMetadata.tier === 'sampled' ? 'Smart Sampling' : 'Two-Stage Analysis'}
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          {currentMetadata.tier === 'direct' && (
+                            <p>All {currentMetadata.totalCalls} calls were analyzed directly for optimal quality.</p>
+                          )}
+                          {currentMetadata.tier === 'sampled' && (
+                            <p>Used stratified sampling to analyze a representative subset of calls.</p>
+                          )}
+                          {currentMetadata.tier === 'hierarchical' && (
+                            <p>Used two-stage hierarchical analysis to process this large dataset comprehensively.</p>
+                          )}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    
+                    {/* Sampling Info */}
+                    {currentMetadata.samplingInfo && (
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">
+                          {currentMetadata.samplingInfo.sampledCount}
+                        </span>
+                        <span>of</span>
+                        <span className="font-medium text-foreground">
+                          {currentMetadata.samplingInfo.originalCount}
+                        </span>
+                        <span>calls sampled</span>
+                      </div>
+                    )}
+                    
+                    {/* Hierarchical Info */}
+                    {currentMetadata.hierarchicalInfo && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-help">
+                              <span className="font-medium text-foreground">
+                                {currentMetadata.hierarchicalInfo.chunksAnalyzed}
+                              </span>
+                              <span>chunks analyzed</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-sm">
+                            <div className="space-y-1">
+                              <p className="font-medium">Calls per chunk:</p>
+                              <div className="flex flex-wrap gap-1">
+                                {currentMetadata.hierarchicalInfo.callsPerChunk.map((count, idx) => (
+                                  <Badge key={idx} variant="secondary" className="text-xs">
+                                    Chunk {idx + 1}: {count}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
