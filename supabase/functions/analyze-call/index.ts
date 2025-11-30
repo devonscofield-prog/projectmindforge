@@ -6,6 +6,39 @@ declare const EdgeRuntime: {
   waitUntil: (promise: Promise<unknown>) => void;
 };
 
+// Rate limiting: 5 requests per minute per user (heavy AI operation)
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const RATE_LIMIT_MAX_REQUESTS = 5;
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+
+function checkRateLimit(userId: string): { allowed: boolean; retryAfter?: number } {
+  const now = Date.now();
+  const userLimit = rateLimitMap.get(userId);
+  
+  if (!userLimit || now > userLimit.resetTime) {
+    rateLimitMap.set(userId, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
+    return { allowed: true };
+  }
+  
+  if (userLimit.count >= RATE_LIMIT_MAX_REQUESTS) {
+    const retryAfter = Math.ceil((userLimit.resetTime - now) / 1000);
+    return { allowed: false, retryAfter };
+  }
+  
+  userLimit.count++;
+  return { allowed: true };
+}
+
+// Clean up old rate limit entries periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of rateLimitMap.entries()) {
+    if (now > value.resetTime) {
+      rateLimitMap.delete(key);
+    }
+  }
+}, 60 * 1000);
+
 // CORS: Restrict to production domains
 function getCorsHeaders(origin?: string | null): Record<string, string> {
   const allowedOrigins = [
@@ -683,6 +716,34 @@ serve(async (req) => {
 
   // Create service role client for bypassing RLS when writing
   const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+  // Verify user and check rate limit
+  const token = authHeader.replace('Bearer ', '');
+  const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+  
+  if (authError || !user) {
+    return new Response(
+      JSON.stringify({ error: 'Invalid authentication' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Check rate limit
+  const rateLimit = checkRateLimit(user.id);
+  if (!rateLimit.allowed) {
+    console.log(`[analyze-call] Rate limit exceeded for user: ${user.id}`);
+    return new Response(
+      JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
+      { 
+        status: 429, 
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json',
+          'Retry-After': String(rateLimit.retryAfter || 60)
+        } 
+      }
+    );
+  }
 
   let callId: string | null = null;
 
