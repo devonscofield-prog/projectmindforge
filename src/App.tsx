@@ -9,6 +9,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ThemeProvider } from "next-themes";
 import { DevTools } from "@/components/DevTools";
+import { ScrollToTop } from "@/components/ScrollToTop";
 import { createQueryClient, setupQueryLogging } from "@/lib/queryClientConfig";
 
 // Eager load - these are accessed immediately
@@ -68,6 +69,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            <ScrollToTop />
             <AuthProvider>
               <Suspense fallback={<PageLoader />}>
               <Routes>
