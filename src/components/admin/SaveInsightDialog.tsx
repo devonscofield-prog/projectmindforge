@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { Json } from '@/integrations/supabase/types';
 import {
   Dialog,
   DialogContent,
@@ -74,7 +75,7 @@ export function SaveInsightDialog({
           selection_id: selectionId || null,
           title: title.trim(),
           content: editedContent.trim(),
-          chat_context: chatContext as any,
+          chat_context: chatContext as unknown as Json,
           tags: tags.length > 0 ? tags : null,
           share_token: shareToken,
           is_shared: isShared,
