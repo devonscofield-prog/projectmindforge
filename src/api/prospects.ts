@@ -75,6 +75,16 @@ export interface ProspectFilters {
   heatScoreMax?: number;
   sortBy?: 'prospect_name' | 'account_name' | 'last_contact_date' | 'heat_score' | 'potential_revenue';
   sortOrder?: 'asc' | 'desc';
+  page?: number;
+  pageSize?: number;
+}
+
+export interface PaginatedResult<T> {
+  data: T[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
 }
 
 /**
@@ -170,15 +180,27 @@ export async function getOrCreateProspect(params: {
 }
 
 /**
- * Lists all prospects for a rep with optional filtering
+ * Lists all prospects for a rep with optional filtering and pagination
  */
+export function listProspectsForRep(
+  repId: string,
+  filters: ProspectFilters & { page: number; pageSize?: number }
+): Promise<PaginatedResult<Prospect>>;
+export function listProspectsForRep(
+  repId: string,
+  filters?: ProspectFilters
+): Promise<Prospect[]>;
 export async function listProspectsForRep(
   repId: string,
   filters?: ProspectFilters
-): Promise<Prospect[]> {
+): Promise<Prospect[] | PaginatedResult<Prospect>> {
+  const page = filters?.page ?? 1;
+  const pageSize = filters?.pageSize ?? 100;
+  const usePagination = filters?.page !== undefined;
+
   let query = supabase
     .from('prospects')
-    .select('*')
+    .select('*', { count: usePagination ? 'exact' : undefined })
     .eq('rep_id', repId);
 
   // Text search
@@ -207,14 +229,34 @@ export async function listProspectsForRep(
   const sortOrder = filters?.sortOrder || 'desc';
   query = query.order(sortBy, { ascending: sortOrder === 'asc', nullsFirst: false });
 
-  const { data, error } = await query;
+  // Pagination
+  if (usePagination) {
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    query = query.range(from, to);
+  }
+
+  const { data, error, count } = await query;
 
   if (error) {
     console.error('[listProspectsForRep] Error:', error);
     throw new Error(`Failed to list prospects: ${error.message}`);
   }
 
-  return (data || []) as unknown as Prospect[];
+  const prospects = (data || []) as unknown as Prospect[];
+
+  if (usePagination) {
+    const totalCount = count ?? 0;
+    return {
+      data: prospects,
+      totalCount,
+      page,
+      pageSize,
+      totalPages: Math.ceil(totalCount / pageSize),
+    };
+  }
+
+  return prospects;
 }
 
 /**
