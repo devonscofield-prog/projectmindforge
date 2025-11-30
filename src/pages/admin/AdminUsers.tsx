@@ -18,11 +18,11 @@ import {
 } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Profile, Team, UserRole } from '@/types/database';
-import { format } from 'date-fns';
-import { Pencil } from 'lucide-react';
+import { format, formatDistanceToNow } from 'date-fns';
+import { Pencil, History } from 'lucide-react';
 import { toast } from 'sonner';
 import { useOnlineUsers } from '@/hooks/usePresence';
-import { formatDistanceToNow } from 'date-fns';
+import { UserActivityLogSheet } from '@/components/admin/UserActivityLogSheet';
 
 interface UserWithDetails extends Profile {
   role?: UserRole;
@@ -42,6 +42,10 @@ export default function AdminUsers() {
   const [editingUser, setEditingUser] = useState<UserWithDetails | null>(null);
   const [editForm, setEditForm] = useState({ role: '', team_id: '', is_active: true });
   const [saving, setSaving] = useState(false);
+  
+  // Activity log sheet state
+  const [activitySheetOpen, setActivitySheetOpen] = useState(false);
+  const [activityUser, setActivityUser] = useState<UserWithDetails | null>(null);
 
   const fetchData = async () => {
     // Fetch all profiles
@@ -100,6 +104,11 @@ export default function AdminUsers() {
       is_active: user.is_active,
     });
     setEditDialogOpen(true);
+  };
+
+  const handleActivityClick = (user: UserWithDetails) => {
+    setActivityUser(user);
+    setActivitySheetOpen(true);
   };
 
   const handleSaveUser = async () => {
@@ -239,13 +248,32 @@ export default function AdminUsers() {
                         </TableCell>
                         <TableCell>{format(new Date(user.created_at), 'MMM d, yyyy')}</TableCell>
                         <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEditClick(user)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleActivityClick(user)}
+                                >
+                                  <History className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>View activity log</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleEditClick(user)}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Edit user</TooltipContent>
+                            </Tooltip>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -327,6 +355,16 @@ export default function AdminUsers() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* User Activity Log Sheet */}
+      {activityUser && (
+        <UserActivityLogSheet
+          open={activitySheetOpen}
+          onOpenChange={setActivitySheetOpen}
+          userId={activityUser.id}
+          userName={activityUser.name}
+        />
+      )}
     </AppLayout>
   );
 }

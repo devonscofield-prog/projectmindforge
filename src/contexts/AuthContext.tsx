@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { User, Session, RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { UserRole, Profile } from '@/types/database';
 import { toast } from 'sonner';
+import { logUserActivity } from '@/api/userActivityLogs';
 
 interface AuthContextType {
   user: User | null;
@@ -24,6 +25,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [role, setRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
   const [presenceChannel, setPresenceChannel] = useState<RealtimeChannel | null>(null);
+  const hasLoggedLogin = useRef(false);
 
   // Update last_seen_at in database
   const updateLastSeen = async (userId: string) => {
@@ -149,6 +151,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (session?.user) {
         fetchUserData(session.user.id).then(() => setLoading(false));
+        // Log login for existing session (page load/refresh)
+        if (!hasLoggedLogin.current) {
+          hasLoggedLogin.current = true;
+          logUserActivity({
+            user_id: session.user.id,
+            activity_type: 'login',
+          });
+        }
       } else {
         setLoading(false);
       }
@@ -189,6 +199,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           error: new Error('Your account has been deactivated. Please contact an administrator.') 
         };
       }
+      
+      // Log login activity
+      hasLoggedLogin.current = true;
+      logUserActivity({
+        user_id: data.user.id,
+        activity_type: 'login',
+      });
     }
 
     return { error: null };
@@ -208,6 +225,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    // Log logout activity before signing out
+    if (user) {
+      await logUserActivity({
+        user_id: user.id,
+        activity_type: 'logout',
+      });
+    }
+    hasLoggedLogin.current = false;
     await supabase.auth.signOut();
   };
 
