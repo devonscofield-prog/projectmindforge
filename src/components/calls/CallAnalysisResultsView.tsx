@@ -48,9 +48,10 @@ export function CallAnalysisResultsView({ call, analysis, isOwner, isManager }: 
   const [isRefining, setIsRefining] = useState(false);
   const [showEmailPreview, setShowEmailPreview] = useState(false);
   
-  // Collapsible state for Call Notes and Recap Email
+  // Collapsible state for Call Notes, Recap Email, and AI Coach
   const [notesOpen, setNotesOpen] = useState(true);
   const [recapOpen, setRecapOpen] = useState(true);
+  const [coachOpen, setCoachOpen] = useState(true);
 
   // Shared markdown components for recap email rendering
   const recapMarkdownComponents = {
@@ -354,30 +355,35 @@ export function CallAnalysisResultsView({ call, analysis, isOwner, isManager }: 
         </Collapsible>
       )}
 
-      {/* AI Call Coach Section */}
+      {/* AI Call Coach Section - Collapsible */}
       {analysis.coach_output ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Flame className="h-5 w-5 text-orange-500" />
-              AI Call Coach (BANT / Gap Selling / Active Listening)
-            </CardTitle>
-            <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <Target className="h-4 w-4" />
-                {analysis.coach_output.call_type || 'Unknown'}
-              </span>
-              <span className="flex items-center gap-1">
-                <Clock className="h-4 w-4" />
-                {analysis.coach_output.duration_minutes ?? '-'} min
-              </span>
-              <span className="flex items-center gap-1">
-                <Flame className="h-4 w-4 text-orange-500" />
-                Heat Score: {analysis.coach_output.heat_signature?.score ?? '-'}/10
-              </span>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
+        <Collapsible open={coachOpen} onOpenChange={setCoachOpen}>
+          <Card>
+            <CardHeader>
+              <CollapsibleTrigger className="flex items-center gap-2 hover:opacity-80 transition-opacity w-full">
+                <CardTitle className="flex items-center gap-2">
+                  <Flame className="h-5 w-5 text-orange-500" />
+                  AI Call Coach (BANT / Gap Selling / Active Listening)
+                </CardTitle>
+                <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform duration-200 ${coachOpen ? 'rotate-180' : ''}`} />
+              </CollapsibleTrigger>
+              <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <Target className="h-4 w-4" />
+                  {analysis.coach_output.call_type || 'Unknown'}
+                </span>
+                <span className="flex items-center gap-1">
+                  <Clock className="h-4 w-4" />
+                  {analysis.coach_output.duration_minutes ?? '-'} min
+                </span>
+                <span className="flex items-center gap-1">
+                  <Flame className="h-4 w-4 text-orange-500" />
+                  Heat Score: {analysis.coach_output.heat_signature?.score ?? '-'}/10
+                </span>
+              </div>
+            </CardHeader>
+            <CollapsibleContent>
+              <CardContent className="space-y-6">
             {/* Framework Scores */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* BANT */}
@@ -574,8 +580,10 @@ export function CallAnalysisResultsView({ call, analysis, isOwner, isManager }: 
                 </p>
               </div>
             )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
       ) : (
         <Card>
           <CardContent className="py-6 text-center">
