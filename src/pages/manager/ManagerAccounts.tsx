@@ -6,6 +6,7 @@ import { getAccountDetailUrl } from '@/lib/routes';
 
 const log = createLogger('ManagerAccounts');
 import { AppLayout } from '@/components/layout/AppLayout';
+import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -184,6 +185,8 @@ export default function ManagerAccounts() {
   return (
     <AppLayout>
       <div className="space-y-6">
+        <PageBreadcrumb items={[{ label: 'Accounts' }]} />
+        
         {/* Header */}
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Team Accounts</h1>
