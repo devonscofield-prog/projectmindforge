@@ -2,6 +2,8 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { PageTransition } from '@/components/ui/page-transition';
+import { PullToRefresh } from '@/components/ui/pull-to-refresh';
+import { PullToRefreshProvider, usePullToRefreshContext } from '@/contexts/PullToRefreshContext';
 import { 
   LayoutDashboard, 
   Users, 
@@ -30,6 +32,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { MobileBottomNav } from './MobileBottomNav';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -144,45 +147,80 @@ function SidebarNav() {
   );
 }
 
+function MainContent({ children }: { children: React.ReactNode }) {
+  const isMobile = useIsMobile();
+  const { refreshHandler, isEnabled } = usePullToRefreshContext();
+
+  const handleRefresh = async () => {
+    if (refreshHandler) {
+      await refreshHandler();
+    }
+  };
+
+  const content = (
+    <div className="p-4 md:p-6 lg:p-8">
+      <PageTransition>
+        {children}
+      </PageTransition>
+    </div>
+  );
+
+  // Only enable pull-to-refresh on mobile when a handler is registered
+  if (isMobile && refreshHandler && isEnabled) {
+    return (
+      <PullToRefresh 
+        onRefresh={handleRefresh} 
+        className="flex-1 pb-20"
+      >
+        {content}
+      </PullToRefresh>
+    );
+  }
+
+  return (
+    <div className="flex-1 overflow-auto pb-20 md:pb-0">
+      {content}
+    </div>
+  );
+}
+
 export function AppLayout({ children }: AppLayoutProps) {
   return (
-    <SidebarProvider>
-      <div className="flex min-h-svh w-full">
-        {/* Skip link for keyboard navigation */}
-        <a href="#main-content" className="skip-link">
-          Skip to main content
-        </a>
-        
-        <Sidebar collapsible="offcanvas" aria-label="Main sidebar">
-          <SidebarNav />
-        </Sidebar>
-        
-        <SidebarInset>
-          {/* Mobile header */}
-          <header 
-            className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b bg-background px-4 md:hidden"
-            role="banner"
-          >
-            <SidebarTrigger className="h-9 w-9" aria-label="Toggle navigation menu">
-              <Menu className="h-5 w-5" aria-hidden="true" />
-            </SidebarTrigger>
-            <h1 className="font-semibold flex-1">StormWind</h1>
-            <ThemeToggle />
-          </header>
+    <PullToRefreshProvider>
+      <SidebarProvider>
+        <div className="flex min-h-svh w-full">
+          {/* Skip link for keyboard navigation */}
+          <a href="#main-content" className="skip-link">
+            Skip to main content
+          </a>
           
-          {/* Main content */}
-          <main id="main-content" className="flex-1 overflow-auto pb-20 md:pb-0" role="main">
-            <div className="p-4 md:p-6 lg:p-8">
-              <PageTransition>
-                {children}
-              </PageTransition>
-            </div>
-          </main>
-        </SidebarInset>
-        
-        {/* Mobile bottom navigation */}
-        <MobileBottomNav />
-      </div>
-    </SidebarProvider>
+          <Sidebar collapsible="offcanvas" aria-label="Main sidebar">
+            <SidebarNav />
+          </Sidebar>
+          
+          <SidebarInset>
+            {/* Mobile header */}
+            <header 
+              className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b bg-background px-4 md:hidden"
+              role="banner"
+            >
+              <SidebarTrigger className="h-9 w-9" aria-label="Toggle navigation menu">
+                <Menu className="h-5 w-5" aria-hidden="true" />
+              </SidebarTrigger>
+              <h1 className="font-semibold flex-1">StormWind</h1>
+              <ThemeToggle />
+            </header>
+            
+            {/* Main content */}
+            <main id="main-content" className="flex flex-col flex-1" role="main">
+              <MainContent>{children}</MainContent>
+            </main>
+          </SidebarInset>
+          
+          {/* Mobile bottom navigation */}
+          <MobileBottomNav />
+        </div>
+      </SidebarProvider>
+    </PullToRefreshProvider>
   );
 }
