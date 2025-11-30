@@ -1,6 +1,7 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { UserRole } from '@/types/database';
+import { getDashboardUrl } from '@/lib/routes';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -26,14 +27,7 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
   }
 
   if (allowedRoles && role && !allowedRoles.includes(role)) {
-    // Redirect based on user role
-    if (role === 'admin') {
-      return <Navigate to="/admin" replace />;
-    } else if (role === 'manager') {
-      return <Navigate to="/manager" replace />;
-    } else {
-      return <Navigate to="/rep" replace />;
-    }
+    return <Navigate to={getDashboardUrl(role)} replace />;
   }
 
   return <>{children}</>;
