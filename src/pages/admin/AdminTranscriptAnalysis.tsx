@@ -755,7 +755,7 @@ export default function AdminTranscriptAnalysis() {
                         )}
                         onClick={() => toggleTranscript(transcript.id)}
                       >
-                        <td className="p-3">
+                        <td className="p-3" onClick={(e) => e.stopPropagation()}>
                           <Checkbox
                             checked={selectedTranscriptIds.has(transcript.id)}
                             onCheckedChange={() => toggleTranscript(transcript.id)}

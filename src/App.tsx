@@ -28,6 +28,7 @@ import RepDetail from "./pages/manager/RepDetail";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminTeams from "./pages/admin/AdminTeams";
 import AdminUsers from "./pages/admin/AdminUsers";
+import AdminAccounts from "./pages/admin/AdminAccounts";
 import AdminCoachingTrends from "./pages/admin/AdminCoachingTrends";
 import AdminTranscriptAnalysis from "./pages/admin/AdminTranscriptAnalysis";
 
@@ -127,6 +128,11 @@ const App = () => (
             <Route path="/admin/users" element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <AdminUsers />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/accounts" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminAccounts />
               </ProtectedRoute>
             } />
             <Route path="/admin/coaching" element={
