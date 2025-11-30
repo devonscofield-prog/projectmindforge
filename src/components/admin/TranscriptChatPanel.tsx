@@ -302,7 +302,7 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
             ))
           )}
 
-          {isLoading && messages[messages.length - 1]?.role === 'user' && (
+          {isLoading && messages.length > 0 && messages[messages.length - 1]?.role === 'user' && (
             <div className="flex justify-start">
               <div className="bg-muted rounded-lg px-4 py-2">
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />

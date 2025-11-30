@@ -148,7 +148,7 @@ export function TeamComparisonView({ dateRange, onClose }: TeamComparisonViewPro
       const team = teams?.find(t => t.id === teamId);
       initialResults.set(teamId, {
         teamId,
-        teamName: team?.name || 'Unknown Team',
+        teamName: team?.name ?? 'Unknown Team',
         analysis: null,
         loading: true,
         error: null,
@@ -335,7 +335,7 @@ export function TeamComparisonView({ dateRange, onClose }: TeamComparisonViewPro
                 {idx > 0 && <span className="text-muted-foreground text-sm">vs</span>}
                 <Badge variant="secondary" className="gap-1 pr-1">
                   <Building2 className="h-3 w-3" />
-                  {team?.name || 'Unknown'}
+                  {team?.name ?? 'Unknown'}
                   <Button
                     variant="ghost"
                     size="icon"

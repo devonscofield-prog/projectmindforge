@@ -240,8 +240,8 @@ export default function AdminCoachingTrends() {
   const scopeLabel = scope === 'organization' 
     ? 'Organization' 
     : scope === 'team' 
-      ? teams?.find(t => t.id === selectedTeamId)?.name || 'Team'
-      : reps?.find(r => r.id === selectedRepId)?.name || 'Rep';
+      ? teams?.find(t => t.id === selectedTeamId)?.name ?? 'Team'
+      : reps?.find(r => r.id === selectedRepId)?.name ?? 'Rep';
 
   const displayAnalysis = analysisResult?.analysis;
   const displayMetadata = analysisResult?.metadata;

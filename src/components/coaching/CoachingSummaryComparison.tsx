@@ -144,11 +144,13 @@ function PatternComparison({
   const combinedItems = Array.from(allItems).map(item => {
     const p1 = period1Items.find(i => i.item === item);
     const p2 = period2Items.find(i => i.item === item);
+    const p1Count = p1?.count ?? 0;
+    const p2Count = p2?.count ?? 0;
     return {
       item,
-      period1Count: p1?.count ?? 0,
-      period2Count: p2?.count ?? 0,
-      change: (p2?.count ?? 0) - (p1?.count ?? 0),
+      period1Count: p1Count,
+      period2Count: p2Count,
+      change: p2Count - p1Count,
     };
   }).sort((a, b) => b.period2Count - a.period2Count).slice(0, 5);
 
@@ -217,11 +219,13 @@ function StrengthsComparison({
   const combinedItems = Array.from(allAreas).map(area => {
     const p1 = period1Items.find(i => i.area === area);
     const p2 = period2Items.find(i => i.area === area);
+    const p1Count = p1?.count ?? 0;
+    const p2Count = p2?.count ?? 0;
     return {
       area,
-      period1Count: p1?.count ?? 0,
-      period2Count: p2?.count ?? 0,
-      change: (p2?.count ?? 0) - (p1?.count ?? 0),
+      period1Count: p1Count,
+      period2Count: p2Count,
+      change: p2Count - p1Count,
     };
   }).sort((a, b) => b.period2Count - a.period2Count).slice(0, 5);
 
