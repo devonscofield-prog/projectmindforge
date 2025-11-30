@@ -22,10 +22,12 @@ import { format } from 'date-fns';
 import { Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { useOnlineUsers } from '@/hooks/usePresence';
+import { formatDistanceToNow } from 'date-fns';
 
 interface UserWithDetails extends Profile {
   role?: UserRole;
   team?: Team;
+  last_seen_at?: string;
 }
 
 export default function AdminUsers() {
@@ -212,7 +214,12 @@ export default function AdminUsers() {
                                 />
                               </TooltipTrigger>
                               <TooltipContent>
-                                {isOnline ? 'Online now' : 'Offline'}
+                                {isOnline 
+                                  ? 'Online now' 
+                                  : user.last_seen_at 
+                                    ? `Last seen ${formatDistanceToNow(new Date(user.last_seen_at), { addSuffix: true })}`
+                                    : 'Offline'
+                                }
                               </TooltipContent>
                             </Tooltip>
                             {user.name}

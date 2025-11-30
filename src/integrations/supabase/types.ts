@@ -660,6 +660,7 @@ export type Database = {
           hire_date: string | null
           id: string
           is_active: boolean
+          last_seen_at: string | null
           name: string
           notes: string | null
           team_id: string | null
@@ -671,6 +672,7 @@ export type Database = {
           hire_date?: string | null
           id: string
           is_active?: boolean
+          last_seen_at?: string | null
           name: string
           notes?: string | null
           team_id?: string | null
@@ -682,6 +684,7 @@ export type Database = {
           hire_date?: string | null
           id?: string
           is_active?: boolean
+          last_seen_at?: string | null
           name?: string
           notes?: string | null
           team_id?: string | null
