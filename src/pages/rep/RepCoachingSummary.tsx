@@ -5,6 +5,7 @@ import { useParams, Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { getRepDetailUrl, getDashboardUrl } from '@/lib/routes';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -441,7 +442,17 @@ export default function RepCoachingSummary() {
 
   const getBackPath = () => {
     if ((role === 'manager' || role === 'admin') && repId) return getRepDetailUrl(repId);
-    return '/rep';
+    return getDashboardUrl(role);
+  };
+
+  const getBreadcrumbItems = () => {
+    if ((role === 'manager' || role === 'admin') && repId) {
+      return [
+        { label: repProfile?.name || 'Rep', href: getRepDetailUrl(repId) },
+        { label: 'Coaching Trends' }
+      ];
+    }
+    return [{ label: 'Coaching Trends' }];
   };
 
   const getTrendIcon = (trend: 'improving' | 'declining' | 'stable') => {
@@ -506,24 +517,20 @@ export default function RepCoachingSummary() {
   return (
     <AppLayout>
       <div className="space-y-6">
+        {/* Breadcrumb Navigation */}
+        <PageBreadcrumb items={getBreadcrumbItems()} />
+
         {/* Header */}
         <div className="flex flex-col gap-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" asChild>
-                <Link to={getBackPath()}>
-                  <ArrowLeft className="h-4 w-4" />
-                </Link>
-              </Button>
-              <div>
-                <h1 className="text-2xl font-bold flex items-center gap-2">
-                  <Sparkles className="h-6 w-6 text-primary" />
-                  {isOwnSummary ? 'My Coaching Trends' : `${repProfile?.name || 'Rep'}'s Coaching Trends`}
-                </h1>
-                <p className="text-muted-foreground">
-                  AI-powered trend analysis of your sales calls
-                </p>
-              </div>
+            <div>
+              <h1 className="text-2xl font-bold flex items-center gap-2">
+                <Sparkles className="h-6 w-6 text-primary" />
+                {isOwnSummary ? 'My Coaching Trends' : `${repProfile?.name || 'Rep'}'s Coaching Trends`}
+              </h1>
+              <p className="text-muted-foreground">
+                AI-powered trend analysis of your sales calls
+              </p>
             </div>
             
             {/* Actions */}
