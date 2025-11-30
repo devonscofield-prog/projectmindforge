@@ -20,6 +20,7 @@ import {
   AnalysisTier,
 } from '@/api/aiCallAnalysis';
 import { supabase } from '@/integrations/supabase/client';
+import { useTeams, useRepsWithEmail, useTeamRepIds } from '@/hooks';
 import { TrendCard } from '@/components/coaching/TrendCard';
 import { CriticalInfoTrends } from '@/components/coaching/CriticalInfoTrends';
 import { PriorityActionCard } from '@/components/coaching/PriorityActionCard';
@@ -87,39 +88,16 @@ export default function AdminCoachingTrends() {
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [activeTab, setActiveTab] = useState<'analysis' | 'comparison'>('analysis');
 
-  // Fetch teams
-  const { data: teams } = useQuery({
-    queryKey: ['admin-teams'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('teams')
-        .select('id, name')
-        .order('name');
-      if (error) throw error;
-      return data || [];
-    },
-  });
+  // Fetch teams using reusable hook
+  const { data: teams } = useTeams();
 
   // Fetch reps (filtered by team if team scope selected)
-  const { data: reps } = useQuery({
-    queryKey: ['admin-reps', scope, selectedTeamId],
-    queryFn: async () => {
-      let query = supabase
-        .from('user_with_role')
-        .select('id, name, email, team_id')
-        .eq('role', 'rep')
-        .eq('is_active', true);
-      
-      if (scope === 'team' && selectedTeamId) {
-        query = query.eq('team_id', selectedTeamId);
-      }
-      
-      const { data, error } = await query.order('name');
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: scope === 'rep' || (scope === 'team' && !!selectedTeamId),
+  const { data: reps } = useRepsWithEmail({
+    teamId: scope === 'team' && selectedTeamId ? selectedTeamId : undefined,
   });
+
+  // Get team rep IDs for filtering (only when needed)
+  const { data: teamRepIds } = useTeamRepIds(scope === 'team' ? selectedTeamId : undefined);
 
   // Call count preview
   const { data: callCountPreview, isLoading: isLoadingCallCount } = useQuery({
@@ -134,18 +112,10 @@ export default function AdminCoachingTrends() {
       
       if (scope === 'rep' && selectedRepId) {
         query = query.eq('rep_id', selectedRepId);
+      } else if (scope === 'team' && selectedTeamId && teamRepIds && teamRepIds.length > 0) {
+        query = query.in('rep_id', teamRepIds);
       } else if (scope === 'team' && selectedTeamId) {
-        // Get rep IDs for the team
-        const { data: teamReps } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('team_id', selectedTeamId);
-        
-        if (teamReps && teamReps.length > 0) {
-          query = query.in('rep_id', teamReps.map(r => r.id));
-        } else {
-          return 0;
-        }
+        return 0; // No reps in team
       }
       // For organization scope, no additional filter needed
       
