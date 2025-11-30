@@ -32,6 +32,7 @@ import {
 } from '@/api/performanceMetrics';
 import { getBenchmarkComparison } from '@/api/performanceBenchmarks';
 import { PerformanceBenchmarkCard } from '@/components/admin/PerformanceBenchmarkCard';
+import { PerformanceDrillDown } from '@/components/admin/PerformanceDrillDown';
 import { toast } from 'sonner';
 
 const TIME_RANGE_OPTIONS = [
@@ -113,6 +114,7 @@ export default function AdminPerformanceMonitor() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <PerformanceDrillDown timeRange={timeRange} />
             <PerformanceReportExport />
             <Select value={timeRange} onValueChange={setTimeRange}>
               <SelectTrigger className="w-[150px]">
