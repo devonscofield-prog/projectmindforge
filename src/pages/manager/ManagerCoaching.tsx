@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { toProfile, toCoachingSession } from '@/lib/supabaseAdapters';
 import { getRepDetailUrl } from '@/lib/routes';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
@@ -96,11 +97,18 @@ export default function ManagerCoaching() {
         .select('*')
         .in('id', repIds);
 
+      // Map profiles to domain objects
+      const adaptedProfiles = (repProfiles || []).map(toProfile);
+      const profileMap = new Map(adaptedProfiles.map(p => [p.id, p]));
+
       // Combine data
-      const sessionsWithReps: CoachingWithRep[] = coachingData.map((session) => ({
-        ...(session as unknown as CoachingSession),
-        rep: repProfiles?.find((r) => r.id === session.rep_id) as unknown as Profile,
-      }));
+      const sessionsWithReps: CoachingWithRep[] = coachingData.map((session) => {
+        const adaptedSession = toCoachingSession(session);
+        return {
+          ...adaptedSession,
+          rep: profileMap.get(session.rep_id),
+        };
+      });
 
       setSessions(sessionsWithReps);
     } else {

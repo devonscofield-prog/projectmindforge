@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { createLogger } from '@/lib/logger';
+import { toCoachingSession } from '@/lib/supabaseAdapters';
 import { getRepDetailUrl } from '@/lib/routes';
 
 const log = createLogger('ManagerDashboard');
@@ -99,7 +100,7 @@ export default function ManagerDashboard() {
 
         return {
           ...rep,
-          lastCoaching: coaching as unknown as CoachingSession,
+          lastCoaching: coaching ? toCoachingSession(coaching) : undefined,
         };
       });
 

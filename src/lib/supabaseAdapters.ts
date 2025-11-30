@@ -38,6 +38,9 @@ type CallTranscriptRow = Database['public']['Tables']['call_transcripts']['Row']
 type AiCallAnalysisRow = Database['public']['Tables']['ai_call_analysis']['Row'];
 type UserActivityLogRow = Database['public']['Tables']['user_activity_logs']['Row'];
 type CoachingTrendAnalysisRow = Database['public']['Tables']['coaching_trend_analyses']['Row'];
+type ProfileRow = Database['public']['Tables']['profiles']['Row'];
+type TeamRow = Database['public']['Tables']['teams']['Row'];
+type CoachingSessionRow = Database['public']['Tables']['coaching_sessions']['Row'];
 
 // ============= TYPE GUARDS =============
 
@@ -481,4 +484,59 @@ export function isCachedProspectStats(value: unknown): value is CachedProspectSt
     'hotProspects' in value &&
     'pipelineValue' in value
   );
+}
+
+// ============= PROFILE ADAPTERS =============
+
+import type { Profile, Team, CoachingSession } from '@/types/database';
+
+/**
+ * Converts a Supabase profile row to a Profile domain object.
+ */
+export function toProfile(row: ProfileRow): Profile {
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    team_id: row.team_id,
+    hire_date: row.hire_date,
+    is_active: row.is_active,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+// ============= TEAM ADAPTERS =============
+
+/**
+ * Converts a Supabase team row to a Team domain object.
+ */
+export function toTeam(row: TeamRow): Team {
+  return {
+    id: row.id,
+    name: row.name,
+    manager_id: row.manager_id,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+// ============= COACHING SESSION ADAPTERS =============
+
+/**
+ * Converts a Supabase coaching session row to a CoachingSession domain object.
+ */
+export function toCoachingSession(row: CoachingSessionRow): CoachingSession {
+  return {
+    id: row.id,
+    rep_id: row.rep_id,
+    manager_id: row.manager_id,
+    session_date: row.session_date,
+    focus_area: row.focus_area,
+    notes: row.notes,
+    action_items: row.action_items,
+    follow_up_date: row.follow_up_date,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
 }
