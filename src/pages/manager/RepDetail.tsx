@@ -17,9 +17,11 @@ import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { Profile, CoachingSession } from '@/types/database';
-import { ArrowLeft, Plus, AlertCircle, Loader2, Phone, Calendar, Sparkles, ExternalLink, ChevronDown, Brain, Search } from 'lucide-react';
+import { Plus, AlertCircle, Loader2, Phone, Calendar, Sparkles, ExternalLink, ChevronDown, Brain, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { format, subDays, isAfter } from 'date-fns';
+import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
+import { getDashboardUrl } from '@/lib/routes';
 import { useToast } from '@/hooks/use-toast';
 import {
   listCallTranscriptsForRep,
@@ -118,11 +120,6 @@ export default function RepDetail() {
     return results;
   }, [transcripts, timeframe, callSearch]);
 
-  // Determine back navigation based on role
-  const getBackUrl = () => {
-    if (role === 'admin') return '/admin';
-    return '/manager';
-  };
 
   const fetchData = async () => {
     if (!repId) return;
@@ -227,8 +224,7 @@ export default function RepDetail() {
               ? "This rep is not on your team. You can only view detailed information for reps assigned to your team."
               : "Rep not found or you don't have permission to view this page."}
           </p>
-          <Button variant="outline" onClick={() => navigate(getBackUrl())}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
+          <Button variant="outline" onClick={() => navigate(getDashboardUrl(role))}>
             Back to Dashboard
           </Button>
         </div>
@@ -239,6 +235,14 @@ export default function RepDetail() {
   return (
     <AppLayout>
       <div className="space-y-8">
+        {/* Breadcrumb Navigation */}
+        <PageBreadcrumb 
+          items={[
+            { label: 'Team', href: getDashboardUrl(role) },
+            { label: rep.name }
+          ]}
+        />
+
         {/* Debug info - only show in development */}
         {import.meta.env.DEV && (
           <div className="text-xs text-muted-foreground bg-muted/50 rounded px-3 py-2">
@@ -248,15 +252,12 @@ export default function RepDetail() {
           </div>
         )}
 
-        <div className="flex items-center gap-4">
-          <Button variant="outline" size="icon" onClick={() => navigate(getBackUrl())}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
+        <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">{rep.name}</h1>
             <p className="text-muted-foreground">{rep.email}</p>
           </div>
-          <Button variant="outline" asChild className="ml-auto">
+          <Button variant="outline" asChild>
             <Link to={`/rep/coaching-summary/${repId}`}>
               <Sparkles className="h-4 w-4 mr-2" />
               Coaching Trends

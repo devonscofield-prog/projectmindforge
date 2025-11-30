@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getAccountDetailUrl, getCallDetailUrl, getRepDetailUrl, getCoachingSummaryUrl, getDashboardUrl } from '../routes';
+import { getAccountDetailUrl, getCallDetailUrl, getRepDetailUrl, getCoachingSummaryUrl, getDashboardUrl, getAccountsUrl, getAccountsLabel } from '../routes';
 
 describe('getAccountDetailUrl', () => {
   it('returns admin path for admin role', () => {
@@ -83,5 +83,41 @@ describe('getDashboardUrl', () => {
 
   it('returns rep dashboard for null role (default)', () => {
     expect(getDashboardUrl(null)).toBe('/rep');
+  });
+});
+
+describe('getAccountsUrl', () => {
+  it('returns admin accounts path for admin role', () => {
+    expect(getAccountsUrl('admin')).toBe('/admin/accounts');
+  });
+
+  it('returns manager accounts path for manager role', () => {
+    expect(getAccountsUrl('manager')).toBe('/manager/accounts');
+  });
+
+  it('returns rep prospects path for rep role', () => {
+    expect(getAccountsUrl('rep')).toBe('/rep/prospects');
+  });
+
+  it('returns rep prospects path for null role (default)', () => {
+    expect(getAccountsUrl(null)).toBe('/rep/prospects');
+  });
+});
+
+describe('getAccountsLabel', () => {
+  it('returns "Accounts" for admin role', () => {
+    expect(getAccountsLabel('admin')).toBe('Accounts');
+  });
+
+  it('returns "Accounts" for manager role', () => {
+    expect(getAccountsLabel('manager')).toBe('Accounts');
+  });
+
+  it('returns "My Accounts" for rep role', () => {
+    expect(getAccountsLabel('rep')).toBe('My Accounts');
+  });
+
+  it('returns "My Accounts" for null role (default)', () => {
+    expect(getAccountsLabel(null)).toBe('My Accounts');
   });
 });
