@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PullToRefresh } from '@/components/ui/pull-to-refresh';
+import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
 import { Search, Users, Flame, Calendar, DollarSign, ChevronRight, Building2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { 
@@ -273,6 +274,7 @@ export default function RepProspects() {
         </Card>
 
         {/* Prospects Table */}
+        <QueryErrorBoundary>
         <Card>
           <CardHeader>
             <CardTitle>All Accounts</CardTitle>
@@ -400,6 +402,7 @@ export default function RepProspects() {
             )}
           </CardContent>
         </Card>
+        </QueryErrorBoundary>
       </div>
     </AppLayout>
   );

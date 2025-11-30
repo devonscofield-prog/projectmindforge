@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -13,22 +13,24 @@ interface DailyCount {
 export function CallTrendsChart() {
   const [data, setData] = useState<DailyCount[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
 
-  useEffect(() => {
-    const fetchTrends = async () => {
+  const fetchTrends = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
       const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
 
-      const { data: calls, error } = await supabase
+      const { data: calls, error: fetchError } = await supabase
         .from('call_transcripts')
         .select('created_at')
         .eq('analysis_status', 'completed')
         .gte('created_at', thirtyDaysAgo)
         .order('created_at', { ascending: true });
 
-      if (error) {
-        console.error('Error fetching call trends:', error);
-        setLoading(false);
-        return;
+      if (fetchError) {
+        throw fetchError;
       }
 
       // Group by date
@@ -53,11 +55,22 @@ export function CallTrendsChart() {
       }));
 
       setData(chartData);
+    } catch (err) {
+      console.error('Error fetching call trends:', err);
+      setError(err instanceof Error ? err : new Error('Failed to load trends'));
+    } finally {
       setLoading(false);
-    };
-
-    fetchTrends();
+    }
   }, []);
+
+  useEffect(() => {
+    fetchTrends();
+  }, [fetchTrends]);
+
+  // Re-throw error for error boundary to catch
+  if (error) {
+    throw error;
+  }
 
   if (loading) {
     return (

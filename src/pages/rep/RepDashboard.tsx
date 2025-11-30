@@ -17,6 +17,7 @@ import { Send, Loader2, Mic, Pencil, BarChart3 } from 'lucide-react';
 import { AccountCombobox } from '@/components/forms/AccountCombobox';
 import { StakeholderCombobox } from '@/components/forms/StakeholderCombobox';
 import { PendingFollowUpsWidget } from '@/components/dashboard/PendingFollowUpsWidget';
+import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
 export default function RepDashboard() {
   const {
     user,
@@ -277,7 +278,9 @@ export default function RepDashboard() {
 
           {/* Follow-ups Widget - Takes up 1 column */}
           <div>
-            {user?.id && <PendingFollowUpsWidget repId={user.id} />}
+            <QueryErrorBoundary>
+              {user?.id && <PendingFollowUpsWidget repId={user.id} />}
+            </QueryErrorBoundary>
           </div>
         </div>
       </div>

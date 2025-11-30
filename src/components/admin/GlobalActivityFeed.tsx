@@ -27,11 +27,19 @@ const activityLabels: Record<UserActivityType, string> = {
 export function GlobalActivityFeed() {
   const [logs, setLogs] = useState<UserActivityLogWithProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
 
   const loadLogs = useCallback(async () => {
-    const data = await fetchAllRecentActivityLogs(15);
-    setLogs(data);
-    setLoading(false);
+    setError(null);
+    try {
+      const data = await fetchAllRecentActivityLogs(15);
+      setLogs(data);
+    } catch (err) {
+      console.error('Error loading activity logs:', err);
+      setError(err instanceof Error ? err : new Error('Failed to load activity'));
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -58,6 +66,11 @@ export function GlobalActivityFeed() {
       supabase.removeChannel(channel);
     };
   }, [loadLogs]);
+
+  // Re-throw error for error boundary to catch
+  if (error) {
+    throw error;
+  }
 
   return (
     <Card>
