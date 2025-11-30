@@ -1,4 +1,4 @@
-import { getRepDetailUrl, getDashboardUrl } from '@/lib/routes';
+import { getRepDetailUrl } from '@/lib/routes';
 import { getCoachingSummaryBreadcrumbs } from '@/lib/breadcrumbConfig';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
@@ -20,7 +20,6 @@ import {
   ExecutiveSummaryCard,
   FrameworkTrendsSection,
   PatternAnalysisSection,
-  createPreviousPeriodRange,
 } from './coaching-summary';
 
 export default function RepCoachingSummary() {
@@ -76,22 +75,11 @@ export default function RepCoachingSummary() {
     handleRunComparison,
   } = state;
 
-  const getBackPath = () => {
-    if ((role === 'manager' || role === 'admin') && repId) return getRepDetailUrl(repId);
-    return getDashboardUrl(role);
-  };
-
   const getBreadcrumbItems = () => {
     if ((role === 'manager' || role === 'admin') && repId) {
       return getCoachingSummaryBreadcrumbs(role, repProfile?.name || 'Rep', getRepDetailUrl(repId));
     }
     return getCoachingSummaryBreadcrumbs(role);
-  };
-
-  // State setters needed for DateRangeControls quick fixes
-  const setComparisonDateRange = (range: { from: Date; to: Date }) => {
-    // This is a simplified version - the actual state is managed in the hook
-    // We need to expose these from the hook
   };
 
   return (
