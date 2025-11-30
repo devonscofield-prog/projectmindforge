@@ -38,6 +38,8 @@ import {
   Save,
   FolderOpen,
   Lightbulb,
+  Database,
+  Loader2,
 } from 'lucide-react';
 
 const TIME_RANGES = [
@@ -99,6 +101,9 @@ export default function AdminTranscriptAnalysis() {
   const [saveSelectionOpen, setSaveSelectionOpen] = useState(false);
   const [savedSelectionsOpen, setSavedSelectionsOpen] = useState(false);
   const [savedInsightsOpen, setSavedInsightsOpen] = useState(false);
+  
+  // Pre-indexing state
+  const [isIndexing, setIsIndexing] = useState(false);
 
   // Handle shared selection/insight from URL params
   useEffect(() => {
@@ -259,6 +264,63 @@ export default function AdminTranscriptAnalysis() {
     },
     enabled: true,
   });
+
+  // Query to check which transcripts are already chunked (for RAG pre-indexing)
+  const { data: chunkStatus, refetch: refetchChunkStatus } = useQuery({
+    queryKey: ['chunk-status', transcripts?.map(t => t.id).join(',')],
+    queryFn: async () => {
+      if (!transcripts?.length) return { indexed: 0, total: 0 };
+      const ids = transcripts.map(t => t.id);
+      
+      const { data, error } = await supabase
+        .from('transcript_chunks')
+        .select('transcript_id')
+        .in('transcript_id', ids);
+      
+      if (error) throw error;
+      
+      const indexedIds = new Set((data || []).map(c => c.transcript_id));
+      return { indexed: indexedIds.size, total: ids.length };
+    },
+    enabled: !!transcripts?.length,
+  });
+
+  // Pre-index handler
+  const handlePreIndex = async () => {
+    if (!transcripts?.length) return;
+    setIsIndexing(true);
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Please sign in to pre-index transcripts');
+        return;
+      }
+      
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chunk-transcripts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ transcript_ids: transcripts.map(t => t.id) }),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to pre-index transcripts');
+      }
+      
+      const result = await response.json();
+      toast.success(`Indexed ${result.new_chunks || 0} new chunks from ${result.transcripts_chunked || 0} transcripts`);
+      refetchChunkStatus();
+    } catch (err) {
+      console.error('Pre-index error:', err);
+      toast.error(err instanceof Error ? err.message : 'Failed to pre-index transcripts');
+    } finally {
+      setIsIndexing(false);
+    }
+  };
 
   const handlePresetChange = (value: string) => {
     setSelectedPreset(value);
@@ -521,11 +583,41 @@ export default function AdminTranscriptAnalysis() {
             <div className="text-sm text-muted-foreground">
               ~{estimatedTokens.toLocaleString()} tokens
             </div>
+
+            {/* Pre-Index Status */}
+            {chunkStatus && chunkStatus.total > 0 && (
+              <Badge 
+                variant={chunkStatus.indexed === chunkStatus.total ? 'default' : 'secondary'}
+                className={cn(
+                  "text-xs",
+                  chunkStatus.indexed === chunkStatus.total 
+                    ? "bg-green-500/10 text-green-600 border-green-500/20" 
+                    : "bg-amber-500/10 text-amber-600 border-amber-500/20"
+                )}
+              >
+                <Database className="h-3 w-3 mr-1" />
+                {chunkStatus.indexed} / {chunkStatus.total} indexed
+              </Badge>
+            )}
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Save/Load Buttons */}
+            {/* Pre-Index & Save/Load Buttons */}
             <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePreIndex}
+                disabled={!transcripts?.length || isIndexing || (chunkStatus?.indexed === chunkStatus?.total && chunkStatus?.total > 0)}
+                title="Pre-index transcripts for faster RAG queries"
+              >
+                {isIndexing ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Database className="h-4 w-4 mr-1" />
+                )}
+                {isIndexing ? 'Indexing...' : 'Pre-Index'}
+              </Button>
               <Button
                 variant="outline"
                 size="sm"

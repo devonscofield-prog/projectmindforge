@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { streamAdminTranscriptChat, ChatMessage } from '@/api/adminTranscriptChat';
 import { SaveInsightDialog } from '@/components/admin/SaveInsightDialog';
+import { ExportChatDialog } from '@/components/admin/ExportChatDialog';
 import ReactMarkdown from 'react-markdown';
 import {
   Send,
@@ -20,6 +21,7 @@ import {
   Zap,
   Search,
   Lightbulb,
+  Download,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -76,6 +78,7 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
   const [error, setError] = useState<string | null>(null);
   const [saveInsightOpen, setSaveInsightOpen] = useState(false);
   const [insightToSave, setInsightToSave] = useState<string>('');
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -158,16 +161,29 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
     <div className="flex flex-col h-full">
       {/* Header */}
       <SheetHeader className="px-6 py-4 border-b">
-        <SheetTitle className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-primary" />
-          Transcript Analysis
-          {useRag && (
-            <Badge variant="secondary" className="text-xs gap-1">
-              <Search className="h-3 w-3" />
-              RAG Mode
-            </Badge>
+        <div className="flex items-center justify-between">
+          <SheetTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            Transcript Analysis
+            {useRag && (
+              <Badge variant="secondary" className="text-xs gap-1">
+                <Search className="h-3 w-3" />
+                RAG Mode
+              </Badge>
+            )}
+          </SheetTitle>
+          {messages.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setExportDialogOpen(true)}
+              className="gap-1"
+            >
+              <Download className="h-4 w-4" />
+              Export
+            </Button>
           )}
-        </SheetTitle>
+        </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <FileText className="h-4 w-4" />
           {selectedTranscripts.length} transcripts selected
@@ -321,6 +337,15 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
         content={insightToSave}
         chatContext={messages}
         selectionId={selectionId}
+      />
+
+      {/* Export Chat Dialog */}
+      <ExportChatDialog
+        open={exportDialogOpen}
+        onOpenChange={setExportDialogOpen}
+        messages={messages}
+        selectedTranscripts={selectedTranscripts}
+        useRag={useRag}
       />
     </div>
   );
