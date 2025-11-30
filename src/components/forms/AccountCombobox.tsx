@@ -58,8 +58,9 @@ export function AccountCombobox({
 
   // Get unique account names with their prospect IDs and salesforce links
   const accountOptions = prospects.reduce<{ accountName: string; prospectId: string; salesforceLink: string | null }[]>((acc, prospect) => {
-    const accountName = prospect.account_name || prospect.prospect_name;
-    if (!acc.find(a => a.accountName.toLowerCase() === accountName.toLowerCase())) {
+    const accountName = prospect.account_name ?? prospect.prospect_name;
+    const existing = acc.find(a => a.accountName.toLowerCase() === accountName.toLowerCase());
+    if (!existing) {
       acc.push({ accountName, prospectId: prospect.id, salesforceLink: prospect.salesforce_link });
     }
     return acc;

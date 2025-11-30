@@ -96,6 +96,7 @@ export default function RepProspects() {
   useEffect(() => {
     if (!user?.id) return;
     loadProspects();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, statusFilter, sortBy]);
 
   const loadProspects = async () => {
@@ -135,6 +136,7 @@ export default function RepProspects() {
   // Pull-to-refresh handler
   const handleRefresh = useCallback(async () => {
     await loadProspects();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, statusFilter, sortBy]);
 
   const filteredProspects = prospects.filter(prospect => {
@@ -359,7 +361,7 @@ export default function RepProspects() {
                           <TableCell>
                             {prospect.industry ? (
                               <Badge variant="outline" className="text-xs">
-                                {industryOptions.find(i => i.value === prospect.industry)?.label || prospect.industry}
+                                {industryOptions.find(i => i.value === prospect.industry)?.label ?? prospect.industry}
                               </Badge>
                             ) : (
                               <span className="text-muted-foreground">—</span>

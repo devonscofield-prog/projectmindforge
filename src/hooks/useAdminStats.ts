@@ -43,10 +43,10 @@ export function useAdminDashboardStats() {
       });
 
       return {
-        userCount: userCount || 0,
-        teamCount: teamCount || 0,
-        callCount: callCount || 0,
-        prospectCount: prospectCount || 0,
+        userCount: userCount ?? 0,
+        teamCount: teamCount ?? 0,
+        callCount: callCount ?? 0,
+        prospectCount: prospectCount ?? 0,
         roleCounts,
       };
     },
@@ -86,9 +86,9 @@ export function useProspectStats() {
       );
 
       return {
-        total: totalCount || 0,
-        active: activeCount || 0,
-        hot: (hotProspects || []).length,
+        total: totalCount ?? 0,
+        active: activeCount ?? 0,
+        hot: (hotProspects ?? []).length,
         pipelineValue,
       };
     },

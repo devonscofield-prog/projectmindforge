@@ -164,7 +164,7 @@ export function useProspectData(prospectId: string | undefined) {
   };
 
   const handleAddActivity = async (newActivity: { type: ProspectActivityType; description: string; date: string }) => {
-    if (!prospect || !user?.id) return;
+    if (!prospect || !user?.id) return undefined;
     
     const activity = await createProspectActivity({
       prospectId: prospect.id,

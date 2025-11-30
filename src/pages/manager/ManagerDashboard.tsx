@@ -32,7 +32,7 @@ export default function ManagerDashboard() {
   const [sortBy, setSortBy] = useState<SortType>('name');
 
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
 
     const fetchData = async () => {
       let repProfiles: Profile[] | null = null;

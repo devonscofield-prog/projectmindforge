@@ -97,11 +97,13 @@ export default function ManagerAccounts() {
   useEffect(() => {
     if (!user?.id) return;
     loadTeamReps();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   useEffect(() => {
     if (!user?.id) return;
     loadProspects();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, statusFilter, repFilter, sortBy]);
 
   const loadTeamReps = async () => {
@@ -379,7 +381,7 @@ export default function ManagerAccounts() {
                       <TableCell>
                         {prospect.industry ? (
                           <Badge variant="outline" className="text-xs">
-                            {industryOptions.find(i => i.value === prospect.industry)?.label || prospect.industry}
+                            {industryOptions.find(i => i.value === prospect.industry)?.label ?? prospect.industry}
                           </Badge>
                         ) : (
                           <span className="text-muted-foreground">—</span>

@@ -65,7 +65,7 @@ export default function RepDashboard() {
   };
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user?.id) return;
+    if (!user?.id) return undefined;
 
     // Validation
     if (!stakeholderName.trim()) {

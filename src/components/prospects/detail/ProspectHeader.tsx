@@ -45,7 +45,7 @@ export function ProspectHeader({ prospect, primaryStakeholder, onStatusChange }:
               </h1>
               {prospect.industry && (
                 <Badge variant="secondary" className="text-xs md:text-sm shrink-0">
-                  {industryOptions.find(i => i.value === prospect.industry)?.label || prospect.industry}
+                  {industryOptions.find(i => i.value === prospect.industry)?.label ?? prospect.industry}
                 </Badge>
               )}
             </div>

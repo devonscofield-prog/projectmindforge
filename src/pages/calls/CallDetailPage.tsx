@@ -78,7 +78,7 @@ export default function CallDetailPage() {
 
   useEffect(() => {
     async function loadCall() {
-      if (!id || !user) return;
+      if (!id || !user?.id) return;
 
       setLoading(true);
       try {
