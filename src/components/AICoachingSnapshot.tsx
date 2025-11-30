@@ -1,15 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { CardContent, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { Brain, TrendingUp, AlertTriangle, Sparkles, Target, Ear, Flame, ArrowRight } from 'lucide-react';
+import { TrendingUp, AlertTriangle, Sparkles, Target, Ear, Flame } from 'lucide-react';
 import { listRecentAiAnalysisForRep, CallAnalysis } from '@/api/aiCallAnalysis';
 
 interface AICoachingSnapshotProps {
   repId: string;
-  showTrendsLink?: boolean;
 }
 
 interface AverageScores {
@@ -185,7 +181,7 @@ function ScoreBar({ label, value }: { label: string; value: number | null }) {
   );
 }
 
-export function AICoachingSnapshot({ repId, showTrendsLink }: AICoachingSnapshotProps) {
+export function AICoachingSnapshot({ repId }: AICoachingSnapshotProps) {
   const { data: analyses = [], isLoading } = useQuery({
     queryKey: ['ai-snapshot', repId],
     queryFn: () => listRecentAiAnalysisForRep(repId, 5),
@@ -194,40 +190,21 @@ export function AICoachingSnapshot({ repId, showTrendsLink }: AICoachingSnapshot
 
   if (isLoading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Brain className="h-5 w-5 text-primary" />
-            AI Coaching Snapshot
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center h-24">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          </div>
-        </CardContent>
-      </Card>
+      <CardContent>
+        <div className="flex items-center justify-center h-24">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        </div>
+      </CardContent>
     );
   }
 
   if (analyses.length === 0) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Brain className="h-5 w-5 text-primary" />
-            AI Coaching Snapshot
-          </CardTitle>
-          <CardDescription>
-            Summary of recent AI call analyses
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground text-center py-4">
-            No AI call analyses yet for this rep. Run an analysis from the Call Coaching (AI) tab.
-          </p>
-        </CardContent>
-      </Card>
+      <CardContent>
+        <p className="text-sm text-muted-foreground text-center py-4">
+          No AI call analyses yet for this rep.
+        </p>
+      </CardContent>
     );
   }
 
@@ -248,25 +225,10 @@ export function AICoachingSnapshot({ repId, showTrendsLink }: AICoachingSnapshot
   const hasCoachData = coachAverages.callCount > 0;
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-start justify-between space-y-0">
-        <div>
-          <CardTitle className="flex items-center gap-2">
-            <Brain className="h-5 w-5 text-primary" />
-            AI Coaching Snapshot
-          </CardTitle>
-          <CardDescription>
-            Based on {analyses.length} recent call{analyses.length !== 1 ? 's' : ''}
-          </CardDescription>
-        </div>
-        {showTrendsLink && (
-          <Button variant="ghost" size="sm" asChild>
-            <Link to={`/rep/coaching-summary/${repId}`}>
-              View Trends <ArrowRight className="h-4 w-4 ml-1" />
-            </Link>
-          </Button>
-        )}
-      </CardHeader>
+    <>
+      <CardDescription className="px-6 pb-2">
+        Based on {analyses.length} recent call{analyses.length !== 1 ? 's' : ''}
+      </CardDescription>
       <CardContent className="space-y-6">
         <div className="grid md:grid-cols-3 gap-6">
           {/* Average Scores */}
@@ -369,6 +331,6 @@ export function AICoachingSnapshot({ repId, showTrendsLink }: AICoachingSnapshot
           </div>
         )}
       </CardContent>
-    </Card>
+    </>
   );
 }
