@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -21,8 +21,10 @@ import {
   TrendingUp,
   CheckCircle2,
   ArrowRight,
+  CheckCheck,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { markRecommendationImplemented } from '@/api/implementedRecommendations';
 import { toast } from 'sonner';
 
 interface Recommendation {
@@ -91,6 +93,7 @@ async function fetchRecommendations(): Promise<AnalysisResult> {
 
 export function PerformanceRecommendations() {
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const queryClient = useQueryClient();
 
   const {
     data: analysis,
@@ -102,6 +105,24 @@ export function PerformanceRecommendations() {
     queryFn: fetchRecommendations,
     staleTime: 5 * 60 * 1000, // Consider fresh for 5 minutes
     retry: 1,
+  });
+
+  const implementMutation = useMutation({
+    mutationFn: (rec: Recommendation) =>
+      markRecommendationImplemented({
+        title: rec.title,
+        category: rec.category,
+        priority: rec.priority,
+        action: rec.action,
+        affectedOperations: rec.affectedOperations || [],
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['implemented-recommendations'] });
+      toast.success('Recommendation marked as implemented. Baseline metrics captured.');
+    },
+    onError: () => {
+      toast.error('Failed to mark recommendation as implemented');
+    },
   });
 
   const handleRefresh = async () => {
@@ -271,6 +292,22 @@ export function PerformanceRecommendations() {
                           </div>
                         </div>
                       )}
+
+                      <div className="pt-2 border-t">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-2"
+                          onClick={() => implementMutation.mutate(rec)}
+                          disabled={implementMutation.isPending}
+                        >
+                          <CheckCheck className="h-4 w-4" />
+                          Mark as Implemented
+                        </Button>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          This will capture current metrics as baseline for comparison
+                        </p>
+                      </div>
                     </div>
                   </AccordionContent>
                 </AccordionItem>

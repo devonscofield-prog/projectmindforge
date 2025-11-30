@@ -752,6 +752,63 @@ export type Database = {
           },
         ]
       }
+      implemented_recommendations: {
+        Row: {
+          affected_operations: string[] | null
+          baseline_metrics: Json
+          created_at: string
+          id: string
+          implemented_at: string
+          improvement_percent: number | null
+          measured_at: string | null
+          notes: string | null
+          post_metrics: Json | null
+          recommendation_action: string
+          recommendation_category: string
+          recommendation_priority: string
+          recommendation_title: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          affected_operations?: string[] | null
+          baseline_metrics: Json
+          created_at?: string
+          id?: string
+          implemented_at?: string
+          improvement_percent?: number | null
+          measured_at?: string | null
+          notes?: string | null
+          post_metrics?: Json | null
+          recommendation_action: string
+          recommendation_category: string
+          recommendation_priority: string
+          recommendation_title: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          affected_operations?: string[] | null
+          baseline_metrics?: Json
+          created_at?: string
+          id?: string
+          implemented_at?: string
+          improvement_percent?: number | null
+          measured_at?: string | null
+          notes?: string | null
+          post_metrics?: Json | null
+          recommendation_action?: string
+          recommendation_category?: string
+          recommendation_priority?: string
+          recommendation_title?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       performance_alert_config: {
         Row: {
           alert_on_critical: boolean | null
