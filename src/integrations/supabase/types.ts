@@ -728,6 +728,39 @@ export type Database = {
           },
         ]
       }
+      performance_metrics: {
+        Row: {
+          created_at: string | null
+          duration_ms: number
+          id: string
+          metadata: Json | null
+          metric_name: string
+          metric_type: string
+          status: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          duration_ms: number
+          id?: string
+          metadata?: Json | null
+          metric_name: string
+          metric_type: string
+          status?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          duration_ms?: number
+          id?: string
+          metadata?: Json | null
+          metric_name?: string
+          metric_type?: string
+          status?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -1180,6 +1213,21 @@ export type Database = {
       }
     }
     Functions: {
+      cleanup_old_metrics: { Args: never; Returns: number }
+      get_performance_summary: {
+        Args: { p_hours?: number }
+        Returns: {
+          avg_duration_ms: number
+          error_count: number
+          error_rate: number
+          metric_name: string
+          metric_type: string
+          p50_duration_ms: number
+          p90_duration_ms: number
+          p99_duration_ms: number
+          total_count: number
+        }[]
+      }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["user_role"]

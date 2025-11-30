@@ -1,5 +1,6 @@
 import { QueryClient, QueryCache, MutationCache } from '@tanstack/react-query';
 import { queryLogger } from './queryLogger';
+import { trackQueryPerformance } from './performanceCollector';
 
 // Track query start times for duration calculation
 const queryStartTimes = new Map<string, number>();
@@ -22,6 +23,11 @@ export function createQueryClient(): QueryClient {
         queryStartTimes.delete(keyString);
         
         queryLogger.querySuccess(query.queryKey, data, duration);
+        
+        // Track in performance metrics (only for slow queries or in production)
+        if (duration > 500) {
+          trackQueryPerformance(query.queryKey, duration, 'success');
+        }
       },
       onError: (error, query) => {
         const keyString = getQueryKeyString(query.queryKey);
@@ -30,6 +36,9 @@ export function createQueryClient(): QueryClient {
         queryStartTimes.delete(keyString);
         
         queryLogger.queryError(query.queryKey, error, duration);
+        
+        // Always track errors in performance metrics
+        trackQueryPerformance(query.queryKey, duration, 'error');
       },
     }),
     mutationCache: new MutationCache({
