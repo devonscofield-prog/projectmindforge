@@ -17,7 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { Profile, CoachingSession } from '@/types/database';
-import { ArrowLeft, Plus, AlertCircle, Loader2, Phone, Calendar, Sparkles, ExternalLink, ChevronDown, Brain } from 'lucide-react';
+import { ArrowLeft, Plus, AlertCircle, Loader2, Phone, Calendar, Sparkles, ExternalLink, ChevronDown, Brain, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { format, subDays, isAfter } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -62,7 +62,7 @@ export default function RepDetail() {
   const { toast } = useToast();
   
   // Get default tab from URL query param
-  const defaultTab = searchParams.get('tab') || 'coaching';
+  const defaultTab = searchParams.get('tab') || 'call-history';
   
   const [rep, setRep] = useState<Profile | null>(null);
   const [coaching, setCoaching] = useState<CoachingSession[]>([]);
@@ -78,6 +78,7 @@ export default function RepDetail() {
 
   // Call History state
   const [timeframe, setTimeframe] = useState<TimeframeFilter>('30d');
+  const [callSearch, setCallSearch] = useState('');
 
   // AI Coaching Snapshot collapsed state (collapsed by default)
   const [snapshotOpen, setSnapshotOpen] = useState(false);
@@ -89,24 +90,33 @@ export default function RepDetail() {
     enabled: !!repId,
   });
 
-  // Filter transcripts by timeframe
+  // Filter transcripts by timeframe and search
   const filteredTranscripts = useMemo(() => {
-    if (timeframe === 'all') return transcripts;
+    let results = transcripts;
     
-    const daysMap: Record<TimeframeFilter, number> = {
-      '7d': 7,
-      '30d': 30,
-      '90d': 90,
-      'all': 0,
-    };
+    // Timeframe filter
+    if (timeframe !== 'all') {
+      const daysMap: Record<TimeframeFilter, number> = {
+        '7d': 7,
+        '30d': 30,
+        '90d': 90,
+        'all': 0,
+      };
+      const cutoffDate = subDays(new Date(), daysMap[timeframe]);
+      results = results.filter(t => isAfter(new Date(t.call_date), cutoffDate));
+    }
     
-    const cutoffDate = subDays(new Date(), daysMap[timeframe]);
+    // Search filter (account name or stakeholder name)
+    if (callSearch.trim()) {
+      const searchLower = callSearch.toLowerCase();
+      results = results.filter(t => 
+        t.account_name?.toLowerCase().includes(searchLower) ||
+        t.primary_stakeholder_name?.toLowerCase().includes(searchLower)
+      );
+    }
     
-    return transcripts.filter(t => {
-      const callDate = new Date(t.call_date);
-      return isAfter(callDate, cutoffDate);
-    });
-  }, [transcripts, timeframe]);
+    return results;
+  }, [transcripts, timeframe, callSearch]);
 
   // Determine back navigation based on role
   const getBackUrl = () => {
@@ -400,50 +410,61 @@ export default function RepDetail() {
           <TabsContent value="call-history" className="mt-6">
             <Card>
               <CardHeader>
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <Phone className="h-5 w-5" />
-                      Call History
-                    </CardTitle>
-                    <CardDescription>
-                      {filteredTranscripts.length} call{filteredTranscripts.length !== 1 ? 's' : ''} 
-                      {timeframe !== 'all' && ` in the last ${timeframe.replace('d', ' days')}`}
-                    </CardDescription>
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <Phone className="h-5 w-5" />
+                        Call History
+                      </CardTitle>
+                      <CardDescription>
+                        {filteredTranscripts.length} call{filteredTranscripts.length !== 1 ? 's' : ''} 
+                        {timeframe !== 'all' && ` in the last ${timeframe.replace('d', ' days')}`}
+                      </CardDescription>
+                    </div>
+                    <div className="inline-flex rounded-lg border bg-muted p-1">
+                      <Button
+                        variant={timeframe === '7d' ? 'secondary' : 'ghost'}
+                        size="sm"
+                        onClick={() => setTimeframe('7d')}
+                        className="px-3"
+                      >
+                        7 days
+                      </Button>
+                      <Button
+                        variant={timeframe === '30d' ? 'secondary' : 'ghost'}
+                        size="sm"
+                        onClick={() => setTimeframe('30d')}
+                        className="px-3"
+                      >
+                        30 days
+                      </Button>
+                      <Button
+                        variant={timeframe === '90d' ? 'secondary' : 'ghost'}
+                        size="sm"
+                        onClick={() => setTimeframe('90d')}
+                        className="px-3"
+                      >
+                        90 days
+                      </Button>
+                      <Button
+                        variant={timeframe === 'all' ? 'secondary' : 'ghost'}
+                        size="sm"
+                        onClick={() => setTimeframe('all')}
+                        className="px-3"
+                      >
+                        All
+                      </Button>
+                    </div>
                   </div>
-                  <div className="inline-flex rounded-lg border bg-muted p-1">
-                    <Button
-                      variant={timeframe === '7d' ? 'secondary' : 'ghost'}
-                      size="sm"
-                      onClick={() => setTimeframe('7d')}
-                      className="px-3"
-                    >
-                      7 days
-                    </Button>
-                    <Button
-                      variant={timeframe === '30d' ? 'secondary' : 'ghost'}
-                      size="sm"
-                      onClick={() => setTimeframe('30d')}
-                      className="px-3"
-                    >
-                      30 days
-                    </Button>
-                    <Button
-                      variant={timeframe === '90d' ? 'secondary' : 'ghost'}
-                      size="sm"
-                      onClick={() => setTimeframe('90d')}
-                      className="px-3"
-                    >
-                      90 days
-                    </Button>
-                    <Button
-                      variant={timeframe === 'all' ? 'secondary' : 'ghost'}
-                      size="sm"
-                      onClick={() => setTimeframe('all')}
-                      className="px-3"
-                    >
-                      All
-                    </Button>
+                  <div className="relative max-w-sm">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search by account or stakeholder..."
+                      value={callSearch}
+                      onChange={(e) => setCallSearch(e.target.value)}
+                      className="pl-9"
+                    />
                   </div>
                 </div>
               </CardHeader>
