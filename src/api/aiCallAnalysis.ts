@@ -1480,10 +1480,25 @@ async function invokeCoachingTrendsFunction(
 
 // ============= AGGREGATE ANALYSIS FOR ADMIN =============
 
+export interface RepContributionData {
+  repId: string;
+  repName: string;
+  teamName?: string;
+  callCount: number;
+  percentageOfTotal: number;
+  averageHeatScore: number | null;
+  frameworkScores: {
+    bant: number | null;
+    gapSelling: number | null;
+    activeListening: number | null;
+  };
+}
+
 export interface AggregateAnalysisMetadata extends AnalysisMetadata {
   scope: 'organization' | 'team' | 'rep';
   teamId?: string;
   repsIncluded: number;
+  repContributions?: RepContributionData[];
 }
 
 export interface AggregateCoachingTrendAnalysisWithMeta {
@@ -1526,31 +1541,46 @@ export async function generateAggregateCoachingTrends(
     };
   }
 
-  // Get rep IDs based on scope
-  let repIds: string[] = [];
+  // Get rep profiles with team info based on scope
+  let repProfiles: { id: string; name: string; team_id: string | null }[] = [];
   
   if (scope === 'team' && teamId) {
     const { data: teamReps, error } = await supabase
       .from('profiles')
-      .select('id')
+      .select('id, name, team_id')
       .eq('team_id', teamId);
     
     if (error) throw new Error(`Failed to fetch team reps: ${error.message}`);
-    repIds = (teamReps || []).map(r => r.id);
+    repProfiles = teamReps || [];
   } else {
-    // Organization scope - get all active reps
+    // Organization scope - get all active reps with their profiles
     const { data: allReps, error } = await supabase
       .from('user_with_role')
-      .select('id')
+      .select('id, name, team_id')
       .eq('role', 'rep')
       .eq('is_active', true);
     
     if (error) throw new Error(`Failed to fetch reps: ${error.message}`);
-    repIds = (allReps || []).map(r => r.id);
+    repProfiles = (allReps || []).map(r => ({ 
+      id: r.id!, 
+      name: r.name || 'Unknown', 
+      team_id: r.team_id 
+    }));
   }
+
+  const repIds = repProfiles.map(r => r.id);
 
   if (repIds.length === 0) {
     throw new Error('No reps found for the selected scope');
+  }
+
+  // Fetch team names if organization scope
+  let teamMap = new Map<string, string>();
+  if (scope === 'organization') {
+    const { data: teams } = await supabase
+      .from('teams')
+      .select('id, name');
+    teams?.forEach(t => teamMap.set(t.id, t.name));
   }
 
   console.log(`[generateAggregateCoachingTrends] Analyzing ${repIds.length} reps for ${scope} scope`);
@@ -1575,6 +1605,14 @@ export async function generateAggregateCoachingTrends(
   if (analyses.length === 0) {
     throw new Error('No analyzed calls found for the selected scope and period');
   }
+
+  // Calculate rep contributions
+  const repContributions: RepContributionData[] = calculateRepContributions(
+    analyses, 
+    repProfiles, 
+    teamMap, 
+    callCount
+  );
 
   const tier = determineAnalysisTier(callCount);
   console.log(`[generateAggregateCoachingTrends] ${callCount} calls found, using tier: ${tier}`);
@@ -1607,6 +1645,7 @@ export async function generateAggregateCoachingTrends(
       scope,
       teamId,
       repsIncluded: repIds.length,
+      repContributions,
     };
   } else if (tier === 'sampled') {
     const { sampled, originalCount } = stratifiedSample(formattedCalls, DIRECT_ANALYSIS_MAX);
@@ -1626,6 +1665,7 @@ export async function generateAggregateCoachingTrends(
       scope,
       teamId,
       repsIncluded: repIds.length,
+      repContributions,
     };
   } else {
     console.log(`[generateAggregateCoachingTrends] Hierarchical analysis of ${formattedCalls.length} calls`);
@@ -1646,12 +1686,78 @@ export async function generateAggregateCoachingTrends(
       scope,
       teamId,
       repsIncluded: repIds.length,
+      repContributions,
     };
   }
 
   console.log('[generateAggregateCoachingTrends] Successfully received AI trend analysis');
 
   return { analysis: trendData, metadata };
+}
+
+/**
+ * Calculate per-rep contribution metrics from analyses
+ */
+function calculateRepContributions(
+  analyses: CallAnalysis[],
+  repProfiles: { id: string; name: string; team_id: string | null }[],
+  teamMap: Map<string, string>,
+  totalCalls: number
+): RepContributionData[] {
+  // Group analyses by rep
+  const repAnalyses = new Map<string, CallAnalysis[]>();
+  analyses.forEach(a => {
+    const existing = repAnalyses.get(a.rep_id) || [];
+    existing.push(a);
+    repAnalyses.set(a.rep_id, existing);
+  });
+
+  // Calculate metrics for each rep
+  const contributions: RepContributionData[] = [];
+  
+  repProfiles.forEach(rep => {
+    const repCalls = repAnalyses.get(rep.id) || [];
+    if (repCalls.length === 0) return; // Skip reps with no calls
+
+    // Calculate average heat score
+    const heatScores = repCalls
+      .map(a => a.coach_output?.heat_signature?.score)
+      .filter((s): s is number => s !== null && s !== undefined);
+    const avgHeat = heatScores.length > 0 
+      ? heatScores.reduce((sum, s) => sum + s, 0) / heatScores.length 
+      : null;
+
+    // Calculate framework scores
+    const bantScores: number[] = [];
+    const gapScores: number[] = [];
+    const listenScores: number[] = [];
+
+    repCalls.forEach(a => {
+      const fs = a.coach_output?.framework_scores;
+      if (fs?.bant?.score !== undefined) bantScores.push(fs.bant.score);
+      if (fs?.gap_selling?.score !== undefined) gapScores.push(fs.gap_selling.score);
+      if (fs?.active_listening?.score !== undefined) listenScores.push(fs.active_listening.score);
+    });
+
+    const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((s, v) => s + v, 0) / arr.length : null;
+
+    contributions.push({
+      repId: rep.id,
+      repName: rep.name,
+      teamName: rep.team_id ? teamMap.get(rep.team_id) : undefined,
+      callCount: repCalls.length,
+      percentageOfTotal: (repCalls.length / totalCalls) * 100,
+      averageHeatScore: avgHeat,
+      frameworkScores: {
+        bant: avg(bantScores),
+        gapSelling: avg(gapScores),
+        activeListening: avg(listenScores),
+      },
+    });
+  });
+
+  // Sort by call count descending
+  return contributions.sort((a, b) => b.callCount - a.callCount);
 }
 
 // Export types for use in components
