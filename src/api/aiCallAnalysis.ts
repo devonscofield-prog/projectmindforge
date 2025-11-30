@@ -2,6 +2,35 @@ import { supabase } from '@/integrations/supabase/client';
 import { CallType } from '@/constants/callTypes';
 import { getOrCreateProspect, linkCallToProspect, updateProspect, type ProspectIntel } from '@/api/prospects';
 
+// ============= ANALYSIS TIER CONSTANTS =============
+// Tier 1: Direct analysis (optimal quality)
+export const DIRECT_ANALYSIS_MAX = 50;
+// Tier 2: Smart sampling (good quality, representative sample)
+export const SAMPLING_MAX = 100;
+// Tier 3: Hierarchical analysis (100+ calls - two-stage process)
+
+export type AnalysisTier = 'direct' | 'sampled' | 'hierarchical';
+
+export interface AnalysisMetadata {
+  tier: AnalysisTier;
+  totalCalls: number;
+  analyzedCalls: number;
+  samplingInfo?: {
+    method: 'stratified';
+    originalCount: number;
+    sampledCount: number;
+  };
+  hierarchicalInfo?: {
+    chunksAnalyzed: number;
+    callsPerChunk: number[];
+  };
+}
+
+export interface CoachingTrendAnalysisWithMeta {
+  analysis: CoachingTrendAnalysis;
+  metadata: AnalysisMetadata;
+}
+
 interface CreateCallTranscriptParams {
   repId: string;
   callDate: string;
@@ -958,24 +987,283 @@ export async function getCoachingSummaryForRep(
   };
 }
 
+// ============= HELPER FUNCTIONS FOR TIERED ANALYSIS =============
+
+/**
+ * Determines the analysis tier based on call count
+ */
+export function determineAnalysisTier(callCount: number): AnalysisTier {
+  if (callCount <= DIRECT_ANALYSIS_MAX) return 'direct';
+  if (callCount <= SAMPLING_MAX) return 'sampled';
+  return 'hierarchical';
+}
+
+/**
+ * Performs stratified sampling across the date range.
+ * Groups calls by week and samples proportionally to maintain temporal distribution.
+ */
+function stratifiedSample<T extends { date: string }>(
+  calls: T[],
+  targetSize: number = DIRECT_ANALYSIS_MAX
+): { sampled: T[]; originalCount: number } {
+  if (calls.length <= targetSize) {
+    return { sampled: calls, originalCount: calls.length };
+  }
+
+  // Group calls by week
+  const weekGroups = new Map<string, T[]>();
+  calls.forEach(call => {
+    const date = new Date(call.date);
+    const weekStart = new Date(date);
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    const weekKey = weekStart.toISOString().split('T')[0];
+    if (!weekGroups.has(weekKey)) {
+      weekGroups.set(weekKey, []);
+    }
+    weekGroups.get(weekKey)!.push(call);
+  });
+
+  // Calculate proportional sample size per week
+  const totalCalls = calls.length;
+  const sampled: T[] = [];
+  
+  // Sort weeks chronologically
+  const sortedWeeks = Array.from(weekGroups.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  
+  for (const [weekKey, weekCalls] of sortedWeeks) {
+    const proportion = weekCalls.length / totalCalls;
+    let sampleSize = Math.round(proportion * targetSize);
+    
+    // Ensure at least 1 call per week if week has calls
+    sampleSize = Math.max(1, Math.min(sampleSize, weekCalls.length));
+    
+    // Sort by date and take evenly distributed samples
+    const sorted = weekCalls.sort((a, b) => a.date.localeCompare(b.date));
+    if (sampleSize >= sorted.length) {
+      sampled.push(...sorted);
+    } else {
+      const step = sorted.length / sampleSize;
+      for (let i = 0; i < sampleSize; i++) {
+        sampled.push(sorted[Math.floor(i * step)]);
+      }
+    }
+  }
+
+  // If we're still over target, trim from the middle (preserve recent and oldest)
+  if (sampled.length > targetSize) {
+    const sorted = sampled.sort((a, b) => a.date.localeCompare(b.date));
+    const keepStart = Math.floor(targetSize * 0.3);
+    const keepEnd = Math.floor(targetSize * 0.4);
+    const result = [
+      ...sorted.slice(0, keepStart),
+      ...sorted.slice(sorted.length - keepEnd)
+    ];
+    // Fill remaining from middle, evenly spaced
+    const middle = sorted.slice(keepStart, sorted.length - keepEnd);
+    const remaining = targetSize - result.length;
+    const middleStep = middle.length / remaining;
+    for (let i = 0; i < remaining && i * middleStep < middle.length; i++) {
+      result.splice(keepStart + i, 0, middle[Math.floor(i * middleStep)]);
+    }
+    return { sampled: result.slice(0, targetSize), originalCount: calls.length };
+  }
+
+  return { sampled, originalCount: calls.length };
+}
+
+/**
+ * Splits calls into weekly chunks for hierarchical analysis
+ */
+function splitIntoWeeklyChunks<T extends { date: string }>(
+  calls: T[],
+  minChunkSize: number = 5,
+  maxChunkSize: number = 25
+): T[][] {
+  // Group by week
+  const weekGroups = new Map<string, T[]>();
+  calls.forEach(call => {
+    const date = new Date(call.date);
+    const weekStart = new Date(date);
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    const weekKey = weekStart.toISOString().split('T')[0];
+    if (!weekGroups.has(weekKey)) {
+      weekGroups.set(weekKey, []);
+    }
+    weekGroups.get(weekKey)!.push(call);
+  });
+
+  // Sort weeks and create chunks
+  const sortedWeeks = Array.from(weekGroups.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([_, calls]) => calls);
+
+  // Merge small weeks together, split large weeks
+  const chunks: T[][] = [];
+  let currentChunk: T[] = [];
+
+  for (const weekCalls of sortedWeeks) {
+    if (weekCalls.length > maxChunkSize) {
+      // Flush current chunk if non-empty
+      if (currentChunk.length >= minChunkSize) {
+        chunks.push(currentChunk);
+        currentChunk = [];
+      } else if (currentChunk.length > 0) {
+        // Add to beginning of large week
+        weekCalls.unshift(...currentChunk);
+        currentChunk = [];
+      }
+      
+      // Split large week into multiple chunks
+      for (let i = 0; i < weekCalls.length; i += maxChunkSize) {
+        const slice = weekCalls.slice(i, i + maxChunkSize);
+        if (slice.length >= minChunkSize) {
+          chunks.push(slice);
+        } else {
+          currentChunk = slice;
+        }
+      }
+    } else if (currentChunk.length + weekCalls.length <= maxChunkSize) {
+      currentChunk.push(...weekCalls);
+    } else {
+      if (currentChunk.length >= minChunkSize) {
+        chunks.push(currentChunk);
+      }
+      currentChunk = weekCalls;
+    }
+  }
+
+  // Handle remaining chunk
+  if (currentChunk.length > 0) {
+    if (currentChunk.length >= minChunkSize || chunks.length === 0) {
+      chunks.push(currentChunk);
+    } else {
+      // Merge with last chunk
+      chunks[chunks.length - 1].push(...currentChunk);
+    }
+  }
+
+  return chunks;
+}
+
+interface ChunkSummary {
+  chunkIndex: number;
+  dateRange: { from: string; to: string };
+  callCount: number;
+  avgScores: {
+    bant: number | null;
+    gapSelling: number | null;
+    activeListening: number | null;
+    heat: number | null;
+  };
+  dominantTrends: {
+    bant: 'improving' | 'stable' | 'declining';
+    gapSelling: 'improving' | 'stable' | 'declining';
+    activeListening: 'improving' | 'stable' | 'declining';
+  };
+  topMissingInfo: string[];
+  topImprovementAreas: string[];
+  keyObservations: string[];
+}
+
+/**
+ * Performs hierarchical analysis by analyzing chunks and then synthesizing
+ */
+async function analyzeHierarchically(
+  formattedCalls: FormattedCall[],
+  dateRange: { from: string; to: string }
+): Promise<{ analysis: CoachingTrendAnalysis; chunksAnalyzed: number; callsPerChunk: number[] }> {
+  const chunks = splitIntoWeeklyChunks(formattedCalls);
+  console.log(`[analyzeHierarchically] Split ${formattedCalls.length} calls into ${chunks.length} chunks`);
+
+  // Analyze each chunk
+  const chunkSummaries: ChunkSummary[] = [];
+  
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
+    const chunkDates = chunk.map(c => c.date).sort();
+    
+    console.log(`[analyzeHierarchically] Analyzing chunk ${i + 1}/${chunks.length} with ${chunk.length} calls`);
+    
+    const response = await supabase.functions.invoke('generate-coaching-chunk-summary', {
+      body: {
+        calls: chunk,
+        chunkIndex: i,
+        dateRange: {
+          from: chunkDates[0],
+          to: chunkDates[chunkDates.length - 1]
+        }
+      }
+    });
+
+    if (response.error) {
+      console.error(`[analyzeHierarchically] Chunk ${i} error:`, response.error);
+      throw new Error(`Failed to analyze chunk ${i + 1}: ${response.error.message}`);
+    }
+
+    chunkSummaries.push(response.data as ChunkSummary);
+  }
+
+  console.log(`[analyzeHierarchically] All ${chunks.length} chunks analyzed, synthesizing...`);
+
+  // Send chunk summaries to main function for synthesis
+  const response = await supabase.functions.invoke('generate-coaching-trends', {
+    body: {
+      hierarchicalMode: true,
+      chunkSummaries,
+      dateRange,
+      totalCalls: formattedCalls.length
+    }
+  });
+
+  if (response.error) {
+    throw new Error(`Failed to synthesize hierarchical analysis: ${response.error.message}`);
+  }
+
+  return {
+    analysis: response.data as CoachingTrendAnalysis,
+    chunksAnalyzed: chunks.length,
+    callsPerChunk: chunks.map(c => c.length)
+  };
+}
+
+interface FormattedCall {
+  date: string;
+  framework_scores: {
+    bant: { score: number; summary: string };
+    gap_selling: { score: number; summary: string };
+    active_listening: { score: number; summary: string };
+  } | null;
+  bant_improvements: string[];
+  gap_selling_improvements: string[];
+  active_listening_improvements: string[];
+  critical_info_missing: Array<{ info: string; missed_opportunity: string }> | string[];
+  follow_up_questions: Array<{ question: string; timing_example: string }> | string[];
+  heat_score: number | null;
+}
+
 /**
  * Generates AI-powered coaching trend analysis for a rep over a date range.
- * This sends all call analyses to an AI model which synthesizes trends and patterns.
- * Supports caching to avoid re-analyzing the same data repeatedly.
+ * This sends call analyses to an AI model which synthesizes trends and patterns.
+ * 
+ * Supports three analysis tiers based on call count:
+ * - Direct (1-50 calls): All calls analyzed directly
+ * - Sampled (51-100 calls): Stratified sampling to ~50 representative calls
+ * - Hierarchical (100+ calls): Two-stage analysis with chunk summaries
+ * 
  * @param repId - The rep's user ID
  * @param dateRange - Date range with from and to dates
  * @param options - Optional settings (forceRefresh to bypass cache)
- * @returns AI-generated trend analysis with insights and recommendations
+ * @returns AI-generated trend analysis with insights, recommendations, and metadata
  */
 export async function generateCoachingTrends(
   repId: string,
   dateRange: { from: Date; to: Date },
   options?: { forceRefresh?: boolean }
-): Promise<CoachingTrendAnalysis> {
+): Promise<CoachingTrendAnalysisWithMeta> {
   const fromDate = dateRange.from.toISOString().split('T')[0];
   const toDate = dateRange.to.toISOString().split('T')[0];
 
-  // 1. Get current call count for cache validation
+  // 1. Get current call count for cache validation and tier determination
   const { count: currentCallCount, error: countError } = await supabase
     .from('ai_call_analysis')
     .select('*', { count: 'exact', head: true })
@@ -988,6 +1276,9 @@ export async function generateCoachingTrends(
   }
 
   const callCount = currentCallCount || 0;
+  const tier = determineAnalysisTier(callCount);
+  
+  console.log(`[generateCoachingTrends] ${callCount} calls found, using tier: ${tier}`);
 
   // 2. Check cache (unless force refresh)
   if (!options?.forceRefresh) {
@@ -1001,7 +1292,16 @@ export async function generateCoachingTrends(
 
     if (!cacheError && cached && cached.call_count === callCount && cached.analysis_data) {
       console.log('[generateCoachingTrends] Using cached analysis');
-      return cached.analysis_data as unknown as CoachingTrendAnalysis;
+      const cachedAnalysis = cached.analysis_data as unknown as CoachingTrendAnalysis;
+      // Reconstruct metadata from cached data
+      return {
+        analysis: cachedAnalysis,
+        metadata: {
+          tier,
+          totalCalls: callCount,
+          analyzedCalls: cachedAnalysis.periodAnalysis?.totalCalls || callCount,
+        }
+      };
     }
   }
 
@@ -1025,10 +1325,8 @@ export async function generateCoachingTrends(
     throw new Error('No analyzed calls found in the selected period');
   }
 
-  console.log(`[generateCoachingTrends] Found ${analyses.length} analyses, sending to AI`);
-
-  // 4. Format only the relevant fields for AI
-  const formattedCalls = analyses.map(a => ({
+  // 4. Format calls for AI
+  const formattedCalls: FormattedCall[] = analyses.map(a => ({
     date: a.created_at.split('T')[0],
     framework_scores: a.coach_output?.framework_scores ?? null,
     bant_improvements: a.coach_output?.bant_improvements ?? [],
@@ -1039,23 +1337,120 @@ export async function generateCoachingTrends(
     heat_score: a.coach_output?.heat_signature?.score ?? null,
   }));
 
-  // 5. Call edge function
-  let trendData: any;
+  let trendData: CoachingTrendAnalysis;
+  let metadata: AnalysisMetadata;
+
+  // 5. Execute analysis based on tier
+  if (tier === 'direct') {
+    // Tier 1: Direct analysis
+    console.log(`[generateCoachingTrends] Direct analysis of ${formattedCalls.length} calls`);
+    
+    const response = await invokeCoachingTrendsFunction(formattedCalls, { from: fromDate, to: toDate });
+    trendData = response;
+    metadata = {
+      tier: 'direct',
+      totalCalls: callCount,
+      analyzedCalls: formattedCalls.length,
+    };
+  } else if (tier === 'sampled') {
+    // Tier 2: Smart sampling
+    const { sampled, originalCount } = stratifiedSample(formattedCalls, DIRECT_ANALYSIS_MAX);
+    console.log(`[generateCoachingTrends] Sampled ${sampled.length} from ${originalCount} calls`);
+    
+    const response = await invokeCoachingTrendsFunction(sampled, { from: fromDate, to: toDate });
+    trendData = response;
+    metadata = {
+      tier: 'sampled',
+      totalCalls: callCount,
+      analyzedCalls: sampled.length,
+      samplingInfo: {
+        method: 'stratified',
+        originalCount,
+        sampledCount: sampled.length,
+      },
+    };
+  } else {
+    // Tier 3: Hierarchical analysis
+    console.log(`[generateCoachingTrends] Hierarchical analysis of ${formattedCalls.length} calls`);
+    
+    const { analysis, chunksAnalyzed, callsPerChunk } = await analyzeHierarchically(
+      formattedCalls,
+      { from: fromDate, to: toDate }
+    );
+    trendData = analysis;
+    metadata = {
+      tier: 'hierarchical',
+      totalCalls: callCount,
+      analyzedCalls: formattedCalls.length,
+      hierarchicalInfo: {
+        chunksAnalyzed,
+        callsPerChunk,
+      },
+    };
+  }
+
+  console.log('[generateCoachingTrends] Successfully received AI trend analysis');
+
+  // 6. Save to cache - check if exists first, then update or insert
+  const { data: existing } = await supabase
+    .from('coaching_trend_analyses')
+    .select('id')
+    .eq('rep_id', repId)
+    .eq('date_range_from', fromDate)
+    .eq('date_range_to', toDate)
+    .maybeSingle();
+
+  if (existing) {
+    const { error: updateError } = await supabase
+      .from('coaching_trend_analyses')
+      .update({
+        call_count: analyses.length,
+        analysis_data: JSON.parse(JSON.stringify(trendData)),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', existing.id);
+    
+    if (updateError) {
+      console.warn('[generateCoachingTrends] Failed to update cache:', updateError);
+    } else {
+      console.log('[generateCoachingTrends] Analysis cache updated successfully');
+    }
+  } else {
+    const { error: insertError } = await supabase
+      .from('coaching_trend_analyses')
+      .insert({
+        rep_id: repId,
+        date_range_from: fromDate,
+        date_range_to: toDate,
+        call_count: analyses.length,
+        analysis_data: JSON.parse(JSON.stringify(trendData)),
+      });
+    
+    if (insertError) {
+      console.warn('[generateCoachingTrends] Failed to insert cache:', insertError);
+    } else {
+      console.log('[generateCoachingTrends] Analysis cached successfully');
+    }
+  }
+
+  return { analysis: trendData, metadata };
+}
+
+/**
+ * Helper to invoke the coaching trends edge function
+ */
+async function invokeCoachingTrendsFunction(
+  calls: FormattedCall[],
+  dateRange: { from: string; to: string }
+): Promise<CoachingTrendAnalysis> {
   try {
     const response = await supabase.functions.invoke('generate-coaching-trends', {
-      body: { 
-        calls: formattedCalls, 
-        dateRange: {
-          from: fromDate,
-          to: toDate
-        }
-      }
+      body: { calls, dateRange }
     });
 
     if (response.error) {
-      // Check for rate limiting or quota errors
       const errorMessage = response.error.message?.toLowerCase() || '';
-      const errorContext = response.error.context?.body?.toLowerCase() || '';
+      const errorContext = (response.error as any).context?.body?.toLowerCase() || '';
       
       if (errorMessage.includes('429') || errorMessage.includes('rate') || errorContext.includes('rate limit')) {
         throw new Error('AI service is temporarily busy. Please wait a moment and try again.');
@@ -1067,49 +1462,20 @@ export async function generateCoachingTrends(
         throw new Error('AI service is temporarily unavailable. Please try again in a few minutes.');
       }
       
-      console.error('[generateCoachingTrends] Edge function error:', response.error);
       throw new Error(`AI trend analysis failed: ${response.error.message}`);
     }
 
-    trendData = response.data;
+    if (!response.data || response.data.error) {
+      throw new Error(response.data?.error || 'Unknown error from AI');
+    }
+
+    return response.data as CoachingTrendAnalysis;
   } catch (err: any) {
-    // Re-throw if it's already a user-friendly error
     if (err.message?.includes('temporarily') || err.message?.includes('quota') || err.message?.includes('unavailable')) {
       throw err;
     }
-    console.error('[generateCoachingTrends] Unexpected error:', err);
     throw new Error(`AI trend analysis failed: ${err.message || 'Unknown error'}`);
   }
-
-  if (!trendData || trendData.error) {
-    const errorMsg = trendData?.error || 'Unknown error from AI';
-    console.error('[generateCoachingTrends] AI error:', errorMsg);
-    throw new Error(errorMsg);
-  }
-
-  console.log('[generateCoachingTrends] Successfully received AI trend analysis');
-
-  // 6. Save to cache (upsert)
-  const { error: upsertError } = await supabase
-    .from('coaching_trend_analyses')
-    .upsert({
-      rep_id: repId,
-      date_range_from: fromDate,
-      date_range_to: toDate,
-      call_count: analyses.length,
-      analysis_data: trendData,
-    }, {
-      onConflict: 'rep_id,date_range_from,date_range_to'
-    });
-
-  if (upsertError) {
-    console.warn('[generateCoachingTrends] Failed to cache analysis:', upsertError);
-    // Don't throw - caching failure shouldn't block the response
-  } else {
-    console.log('[generateCoachingTrends] Analysis cached successfully');
-  }
-
-  return trendData as CoachingTrendAnalysis;
 }
 
 // Export types for use in components

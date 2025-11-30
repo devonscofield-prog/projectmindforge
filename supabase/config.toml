@@ -20,3 +20,6 @@ verify_jwt = true
 
 [functions.generate-coaching-trends]
 verify_jwt = true
+
+[functions.generate-coaching-chunk-summary]
+verify_jwt = true
