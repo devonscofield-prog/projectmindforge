@@ -63,6 +63,7 @@ function SidebarNav() {
         { href: '/manager', label: 'Team Overview', icon: LayoutDashboard },
         { href: '/manager/accounts', label: 'Accounts', icon: UserCheck },
         { href: '/manager/coaching', label: 'Coaching', icon: MessageSquare },
+        { href: '/manager/transcripts', label: 'Transcripts', icon: FileText },
       ]
     : [
         { href: '/rep', label: 'Submit a Call', icon: Mic },

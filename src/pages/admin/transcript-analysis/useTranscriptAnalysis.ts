@@ -6,13 +6,23 @@ import { supabase } from '@/integrations/supabase/client';
 import { createLogger } from '@/lib/logger';
 import { Json } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 
 const log = createLogger('transcriptAnalysis');
 import { useTeams, useReps } from '@/hooks';
 import { createDateRange, Transcript } from './constants';
 
-export function useTranscriptAnalysis() {
+interface UseTranscriptAnalysisOptions {
+  scope?: 'org' | 'team';
+}
+
+export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}) {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { role, user } = useAuth();
+  
+  // Determine scope based on role if not explicitly set
+  const scope = options.scope ?? (role === 'admin' ? 'org' : 'team');
+  const isTeamScoped = scope === 'team';
   
   // Filter state
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>(() => createDateRange(30));
@@ -104,10 +114,30 @@ export function useTranscriptAnalysis() {
     }
   };
 
+  // Get manager's team ID for team-scoped view
+  const { data: managerTeam } = useQuery({
+    queryKey: ['manager-team', user?.id],
+    queryFn: async () => {
+      if (!user?.id || !isTeamScoped) return null;
+      const { data, error } = await supabase
+        .from('teams')
+        .select('id, name')
+        .eq('manager_id', user.id)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id && isTeamScoped,
+  });
+
   // Use reusable hooks for teams and reps
   const { data: teams } = useTeams();
+  
+  // For team-scoped view, auto-filter to manager's team
+  const effectiveTeamId = isTeamScoped && managerTeam ? managerTeam.id : selectedTeamId;
+  
   const { data: reps } = useReps({ 
-    teamId: selectedTeamId !== 'all' ? selectedTeamId : undefined 
+    teamId: effectiveTeamId !== 'all' ? effectiveTeamId : undefined 
   });
 
   // Reset pagination when filters change
@@ -121,23 +151,24 @@ export function useTranscriptAnalysis() {
       'admin-transcripts',
       dateRange.from.toISOString(),
       dateRange.to.toISOString(),
-      selectedTeamId,
+      effectiveTeamId,
       selectedRepId,
       accountSearch,
       selectedCallTypes,
       currentPage,
       pageSize,
+      isTeamScoped,
     ],
     queryFn: async () => {
       let repIds: string[] = [];
       
       if (selectedRepId !== 'all') {
         repIds = [selectedRepId];
-      } else if (selectedTeamId !== 'all') {
+      } else if (effectiveTeamId !== 'all') {
         const { data: teamReps } = await supabase
           .from('profiles')
           .select('id')
-          .eq('team_id', selectedTeamId);
+          .eq('team_id', effectiveTeamId);
         repIds = (teamReps || []).map(r => r.id);
       }
 
@@ -189,7 +220,7 @@ export function useTranscriptAnalysis() {
         totalPages: Math.ceil((count ?? 0) / pageSize),
       };
     },
-    enabled: true,
+    enabled: !isTeamScoped || !!managerTeam,
   });
 
   const transcripts = transcriptsData?.transcripts || [];
@@ -328,6 +359,11 @@ export function useTranscriptAnalysis() {
   );
 
   return {
+    // Scope info
+    scope,
+    isTeamScoped,
+    managerTeam,
+    
     // Filter state
     dateRange,
     selectedPreset,
