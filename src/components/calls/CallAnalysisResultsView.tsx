@@ -186,7 +186,7 @@ export function CallAnalysisResultsView({ call, analysis, isOwner, isManager }: 
             {analysis.confidence !== null && (
               <div className="flex items-center gap-2">
                 <BarChart3 className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">Confidence: {analysis.confidence}%</span>
+                <span className="text-sm">Confidence: {Math.round(analysis.confidence * 100)}%</span>
               </div>
             )}
             <span className="text-xs text-muted-foreground">Model: {analysis.model_name}</span>
