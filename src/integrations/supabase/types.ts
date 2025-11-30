@@ -1031,6 +1031,36 @@ export type Database = {
           },
         ]
       }
+      user_activity_logs: {
+        Row: {
+          activity_type: Database["public"]["Enums"]["user_activity_type"]
+          created_at: string
+          id: string
+          ip_address: string | null
+          metadata: Json | null
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          activity_type: Database["public"]["Enums"]["user_activity_type"]
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          activity_type?: Database["public"]["Enums"]["user_activity_type"]
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -1117,6 +1147,7 @@ export type Database = {
         | "heavy_influencer"
         | "secondary_dm"
         | "final_dm"
+      user_activity_type: "login" | "logout" | "session_refresh"
       user_role: "rep" | "manager" | "admin"
     }
     CompositeTypes: {
@@ -1271,6 +1302,7 @@ export const Constants = {
         "secondary_dm",
         "final_dm",
       ],
+      user_activity_type: ["login", "logout", "session_refresh"],
       user_role: ["rep", "manager", "admin"],
     },
   },
