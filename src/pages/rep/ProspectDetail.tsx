@@ -5,7 +5,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useProspectData } from '@/hooks/useProspectData';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
-import { getAccountsUrl, getAccountsLabel } from '@/lib/routes';
+import { getAccountDetailBreadcrumbs } from '@/lib/breadcrumbConfig';
 
 // Detail section components
 import {
@@ -99,10 +99,7 @@ export default function ProspectDetail() {
       <div className="space-y-6">
         {/* Breadcrumb Navigation */}
         <PageBreadcrumb 
-          items={[
-            { label: getAccountsLabel(role), href: getAccountsUrl(role) },
-            { label: prospect.account_name || prospect.prospect_name }
-          ]}
+          items={getAccountDetailBreadcrumbs(role, prospect.account_name || prospect.prospect_name)} 
         />
 
         {/* Header */}

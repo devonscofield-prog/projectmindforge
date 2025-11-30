@@ -22,6 +22,7 @@ import { Link } from 'react-router-dom';
 import { format, subDays, isAfter } from 'date-fns';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
 import { getDashboardUrl } from '@/lib/routes';
+import { getRepDetailBreadcrumbs } from '@/lib/breadcrumbConfig';
 import { useToast } from '@/hooks/use-toast';
 import {
   listCallTranscriptsForRep,
@@ -236,12 +237,7 @@ export default function RepDetail() {
     <AppLayout>
       <div className="space-y-8">
         {/* Breadcrumb Navigation */}
-        <PageBreadcrumb 
-          items={[
-            { label: 'Team', href: getDashboardUrl(role) },
-            { label: rep.name }
-          ]}
-        />
+        <PageBreadcrumb items={getRepDetailBreadcrumbs(role, rep.name)} />
 
         {/* Debug info - only show in development */}
         {import.meta.env.DEV && (

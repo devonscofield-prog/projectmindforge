@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { getRepDetailUrl } from '@/lib/routes';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
+import { getManagerPageBreadcrumb } from '@/lib/breadcrumbConfig';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -324,7 +325,7 @@ export default function ManagerCoaching() {
   return (
     <AppLayout>
       <div className="space-y-8">
-        <PageBreadcrumb items={[{ label: 'Coaching' }]} />
+        <PageBreadcrumb items={getManagerPageBreadcrumb('coaching')} />
         
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>

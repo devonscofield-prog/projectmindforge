@@ -5,6 +5,7 @@ import { createLogger } from '@/lib/logger';
 const log = createLogger('AdminTeams');
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
+import { getAdminPageBreadcrumb } from '@/lib/breadcrumbConfig';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -266,7 +267,7 @@ export default function AdminTeams() {
   return (
     <AppLayout>
       <div className="space-y-8">
-        <PageBreadcrumb items={[{ label: 'Teams' }]} />
+        <PageBreadcrumb items={getAdminPageBreadcrumb('teams')} />
         
         <div className="flex items-center justify-between">
           <div>

@@ -5,6 +5,7 @@ import { createLogger } from '@/lib/logger';
 const log = createLogger('AdminUsers');
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
+import { getAdminPageBreadcrumb } from '@/lib/breadcrumbConfig';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -208,7 +209,7 @@ export default function AdminUsers() {
   return (
     <AppLayout>
       <div className="space-y-8">
-        <PageBreadcrumb items={[{ label: 'Users' }]} />
+        <PageBreadcrumb items={getAdminPageBreadcrumb('users')} />
         
         <div>
           <h1 className="text-3xl font-bold">Users</h1>
