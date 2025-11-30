@@ -352,3 +352,63 @@ export function SubmitButton({
     </Button>
   );
 }
+
+// ============================================================================
+// FormSlider - Slider with label and value display
+// ============================================================================
+import { Slider } from "@/components/ui/slider";
+
+export interface FormSliderProps {
+  label: string;
+  value: number;
+  onValueChange: (value: number) => void;
+  min?: number;
+  max?: number;
+  step?: number;
+  showValue?: boolean;
+  formatValue?: (value: number) => string;
+  description?: string;
+  disabled?: boolean;
+  className?: string;
+  id?: string;
+}
+
+export function FormSlider({
+  label,
+  value,
+  onValueChange,
+  min = 0,
+  max = 100,
+  step = 1,
+  showValue = true,
+  formatValue = (v) => `${v}/${max}`,
+  description,
+  disabled,
+  className,
+  id,
+}: FormSliderProps) {
+  const sliderId = id || React.useId();
+
+  return (
+    <div className={cn("space-y-3", className)}>
+      <div className="flex items-center justify-between">
+        <Label htmlFor={sliderId}>{label}</Label>
+        {showValue && (
+          <span className="text-sm text-muted-foreground">{formatValue(value)}</span>
+        )}
+      </div>
+      <Slider
+        id={sliderId}
+        value={[value]}
+        onValueChange={([v]) => onValueChange(v)}
+        min={min}
+        max={max}
+        step={step}
+        disabled={disabled}
+      />
+      {description && (
+        <p className="text-xs text-muted-foreground">{description}</p>
+      )}
+    </div>
+  );
+}

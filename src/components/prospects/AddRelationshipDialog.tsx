@@ -6,7 +6,6 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -14,9 +13,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
+import {
+  FormSelect,
+  FormTextarea,
+  FormSlider,
+  SubmitButton,
+} from '@/components/ui/form-fields';
 import { useToast } from '@/hooks/use-toast';
 import { Stakeholder } from '@/api/stakeholders';
 import {
@@ -35,6 +38,13 @@ interface AddRelationshipDialogProps {
   onRelationshipAdded: () => void;
   preselectedSourceId?: string;
 }
+
+const relationshipTypeOptions = [
+  { value: 'reports_to', label: 'Reports To (hierarchy)' },
+  { value: 'influences', label: 'Influences' },
+  { value: 'collaborates_with', label: 'Collaborates With' },
+  { value: 'opposes', label: 'Opposes' },
+];
 
 export function AddRelationshipDialog({
   open,
@@ -134,7 +144,7 @@ export function AddRelationshipDialog({
             </div>
           )}
 
-          {/* Source Stakeholder */}
+          {/* Source Stakeholder - Custom select with icons */}
           <div className="space-y-2">
             <Label>From (Source)</Label>
             <Select value={sourceId} onValueChange={setSourceId}>
@@ -158,22 +168,14 @@ export function AddRelationshipDialog({
           </div>
 
           {/* Relationship Type */}
-          <div className="space-y-2">
-            <Label>Relationship Type</Label>
-            <Select value={relationshipType} onValueChange={(v) => setRelationshipType(v as RelationshipType)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="reports_to">Reports To (hierarchy)</SelectItem>
-                <SelectItem value="influences">Influences</SelectItem>
-                <SelectItem value="collaborates_with">Collaborates With</SelectItem>
-                <SelectItem value="opposes">Opposes</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <FormSelect
+            label="Relationship Type"
+            value={relationshipType}
+            onValueChange={(v) => setRelationshipType(v as RelationshipType)}
+            options={relationshipTypeOptions}
+          />
 
-          {/* Target Stakeholder */}
+          {/* Target Stakeholder - Custom select with icons */}
           <div className="space-y-2">
             <Label>To (Target)</Label>
             <Select value={targetId} onValueChange={setTargetId}>
@@ -197,38 +199,33 @@ export function AddRelationshipDialog({
           </div>
 
           {/* Strength Slider */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label>Relationship Strength</Label>
-              <span className="text-sm text-muted-foreground">{strength}/10</span>
-            </div>
-            <Slider
-              value={[strength]}
-              onValueChange={([v]) => setStrength(v)}
-              min={1}
-              max={10}
-              step={1}
-            />
-          </div>
+          <FormSlider
+            label="Relationship Strength"
+            value={strength}
+            onValueChange={setStrength}
+            min={1}
+            max={10}
+            step={1}
+          />
 
           {/* Notes */}
-          <div className="space-y-2">
-            <Label>Notes (optional)</Label>
-            <Textarea
-              placeholder="Any context about this relationship..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={2}
-            />
-          </div>
+          <FormTextarea
+            label="Notes (optional)"
+            placeholder="Any context about this relationship..."
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={2}
+          />
 
-          <Button
+          <SubmitButton
             onClick={handleSubmit}
-            disabled={isSubmitting || !sourceId || !targetId}
+            disabled={!sourceId || !targetId}
+            isLoading={isSubmitting}
+            loadingText="Adding..."
             className="w-full"
           >
-            {isSubmitting ? 'Adding...' : 'Add Relationship'}
-          </Button>
+            Add Relationship
+          </SubmitButton>
         </div>
       </DialogContent>
     </Dialog>
