@@ -18,9 +18,13 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
+import {
+  FormInput,
+  FormTextarea,
+  FormSwitch,
+  SubmitButton,
+} from '@/components/ui/form-fields';
 import { Lightbulb, Link, Copy, Check, X } from 'lucide-react';
 
 interface ChatMessage {
@@ -193,29 +197,21 @@ export function SaveInsightDialog({
           </div>
         ) : (
           <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="title">Title</Label>
-              <Input
-                id="title"
-                placeholder="e.g., Common objections in enterprise deals"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-              />
-            </div>
+            <FormInput
+              label="Title"
+              placeholder="e.g., Common objections in enterprise deals"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
             
-            <div className="space-y-2">
-              <Label htmlFor="content">Insight Content</Label>
-              <Textarea
-                id="content"
-                value={editedContent}
-                onChange={(e) => setEditedContent(e.target.value)}
-                rows={6}
-                className="text-sm"
-              />
-              <p className="text-xs text-muted-foreground">
-                You can edit the content before saving
-              </p>
-            </div>
+            <FormTextarea
+              label="Insight Content"
+              value={editedContent}
+              onChange={(e) => setEditedContent(e.target.value)}
+              rows={6}
+              className="text-sm"
+              description="You can edit the content before saving"
+            />
 
             <div className="space-y-2">
               <Label>Tags (optional)</Label>
@@ -248,22 +244,14 @@ export function SaveInsightDialog({
               )}
             </div>
 
-            <div className="flex items-center justify-between rounded-lg border p-3">
-              <div className="space-y-0.5">
-                <Label htmlFor="share" className="font-medium flex items-center gap-2">
-                  <Link className="h-4 w-4" />
-                  Create shareable link
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  Allow other admins to view this insight
-                </p>
-              </div>
-              <Switch
-                id="share"
-                checked={isShared}
-                onCheckedChange={setIsShared}
-              />
-            </div>
+            <FormSwitch
+              label="Create shareable link"
+              description="Allow other admins to view this insight"
+              icon={<Link className="h-4 w-4" />}
+              checked={isShared}
+              onCheckedChange={setIsShared}
+              variant="card"
+            />
           </div>
         )}
 
@@ -275,12 +263,14 @@ export function SaveInsightDialog({
               <Button variant="outline" onClick={handleClose}>
                 Cancel
               </Button>
-              <Button
+              <SubmitButton
                 onClick={() => saveMutation.mutate()}
-                disabled={!title.trim() || !editedContent.trim() || saveMutation.isPending}
+                disabled={!title.trim() || !editedContent.trim()}
+                isLoading={saveMutation.isPending}
+                loadingText="Saving..."
               >
-                {saveMutation.isPending ? 'Saving...' : 'Save Insight'}
-              </Button>
+                Save Insight
+              </SubmitButton>
             </>
           )}
         </DialogFooter>
