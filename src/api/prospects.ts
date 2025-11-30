@@ -329,10 +329,11 @@ export async function getCallsForProspect(prospectId: string): Promise<{
   call_date: string;
   call_type: string | null;
   analysis_status: string;
+  primary_stakeholder_name: string | null;
 }[]> {
   const { data, error } = await supabase
     .from('call_transcripts')
-    .select('id, call_date, call_type, analysis_status')
+    .select('id, call_date, call_type, analysis_status, primary_stakeholder_name')
     .eq('prospect_id', prospectId)
     .order('call_date', { ascending: false });
 

@@ -150,7 +150,7 @@ export default function ProspectDetail() {
   const [stakeholders, setStakeholders] = useState<Stakeholder[]>([]);
   const [relationships, setRelationships] = useState<StakeholderRelationship[]>([]);
   const [activities, setActivities] = useState<ProspectActivity[]>([]);
-  const [calls, setCalls] = useState<{ id: string; call_date: string; call_type: string | null; analysis_status: string }[]>([]);
+  const [calls, setCalls] = useState<{ id: string; call_date: string; call_type: string | null; analysis_status: string; primary_stakeholder_name: string | null }[]>([]);
   const [followUps, setFollowUps] = useState<AccountFollowUp[]>([]);
   const [completedFollowUps, setCompletedFollowUps] = useState<AccountFollowUp[]>([]);
   const [dismissedFollowUps, setDismissedFollowUps] = useState<AccountFollowUp[]>([]);
@@ -942,7 +942,10 @@ export default function ProspectDetail() {
                         <Phone className="h-4 w-4 text-muted-foreground" />
                         <div>
                           <p className="text-sm font-medium">
-                            {call.call_type ? call.call_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Call'}
+                            {call.primary_stakeholder_name 
+                              ? `${call.primary_stakeholder_name} - ${call.call_type ? call.call_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Call'}`
+                              : (call.call_type ? call.call_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Call')
+                            }
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {format(new Date(call.call_date), 'MMM d, yyyy')}
