@@ -1,0 +1,584 @@
+import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { format } from 'date-fns';
+import { AppLayout } from '@/components/layout/AppLayout';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { supabase } from '@/integrations/supabase/client';
+import { TranscriptChatPanel } from '@/components/admin/TranscriptChatPanel';
+import { cn } from '@/lib/utils';
+import {
+  CalendarIcon,
+  Search,
+  FileText,
+  MessageSquare,
+  CheckSquare,
+  Square,
+  Users,
+  Building2,
+  Filter,
+  Sparkles,
+  Info,
+  ChevronDown,
+} from 'lucide-react';
+
+const TIME_RANGES = [
+  { value: '7', label: 'Last 7 days' },
+  { value: '30', label: 'Last 30 days' },
+  { value: '90', label: 'Last 90 days' },
+  { value: '180', label: 'Last 6 months' },
+  { value: '365', label: 'Last year' },
+];
+
+const CALL_TYPES = [
+  { value: 'first_demo', label: 'First Demo' },
+  { value: 'follow_up', label: 'Follow Up' },
+  { value: 'closing_call', label: 'Closing Call' },
+  { value: 'discovery', label: 'Discovery' },
+  { value: 'check_in', label: 'Check In' },
+  { value: 'other', label: 'Other' },
+];
+
+function createDateRange(daysBack: number): { from: Date; to: Date } {
+  const to = new Date();
+  to.setHours(23, 59, 59, 999);
+  const from = new Date();
+  from.setDate(from.getDate() - daysBack);
+  from.setHours(0, 0, 0, 0);
+  return { from, to };
+}
+
+interface Transcript {
+  id: string;
+  call_date: string;
+  account_name: string | null;
+  call_type: string | null;
+  raw_text: string;
+  rep_id: string;
+  rep_name?: string;
+  team_name?: string;
+}
+
+export default function AdminTranscriptAnalysis() {
+  // Filter state
+  const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>(() => createDateRange(30));
+  const [selectedPreset, setSelectedPreset] = useState<string>('30');
+  const [selectedTeamId, setSelectedTeamId] = useState<string>('all');
+  const [selectedRepId, setSelectedRepId] = useState<string>('all');
+  const [accountSearch, setAccountSearch] = useState<string>('');
+  const [selectedCallTypes, setSelectedCallTypes] = useState<string[]>([]);
+  
+  // Selection state
+  const [selectedTranscriptIds, setSelectedTranscriptIds] = useState<Set<string>>(new Set());
+  
+  // Chat panel state
+  const [chatOpen, setChatOpen] = useState(false);
+
+  // Fetch teams
+  const { data: teams } = useQuery({
+    queryKey: ['admin-all-teams'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('teams')
+        .select('id, name')
+        .order('name');
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Fetch all reps (filtered by team)
+  const { data: reps } = useQuery({
+    queryKey: ['admin-all-reps', selectedTeamId],
+    queryFn: async () => {
+      let query = supabase
+        .from('user_with_role')
+        .select('id, name, team_id')
+        .eq('role', 'rep')
+        .eq('is_active', true);
+      
+      if (selectedTeamId !== 'all') {
+        query = query.eq('team_id', selectedTeamId);
+      }
+      
+      const { data, error } = await query.order('name');
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Fetch transcripts with filters
+  const { data: transcripts, isLoading } = useQuery({
+    queryKey: [
+      'admin-transcripts',
+      dateRange.from.toISOString(),
+      dateRange.to.toISOString(),
+      selectedTeamId,
+      selectedRepId,
+      accountSearch,
+      selectedCallTypes,
+    ],
+    queryFn: async () => {
+      // First get rep IDs based on team filter
+      let repIds: string[] = [];
+      
+      if (selectedRepId !== 'all') {
+        repIds = [selectedRepId];
+      } else if (selectedTeamId !== 'all') {
+        const { data: teamReps } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('team_id', selectedTeamId);
+        repIds = (teamReps || []).map(r => r.id);
+      }
+
+      let query = supabase
+        .from('call_transcripts')
+        .select('id, call_date, account_name, call_type, raw_text, rep_id')
+        .eq('analysis_status', 'completed')
+        .gte('call_date', format(dateRange.from, 'yyyy-MM-dd'))
+        .lte('call_date', format(dateRange.to, 'yyyy-MM-dd'))
+        .order('call_date', { ascending: false });
+
+      if (repIds.length > 0) {
+        query = query.in('rep_id', repIds);
+      }
+
+      if (accountSearch.trim()) {
+        query = query.ilike('account_name', `%${accountSearch.trim()}%`);
+      }
+
+      if (selectedCallTypes.length > 0) {
+        query = query.in('call_type', selectedCallTypes);
+      }
+
+      const { data, error } = await query.limit(500);
+      if (error) throw error;
+
+      // Enrich with rep and team names
+      const repIdSet = new Set((data || []).map(t => t.rep_id));
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, name, team_id')
+        .in('id', Array.from(repIdSet));
+
+      const profileMap = new Map((profiles || []).map(p => [p.id, p]));
+      const teamMap = new Map((teams || []).map(t => [t.id, t.name]));
+
+      return (data || []).map(t => ({
+        ...t,
+        rep_name: profileMap.get(t.rep_id)?.name || 'Unknown',
+        team_name: teamMap.get(profileMap.get(t.rep_id)?.team_id || '') || 'Unknown',
+      })) as Transcript[];
+    },
+    enabled: true,
+  });
+
+  const handlePresetChange = (value: string) => {
+    setSelectedPreset(value);
+    if (value !== 'custom') {
+      setDateRange(createDateRange(parseInt(value)));
+    }
+  };
+
+  const handleFromDateChange = (date: Date | undefined) => {
+    if (date) {
+      date.setHours(0, 0, 0, 0);
+      setDateRange(prev => ({ ...prev, from: date }));
+      setSelectedPreset('custom');
+    }
+  };
+
+  const handleToDateChange = (date: Date | undefined) => {
+    if (date) {
+      date.setHours(23, 59, 59, 999);
+      setDateRange(prev => ({ ...prev, to: date }));
+      setSelectedPreset('custom');
+    }
+  };
+
+  const toggleTranscript = (id: string) => {
+    setSelectedTranscriptIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAll = () => {
+    if (transcripts) {
+      setSelectedTranscriptIds(new Set(transcripts.map(t => t.id)));
+    }
+  };
+
+  const deselectAll = () => {
+    setSelectedTranscriptIds(new Set());
+  };
+
+  const toggleCallType = (callType: string) => {
+    setSelectedCallTypes(prev => 
+      prev.includes(callType) 
+        ? prev.filter(t => t !== callType)
+        : [...prev, callType]
+    );
+  };
+
+  // Calculate token estimate (rough: ~4 chars per token)
+  const estimatedTokens = useMemo(() => {
+    if (!transcripts) return 0;
+    const selected = transcripts.filter(t => selectedTranscriptIds.has(t.id));
+    const totalChars = selected.reduce((sum, t) => sum + (t.raw_text?.length || 0), 0);
+    return Math.round(totalChars / 4);
+  }, [transcripts, selectedTranscriptIds]);
+
+  const getAnalysisModeLabel = () => {
+    const count = selectedTranscriptIds.size;
+    if (count === 0) return { label: 'Select transcripts', color: 'text-muted-foreground' };
+    if (count <= 20) return { label: 'Direct Analysis Mode', color: 'text-green-500' };
+    if (count <= 100) return { label: 'Smart Excerpting Mode', color: 'text-yellow-500' };
+    return { label: 'RAG Mode (Coming Soon)', color: 'text-orange-500' };
+  };
+
+  const analysisMode = getAnalysisModeLabel();
+  const selectedTranscripts = useMemo(() => 
+    transcripts?.filter(t => selectedTranscriptIds.has(t.id)) || [],
+    [transcripts, selectedTranscriptIds]
+  );
+
+  return (
+    <AppLayout>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <FileText className="h-6 w-6 text-primary" />
+              Transcript Analysis
+            </h1>
+            <p className="text-muted-foreground">
+              Select transcripts to analyze with AI across all teams
+            </p>
+          </div>
+          <Badge variant="outline">Admin View</Badge>
+        </div>
+
+        {/* Filters */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Filter className="h-4 w-4" />
+              Filters
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap items-start gap-4">
+              {/* Date Range */}
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Time Period</Label>
+                <div className="flex items-center gap-2">
+                  <Select value={selectedPreset} onValueChange={handlePresetChange}>
+                    <SelectTrigger className="w-[140px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TIME_RANGES.map(r => (
+                        <SelectItem key={r.value} value={r.value}>
+                          {r.label}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="custom">Custom Range</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  {selectedPreset === 'custom' && (
+                    <>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" size="sm" className="w-[120px] justify-start text-left font-normal">
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {format(dateRange.from, 'MMM d, yy')}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={dateRange.from}
+                            onSelect={handleFromDateChange}
+                            disabled={(date) => date > dateRange.to || date > new Date()}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <span className="text-muted-foreground text-sm">to</span>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" size="sm" className="w-[120px] justify-start text-left font-normal">
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {format(dateRange.to, 'MMM d, yy')}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={dateRange.to}
+                            onSelect={handleToDateChange}
+                            disabled={(date) => date < dateRange.from || date > new Date()}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Team Filter */}
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Team</Label>
+                <Select value={selectedTeamId} onValueChange={(v) => { setSelectedTeamId(v); setSelectedRepId('all'); }}>
+                  <SelectTrigger className="w-[160px]">
+                    <Building2 className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder="All Teams" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Teams</SelectItem>
+                    {teams?.map(team => (
+                      <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Rep Filter */}
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Rep</Label>
+                <Select value={selectedRepId} onValueChange={setSelectedRepId}>
+                  <SelectTrigger className="w-[180px]">
+                    <Users className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder="All Reps" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Reps</SelectItem>
+                    {reps?.map(rep => (
+                      <SelectItem key={rep.id} value={rep.id}>{rep.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Account Search */}
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Account</Label>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search accounts..."
+                    value={accountSearch}
+                    onChange={(e) => setAccountSearch(e.target.value)}
+                    className="pl-8 w-[180px]"
+                  />
+                </div>
+              </div>
+
+              {/* Call Type Filter */}
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Call Type</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-[160px] justify-between">
+                      {selectedCallTypes.length === 0 ? 'All Types' : `${selectedCallTypes.length} selected`}
+                      <ChevronDown className="h-4 w-4 ml-2" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[200px] p-2" align="start">
+                    <div className="space-y-1">
+                      {CALL_TYPES.map(type => (
+                        <div
+                          key={type.value}
+                          className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer"
+                          onClick={() => toggleCallType(type.value)}
+                        >
+                          <Checkbox checked={selectedCallTypes.includes(type.value)} />
+                          <span className="text-sm">{type.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Selection Info Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-muted/50 rounded-lg">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={selectAll} disabled={!transcripts?.length}>
+                <CheckSquare className="h-4 w-4 mr-1" />
+                Select All
+              </Button>
+              <Button variant="outline" size="sm" onClick={deselectAll} disabled={selectedTranscriptIds.size === 0}>
+                <Square className="h-4 w-4 mr-1" />
+                Deselect All
+              </Button>
+            </div>
+            
+            <div className="text-sm">
+              <span className="font-medium">{selectedTranscriptIds.size}</span>
+              <span className="text-muted-foreground"> of {transcripts?.length || 0} transcripts selected</span>
+            </div>
+
+            <div className="text-sm text-muted-foreground">
+              ~{estimatedTokens.toLocaleString()} tokens
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className={cn("text-sm font-medium", analysisMode.color)}>
+                {analysisMode.label}
+              </span>
+              <HoverCard>
+                <HoverCardTrigger>
+                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                </HoverCardTrigger>
+                <HoverCardContent className="w-80">
+                  <div className="space-y-2 text-sm">
+                    <p><strong>Direct Analysis (1-20):</strong> Full transcript text sent to AI</p>
+                    <p><strong>Smart Excerpting (21-100):</strong> Relevant sections extracted per query</p>
+                    <p><strong>RAG Mode (100+):</strong> Semantic search across all transcripts</p>
+                  </div>
+                </HoverCardContent>
+              </HoverCard>
+            </div>
+
+            <Sheet open={chatOpen} onOpenChange={setChatOpen}>
+              <SheetTrigger asChild>
+                <Button
+                  disabled={selectedTranscriptIds.size === 0 || selectedTranscriptIds.size > 20}
+                  className="gap-2"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Analyze with AI
+                  {selectedTranscriptIds.size > 20 && (
+                    <Badge variant="secondary" className="ml-1">Max 20</Badge>
+                  )}
+                </Button>
+              </SheetTrigger>
+              <SheetContent className="w-full sm:max-w-xl flex flex-col p-0">
+                <TranscriptChatPanel
+                  selectedTranscripts={selectedTranscripts}
+                  onClose={() => setChatOpen(false)}
+                />
+              </SheetContent>
+            </Sheet>
+          </div>
+        </div>
+
+        {/* Transcript Table */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">
+              Transcripts ({transcripts?.length || 0})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+              </div>
+            ) : transcripts?.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                No transcripts found matching your filters
+              </div>
+            ) : (
+              <ScrollArea className="h-[500px]">
+                <table className="w-full">
+                  <thead className="sticky top-0 bg-background border-b">
+                    <tr className="text-left text-sm text-muted-foreground">
+                      <th className="p-3 w-10"></th>
+                      <th className="p-3">Date</th>
+                      <th className="p-3">Account</th>
+                      <th className="p-3">Type</th>
+                      <th className="p-3">Rep</th>
+                      <th className="p-3">Team</th>
+                      <th className="p-3">Preview</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {transcripts?.map(transcript => (
+                      <tr
+                        key={transcript.id}
+                        className={cn(
+                          "border-b hover:bg-muted/50 cursor-pointer transition-colors",
+                          selectedTranscriptIds.has(transcript.id) && "bg-primary/5"
+                        )}
+                        onClick={() => toggleTranscript(transcript.id)}
+                      >
+                        <td className="p-3">
+                          <Checkbox
+                            checked={selectedTranscriptIds.has(transcript.id)}
+                            onCheckedChange={() => toggleTranscript(transcript.id)}
+                          />
+                        </td>
+                        <td className="p-3 text-sm">
+                          {format(new Date(transcript.call_date), 'MMM d, yyyy')}
+                        </td>
+                        <td className="p-3 text-sm font-medium">
+                          {transcript.account_name || 'Unknown'}
+                        </td>
+                        <td className="p-3">
+                          <Badge variant="outline" className="text-xs">
+                            {CALL_TYPES.find(t => t.value === transcript.call_type)?.label || transcript.call_type || 'Call'}
+                          </Badge>
+                        </td>
+                        <td className="p-3 text-sm">{transcript.rep_name}</td>
+                        <td className="p-3 text-sm text-muted-foreground">{transcript.team_name}</td>
+                        <td className="p-3">
+                          <HoverCard>
+                            <HoverCardTrigger asChild>
+                              <Button variant="ghost" size="sm" className="text-xs">
+                                <MessageSquare className="h-3 w-3 mr-1" />
+                                Preview
+                              </Button>
+                            </HoverCardTrigger>
+                            <HoverCardContent className="w-96" align="end">
+                              <div className="space-y-2">
+                                <div className="font-medium text-sm">
+                                  {transcript.account_name} - {format(new Date(transcript.call_date), 'MMM d, yyyy')}
+                                </div>
+                                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                                  {transcript.raw_text?.substring(0, 500)}
+                                  {(transcript.raw_text?.length || 0) > 500 && '...'}
+                                </p>
+                              </div>
+                            </HoverCardContent>
+                          </HoverCard>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </ScrollArea>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </AppLayout>
+  );
+}
