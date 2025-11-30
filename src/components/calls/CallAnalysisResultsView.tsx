@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -600,8 +600,41 @@ function FullTranscriptSection({ call }: { call: CallTranscript | null }) {
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [transcriptSearch, setTranscriptSearch] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   const transcript = call?.raw_text || '';
+
+  // Keyboard shortcuts: Ctrl+F to focus search, Escape to close
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle if transcript section is open
+      if (!isOpen) return;
+
+      // Ctrl+F or Cmd+F to focus search
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        // Check if we're within the transcript card
+        if (cardRef.current?.contains(document.activeElement) || 
+            document.activeElement === document.body) {
+          e.preventDefault();
+          searchInputRef.current?.focus();
+          searchInputRef.current?.select();
+        }
+      }
+
+      // Escape to close transcript section
+      if (e.key === 'Escape') {
+        // Only close if focus is within the transcript card
+        if (cardRef.current?.contains(document.activeElement)) {
+          setIsOpen(false);
+          setTranscriptSearch('');
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
 
   const transcriptStats = useMemo(() => {
     if (!transcript) return { words: 0, characters: 0 };
@@ -662,7 +695,7 @@ function FullTranscriptSection({ call }: { call: CallTranscript | null }) {
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <Card>
+      <Card ref={cardRef}>
         <CardHeader className="pb-3">
           <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-muted/50 -m-2 p-2 rounded-lg transition-colors">
             <CardTitle className="flex items-center gap-2 text-left">
@@ -675,7 +708,7 @@ function FullTranscriptSection({ call }: { call: CallTranscript | null }) {
             <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} />
           </CollapsibleTrigger>
           <CardDescription>
-            Complete word-for-word recording of the call
+            Complete word-for-word recording of the call · <span className="text-xs">Press <kbd className="px-1 py-0.5 rounded bg-muted border text-[10px]">Ctrl+F</kbd> to search, <kbd className="px-1 py-0.5 rounded bg-muted border text-[10px]">Esc</kbd> to close</span>
           </CardDescription>
         </CardHeader>
         <CollapsibleContent>
@@ -685,7 +718,8 @@ function FullTranscriptSection({ call }: { call: CallTranscript | null }) {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search transcript..."
+                  ref={searchInputRef}
+                  placeholder="Search transcript... (Ctrl+F)"
                   value={transcriptSearch}
                   onChange={(e) => setTranscriptSearch(e.target.value)}
                   className="pl-9"
