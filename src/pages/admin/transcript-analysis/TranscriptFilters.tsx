@@ -34,6 +34,7 @@ interface TranscriptFiltersProps {
   onAccountSearchChange: (value: string) => void;
   onToggleCallType: (callType: string) => void;
   hideTeamFilter?: boolean;
+  hideRepFilter?: boolean;
 }
 
 export function TranscriptFilters({
@@ -53,6 +54,7 @@ export function TranscriptFilters({
   onAccountSearchChange,
   onToggleCallType,
   hideTeamFilter = false,
+  hideRepFilter = false,
 }: TranscriptFiltersProps) {
   return (
     <Card>
@@ -143,22 +145,24 @@ export function TranscriptFilters({
             </div>
           )}
 
-          {/* Rep Filter */}
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Rep</Label>
-            <Select value={selectedRepId} onValueChange={onRepChange}>
-              <SelectTrigger className="w-[180px]">
-                <Users className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="All Reps" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Reps</SelectItem>
-                {reps?.map(rep => (
-                  <SelectItem key={rep.id} value={rep.id}>{rep.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Rep Filter - Hidden for reps (self-scoped view) */}
+          {!hideRepFilter && (
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Rep</Label>
+              <Select value={selectedRepId} onValueChange={onRepChange}>
+                <SelectTrigger className="w-[180px]">
+                  <Users className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="All Reps" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Reps</SelectItem>
+                  {reps?.map(rep => (
+                    <SelectItem key={rep.id} value={rep.id}>{rep.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Account Search */}
           <div className="space-y-1">

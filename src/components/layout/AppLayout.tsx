@@ -69,6 +69,7 @@ function SidebarNav() {
         { href: '/rep', label: 'Submit a Call', icon: Mic },
         { href: '/rep/history', label: 'Call History', icon: History },
         { href: '/rep/prospects', label: 'Accounts', icon: UserCheck },
+        { href: '/rep/transcripts', label: 'Analyze Calls', icon: FileText },
       ];
 
   const handleNavClick = () => {

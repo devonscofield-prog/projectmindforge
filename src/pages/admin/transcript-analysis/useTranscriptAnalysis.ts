@@ -13,7 +13,7 @@ import { useTeams, useReps } from '@/hooks';
 import { createDateRange, Transcript } from './constants';
 
 interface UseTranscriptAnalysisOptions {
-  scope?: 'org' | 'team';
+  scope?: 'org' | 'team' | 'self';
 }
 
 export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}) {
@@ -21,8 +21,13 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
   const { role, user } = useAuth();
   
   // Determine scope based on role if not explicitly set
-  const scope = options.scope ?? (role === 'admin' ? 'org' : 'team');
+  const scope = options.scope ?? (
+    role === 'admin' ? 'org' : 
+    role === 'manager' ? 'team' : 
+    'self'
+  );
   const isTeamScoped = scope === 'team';
+  const isSelfScoped = scope === 'self';
   
   // Filter state
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>(() => createDateRange(30));
@@ -130,6 +135,9 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     enabled: !!user?.id && isTeamScoped,
   });
 
+  // For self-scoped view (reps), we use the current user's ID
+  const selfRepId = isSelfScoped ? user?.id : null;
+
   // Use reusable hooks for teams and reps
   const { data: teams } = useTeams();
   
@@ -158,11 +166,17 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
       currentPage,
       pageSize,
       isTeamScoped,
+      isSelfScoped,
+      selfRepId,
     ],
     queryFn: async () => {
       let repIds: string[] = [];
       
-      if (selectedRepId !== 'all') {
+      // For self-scoped (rep), always filter to only their own transcripts
+      if (isSelfScoped && selfRepId) {
+        repIds = [selfRepId];
+      } else if (selectedRepId !== 'all') {
+      
         repIds = [selectedRepId];
       } else if (effectiveTeamId !== 'all') {
         const { data: teamReps } = await supabase
@@ -220,7 +234,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
         totalPages: Math.ceil((count ?? 0) / pageSize),
       };
     },
-    enabled: !isTeamScoped || !!managerTeam,
+    enabled: isSelfScoped ? !!selfRepId : (!isTeamScoped || !!managerTeam),
   });
 
   const transcripts = transcriptsData?.transcripts || [];
@@ -362,6 +376,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     // Scope info
     scope,
     isTeamScoped,
+    isSelfScoped,
     managerTeam,
     
     // Filter state

@@ -134,11 +134,12 @@ export function getManagerPageBreadcrumb(
  * Type-safe helper to get rep page breadcrumbs
  */
 export function getRepPageBreadcrumb(
-  page: 'accounts' | 'callHistory'
+  page: 'accounts' | 'callHistory' | 'transcriptAnalysis'
 ): BreadcrumbItem[] {
   const labels: Record<typeof page, string> = {
     accounts: 'Accounts',
     callHistory: BREADCRUMB_LABELS.callHistory,
+    transcriptAnalysis: 'Analyze Calls',
   };
   return [{ label: labels[page] }];
 }
