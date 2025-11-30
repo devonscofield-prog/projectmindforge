@@ -14,7 +14,7 @@ import { getCallWithAnalysis, getAnalysisForCall, CallAnalysis, CallTranscript }
 import { CallAnalysisResultsView } from '@/components/calls/CallAnalysisResultsView';
 import { CallType, callTypeLabels } from '@/constants/callTypes';
 import { format } from 'date-fns';
-import { getDashboardUrl } from '@/lib/routes';
+import { getDashboardUrl, getCallHistoryUrl, getCallHistoryLabel } from '@/lib/routes';
 import { 
   ArrowLeft, 
   Calendar, 
@@ -128,27 +128,7 @@ export default function CallDetailPage() {
     loadCall();
   }, [id, user, role, navigate, toast, pollForAnalysis]);
 
-  const getBackPath = () => {
-    if (role === 'manager') return '/manager/coaching';
-    if (role === 'admin') return '/admin';
-    return '/rep/history';
-  };
-
-  const getCallHistoryPath = () => {
-    switch (role) {
-      case 'admin': return '/admin';
-      case 'manager': return '/manager/coaching';
-      default: return '/rep/history';
-    }
-  };
-
-  const getCallHistoryLabel = () => {
-    switch (role) {
-      case 'admin': return 'Dashboard';
-      case 'manager': return 'Coaching';
-      default: return 'Call History';
-    }
-  };
+  const getBackPath = () => getCallHistoryUrl(role);
 
   const handleRefresh = async () => {
     if (!id) return;
@@ -232,7 +212,7 @@ export default function CallDetailPage() {
         {/* Breadcrumb Navigation */}
         <PageBreadcrumb 
           items={[
-            { label: getCallHistoryLabel(), href: getCallHistoryPath() },
+            { label: getCallHistoryLabel(role), href: getCallHistoryUrl(role) },
             { label: callTitle }
           ]}
         />

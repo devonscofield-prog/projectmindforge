@@ -1,5 +1,6 @@
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Badge } from '@/components/ui/badge';
+import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
 import { SaveSelectionDialog } from '@/components/admin/SaveSelectionDialog';
 import { SavedSelectionsSheet } from '@/components/admin/SavedSelectionsSheet';
 import { SavedInsightsSheet } from '@/components/admin/SavedInsightsSheet';
@@ -74,6 +75,9 @@ export default function AdminTranscriptAnalysis() {
   return (
     <AppLayout>
       <div className="space-y-6">
+        {/* Breadcrumb Navigation */}
+        <PageBreadcrumb items={[{ label: 'Transcript Analysis' }]} />
+
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>

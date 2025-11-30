@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getAccountDetailUrl, getCallDetailUrl, getRepDetailUrl, getCoachingSummaryUrl, getDashboardUrl, getAccountsUrl, getAccountsLabel } from '../routes';
+import { getAccountDetailUrl, getCallDetailUrl, getRepDetailUrl, getCoachingSummaryUrl, getDashboardUrl, getAccountsUrl, getAccountsLabel, getCallHistoryUrl, getCallHistoryLabel } from '../routes';
 
 describe('getAccountDetailUrl', () => {
   it('returns admin path for admin role', () => {
@@ -119,5 +119,41 @@ describe('getAccountsLabel', () => {
 
   it('returns "My Accounts" for null role (default)', () => {
     expect(getAccountsLabel(null)).toBe('My Accounts');
+  });
+});
+
+describe('getCallHistoryUrl', () => {
+  it('returns admin dashboard for admin role', () => {
+    expect(getCallHistoryUrl('admin')).toBe('/admin');
+  });
+
+  it('returns manager coaching path for manager role', () => {
+    expect(getCallHistoryUrl('manager')).toBe('/manager/coaching');
+  });
+
+  it('returns rep history path for rep role', () => {
+    expect(getCallHistoryUrl('rep')).toBe('/rep/history');
+  });
+
+  it('returns rep history path for null role (default)', () => {
+    expect(getCallHistoryUrl(null)).toBe('/rep/history');
+  });
+});
+
+describe('getCallHistoryLabel', () => {
+  it('returns "Dashboard" for admin role', () => {
+    expect(getCallHistoryLabel('admin')).toBe('Dashboard');
+  });
+
+  it('returns "Coaching" for manager role', () => {
+    expect(getCallHistoryLabel('manager')).toBe('Coaching');
+  });
+
+  it('returns "Call History" for rep role', () => {
+    expect(getCallHistoryLabel('rep')).toBe('Call History');
+  });
+
+  it('returns "Call History" for null role (default)', () => {
+    expect(getCallHistoryLabel(null)).toBe('Call History');
   });
 });
