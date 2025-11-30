@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { createLogger } from '@/lib/logger';
 import type {
   CallAnalysis,
   CoachingSummary,
@@ -19,6 +20,8 @@ import {
   calculateRepContributions,
 } from './utils';
 
+const log = createLogger('coaching');
+
 /**
  * Gets aggregated coaching summary for a rep over a date range.
  * @param repId - The rep's user ID
@@ -38,7 +41,7 @@ export async function getCoachingSummaryForRep(
     .order('created_at', { ascending: true });
 
   if (error) {
-    console.error('[getCoachingSummaryForRep] Error:', error);
+    log.error('Failed to fetch coaching summary', { repId, error });
     throw new Error(`Failed to fetch coaching summary: ${error.message}`);
   }
 
@@ -237,13 +240,13 @@ export async function generateCoachingTrends(
     .lte('created_at', dateRange.to.toISOString());
 
   if (countError) {
-    console.error('[generateCoachingTrends] Error counting analyses:', countError);
+    log.error('Error counting analyses', { error: countError });
   }
 
   const callCount = currentCallCount || 0;
   const tier = determineAnalysisTier(callCount);
   
-  console.log(`[generateCoachingTrends] ${callCount} calls found, using tier: ${tier}`);
+  log.info('Determining analysis tier', { callCount, tier });
 
   // 2. Check cache (unless force refresh)
   if (!options?.forceRefresh) {
@@ -256,7 +259,7 @@ export async function generateCoachingTrends(
       .maybeSingle();
 
     if (!cacheError && cached && cached.call_count === callCount && cached.analysis_data) {
-      console.log('[generateCoachingTrends] Using cached analysis');
+      log.debug('Using cached analysis');
       const cachedAnalysis = cached.analysis_data as unknown as CoachingTrendAnalysis;
       return {
         analysis: cachedAnalysis,
@@ -279,7 +282,7 @@ export async function generateCoachingTrends(
     .order('created_at', { ascending: true });
 
   if (error) {
-    console.error('[generateCoachingTrends] Error fetching analyses:', error);
+    log.error('Error fetching analyses', { error });
     throw new Error(`Failed to fetch call analyses: ${error.message}`);
   }
 
@@ -306,7 +309,7 @@ export async function generateCoachingTrends(
 
   // 5. Execute analysis based on tier
   if (tier === 'direct') {
-    console.log(`[generateCoachingTrends] Direct analysis of ${formattedCalls.length} calls`);
+    log.info('Direct analysis', { callCount: formattedCalls.length });
     
     const response = await invokeCoachingTrendsFunction(formattedCalls, { from: fromDate, to: toDate });
     trendData = response;
@@ -317,7 +320,7 @@ export async function generateCoachingTrends(
     };
   } else if (tier === 'sampled') {
     const { sampled, originalCount } = stratifiedSample(formattedCalls, DIRECT_ANALYSIS_MAX);
-    console.log(`[generateCoachingTrends] Sampled ${sampled.length} from ${originalCount} calls`);
+    log.info('Sampled analysis', { sampled: sampled.length, original: originalCount });
     
     const response = await invokeCoachingTrendsFunction(sampled, { from: fromDate, to: toDate });
     trendData = response;
@@ -332,7 +335,7 @@ export async function generateCoachingTrends(
       },
     };
   } else {
-    console.log(`[generateCoachingTrends] Hierarchical analysis of ${formattedCalls.length} calls`);
+    log.info('Hierarchical analysis', { callCount: formattedCalls.length });
     
     const { analysis, chunksAnalyzed, callsPerChunk } = await analyzeHierarchically(
       formattedCalls,
@@ -350,7 +353,7 @@ export async function generateCoachingTrends(
     };
   }
 
-  console.log('[generateCoachingTrends] Successfully received AI trend analysis');
+  log.debug('Successfully received AI trend analysis');
 
   // 6. Save to cache
   const { data: existing } = await supabase
@@ -372,9 +375,9 @@ export async function generateCoachingTrends(
       .eq('id', existing.id);
     
     if (updateError) {
-      console.warn('[generateCoachingTrends] Failed to update cache:', updateError);
+      log.warn('Failed to update cache', { error: updateError });
     } else {
-      console.log('[generateCoachingTrends] Analysis cache updated successfully');
+      log.debug('Analysis cache updated successfully');
     }
   } else {
     const { error: insertError } = await supabase
@@ -388,9 +391,9 @@ export async function generateCoachingTrends(
       });
     
     if (insertError) {
-      console.warn('[generateCoachingTrends] Failed to insert cache:', insertError);
+      log.warn('Failed to insert cache', { error: insertError });
     } else {
-      console.log('[generateCoachingTrends] Analysis cached successfully');
+      log.debug('Analysis cached successfully');
     }
   }
 
@@ -461,7 +464,7 @@ export async function generateAggregateCoachingTrends(
     teams?.forEach(t => teamMap.set(t.id, t.name));
   }
 
-  console.log(`[generateAggregateCoachingTrends] Analyzing ${repIds.length} reps for ${scope} scope`);
+  log.info('Analyzing aggregate coaching trends', { repCount: repIds.length, scope });
 
   // Fetch all call analyses across selected reps
   const { data, error, count } = await supabase
@@ -473,7 +476,7 @@ export async function generateAggregateCoachingTrends(
     .order('created_at', { ascending: true });
 
   if (error) {
-    console.error('[generateAggregateCoachingTrends] Error fetching analyses:', error);
+    log.error('Error fetching aggregate analyses', { error });
     throw new Error(`Failed to fetch call analyses: ${error.message}`);
   }
 
@@ -493,7 +496,7 @@ export async function generateAggregateCoachingTrends(
   );
 
   const tier = determineAnalysisTier(callCount);
-  console.log(`[generateAggregateCoachingTrends] ${callCount} calls found, using tier: ${tier}`);
+  log.info('Aggregate analysis tier', { callCount, tier });
 
   // Format calls for AI
   const formattedCalls: FormattedCall[] = analyses.map(a => ({
@@ -512,7 +515,7 @@ export async function generateAggregateCoachingTrends(
 
   // Execute analysis based on tier
   if (tier === 'direct') {
-    console.log(`[generateAggregateCoachingTrends] Direct analysis of ${formattedCalls.length} calls`);
+    log.info('Direct aggregate analysis', { callCount: formattedCalls.length });
     
     const response = await invokeCoachingTrendsFunction(formattedCalls, { from: fromDate, to: toDate });
     trendData = response;
@@ -521,13 +524,12 @@ export async function generateAggregateCoachingTrends(
       totalCalls: callCount,
       analyzedCalls: formattedCalls.length,
       scope,
-      teamId,
       repsIncluded: repIds.length,
       repContributions,
     };
   } else if (tier === 'sampled') {
     const { sampled, originalCount } = stratifiedSample(formattedCalls, DIRECT_ANALYSIS_MAX);
-    console.log(`[generateAggregateCoachingTrends] Sampled ${sampled.length} from ${originalCount} calls`);
+    log.info('Sampled aggregate analysis', { sampled: sampled.length, original: originalCount });
     
     const response = await invokeCoachingTrendsFunction(sampled, { from: fromDate, to: toDate });
     trendData = response;
@@ -541,12 +543,11 @@ export async function generateAggregateCoachingTrends(
         sampledCount: sampled.length,
       },
       scope,
-      teamId,
       repsIncluded: repIds.length,
       repContributions,
     };
   } else {
-    console.log(`[generateAggregateCoachingTrends] Hierarchical analysis of ${formattedCalls.length} calls`);
+    log.info('Hierarchical aggregate analysis', { callCount: formattedCalls.length });
     
     const { analysis, chunksAnalyzed, callsPerChunk } = await analyzeHierarchically(
       formattedCalls,
@@ -562,13 +563,12 @@ export async function generateAggregateCoachingTrends(
         callsPerChunk,
       },
       scope,
-      teamId,
       repsIncluded: repIds.length,
       repContributions,
     };
   }
 
-  console.log('[generateAggregateCoachingTrends] Successfully received AI trend analysis');
+  log.debug('Successfully completed aggregate analysis');
 
   return { analysis: trendData, metadata };
 }

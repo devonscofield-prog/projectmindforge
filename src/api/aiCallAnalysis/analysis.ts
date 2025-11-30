@@ -1,5 +1,8 @@
 import { supabase } from '@/integrations/supabase/client';
+import { createLogger } from '@/lib/logger';
 import type { CallAnalysis, AiScoreStats } from './types';
+
+const log = createLogger('aiAnalysis');
 
 /**
  * Gets the AI analysis for a specific call.
@@ -14,7 +17,7 @@ export async function getAnalysisForCall(callId: string): Promise<CallAnalysis |
     .maybeSingle();
 
   if (error) {
-    console.error('[getAnalysisForCall] Error:', error);
+    log.error('Failed to get call analysis', { callId, error });
     throw new Error(`Failed to get call analysis: ${error.message}`);
   }
 
@@ -36,7 +39,7 @@ export async function listRecentAiAnalysisForRep(repId: string, limit: number = 
     .limit(limit);
 
   if (error) {
-    console.error('[listRecentAiAnalysisForRep] Error:', error);
+    log.error('Failed to list AI analyses', { repId, error });
     throw new Error(`Failed to list AI analyses: ${error.message}`);
   }
 
@@ -61,7 +64,7 @@ export async function getLatestAiAnalysisForReps(repIds: string[]): Promise<Map<
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('[getLatestAiAnalysisForReps] Error:', error);
+    log.error('Failed to fetch AI analyses for reps', { repCount: repIds.length, error });
     throw new Error(`Failed to fetch AI analyses: ${error.message}`);
   }
 
@@ -99,7 +102,7 @@ export async function editRecapEmail(
     throw new Error('Edit instructions cannot be empty');
   }
 
-  console.log('[editRecapEmail] Calling edit-recap-email edge function');
+  log.info('Calling edit-recap-email edge function');
 
   const { data, error } = await supabase.functions.invoke('edit-recap-email', {
     body: {
@@ -110,16 +113,16 @@ export async function editRecapEmail(
   });
 
   if (error) {
-    console.error('[editRecapEmail] Edge function error:', error);
+    log.error('Edge function error', { error });
     throw new Error(`Failed to edit recap email: ${error.message}`);
   }
 
   if (!data || typeof data.updated_recap_email_draft !== 'string') {
-    console.error('[editRecapEmail] Invalid response:', data);
+    log.error('Invalid response from edge function', { data });
     throw new Error('Invalid response from edit-recap-email function');
   }
 
-  console.log('[editRecapEmail] Successfully received updated email');
+  log.debug('Successfully received updated email');
   return data.updated_recap_email_draft;
 }
 
@@ -143,7 +146,7 @@ export async function getCallCountsLast30DaysForReps(repIds: string[]): Promise<
     .gte('call_date', thirtyDaysAgo.toISOString().split('T')[0]);
 
   if (error) {
-    console.error('[getCallCountsLast30DaysForReps] Error:', error);
+    log.error('Failed to fetch call counts', { repCount: repIds.length, error });
     throw new Error(`Failed to fetch call counts: ${error.message}`);
   }
 
@@ -188,7 +191,7 @@ export async function getAiScoreStatsForReps(repIds: string[]): Promise<Map<stri
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('[getAiScoreStatsForReps] Error:', error);
+    log.error('Failed to fetch AI score stats', { repCount: repIds.length, error });
     throw new Error(`Failed to fetch AI score stats: ${error.message}`);
   }
 

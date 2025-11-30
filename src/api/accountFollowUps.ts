@@ -1,4 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('followUps');
 
 export type FollowUpStatus = 'pending' | 'completed' | 'dismissed';
 export type FollowUpPriority = 'high' | 'medium' | 'low';
@@ -45,7 +48,7 @@ export async function listFollowUpsForProspect(
   const { data, error } = await query;
 
   if (error) {
-    console.error('Error fetching follow-ups:', error);
+    log.error('Error fetching follow-ups', { prospectId, error });
     throw error;
   }
 
@@ -73,7 +76,7 @@ export async function completeFollowUp(followUpId: string): Promise<AccountFollo
     .single();
 
   if (error) {
-    console.error('Error completing follow-up:', error);
+    log.error('Error completing follow-up', { followUpId, error });
     throw error;
   }
 
@@ -95,7 +98,7 @@ export async function reopenFollowUp(followUpId: string): Promise<AccountFollowU
     .single();
 
   if (error) {
-    console.error('Error reopening follow-up:', error);
+    log.error('Error reopening follow-up', { followUpId, error });
     throw error;
   }
 
@@ -116,7 +119,7 @@ export async function dismissFollowUp(followUpId: string): Promise<AccountFollow
     .single();
 
   if (error) {
-    console.error('Error dismissing follow-up:', error);
+    log.error('Error dismissing follow-up', { followUpId, error });
     throw error;
   }
 
@@ -137,7 +140,7 @@ export async function restoreFollowUp(followUpId: string): Promise<AccountFollow
     .single();
 
   if (error) {
-    console.error('Error restoring follow-up:', error);
+    log.error('Error restoring follow-up', { followUpId, error });
     throw error;
   }
 
@@ -153,7 +156,7 @@ export async function refreshFollowUps(prospectId: string): Promise<{ success: b
   });
 
   if (error) {
-    console.error('Error refreshing follow-ups:', error);
+    log.error('Error refreshing follow-ups', { prospectId, error });
     // Check for rate limit in error message
     const isRateLimited = error.message?.toLowerCase().includes('rate limit') || 
                           error.message?.includes('429');
@@ -182,7 +185,7 @@ export async function getFollowUpGenerationStatus(prospectId: string): Promise<{
     .single();
 
   if (error) {
-    console.error('Error fetching generation status:', error);
+    log.error('Error fetching generation status', { prospectId, error });
     throw error;
   }
 
@@ -210,7 +213,7 @@ export async function listAllPendingFollowUpsForRep(repId: string): Promise<Acco
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('Error fetching all follow-ups:', error);
+    log.error('Error fetching all follow-ups', { repId, error });
     throw error;
   }
 

@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { createLogger } from '@/lib/logger';
 import { getOrCreateProspect, linkCallToProspect } from '@/api/prospects';
 import type {
   CreateCallTranscriptParams,
@@ -9,6 +10,8 @@ import type {
   CoachOutput,
   CallAnalysis,
 } from './types';
+
+const log = createLogger('transcripts');
 
 /**
  * Creates a call transcript and triggers AI analysis.
@@ -53,7 +56,7 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
     .single();
 
   if (insertError) {
-    console.error('[createCallTranscriptAndAnalyze] Insert error:', insertError);
+    log.error('Insert error', { error: insertError });
     throw new Error(`Failed to create call transcript: ${insertError.message}`);
   }
 
@@ -61,7 +64,7 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
     throw new Error('Failed to create call transcript: No data returned');
   }
 
-  console.log('[createCallTranscriptAndAnalyze] Transcript created:', transcript.id);
+  log.info('Transcript created', { transcriptId: transcript.id });
 
   // Get or create prospect and link to call
   let prospectId: string | null = existingProspectId || null;
@@ -78,9 +81,9 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
     }
     
     await linkCallToProspect(transcript.id, prospectId);
-    console.log('[createCallTranscriptAndAnalyze] Linked call to prospect:', prospectId);
+    log.debug('Linked call to prospect', { prospectId });
   } catch (prospectError) {
-    console.error('[createCallTranscriptAndAnalyze] Failed to create/link prospect:', prospectError);
+    log.error('Failed to create/link prospect', { error: prospectError });
   }
 
   // Call the analyze_call edge function
@@ -89,7 +92,7 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
   });
 
   if (analyzeError) {
-    console.error('[createCallTranscriptAndAnalyze] Analyze function error:', analyzeError);
+    log.error('Analyze function error', { error: analyzeError });
     const isRateLimited = analyzeError.message?.toLowerCase().includes('rate limit') ||
                           analyzeError.message?.includes('429');
     return {
@@ -106,7 +109,7 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
     };
   }
 
-  console.log('[createCallTranscriptAndAnalyze] Analysis response:', analyzeData);
+  log.debug('Analysis response received', { transcriptId: transcript.id });
 
   return {
     transcript: transcript as CallTranscript,
@@ -128,7 +131,7 @@ export async function listCallTranscriptsForRep(repId: string): Promise<CallTran
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('[listCallTranscriptsForRep] Error:', error);
+    log.error('Error listing transcripts', { repId, error });
     throw new Error(`Failed to list call transcripts: ${error.message}`);
   }
 
@@ -207,7 +210,7 @@ export async function listCallTranscriptsForRepWithFilters(
   const { data, error, count } = await query;
 
   if (error) {
-    console.error('[listCallTranscriptsForRepWithFilters] Error:', error);
+    log.error('Error listing transcripts with filters', { repId, error });
     throw new Error(`Failed to list call transcripts: ${error.message}`);
   }
 
@@ -225,7 +228,7 @@ export async function listCallTranscriptsForRepWithFilters(
     .in('call_id', callIds);
 
   if (analysisError) {
-    console.error('[listCallTranscriptsForRepWithFilters] Analysis fetch error:', analysisError);
+    log.error('Analysis fetch error', { error: analysisError });
     return {
       data: transcripts.map(t => ({ ...t, heat_score: null })),
       count: count || transcripts.length,
@@ -306,7 +309,7 @@ export async function getCallWithAnalysis(callId: string): Promise<{
     .maybeSingle();
 
   if (transcriptError) {
-    console.error('[getCallWithAnalysis] Transcript error:', transcriptError);
+    log.error('Transcript fetch error', { callId, error: transcriptError });
     throw new Error(`Failed to fetch call: ${transcriptError.message}`);
   }
 
@@ -322,7 +325,7 @@ export async function getCallWithAnalysis(callId: string): Promise<{
     .maybeSingle();
 
   if (analysisError) {
-    console.error('[getCallWithAnalysis] Analysis error:', analysisError);
+    log.error('Analysis fetch error', { callId, error: analysisError });
   }
 
   return {

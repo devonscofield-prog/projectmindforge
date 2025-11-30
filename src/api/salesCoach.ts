@@ -1,4 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('salesCoach');
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -117,7 +120,7 @@ export async function streamCoachResponse({
 
     onDone();
   } catch (error) {
-    console.error('[salesCoach] Stream error:', error);
+    log.error('Stream error', { error });
     onError(error instanceof Error ? error.message : 'Connection error');
   }
 }
