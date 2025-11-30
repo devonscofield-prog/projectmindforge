@@ -16,10 +16,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Profile, Team, UserRole } from '@/types/database';
 import { format } from 'date-fns';
 import { Pencil } from 'lucide-react';
 import { toast } from 'sonner';
+import { useOnlineUsers } from '@/hooks/usePresence';
 
 interface UserWithDetails extends Profile {
   role?: UserRole;
@@ -28,6 +30,7 @@ interface UserWithDetails extends Profile {
 
 export default function AdminUsers() {
   const [users, setUsers] = useState<UserWithDetails[]>([]);
+  const onlineUsers = useOnlineUsers();
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [roleFilter, setRoleFilter] = useState<'all' | UserRole>('all');
@@ -157,8 +160,12 @@ export default function AdminUsers() {
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle>All Users</CardTitle>
-              <CardDescription>
-                {filteredUsers.length} users {roleFilter !== 'all' && `(filtered by ${roleFilter})`}
+              <CardDescription className="flex items-center gap-3">
+                <span>{filteredUsers.length} users {roleFilter !== 'all' && `(filtered by ${roleFilter})`}</span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]" />
+                  {onlineUsers.size} online
+                </span>
               </CardDescription>
             </div>
             <Select value={roleFilter} onValueChange={(v) => setRoleFilter(v as 'all' | UserRole)}>
@@ -188,33 +195,54 @@ export default function AdminUsers() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredUsers.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell className="font-medium">{user.name}</TableCell>
-                      <TableCell>{user.email}</TableCell>
-                      <TableCell>
-                        <Badge variant={getRoleBadgeVariant(user.role)} className="capitalize">
-                          {user.role || 'Unknown'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{user.team?.name || '-'}</TableCell>
-                      <TableCell>
-                        <Badge variant={user.is_active ? 'default' : 'secondary'}>
-                          {user.is_active ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{format(new Date(user.created_at), 'MMM d, yyyy')}</TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEditClick(user)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {filteredUsers.map((user) => {
+                    const isOnline = onlineUsers.has(user.id);
+                    return (
+                      <TableRow key={user.id}>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span 
+                                  className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${
+                                    isOnline 
+                                      ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]' 
+                                      : 'bg-muted-foreground/30'
+                                  }`} 
+                                />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {isOnline ? 'Online now' : 'Offline'}
+                              </TooltipContent>
+                            </Tooltip>
+                            {user.name}
+                          </div>
+                        </TableCell>
+                        <TableCell>{user.email}</TableCell>
+                        <TableCell>
+                          <Badge variant={getRoleBadgeVariant(user.role)} className="capitalize">
+                            {user.role || 'Unknown'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{user.team?.name || '-'}</TableCell>
+                        <TableCell>
+                          <Badge variant={user.is_active ? 'default' : 'secondary'}>
+                            {user.is_active ? 'Active' : 'Inactive'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{format(new Date(user.created_at), 'MMM d, yyyy')}</TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEditClick(user)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             ) : (

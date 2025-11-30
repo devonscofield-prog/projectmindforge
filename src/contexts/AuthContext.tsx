@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, Session } from '@supabase/supabase-js';
+import { User, Session, RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { UserRole, Profile } from '@/types/database';
 import { toast } from 'sonner';
@@ -23,6 +23,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [role, setRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const [presenceChannel, setPresenceChannel] = useState<RealtimeChannel | null>(null);
+
+  // Set up presence tracking
+  useEffect(() => {
+    if (!user) {
+      if (presenceChannel) {
+        presenceChannel.unsubscribe();
+        setPresenceChannel(null);
+      }
+      return;
+    }
+
+    const channel = supabase.channel('online-users', {
+      config: {
+        presence: {
+          key: user.id,
+        },
+      },
+    });
+
+    channel.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        await channel.track({
+          user_id: user.id,
+          online_at: new Date().toISOString(),
+        });
+      }
+    });
+
+    setPresenceChannel(channel);
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [user?.id]);
 
   const checkUserActive = async (userId: string): Promise<boolean> => {
     const { data } = await supabase
