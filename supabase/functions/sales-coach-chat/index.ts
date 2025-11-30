@@ -24,6 +24,44 @@ function getCorsHeaders(origin?: string | null): Record<string, string> {
   };
 }
 
+// UUID validation regex
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function validateUUID(value: unknown, fieldName: string): string | null {
+  if (typeof value !== 'string') {
+    return `${fieldName} must be a string`;
+  }
+  if (!UUID_REGEX.test(value)) {
+    return `${fieldName} must be a valid UUID`;
+  }
+  return null;
+}
+
+function validateMessages(messages: unknown): string | null {
+  if (!Array.isArray(messages)) {
+    return 'messages must be an array';
+  }
+  if (messages.length === 0) {
+    return 'messages cannot be empty';
+  }
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+    if (!msg || typeof msg !== 'object') {
+      return `messages[${i}] must be an object`;
+    }
+    if (!['user', 'assistant'].includes(msg.role)) {
+      return `messages[${i}].role must be 'user' or 'assistant'`;
+    }
+    if (typeof msg.content !== 'string' || msg.content.length === 0) {
+      return `messages[${i}].content must be a non-empty string`;
+    }
+    if (msg.content.length > 50000) {
+      return `messages[${i}].content exceeds maximum length of 50000 characters`;
+    }
+  }
+  return null;
+}
+
 const SALES_COACH_SYSTEM_PROMPT = `You are a 30-year veteran sales manager who has seen it all and closed deals at every level. You're friendly, direct, and tactical. You've managed hundreds of reps and have a sixth sense for what works and what doesn't.
 
 Your personality:
@@ -65,14 +103,26 @@ serve(async (req) => {
   }
 
   try {
-    const { prospect_id, messages } = await req.json() as { 
-      prospect_id: string; 
-      messages: Message[];
+    const body = await req.json();
+    const { prospect_id, messages } = body as { 
+      prospect_id: unknown; 
+      messages: unknown;
     };
     
-    if (!prospect_id) {
+    // Validate prospect_id
+    const prospectIdError = validateUUID(prospect_id, 'prospect_id');
+    if (prospectIdError) {
       return new Response(
-        JSON.stringify({ error: 'prospect_id is required' }),
+        JSON.stringify({ error: prospectIdError }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    // Validate messages
+    const messagesError = validateMessages(messages);
+    if (messagesError) {
+      return new Response(
+        JSON.stringify({ error: messagesError }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -157,7 +207,9 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
-    console.log(`[sales-coach-chat] Calling Lovable AI with ${messages.length} messages`);
+    // Cast validated messages to proper type
+    const validatedMessages = messages as Message[];
+    console.log(`[sales-coach-chat] Calling Lovable AI with ${validatedMessages.length} messages`);
 
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -172,7 +224,7 @@ serve(async (req) => {
             role: 'system', 
             content: `${SALES_COACH_SYSTEM_PROMPT}\n\n## ACCOUNT CONTEXT\n${contextPrompt}` 
           },
-          ...messages
+          ...validatedMessages
         ],
         stream: true,
       })

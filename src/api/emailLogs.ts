@@ -75,8 +75,19 @@ export async function listEmailLogsForProspect(prospectId: string): Promise<Emai
   return (data || []) as EmailLog[];
 }
 
+interface EmailLogUpdateData {
+  direction?: EmailDirection;
+  subject?: string | null;
+  body?: string;
+  email_date?: string;
+  contact_name?: string | null;
+  contact_email?: string | null;
+  notes?: string | null;
+  stakeholder_id?: string | null;
+}
+
 export async function updateEmailLog(id: string, updates: UpdateEmailLogParams): Promise<EmailLog> {
-  const updateData: Record<string, any> = {};
+  const updateData: EmailLogUpdateData = {};
   
   if (updates.direction !== undefined) updateData.direction = updates.direction;
   if (updates.subject !== undefined) updateData.subject = updates.subject;

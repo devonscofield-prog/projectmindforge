@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { PaginationControls } from '@/components/ui/pagination-controls';
 import { Profile, Team, UserRole } from '@/types/database';
 import { format, formatDistanceToNow } from 'date-fns';
 import { Pencil, History } from 'lucide-react';
@@ -36,6 +37,10 @@ export default function AdminUsers() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [roleFilter, setRoleFilter] = useState<'all' | UserRole>('all');
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   
   // Edit dialog state
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -81,9 +86,24 @@ export default function AdminUsers() {
     fetchData();
   }, []);
 
-  const filteredUsers = roleFilter === 'all' 
-    ? users 
-    : users.filter((u) => u.role === roleFilter);
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [roleFilter]);
+
+  const filteredUsers = useMemo(() => {
+    return roleFilter === 'all' 
+      ? users 
+      : users.filter((u) => u.role === roleFilter);
+  }, [users, roleFilter]);
+
+  // Paginated users
+  const paginatedUsers = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredUsers.slice(startIndex, startIndex + pageSize);
+  }, [filteredUsers, currentPage, pageSize]);
+
+  const totalPages = Math.ceil(filteredUsers.length / pageSize);
 
   const getRoleBadgeVariant = (role?: UserRole) => {
     switch (role) {
@@ -149,6 +169,11 @@ export default function AdminUsers() {
     }
   };
 
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    setCurrentPage(1);
+  };
+
   if (loading) {
     return (
       <AppLayout>
@@ -192,94 +217,110 @@ export default function AdminUsers() {
             </Select>
           </CardHeader>
           <CardContent>
-            {filteredUsers.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Team</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Joined</TableHead>
-                    <TableHead className="w-[80px]">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredUsers.map((user) => {
-                    const isOnline = onlineUsers.has(user.id);
-                    return (
-                      <TableRow key={user.id}>
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-2">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span 
-                                  className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${
-                                    isOnline 
-                                      ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]' 
-                                      : 'bg-muted-foreground/30'
-                                  }`} 
-                                />
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                {isOnline 
-                                  ? 'Online now' 
-                                  : user.last_seen_at 
-                                    ? `Last seen ${formatDistanceToNow(new Date(user.last_seen_at), { addSuffix: true })}`
-                                    : 'Offline'
-                                }
-                              </TooltipContent>
-                            </Tooltip>
-                            {user.name}
-                          </div>
-                        </TableCell>
-                        <TableCell>{user.email}</TableCell>
-                        <TableCell>
-                          <Badge variant={getRoleBadgeVariant(user.role)} className="capitalize">
-                            {user.role || 'Unknown'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{user.team?.name || '-'}</TableCell>
-                        <TableCell>
-                          <Badge variant={user.is_active ? 'default' : 'secondary'}>
-                            {user.is_active ? 'Active' : 'Inactive'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{format(new Date(user.created_at), 'MMM d, yyyy')}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleActivityClick(user)}
-                                >
-                                  <History className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>View activity log</TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleEditClick(user)}
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Edit user</TooltipContent>
-                            </Tooltip>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+            {paginatedUsers.length > 0 ? (
+              <>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Team</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Joined</TableHead>
+                      <TableHead className="w-[80px]">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedUsers.map((user) => {
+                      const isOnline = onlineUsers.has(user.id);
+                      return (
+                        <TableRow key={user.id}>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span 
+                                    className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${
+                                      isOnline 
+                                        ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]' 
+                                        : 'bg-muted-foreground/30'
+                                    }`} 
+                                  />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  {isOnline 
+                                    ? 'Online now' 
+                                    : user.last_seen_at 
+                                      ? `Last seen ${formatDistanceToNow(new Date(user.last_seen_at), { addSuffix: true })}`
+                                      : 'Offline'
+                                  }
+                                </TooltipContent>
+                              </Tooltip>
+                              {user.name}
+                            </div>
+                          </TableCell>
+                          <TableCell>{user.email}</TableCell>
+                          <TableCell>
+                            <Badge variant={getRoleBadgeVariant(user.role)} className="capitalize">
+                              {user.role || 'Unknown'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{user.team?.name || '-'}</TableCell>
+                          <TableCell>
+                            <Badge variant={user.is_active ? 'default' : 'secondary'}>
+                              {user.is_active ? 'Active' : 'Inactive'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{format(new Date(user.created_at), 'MMM d, yyyy')}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleActivityClick(user)}
+                                  >
+                                    <History className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>View activity log</TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleEditClick(user)}
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Edit user</TooltipContent>
+                              </Tooltip>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+                
+                {/* Pagination */}
+                {filteredUsers.length > pageSize && (
+                  <div className="mt-4 border-t pt-4">
+                    <PaginationControls
+                      currentPage={currentPage}
+                      totalPages={totalPages}
+                      totalItems={filteredUsers.length}
+                      pageSize={pageSize}
+                      onPageChange={setCurrentPage}
+                      onPageSizeChange={handlePageSizeChange}
+                    />
+                  </div>
+                )}
+              </>
             ) : (
               <p className="text-muted-foreground text-center py-8">No users found.</p>
             )}
