@@ -25,6 +25,7 @@ import { CriticalInfoTrends } from '@/components/coaching/CriticalInfoTrends';
 import { PriorityActionCard } from '@/components/coaching/PriorityActionCard';
 import { LeadershipReportExport } from '@/components/coaching/LeadershipReportExport';
 import { TeamComparisonView } from '@/components/coaching/TeamComparisonView';
+import { RepContributionBreakdown } from '@/components/coaching/RepContributionBreakdown';
 import { cn } from '@/lib/utils';
 import {
   BarChart3,
@@ -835,6 +836,15 @@ export default function AdminCoachingTrends() {
             {/* Priority Actions */}
             {displayAnalysis.topPriorities && displayAnalysis.topPriorities.length > 0 && (
               <PriorityActionCard priorities={displayAnalysis.topPriorities} />
+            )}
+
+            {/* Rep Contribution Breakdown */}
+            {displayMetadata?.repContributions && displayMetadata.repContributions.length > 0 && scope !== 'rep' && (
+              <RepContributionBreakdown
+                contributions={displayMetadata.repContributions}
+                totalCalls={displayMetadata.totalCalls}
+                scope={scope as 'organization' | 'team'}
+              />
             )}
 
             {/* Reset Button */}
