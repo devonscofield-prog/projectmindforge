@@ -33,6 +33,7 @@ import {
 import { getBenchmarkComparison } from '@/api/performanceBenchmarks';
 import { PerformanceBenchmarkCard } from '@/components/admin/PerformanceBenchmarkCard';
 import { PerformanceDrillDown } from '@/components/admin/PerformanceDrillDown';
+import { PerformanceRecommendations } from '@/components/admin/PerformanceRecommendations';
 import { toast } from 'sonner';
 
 const TIME_RANGE_OPTIONS = [
@@ -352,6 +353,9 @@ export default function AdminPerformanceMonitor() {
           comparisons={benchmarkComparison || []}
           isLoading={benchmarkLoading}
         />
+
+        {/* AI Recommendations */}
+        <PerformanceRecommendations />
 
         {/* Maintenance Actions */}
         <Card>
