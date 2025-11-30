@@ -17,6 +17,7 @@ import {
   Users,
   Target,
   Zap,
+  Search,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -33,6 +34,7 @@ interface Transcript {
 
 interface TranscriptChatPanelProps {
   selectedTranscripts: Transcript[];
+  useRag?: boolean;
   onClose: () => void;
 }
 
@@ -64,7 +66,7 @@ const STARTER_QUESTIONS = [
   },
 ];
 
-export function TranscriptChatPanel({ selectedTranscripts, onClose }: TranscriptChatPanelProps) {
+export function TranscriptChatPanel({ selectedTranscripts, useRag = false, onClose }: TranscriptChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -104,6 +106,7 @@ export function TranscriptChatPanel({ selectedTranscripts, onClose }: Transcript
       await streamAdminTranscriptChat({
         transcriptIds: selectedTranscripts.map(t => t.id),
         messages: newMessages,
+        useRag,
         onDelta: (delta) => {
           assistantContent += delta;
           setMessages(prev => {
@@ -128,7 +131,7 @@ export function TranscriptChatPanel({ selectedTranscripts, onClose }: Transcript
       setError(err instanceof Error ? err.message : 'Failed to get response');
       setIsLoading(false);
     }
-  }, [messages, isLoading, selectedTranscripts]);
+  }, [messages, isLoading, selectedTranscripts, useRag]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -153,13 +156,21 @@ export function TranscriptChatPanel({ selectedTranscripts, onClose }: Transcript
         <SheetTitle className="flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-primary" />
           Transcript Analysis
+          {useRag && (
+            <Badge variant="secondary" className="text-xs gap-1">
+              <Search className="h-3 w-3" />
+              RAG Mode
+            </Badge>
+          )}
         </SheetTitle>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <FileText className="h-4 w-4" />
           {selectedTranscripts.length} transcripts selected
-          <Badge variant="outline" className="text-xs">
-            ~{Math.round(selectedTranscripts.reduce((sum, t) => sum + (t.raw_text?.length || 0), 0) / 4).toLocaleString()} tokens
-          </Badge>
+          {!useRag && (
+            <Badge variant="outline" className="text-xs">
+              ~{Math.round(selectedTranscripts.reduce((sum, t) => sum + (t.raw_text?.length || 0), 0) / 4).toLocaleString()} tokens
+            </Badge>
+          )}
         </div>
       </SheetHeader>
 
@@ -171,12 +182,14 @@ export function TranscriptChatPanel({ selectedTranscripts, onClose }: Transcript
               {/* Introduction */}
               <div className="text-center py-6">
                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-3">
-                  <MessageSquare className="h-6 w-6 text-primary" />
+                  {useRag ? <Search className="h-6 w-6 text-primary" /> : <MessageSquare className="h-6 w-6 text-primary" />}
                 </div>
                 <h3 className="font-semibold mb-1">Analyze Your Transcripts</h3>
                 <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                  Ask questions about the {selectedTranscripts.length} selected transcripts. 
-                  I'll only reference information explicitly stated in the calls.
+                  {useRag 
+                    ? `Using semantic search across ${selectedTranscripts.length} transcripts to find relevant sections for your questions.`
+                    : `Ask questions about the ${selectedTranscripts.length} selected transcripts. I'll only reference information explicitly stated in the calls.`
+                  }
                 </p>
               </div>
 

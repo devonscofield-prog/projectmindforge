@@ -8,6 +8,7 @@ export interface ChatMessage {
 interface StreamAdminTranscriptChatParams {
   transcriptIds: string[];
   messages: ChatMessage[];
+  useRag?: boolean;
   onDelta: (delta: string) => void;
   onDone: () => void;
   onError: (error: string) => void;
@@ -16,6 +17,7 @@ interface StreamAdminTranscriptChatParams {
 export async function streamAdminTranscriptChat({
   transcriptIds,
   messages,
+  useRag = false,
   onDelta,
   onDone,
   onError,
@@ -37,7 +39,8 @@ export async function streamAdminTranscriptChat({
       },
       body: JSON.stringify({ 
         transcript_ids: transcriptIds, 
-        messages 
+        messages,
+        use_rag: useRag,
       }),
     });
 

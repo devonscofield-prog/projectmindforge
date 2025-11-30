@@ -901,6 +901,44 @@ export type Database = {
         }
         Relationships: []
       }
+      transcript_chunks: {
+        Row: {
+          chunk_index: number
+          chunk_text: string
+          created_at: string
+          id: string
+          metadata: Json | null
+          search_vector: unknown
+          transcript_id: string
+        }
+        Insert: {
+          chunk_index: number
+          chunk_text: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          search_vector?: unknown
+          transcript_id: string
+        }
+        Update: {
+          chunk_index?: number
+          chunk_text?: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          search_vector?: unknown
+          transcript_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transcript_chunks_transcript_id_fkey"
+            columns: ["transcript_id"]
+            isOneToOne: false
+            referencedRelation: "call_transcripts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           id: string
