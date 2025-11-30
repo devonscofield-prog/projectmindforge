@@ -505,11 +505,60 @@ serve(async (req) => {
       .eq('user_id', user.id)
       .single();
 
-    if (roleData?.role !== 'admin') {
+    const userRole = roleData?.role;
+    const isAdmin = userRole === 'admin';
+    const isManager = userRole === 'manager';
+
+    if (!isAdmin && !isManager) {
       return new Response(
-        JSON.stringify({ error: 'Admin access required' }),
+        JSON.stringify({ error: 'Admin or Manager access required' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // For managers, validate they can only access their team's transcripts
+    if (isManager) {
+      // Get manager's team
+      const { data: managerTeam } = await supabase
+        .from('teams')
+        .select('id')
+        .eq('manager_id', user.id)
+        .single();
+
+      if (!managerTeam) {
+        return new Response(
+          JSON.stringify({ error: 'No team found for this manager' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Get all rep IDs in the manager's team
+      const { data: teamReps } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('team_id', managerTeam.id);
+
+      const teamRepIds = new Set((teamReps || []).map((r: { id: string }) => r.id));
+
+      // Verify all requested transcripts belong to team reps
+      const { data: transcripts } = await supabase
+        .from('call_transcripts')
+        .select('id, rep_id')
+        .in('id', validatedTranscriptIds);
+
+      const unauthorizedIds = (transcripts || [])
+        .filter((t: { id: string; rep_id: string }) => !teamRepIds.has(t.rep_id))
+        .map((t: { id: string }) => t.id);
+
+      if (unauthorizedIds.length > 0) {
+        console.log(`[admin-transcript-chat] Manager ${user.id} attempted to access transcripts outside their team: ${unauthorizedIds.join(', ')}`);
+        return new Response(
+          JSON.stringify({ error: 'You can only analyze transcripts from your team' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      console.log(`[admin-transcript-chat] Manager ${user.id} authorized for ${validatedTranscriptIds.length} team transcripts`);
     }
 
     // Check rate limit

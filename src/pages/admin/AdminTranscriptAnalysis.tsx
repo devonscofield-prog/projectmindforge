@@ -1,11 +1,12 @@
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
-import { getAdminPageBreadcrumb } from '@/lib/breadcrumbConfig';
+import { getAdminPageBreadcrumb, getManagerPageBreadcrumb } from '@/lib/breadcrumbConfig';
 import { SaveSelectionDialog } from '@/components/admin/SaveSelectionDialog';
 import { SavedSelectionsSheet } from '@/components/admin/SavedSelectionsSheet';
 import { SavedInsightsSheet } from '@/components/admin/SavedInsightsSheet';
 import { FileText } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   TranscriptFilters,
   TranscriptSelectionBar,
@@ -14,7 +15,14 @@ import {
 } from './transcript-analysis';
 
 export default function AdminTranscriptAnalysis() {
+  const { role } = useAuth();
+  const isAdmin = role === 'admin';
+  
   const {
+    // Scope info
+    isTeamScoped,
+    managerTeam,
+    
     // Filter state
     dateRange,
     selectedPreset,
@@ -73,11 +81,15 @@ export default function AdminTranscriptAnalysis() {
     handleLoadSelection,
   } = useTranscriptAnalysis();
 
+  const breadcrumbItems = isAdmin 
+    ? getAdminPageBreadcrumb('transcriptAnalysis')
+    : getManagerPageBreadcrumb('transcriptAnalysis');
+
   return (
     <AppLayout>
       <div className="space-y-6">
         {/* Breadcrumb Navigation */}
-        <PageBreadcrumb items={getAdminPageBreadcrumb('transcriptAnalysis')} />
+        <PageBreadcrumb items={breadcrumbItems} />
 
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -87,17 +99,22 @@ export default function AdminTranscriptAnalysis() {
               Transcript Analysis
             </h1>
             <p className="text-muted-foreground">
-              Select transcripts to analyze with AI across all teams
+              {isTeamScoped 
+                ? `Analyze transcripts from ${managerTeam?.name || 'your team'}`
+                : 'Select transcripts to analyze with AI across all teams'
+              }
             </p>
           </div>
-          <Badge variant="outline">Admin View</Badge>
+          <Badge variant="outline">
+            {isAdmin ? 'Admin View' : 'Team View'}
+          </Badge>
         </div>
 
         {/* Filters */}
         <TranscriptFilters
           dateRange={dateRange}
           selectedPreset={selectedPreset}
-          selectedTeamId={selectedTeamId}
+          selectedTeamId={isTeamScoped ? (managerTeam?.id || 'all') : selectedTeamId}
           selectedRepId={selectedRepId}
           accountSearch={accountSearch}
           selectedCallTypes={selectedCallTypes}
@@ -110,6 +127,7 @@ export default function AdminTranscriptAnalysis() {
           onRepChange={setSelectedRepId}
           onAccountSearchChange={setAccountSearch}
           onToggleCallType={toggleCallType}
+          hideTeamFilter={isTeamScoped}
         />
 
         {/* Selection Info Bar */}
@@ -139,7 +157,7 @@ export default function AdminTranscriptAnalysis() {
           transcriptIds={Array.from(selectedTranscriptIds)}
           filters={{
             dateRange,
-            selectedTeamId,
+            selectedTeamId: isTeamScoped ? (managerTeam?.id || 'all') : selectedTeamId,
             selectedRepId,
             accountSearch,
             selectedCallTypes,

@@ -33,6 +33,7 @@ interface TranscriptFiltersProps {
   onRepChange: (value: string) => void;
   onAccountSearchChange: (value: string) => void;
   onToggleCallType: (callType: string) => void;
+  hideTeamFilter?: boolean;
 }
 
 export function TranscriptFilters({
@@ -51,6 +52,7 @@ export function TranscriptFilters({
   onRepChange,
   onAccountSearchChange,
   onToggleCallType,
+  hideTeamFilter = false,
 }: TranscriptFiltersProps) {
   return (
     <Card>
@@ -122,22 +124,24 @@ export function TranscriptFilters({
             </div>
           </div>
 
-          {/* Team Filter */}
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Team</Label>
-            <Select value={selectedTeamId} onValueChange={onTeamChange}>
-              <SelectTrigger className="w-[160px]">
-                <Building2 className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="All Teams" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Teams</SelectItem>
-                {teams?.map(team => (
-                  <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Team Filter - Hidden for managers (team-scoped view) */}
+          {!hideTeamFilter && (
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Team</Label>
+              <Select value={selectedTeamId} onValueChange={onTeamChange}>
+                <SelectTrigger className="w-[160px]">
+                  <Building2 className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="All Teams" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Teams</SelectItem>
+                  {teams?.map(team => (
+                    <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Rep Filter */}
           <div className="space-y-1">
