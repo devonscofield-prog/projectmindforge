@@ -17,9 +17,12 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
+import {
+  FormInput,
+  FormTextarea,
+  FormSwitch,
+  SubmitButton,
+} from '@/components/ui/form-fields';
 import { Save, Link, Copy, Check } from 'lucide-react';
 
 interface FilterState {
@@ -176,41 +179,27 @@ export function SaveSelectionDialog({
           </div>
         ) : (
           <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
-              <Input
-                id="name"
-                placeholder="e.g., Q4 Demo Calls - Enterprise"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="description">Description (optional)</Label>
-              <Textarea
-                id="description"
-                placeholder="Add notes about this selection..."
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={2}
-              />
-            </div>
-            <div className="flex items-center justify-between rounded-lg border p-3">
-              <div className="space-y-0.5">
-                <Label htmlFor="share" className="font-medium flex items-center gap-2">
-                  <Link className="h-4 w-4" />
-                  Create shareable link
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  Allow other admins to view this selection
-                </p>
-              </div>
-              <Switch
-                id="share"
-                checked={isShared}
-                onCheckedChange={setIsShared}
-              />
-            </div>
+            <FormInput
+              label="Name"
+              placeholder="e.g., Q4 Demo Calls - Enterprise"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+            <FormTextarea
+              label="Description (optional)"
+              placeholder="Add notes about this selection..."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+            />
+            <FormSwitch
+              label="Create shareable link"
+              description="Allow other admins to view this selection"
+              icon={<Link className="h-4 w-4" />}
+              checked={isShared}
+              onCheckedChange={setIsShared}
+              variant="card"
+            />
           </div>
         )}
 
@@ -222,12 +211,14 @@ export function SaveSelectionDialog({
               <Button variant="outline" onClick={handleClose}>
                 Cancel
               </Button>
-              <Button
+              <SubmitButton
                 onClick={() => saveMutation.mutate()}
-                disabled={!name.trim() || saveMutation.isPending}
+                disabled={!name.trim()}
+                isLoading={saveMutation.isPending}
+                loadingText="Saving..."
               >
-                {saveMutation.isPending ? 'Saving...' : 'Save Selection'}
-              </Button>
+                Save Selection
+              </SubmitButton>
             </>
           )}
         </DialogFooter>

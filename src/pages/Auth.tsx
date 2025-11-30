@@ -1,11 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { FormInput, SubmitButton } from '@/components/ui/form-fields';
 import { useToast } from '@/hooks/use-toast';
 import { z } from 'zod';
 
@@ -118,107 +116,71 @@ export default function Auth() {
             
             <TabsContent value="signin">
               <form onSubmit={handleSignIn} className="space-y-4" aria-label="Sign in form">
-                <div className="space-y-2">
-                  <Label htmlFor="signin-email">Email</Label>
-                  <Input
-                    id="signin-email"
-                    type="email"
-                    placeholder="you@stormwind.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    autoComplete="email"
-                    aria-describedby="signin-email-hint"
-                  />
-                  <span id="signin-email-hint" className="sr-only">
-                    Enter your email address
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signin-password">Password</Label>
-                  <Input
-                    id="signin-password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    autoComplete="current-password"
-                    aria-describedby="signin-password-hint"
-                  />
-                  <span id="signin-password-hint" className="sr-only">
-                    Enter your password
-                  </span>
-                </div>
-                <Button 
-                  type="submit" 
+                <FormInput
+                  label="Email"
+                  type="email"
+                  placeholder="you@stormwind.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                />
+                <FormInput
+                  label="Password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                />
+                <SubmitButton 
                   className="w-full" 
-                  disabled={isLoading}
-                  aria-busy={isLoading}
+                  isLoading={isLoading}
+                  loadingText="Signing in..."
                 >
-                  {isLoading ? 'Signing in...' : 'Sign In'}
-                </Button>
+                  Sign In
+                </SubmitButton>
               </form>
             </TabsContent>
             
             <TabsContent value="signup">
               <form onSubmit={handleSignUp} className="space-y-4" aria-label="Sign up form">
-                <div className="space-y-2">
-                  <Label htmlFor="signup-name">Full Name</Label>
-                  <Input
-                    id="signup-name"
-                    type="text"
-                    placeholder="John Doe"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                    autoComplete="name"
-                    aria-describedby="signup-name-hint"
-                  />
-                  <span id="signup-name-hint" className="sr-only">
-                    Enter your full name
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-email">Email</Label>
-                  <Input
-                    id="signup-email"
-                    type="email"
-                    placeholder="you@stormwind.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    autoComplete="email"
-                    aria-describedby="signup-email-hint"
-                  />
-                  <span id="signup-email-hint" className="sr-only">
-                    Enter your email address
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password">Password</Label>
-                  <Input
-                    id="signup-password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    autoComplete="new-password"
-                    aria-describedby="signup-password-hint"
-                  />
-                  <span id="signup-password-hint" className="sr-only">
-                    Create a password with at least 6 characters
-                  </span>
-                </div>
-                <Button 
-                  type="submit" 
+                <FormInput
+                  label="Full Name"
+                  type="text"
+                  placeholder="John Doe"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  autoComplete="name"
+                />
+                <FormInput
+                  label="Email"
+                  type="email"
+                  placeholder="you@stormwind.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                />
+                <FormInput
+                  label="Password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoComplete="new-password"
+                  description="Password must be at least 6 characters"
+                />
+                <SubmitButton 
                   className="w-full" 
-                  disabled={isLoading}
-                  aria-busy={isLoading}
+                  isLoading={isLoading}
+                  loadingText="Creating account..."
                 >
-                  {isLoading ? 'Creating account...' : 'Create Account'}
-                </Button>
+                  Create Account
+                </SubmitButton>
               </form>
             </TabsContent>
           </Tabs>
