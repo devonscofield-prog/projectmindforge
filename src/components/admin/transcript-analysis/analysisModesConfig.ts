@@ -14,6 +14,10 @@ import {
   FileQuestion,
   Gauge,
   LucideIcon,
+  Layers,
+  ClipboardCheck,
+  Briefcase,
+  GraduationCap,
 } from 'lucide-react';
 
 export interface AnalysisMode {
@@ -492,4 +496,108 @@ export function getAnalysisModeById(id: string): AnalysisMode | undefined {
 export function getModePromptAddition(modeId: string): string {
   const mode = getAnalysisModeById(modeId);
   return mode?.systemPromptAddition || '';
+}
+
+// Mode Presets - Combined analysis modes for comprehensive reviews
+export interface ModePreset {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  description: string;
+  modeIds: string[];
+  starterPrompt: string;
+}
+
+export const MODE_PRESETS: ModePreset[] = [
+  {
+    id: 'full_deal_review',
+    label: 'Full Deal Review',
+    icon: ClipboardCheck,
+    description: 'MEDDIC scoring + Champion health + Forecast validation',
+    modeIds: ['deal_scoring', 'customer_voice', 'forecast_validation'],
+    starterPrompt: `Perform a comprehensive deal review combining these analyses:
+
+**PART 1: MEDDIC QUALIFICATION**
+Score each deal using MEDDIC criteria (1-5 per criterion). Show a table with scores and evidence for each deal.
+
+**PART 2: CHAMPION ASSESSMENT** 
+For each deal, assess champion strength: Are they selling internally? Access to power? Sharing buying process info? Score 1-5.
+
+**PART 3: FORECAST VALIDATION**
+Challenge every close date. What evidence supports or contradicts timelines? Categorize as: Commit / Best Case / Pipeline / At Risk.
+
+**FINAL SUMMARY**
+Rank all deals by overall health and provide the top 3 actions to take this week.`,
+  },
+  {
+    id: 'team_coaching',
+    label: 'Team Coaching Session',
+    icon: GraduationCap,
+    description: 'Rep comparison + Discovery audit + Objection handling',
+    modeIds: ['rep_comparison', 'discovery_audit', 'objection_library'],
+    starterPrompt: `Prepare a comprehensive team coaching session:
+
+**PART 1: REP PERFORMANCE COMPARISON**
+Create a matrix comparing all reps across: discovery depth, objection handling, value articulation, call control, closing skills. Score each 1-5.
+
+**PART 2: DISCOVERY QUALITY AUDIT**
+Score discovery quality for each rep. Who's asking great questions? Who's surface-level? Include specific examples of excellent vs weak discovery.
+
+**PART 3: OBJECTION HANDLING ANALYSIS**
+What objections came up? How did each rep handle them? Build a best practices guide from top performers.
+
+**COACHING PRIORITIES**
+Identify the top 3 coaching priorities for the team with specific examples and recommended training focus.`,
+  },
+  {
+    id: 'competitive_briefing',
+    label: 'Competitive Briefing',
+    icon: Briefcase,
+    description: 'Competitive intel + Win/loss patterns + Battle cards',
+    modeIds: ['competitive', 'customer_voice', 'objection_library'],
+    starterPrompt: `Build a comprehensive competitive briefing:
+
+**PART 1: COMPETITOR INTELLIGENCE**
+For each competitor mentioned: frequency, their perceived strengths/weaknesses, how our reps position against them, what's working vs not.
+
+**PART 2: BUYER PERSPECTIVE**
+What do prospects say about us vs competition? What criteria matter most? What concerns come up repeatedly?
+
+**PART 3: BATTLE CARDS**
+Build actionable battle cards: key objections, proven responses, win themes, and positioning recommendations for each competitor.
+
+**ACTION ITEMS**
+What should sales enablement prioritize? What messaging needs refinement? What new collateral would help?`,
+  },
+  {
+    id: 'pipeline_audit',
+    label: 'Pipeline Health Audit',
+    icon: BarChart3,
+    description: 'Deal scoring + Forecast validation + Risk assessment',
+    modeIds: ['deal_scoring', 'forecast_validation', 'general'],
+    starterPrompt: `Conduct a rigorous pipeline health audit:
+
+**PART 1: DEAL QUALIFICATION STATUS**
+Score every deal on MEDDIC. Create a ranked table showing qualification scores and the biggest gaps for each deal.
+
+**PART 2: FORECAST ACCURACY CHECK**
+For each deal: What evidence supports the expected close date? What evidence contradicts it? Categorize as Commit/Best Case/Pipeline/Remove.
+
+**PART 3: RISK ASSESSMENT**
+Identify all deals with warning signs: single-threaded, no compelling event, competitor momentum, vague next steps. Rank by revenue at risk.
+
+**EXECUTIVE SUMMARY**
+Provide a pipeline summary: total qualified value, likely slippage, deals to accelerate, and deals to deprioritize.`,
+  },
+];
+
+export function getPresetById(id: string): ModePreset | undefined {
+  return MODE_PRESETS.find(preset => preset.id === id);
+}
+
+export function getCombinedModePrompts(modeIds: string[]): string {
+  return modeIds
+    .map(id => getModePromptAddition(id))
+    .filter(Boolean)
+    .join('\n\n');
 }

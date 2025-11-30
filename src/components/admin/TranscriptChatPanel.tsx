@@ -11,10 +11,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { streamAdminTranscriptChat, ChatMessage } from '@/api/adminTranscriptChat';
 import { SaveInsightDialog } from '@/components/admin/SaveInsightDialog';
 import { ExportChatDialog } from '@/components/admin/ExportChatDialog';
-import { ANALYSIS_MODES, getAnalysisModeById } from '@/components/admin/transcript-analysis/analysisModesConfig';
+import { 
+  ANALYSIS_MODES, 
+  MODE_PRESETS,
+  getAnalysisModeById, 
+  getPresetById,
+  type ModePreset,
+} from '@/components/admin/transcript-analysis/analysisModesConfig';
 import { useToast } from '@/hooks/use-toast';
 import { useRateLimitCountdown } from '@/hooks/useRateLimitCountdown';
 import { RateLimitCountdown } from '@/components/ui/rate-limit-countdown';
@@ -25,11 +41,11 @@ import {
   Sparkles,
   FileText,
   AlertCircle,
-  MessageSquare,
   Search,
   Lightbulb,
   Download,
-  ChevronDown,
+  Layers,
+  ArrowRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -60,6 +76,15 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
   const [insightToSave, setInsightToSave] = useState<string>('');
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [selectedModeId, setSelectedModeId] = useState('general');
+  const [activePresetId, setActivePresetId] = useState<string | null>(null);
+  
+  // Mode switch confirmation state
+  const [pendingModeChange, setPendingModeChange] = useState<{
+    type: 'mode' | 'preset';
+    id: string;
+  } | null>(null);
+  const [showModeChangeConfirm, setShowModeChangeConfirm] = useState(false);
+  
   const { toast } = useToast();
   const { secondsRemaining, isRateLimited, startCountdown } = useRateLimitCountdown(60);
   
@@ -67,6 +92,7 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
   const inputRef = useRef<HTMLInputElement>(null);
 
   const selectedMode = getAnalysisModeById(selectedModeId) || ANALYSIS_MODES[0];
+  const activePreset = activePresetId ? getPresetById(activePresetId) : null;
   const starterQuestions = selectedMode.starterQuestions;
 
   // Auto-scroll to bottom when messages change
@@ -84,7 +110,7 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
     inputRef.current?.focus();
   }, []);
 
-  const sendMessage = useCallback(async (content: string) => {
+  const sendMessage = useCallback(async (content: string, modeOverride?: string) => {
     if (!content.trim() || isLoading || isRateLimited || selectedTranscripts.length === 0) return;
 
     setError(null);
@@ -95,13 +121,14 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
     setIsLoading(true);
 
     let assistantContent = '';
+    const modeToUse = modeOverride || selectedModeId;
 
     try {
       await streamAdminTranscriptChat({
         transcriptIds: selectedTranscripts.map(t => t.id),
         messages: newMessages,
         useRag,
-        analysisMode: selectedModeId,
+        analysisMode: modeToUse,
         onDelta: (delta) => {
           assistantContent += delta;
           setMessages(prev => {
@@ -120,7 +147,6 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
         onError: (err) => {
           setError(err);
           setIsLoading(false);
-          // Start countdown for rate limit errors
           if (err.toLowerCase().includes('rate limit')) {
             startCountdown(60);
             toast({
@@ -136,6 +162,56 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
       setIsLoading(false);
     }
   }, [messages, isLoading, isRateLimited, selectedTranscripts, useRag, selectedModeId, toast, startCountdown]);
+
+  const handleModeChange = (newModeId: string) => {
+    // If there are messages, show confirmation dialog
+    if (messages.length > 0) {
+      setPendingModeChange({ type: 'mode', id: newModeId });
+      setShowModeChangeConfirm(true);
+    } else {
+      setSelectedModeId(newModeId);
+      setActivePresetId(null);
+    }
+  };
+
+  const handlePresetSelect = (preset: ModePreset) => {
+    // If there are messages, show confirmation dialog
+    if (messages.length > 0) {
+      setPendingModeChange({ type: 'preset', id: preset.id });
+      setShowModeChangeConfirm(true);
+    } else {
+      executePreset(preset);
+    }
+  };
+
+  const executePreset = (preset: ModePreset) => {
+    setActivePresetId(preset.id);
+    // Use the first mode from the preset for the API call
+    setSelectedModeId(preset.modeIds[0]);
+    // Send the combined starter prompt
+    sendMessage(preset.starterPrompt, preset.modeIds[0]);
+  };
+
+  const confirmModeChange = () => {
+    if (!pendingModeChange) return;
+    
+    if (pendingModeChange.type === 'mode') {
+      setSelectedModeId(pendingModeChange.id);
+      setActivePresetId(null);
+      toast({
+        title: 'Mode changed',
+        description: 'Chat history preserved. New questions will use the selected mode.',
+      });
+    } else {
+      const preset = getPresetById(pendingModeChange.id);
+      if (preset) {
+        executePreset(preset);
+      }
+    }
+    
+    setPendingModeChange(null);
+    setShowModeChangeConfirm(false);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -154,6 +230,9 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
   };
 
   const ModeIcon = selectedMode.icon;
+  const pendingLabel = pendingModeChange?.type === 'mode' 
+    ? getAnalysisModeById(pendingModeChange.id)?.label 
+    : getPresetById(pendingModeChange?.id || '')?.label;
 
   return (
     <div className="flex flex-col h-full">
@@ -194,11 +273,17 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
         
         {/* Analysis Mode Selector */}
         <div className="pt-2">
-          <Select value={selectedModeId} onValueChange={setSelectedModeId}>
+          <Select value={selectedModeId} onValueChange={handleModeChange}>
             <SelectTrigger className="w-full bg-muted/50">
               <div className="flex items-center gap-2">
                 <ModeIcon className="h-4 w-4 text-primary" />
                 <SelectValue placeholder="Select analysis mode" />
+                {activePreset && (
+                  <Badge variant="secondary" className="ml-auto text-xs">
+                    <Layers className="h-3 w-3 mr-1" />
+                    {activePreset.label}
+                  </Badge>
+                )}
               </div>
             </SelectTrigger>
             <SelectContent>
@@ -226,17 +311,71 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
         <div className="py-4 space-y-4">
           {messages.length === 0 ? (
             <div className="space-y-6">
-              {/* Introduction */}
-              <div className="text-center py-6">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-3">
-                  <ModeIcon className="h-6 w-6 text-primary" />
+              {/* Mode Presets Section */}
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider flex items-center gap-1">
+                  <Layers className="h-3 w-3" />
+                  Comprehensive Reviews
+                </p>
+                <div className="grid gap-2">
+                  {MODE_PRESETS.map((preset) => {
+                    const PresetIcon = preset.icon;
+                    const modeLabels = preset.modeIds
+                      .map(id => getAnalysisModeById(id)?.label)
+                      .filter(Boolean)
+                      .join(' + ');
+                    return (
+                      <button
+                        key={preset.id}
+                        onClick={() => handlePresetSelect(preset)}
+                        disabled={isLoading || isRateLimited}
+                        className="flex items-start gap-3 p-3 text-left rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors disabled:opacity-50"
+                      >
+                        <PresetIcon className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm">{preset.label}</span>
+                            <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                          </div>
+                          <span className="text-xs text-muted-foreground block mt-0.5">{preset.description}</span>
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {preset.modeIds.map(id => {
+                              const mode = getAnalysisModeById(id);
+                              if (!mode) return null;
+                              const MIcon = mode.icon;
+                              return (
+                                <Badge key={id} variant="outline" className="text-[10px] py-0 gap-0.5">
+                                  <MIcon className="h-2.5 w-2.5" />
+                                  {mode.label}
+                                </Badge>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
-                <h3 className="font-semibold mb-1">{selectedMode.label}</h3>
-                <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                  {selectedMode.description}. {useRag 
-                    ? `Using semantic search across ${selectedTranscripts.length} transcripts.`
-                    : `Analyzing ${selectedTranscripts.length} selected transcripts.`
-                  }
+              </div>
+
+              {/* Divider */}
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">or ask a question</span>
+                </div>
+              </div>
+
+              {/* Introduction */}
+              <div className="text-center py-2">
+                <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 mb-2">
+                  <ModeIcon className="h-5 w-5 text-primary" />
+                </div>
+                <h3 className="font-semibold text-sm mb-1">{selectedMode.label}</h3>
+                <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                  {selectedMode.description}
                 </p>
               </div>
 
@@ -282,7 +421,6 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
                       <div className="prose prose-sm dark:prose-invert max-w-none">
                         <ReactMarkdown
                           components={{
-                            // Style citations
                             strong: ({ children }) => (
                               <strong className="text-primary">{children}</strong>
                             ),
@@ -362,6 +500,27 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
           </p>
         </div>
       </div>
+
+      {/* Mode Change Confirmation Dialog */}
+      <AlertDialog open={showModeChangeConfirm} onOpenChange={setShowModeChangeConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Switch analysis mode?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have an active conversation. Switching to <strong>{pendingLabel}</strong> will 
+              keep your chat history, but new questions will use the new mode's specialized prompts.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingModeChange(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={confirmModeChange}>
+              Switch Mode
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Save Insight Dialog */}
       <SaveInsightDialog
