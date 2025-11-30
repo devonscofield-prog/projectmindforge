@@ -124,7 +124,6 @@ export async function streamAdminTranscriptChat({
 
     onDone();
   } catch (error) {
-    console.error('[adminTranscriptChat] Stream error:', error);
     onError(error instanceof Error ? error.message : 'Connection error');
   }
 }

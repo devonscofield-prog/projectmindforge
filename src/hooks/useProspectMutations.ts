@@ -1,5 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { createLogger } from '@/lib/logger';
 import { toast } from 'sonner';
+
+const log = createLogger('prospectMutations');
 import {
   Prospect,
   ProspectStatus,
@@ -83,7 +86,7 @@ export function useUpdateProspect() {
         queryClient.setQueryData(['prospect', prospectId], context.previousProspect);
       }
       toast.error('Failed to update account');
-      console.error('Update prospect error:', err);
+      log.error('Update prospect error', { error: err });
     },
 
     onSuccess: () => {

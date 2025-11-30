@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { createLogger } from '@/lib/logger';
 import { supabase } from '@/integrations/supabase/client';
+
+const log = createLogger('AdminAccounts');
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -231,7 +234,7 @@ export default function AdminAccounts() {
       const { data: prospectsData, count, error } = await query;
 
       if (error) {
-        console.error('Failed to load prospects:', error);
+        log.error('Failed to load prospects', { error });
         setProspects([]);
         setTotalCount(0);
         setIsLoading(false);
@@ -306,7 +309,7 @@ export default function AdminAccounts() {
       setStakeholderCounts(sCounts);
       setPrimaryStakeholders(primaryData);
     } catch (error) {
-      console.error('Failed to load prospects:', error);
+      log.error('Failed to load prospects', { error });
     } finally {
       setIsLoading(false);
     }

@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { createLogger } from '@/lib/logger';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+
+const log = createLogger('SaveInsightDialog');
 import { Json } from '@/integrations/supabase/types';
 import {
   Dialog,
@@ -100,7 +103,7 @@ export function SaveInsightDialog({
       onSaved?.(data.id);
     },
     onError: (error) => {
-      console.error('Save insight error:', error);
+      log.error('Save insight error', { error });
       toast.error('Failed to save insight');
     },
   });

@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('AddStakeholderDialog');
 import {
   Dialog,
   DialogContent,
@@ -86,7 +89,7 @@ export function AddStakeholderDialog({
         isPrimaryContact: false,
       });
     } catch (error) {
-      console.error('Failed to add stakeholder:', error);
+      log.error('Failed to add stakeholder', { error });
       toast({ title: 'Failed to add stakeholder', variant: 'destructive' });
     } finally {
       setIsSubmitting(false);

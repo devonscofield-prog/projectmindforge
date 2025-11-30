@@ -1,5 +1,8 @@
 import { useState, useRef } from 'react';
 import { format } from 'date-fns';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('ExportShareDialog');
 import {
   Dialog,
   DialogContent,
@@ -141,7 +144,7 @@ export function ExportShareDialog({
       document.body.removeChild(container);
       toast.success('PDF exported successfully');
     } catch (error) {
-      console.error('PDF export error:', error);
+      log.error('PDF export error', { error });
       toast.error('Failed to export PDF');
     } finally {
       setIsExporting(false);

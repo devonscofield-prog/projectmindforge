@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { createLogger } from '@/lib/logger';
 import { 
   DIRECT_ANALYSIS_MAX, 
   SAMPLING_MAX 
@@ -11,6 +12,8 @@ import type {
   FormattedCall,
   RepContributionData 
 } from './types';
+
+const log = createLogger('aiAnalysis');
 
 /**
  * Determines the analysis tier based on call count
@@ -176,7 +179,7 @@ export async function analyzeHierarchically(
   dateRange: { from: string; to: string }
 ): Promise<{ analysis: CoachingTrendAnalysis; chunksAnalyzed: number; callsPerChunk: number[] }> {
   const chunks = splitIntoWeeklyChunks(formattedCalls);
-  console.log(`[analyzeHierarchically] Split ${formattedCalls.length} calls into ${chunks.length} chunks`);
+  log.info(`Split ${formattedCalls.length} calls into ${chunks.length} chunks`);
 
   // Analyze each chunk
   const chunkSummaries: ChunkSummary[] = [];
@@ -185,7 +188,7 @@ export async function analyzeHierarchically(
     const chunk = chunks[i];
     const chunkDates = chunk.map(c => c.date).sort();
     
-    console.log(`[analyzeHierarchically] Analyzing chunk ${i + 1}/${chunks.length} with ${chunk.length} calls`);
+    log.info(`Analyzing chunk ${i + 1}/${chunks.length} with ${chunk.length} calls`);
     
     const response = await supabase.functions.invoke('generate-coaching-chunk-summary', {
       body: {
@@ -199,14 +202,14 @@ export async function analyzeHierarchically(
     });
 
     if (response.error) {
-      console.error(`[analyzeHierarchically] Chunk ${i} error:`, response.error);
+      log.error(`Chunk ${i} analysis failed`, { error: response.error });
       throw new Error(`Failed to analyze chunk ${i + 1}: ${response.error.message}`);
     }
 
     chunkSummaries.push(response.data as ChunkSummary);
   }
 
-  console.log(`[analyzeHierarchically] All ${chunks.length} chunks analyzed, synthesizing...`);
+  log.info(`All ${chunks.length} chunks analyzed, synthesizing...`);
 
   // Send chunk summaries to main function for synthesis
   const response = await supabase.functions.invoke('generate-coaching-trends', {

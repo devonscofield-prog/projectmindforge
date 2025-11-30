@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
+import { createLogger } from '@/lib/logger';
 import { Check, ChevronsUpDown, Plus, User, Crown } from 'lucide-react';
+
+const log = createLogger('StakeholderCombobox');
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -51,7 +54,7 @@ export function StakeholderCombobox({
         const data = await listStakeholdersForProspect(prospectId);
         setStakeholders(data);
       } catch (error) {
-        console.error('Failed to fetch stakeholders:', error);
+        log.error('Failed to fetch stakeholders', { error });
       } finally {
         setLoading(false);
       }

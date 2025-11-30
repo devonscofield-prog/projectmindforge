@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { createLogger } from '@/lib/logger';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Json } from '@/integrations/supabase/types';
+
+const log = createLogger('SaveSelectionDialog');
 import {
   Dialog,
   DialogContent,
@@ -103,7 +106,7 @@ export function SaveSelectionDialog({
       onSaved?.(data.id);
     },
     onError: (error) => {
-      console.error('Save selection error:', error);
+      log.error('Save selection error', { error });
       toast.error('Failed to save selection');
     },
   });

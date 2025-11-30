@@ -1,5 +1,8 @@
 import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('AdminUsers');
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -164,7 +167,7 @@ export default function AdminUsers() {
       // Refresh data
       await fetchData();
     } catch (error) {
-      console.error('Failed to update user:', error);
+      log.error('Failed to update user', { error });
       toast.error('Failed to update user');
     } finally {
       setSaving(false);
