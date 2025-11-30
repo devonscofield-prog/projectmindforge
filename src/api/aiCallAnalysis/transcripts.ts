@@ -90,9 +90,19 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
 
   if (analyzeError) {
     console.error('[createCallTranscriptAndAnalyze] Analyze function error:', analyzeError);
+    const isRateLimited = analyzeError.message?.toLowerCase().includes('rate limit') ||
+                          analyzeError.message?.includes('429');
     return {
       transcript: transcript as CallTranscript,
-      analyzeResponse: { error: analyzeError.message }
+      analyzeResponse: { error: analyzeError.message, isRateLimited }
+    };
+  }
+
+  // Check if the response indicates rate limiting
+  if (analyzeData?.error?.toLowerCase().includes('rate limit')) {
+    return {
+      transcript: transcript as CallTranscript,
+      analyzeResponse: { error: analyzeData.error, isRateLimited: true }
     };
   }
 

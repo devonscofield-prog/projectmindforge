@@ -130,10 +130,20 @@ export default function RepDashboard() {
         prospectId: selectedProspectId || undefined,
         stakeholderId: selectedStakeholderId || undefined
       });
-      toast({
-        title: 'Call submitted for analysis',
-        description: 'Redirecting to your call details...'
-      });
+
+      // Check for rate limit error in analyze response
+      if (result.analyzeResponse?.isRateLimited) {
+        toast({
+          title: 'Too many requests',
+          description: 'Your call was saved but analysis is queued. Please wait a moment before submitting another.',
+          variant: 'destructive'
+        });
+      } else {
+        toast({
+          title: 'Call submitted for analysis',
+          description: 'Redirecting to your call details...'
+        });
+      }
 
       // Navigate to the call detail page
       navigate(`/calls/${result.transcript.id}`);

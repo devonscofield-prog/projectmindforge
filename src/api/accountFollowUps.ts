@@ -147,14 +147,22 @@ export async function restoreFollowUp(followUpId: string): Promise<AccountFollow
 /**
  * Trigger regeneration of follow-ups for a prospect
  */
-export async function refreshFollowUps(prospectId: string): Promise<{ success: boolean; count?: number; error?: string }> {
+export async function refreshFollowUps(prospectId: string): Promise<{ success: boolean; count?: number; error?: string; isRateLimited?: boolean }> {
   const { data, error } = await supabase.functions.invoke('generate-account-follow-ups', {
     body: { prospect_id: prospectId }
   });
 
   if (error) {
     console.error('Error refreshing follow-ups:', error);
-    return { success: false, error: error.message };
+    // Check for rate limit in error message
+    const isRateLimited = error.message?.toLowerCase().includes('rate limit') || 
+                          error.message?.includes('429');
+    return { success: false, error: error.message, isRateLimited };
+  }
+
+  // Check if the response itself indicates rate limiting
+  if (data?.error?.toLowerCase().includes('rate limit')) {
+    return { success: false, error: data.error, isRateLimited: true };
   }
 
   return data;

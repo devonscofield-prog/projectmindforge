@@ -7,6 +7,7 @@ import { SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { streamAdminTranscriptChat, ChatMessage } from '@/api/adminTranscriptChat';
 import { SaveInsightDialog } from '@/components/admin/SaveInsightDialog';
 import { ExportChatDialog } from '@/components/admin/ExportChatDialog';
+import { useToast } from '@/hooks/use-toast';
 import ReactMarkdown from 'react-markdown';
 import {
   Send,
@@ -79,6 +80,7 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
   const [saveInsightOpen, setSaveInsightOpen] = useState(false);
   const [insightToSave, setInsightToSave] = useState<string>('');
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const { toast } = useToast();
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -133,13 +135,21 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
         onError: (err) => {
           setError(err);
           setIsLoading(false);
+          // Show toast for rate limit errors
+          if (err.toLowerCase().includes('rate limit')) {
+            toast({
+              title: 'Too many requests',
+              description: 'Please wait a moment before sending another message.',
+              variant: 'destructive',
+            });
+          }
         },
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to get response');
       setIsLoading(false);
     }
-  }, [messages, isLoading, selectedTranscripts, useRag]);
+  }, [messages, isLoading, selectedTranscripts, useRag, toast]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
