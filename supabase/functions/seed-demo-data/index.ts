@@ -7,18 +7,25 @@ const corsHeaders = {
 
 interface SeedUser {
   email: string
-  password: string
   name: string
   role: 'admin' | 'manager' | 'rep'
   teamKey?: 'east' | 'west'
   notes?: string
 }
 
+// Generate a cryptographically secure random password
+function generateSecurePassword(length: number = 16): string {
+  const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*'
+  const array = new Uint8Array(length)
+  crypto.getRandomValues(array)
+  return Array.from(array, byte => charset[byte % charset.length]).join('')
+}
+
+// User definitions WITHOUT hardcoded passwords
 const SEED_USERS: SeedUser[] = [
   // Admin
   {
     email: 'admin@example.com',
-    password: 'Password123!',
     name: 'Alex Administrator',
     role: 'admin',
     notes: 'System administrator with full access to all teams and data.'
@@ -26,7 +33,6 @@ const SEED_USERS: SeedUser[] = [
   // Managers
   {
     email: 'manager.east@example.com',
-    password: 'Password123!',
     name: 'Emily Eastman',
     role: 'manager',
     teamKey: 'east',
@@ -34,7 +40,6 @@ const SEED_USERS: SeedUser[] = [
   },
   {
     email: 'manager.west@example.com',
-    password: 'Password123!',
     name: 'William Westbrook',
     role: 'manager',
     teamKey: 'west',
@@ -43,7 +48,6 @@ const SEED_USERS: SeedUser[] = [
   // East Reps
   {
     email: 'rep.east.1@example.com',
-    password: 'Password123!',
     name: 'Sarah Chen',
     role: 'rep',
     teamKey: 'east',
@@ -51,7 +55,6 @@ const SEED_USERS: SeedUser[] = [
   },
   {
     email: 'rep.east.2@example.com',
-    password: 'Password123!',
     name: 'Michael Torres',
     role: 'rep',
     teamKey: 'east',
@@ -59,7 +62,6 @@ const SEED_USERS: SeedUser[] = [
   },
   {
     email: 'rep.east.3@example.com',
-    password: 'Password123!',
     name: 'Jennifer Park',
     role: 'rep',
     teamKey: 'east',
@@ -67,7 +69,6 @@ const SEED_USERS: SeedUser[] = [
   },
   {
     email: 'rep.east.4@example.com',
-    password: 'Password123!',
     name: 'David Williams',
     role: 'rep',
     teamKey: 'east',
@@ -76,7 +77,6 @@ const SEED_USERS: SeedUser[] = [
   // West Reps
   {
     email: 'rep.west.1@example.com',
-    password: 'Password123!',
     name: 'Amanda Johnson',
     role: 'rep',
     teamKey: 'west',
@@ -84,7 +84,6 @@ const SEED_USERS: SeedUser[] = [
   },
   {
     email: 'rep.west.2@example.com',
-    password: 'Password123!',
     name: 'Ryan Martinez',
     role: 'rep',
     teamKey: 'west',
@@ -92,7 +91,6 @@ const SEED_USERS: SeedUser[] = [
   },
   {
     email: 'rep.west.3@example.com',
-    password: 'Password123!',
     name: 'Lisa Thompson',
     role: 'rep',
     teamKey: 'west',
@@ -100,7 +98,6 @@ const SEED_USERS: SeedUser[] = [
   },
   {
     email: 'rep.west.4@example.com',
-    password: 'Password123!',
     name: 'Kevin Brown',
     role: 'rep',
     teamKey: 'west',
@@ -130,6 +127,9 @@ Deno.serve(async (req) => {
     const results: string[] = []
     const userIds: Record<string, string> = {}
     const teamIds: Record<string, string> = {}
+    
+    // Store generated credentials to return to the caller
+    const generatedCredentials: Array<{ email: string; password: string; role: string }> = []
 
     // Step 1: Create or get auth users
     results.push('=== Creating Auth Users ===')
@@ -142,9 +142,12 @@ Deno.serve(async (req) => {
         userIds[user.email] = existingUser.id
         results.push(`User ${user.email} already exists (${existingUser.id})`)
       } else {
+        // Generate a secure random password for each new user
+        const password = generateSecurePassword(20)
+        
         const { data: newUser, error } = await supabaseAdmin.auth.admin.createUser({
           email: user.email,
-          password: user.password,
+          password: password,
           email_confirm: true,
           user_metadata: { name: user.name }
         })
@@ -156,6 +159,13 @@ Deno.serve(async (req) => {
         
         userIds[user.email] = newUser.user.id
         results.push(`Created user ${user.email} (${newUser.user.id})`)
+        
+        // Store the credentials to return (only for newly created users)
+        generatedCredentials.push({
+          email: user.email,
+          password: password,
+          role: user.role
+        })
       }
     }
 
@@ -253,14 +263,14 @@ Deno.serve(async (req) => {
 
     // Performance profiles for variety
     const performanceProfiles = [
-      { demoGoal: 12, revenueGoal: 10000, currentDemos: 8, currentRevenue: 7500, prevDemos: 11, prevRevenue: 9800 }, // On track
-      { demoGoal: 15, revenueGoal: 12000, currentDemos: 14, currentRevenue: 13500, prevDemos: 16, prevRevenue: 14000 }, // Exceeding
-      { demoGoal: 10, revenueGoal: 8000, currentDemos: 3, currentRevenue: 2000, prevDemos: 8, prevRevenue: 7000 }, // At risk
-      { demoGoal: 12, revenueGoal: 10000, currentDemos: 6, currentRevenue: 5000, prevDemos: 10, prevRevenue: 9500 }, // Slightly behind
-      { demoGoal: 14, revenueGoal: 11000, currentDemos: 12, currentRevenue: 10500, prevDemos: 13, prevRevenue: 11200 }, // On track
-      { demoGoal: 10, revenueGoal: 9000, currentDemos: 11, currentRevenue: 10000, prevDemos: 9, prevRevenue: 8500 }, // Exceeding
-      { demoGoal: 13, revenueGoal: 12000, currentDemos: 4, currentRevenue: 3500, prevDemos: 7, prevRevenue: 6000 }, // At risk
-      { demoGoal: 15, revenueGoal: 15000, currentDemos: 17, currentRevenue: 16500, prevDemos: 14, prevRevenue: 15200 }, // Top performer
+      { demoGoal: 12, revenueGoal: 10000, currentDemos: 8, currentRevenue: 7500, prevDemos: 11, prevRevenue: 9800 },
+      { demoGoal: 15, revenueGoal: 12000, currentDemos: 14, currentRevenue: 13500, prevDemos: 16, prevRevenue: 14000 },
+      { demoGoal: 10, revenueGoal: 8000, currentDemos: 3, currentRevenue: 2000, prevDemos: 8, prevRevenue: 7000 },
+      { demoGoal: 12, revenueGoal: 10000, currentDemos: 6, currentRevenue: 5000, prevDemos: 10, prevRevenue: 9500 },
+      { demoGoal: 14, revenueGoal: 11000, currentDemos: 12, currentRevenue: 10500, prevDemos: 13, prevRevenue: 11200 },
+      { demoGoal: 10, revenueGoal: 9000, currentDemos: 11, currentRevenue: 10000, prevDemos: 9, prevRevenue: 8500 },
+      { demoGoal: 13, revenueGoal: 12000, currentDemos: 4, currentRevenue: 3500, prevDemos: 7, prevRevenue: 6000 },
+      { demoGoal: 15, revenueGoal: 15000, currentDemos: 17, currentRevenue: 16500, prevDemos: 14, prevRevenue: 15200 },
     ]
 
     for (let i = 0; i < reps.length; i++) {
@@ -424,9 +434,24 @@ Deno.serve(async (req) => {
     results.push('\n=== Seed Complete ===')
     results.push(`Total users: ${Object.keys(userIds).length}`)
     results.push(`Total teams: ${Object.keys(teamIds).length}`)
+    
+    // Log credentials securely (only visible in function logs, not persisted)
+    if (generatedCredentials.length > 0) {
+      results.push('\n=== Generated Credentials (SAVE THESE - ONE TIME ONLY) ===')
+      results.push('These passwords are randomly generated and not stored anywhere.')
+      results.push('You must save them now or reset passwords manually later.')
+    }
 
     return new Response(
-      JSON.stringify({ success: true, log: results.join('\n') }),
+      JSON.stringify({ 
+        success: true, 
+        log: results.join('\n'),
+        // Return credentials so they can be captured - only for newly created users
+        credentials: generatedCredentials.length > 0 ? generatedCredentials : undefined,
+        warning: generatedCredentials.length > 0 
+          ? 'IMPORTANT: Save the credentials immediately. They are randomly generated and will not be shown again.'
+          : undefined
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
