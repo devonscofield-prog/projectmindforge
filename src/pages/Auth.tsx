@@ -102,20 +102,22 @@ export default function Auth() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md" role="region" aria-labelledby="auth-title">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold text-primary">StormWind Sales Hub</CardTitle>
+          <CardTitle id="auth-title" className="text-2xl font-bold text-primary">
+            StormWind Sales Hub
+          </CardTitle>
           <CardDescription>Sign in to access your sales dashboard</CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="signin" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-2" aria-label="Authentication options">
               <TabsTrigger value="signin">Sign In</TabsTrigger>
               <TabsTrigger value="signup">Sign Up</TabsTrigger>
             </TabsList>
             
             <TabsContent value="signin">
-              <form onSubmit={handleSignIn} className="space-y-4">
+              <form onSubmit={handleSignIn} className="space-y-4" aria-label="Sign in form">
                 <div className="space-y-2">
                   <Label htmlFor="signin-email">Email</Label>
                   <Input
@@ -125,7 +127,12 @@ export default function Auth() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
+                    autoComplete="email"
+                    aria-describedby="signin-email-hint"
                   />
+                  <span id="signin-email-hint" className="sr-only">
+                    Enter your email address
+                  </span>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signin-password">Password</Label>
@@ -136,16 +143,26 @@ export default function Auth() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    autoComplete="current-password"
+                    aria-describedby="signin-password-hint"
                   />
+                  <span id="signin-password-hint" className="sr-only">
+                    Enter your password
+                  </span>
                 </div>
-                <Button type="submit" className="w-full" disabled={isLoading}>
+                <Button 
+                  type="submit" 
+                  className="w-full" 
+                  disabled={isLoading}
+                  aria-busy={isLoading}
+                >
                   {isLoading ? 'Signing in...' : 'Sign In'}
                 </Button>
               </form>
             </TabsContent>
             
             <TabsContent value="signup">
-              <form onSubmit={handleSignUp} className="space-y-4">
+              <form onSubmit={handleSignUp} className="space-y-4" aria-label="Sign up form">
                 <div className="space-y-2">
                   <Label htmlFor="signup-name">Full Name</Label>
                   <Input
@@ -155,7 +172,12 @@ export default function Auth() {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     required
+                    autoComplete="name"
+                    aria-describedby="signup-name-hint"
                   />
+                  <span id="signup-name-hint" className="sr-only">
+                    Enter your full name
+                  </span>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signup-email">Email</Label>
@@ -166,7 +188,12 @@ export default function Auth() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
+                    autoComplete="email"
+                    aria-describedby="signup-email-hint"
                   />
+                  <span id="signup-email-hint" className="sr-only">
+                    Enter your email address
+                  </span>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signup-password">Password</Label>
@@ -177,9 +204,19 @@ export default function Auth() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    autoComplete="new-password"
+                    aria-describedby="signup-password-hint"
                   />
+                  <span id="signup-password-hint" className="sr-only">
+                    Create a password with at least 6 characters
+                  </span>
                 </div>
-                <Button type="submit" className="w-full" disabled={isLoading}>
+                <Button 
+                  type="submit" 
+                  className="w-full" 
+                  disabled={isLoading}
+                  aria-busy={isLoading}
+                >
                   {isLoading ? 'Creating account...' : 'Create Account'}
                 </Button>
               </form>
