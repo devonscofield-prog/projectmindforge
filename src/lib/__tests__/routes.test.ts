@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getAccountDetailUrl, getCallDetailUrl, getRepDetailUrl, getCoachingSummaryUrl } from '../routes';
+import { getAccountDetailUrl, getCallDetailUrl, getRepDetailUrl, getCoachingSummaryUrl, getDashboardUrl } from '../routes';
 
 describe('getAccountDetailUrl', () => {
   it('returns admin path for admin role', () => {
@@ -65,5 +65,23 @@ describe('getCallDetailUrl', () => {
   it('handles UUID-style call IDs', () => {
     const uuid = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
     expect(getCallDetailUrl(uuid)).toBe(`/calls/${uuid}`);
+  });
+});
+
+describe('getDashboardUrl', () => {
+  it('returns admin dashboard for admin role', () => {
+    expect(getDashboardUrl('admin')).toBe('/admin');
+  });
+
+  it('returns manager dashboard for manager role', () => {
+    expect(getDashboardUrl('manager')).toBe('/manager');
+  });
+
+  it('returns rep dashboard for rep role', () => {
+    expect(getDashboardUrl('rep')).toBe('/rep');
+  });
+
+  it('returns rep dashboard for null role (default)', () => {
+    expect(getDashboardUrl(null)).toBe('/rep');
   });
 });
