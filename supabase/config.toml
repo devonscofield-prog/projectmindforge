@@ -29,3 +29,9 @@ verify_jwt = true
 
 [functions.chunk-transcripts]
 verify_jwt = true
+
+[functions.send-performance-alert]
+verify_jwt = true
+
+[functions.check-performance-alerts]
+verify_jwt = true
