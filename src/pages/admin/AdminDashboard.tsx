@@ -5,16 +5,18 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Users, Building2, BarChart3, RefreshCw, ChevronDown } from 'lucide-react';
+import { Users, Building2, BarChart3, RefreshCw, ChevronDown, Phone } from 'lucide-react';
 import { toast } from 'sonner';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { GlobalActivityFeed } from '@/components/admin/GlobalActivityFeed';
+import { subDays } from 'date-fns';
 
 interface Stats {
   totalUsers: number;
   totalTeams: number;
   totalReps: number;
   totalManagers: number;
+  callsAnalyzedLast7Days: number;
 }
 
 export default function AdminDashboard() {
@@ -24,11 +26,14 @@ export default function AdminDashboard() {
     totalTeams: 0,
     totalReps: 0,
     totalManagers: 0,
+    callsAnalyzedLast7Days: 0,
   });
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
 
   const fetchStats = async () => {
+    const sevenDaysAgo = subDays(new Date(), 7).toISOString();
+
     // Fetch user count
     const { count: userCount } = await supabase
       .from('profiles')
@@ -44,6 +49,13 @@ export default function AdminDashboard() {
       .from('user_roles')
       .select('role');
 
+    // Fetch calls analyzed in last 7 days
+    const { count: callsCount } = await supabase
+      .from('call_transcripts')
+      .select('*', { count: 'exact', head: true })
+      .eq('analysis_status', 'completed')
+      .gte('created_at', sevenDaysAgo);
+
     const repCount = roles?.filter((r) => r.role === 'rep').length || 0;
     const managerCount = roles?.filter((r) => r.role === 'manager').length || 0;
 
@@ -52,6 +64,7 @@ export default function AdminDashboard() {
       totalTeams: teamCount || 0,
       totalReps: repCount,
       totalManagers: managerCount,
+      callsAnalyzedLast7Days: callsCount || 0,
     });
 
     setLoading(false);
@@ -104,7 +117,7 @@ export default function AdminDashboard() {
           </Badge>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-4">
+        <div className="grid gap-6 md:grid-cols-5">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Total Users</CardTitle>
@@ -139,6 +152,16 @@ export default function AdminDashboard() {
             </CardHeader>
             <CardContent>
               <span className="text-3xl font-bold">{stats.totalManagers}</span>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Calls (7d)</CardTitle>
+              <Phone className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <span className="text-3xl font-bold">{stats.callsAnalyzedLast7Days}</span>
+              <p className="text-xs text-muted-foreground mt-1">Analyzed</p>
             </CardContent>
           </Card>
         </div>
