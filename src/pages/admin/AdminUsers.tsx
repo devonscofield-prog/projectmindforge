@@ -4,9 +4,22 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Profile, Team, UserRole } from '@/types/database';
 import { format } from 'date-fns';
+import { Pencil } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface UserWithDetails extends Profile {
   role?: UserRole;
@@ -15,39 +28,47 @@ interface UserWithDetails extends Profile {
 
 export default function AdminUsers() {
   const [users, setUsers] = useState<UserWithDetails[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [roleFilter, setRoleFilter] = useState<'all' | UserRole>('all');
+  
+  // Edit dialog state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserWithDetails | null>(null);
+  const [editForm, setEditForm] = useState({ role: '', team_id: '', is_active: true });
+  const [saving, setSaving] = useState(false);
+
+  const fetchData = async () => {
+    // Fetch all profiles
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('*')
+      .order('name');
+
+    if (!profiles) {
+      setLoading(false);
+      return;
+    }
+
+    // Fetch all roles
+    const { data: roles } = await supabase.from('user_roles').select('*');
+
+    // Fetch all teams
+    const { data: teamsData } = await supabase.from('teams').select('*').order('name');
+    setTeams((teamsData || []) as unknown as Team[]);
+
+    // Combine data
+    const usersWithDetails: UserWithDetails[] = profiles.map((profile) => ({
+      ...(profile as unknown as Profile),
+      role: roles?.find((r) => r.user_id === profile.id)?.role as UserRole,
+      team: teamsData?.find((t) => t.id === profile.team_id) as unknown as Team,
+    }));
+
+    setUsers(usersWithDetails);
+    setLoading(false);
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      // Fetch all profiles
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('name');
-
-      if (!profiles) {
-        setLoading(false);
-        return;
-      }
-
-      // Fetch all roles
-      const { data: roles } = await supabase.from('user_roles').select('*');
-
-      // Fetch all teams
-      const { data: teams } = await supabase.from('teams').select('*');
-
-      // Combine data
-      const usersWithDetails: UserWithDetails[] = profiles.map((profile) => ({
-        ...(profile as unknown as Profile),
-        role: roles?.find((r) => r.user_id === profile.id)?.role as UserRole,
-        team: teams?.find((t) => t.id === profile.team_id) as unknown as Team,
-      }));
-
-      setUsers(usersWithDetails);
-      setLoading(false);
-    };
-
     fetchData();
   }, []);
 
@@ -66,6 +87,54 @@ export default function AdminUsers() {
     }
   };
 
+  const handleEditClick = (user: UserWithDetails) => {
+    setEditingUser(user);
+    setEditForm({
+      role: user.role || 'rep',
+      team_id: user.team_id || '',
+      is_active: user.is_active,
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveUser = async () => {
+    if (!editingUser) return;
+    
+    setSaving(true);
+    try {
+      // Update profiles table for team_id and is_active
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          team_id: editForm.team_id || null,
+          is_active: editForm.is_active,
+        })
+        .eq('id', editingUser.id);
+
+      if (profileError) throw profileError;
+
+      // Update user_roles table for role change
+      const { error: roleError } = await supabase
+        .from('user_roles')
+        .update({ role: editForm.role as UserRole })
+        .eq('user_id', editingUser.id);
+
+      if (roleError) throw roleError;
+
+      toast.success('User updated successfully');
+      setEditDialogOpen(false);
+      setEditingUser(null);
+      
+      // Refresh data
+      await fetchData();
+    } catch (error) {
+      console.error('Failed to update user:', error);
+      toast.error('Failed to update user');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <AppLayout>
@@ -81,7 +150,7 @@ export default function AdminUsers() {
       <div className="space-y-8">
         <div>
           <h1 className="text-3xl font-bold">Users</h1>
-          <p className="text-muted-foreground mt-1">View all users in the system</p>
+          <p className="text-muted-foreground mt-1">View and manage all users in the system</p>
         </div>
 
         <Card>
@@ -115,6 +184,7 @@ export default function AdminUsers() {
                     <TableHead>Team</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Joined</TableHead>
+                    <TableHead className="w-[80px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -134,6 +204,15 @@ export default function AdminUsers() {
                         </Badge>
                       </TableCell>
                       <TableCell>{format(new Date(user.created_at), 'MMM d, yyyy')}</TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEditClick(user)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -144,6 +223,75 @@ export default function AdminUsers() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Edit User Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+            <DialogDescription>
+              Update role, team assignment, and status for {editingUser?.name}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="role">Role</Label>
+              <Select
+                value={editForm.role}
+                onValueChange={(v) => setEditForm({ ...editForm, role: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
+                  <SelectItem value="rep">Rep</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="team">Team</Label>
+              <Select
+                value={editForm.team_id || 'none'}
+                onValueChange={(v) => setEditForm({ ...editForm, team_id: v === 'none' ? '' : v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select team" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Team</SelectItem>
+                  {teams.map((team) => (
+                    <SelectItem key={team.id} value={team.id}>
+                      {team.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <Label htmlFor="is_active">Active Status</Label>
+              <Switch
+                id="is_active"
+                checked={editForm.is_active}
+                onCheckedChange={(checked) => setEditForm({ ...editForm, is_active: checked })}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveUser} disabled={saving}>
+              {saving ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }

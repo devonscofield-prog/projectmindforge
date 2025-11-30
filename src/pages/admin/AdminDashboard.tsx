@@ -203,7 +203,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
           <Card className="hover:bg-muted/50 transition-colors">
             <Link to="/admin/users">
               <CardHeader className="flex flex-row items-center gap-3 pb-2">
@@ -223,6 +223,17 @@ export default function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">Organize team structure</p>
+              </CardContent>
+            </Link>
+          </Card>
+          <Card className="hover:bg-muted/50 transition-colors">
+            <Link to="/admin/accounts">
+              <CardHeader className="flex flex-row items-center gap-3 pb-2">
+                <Building2 className="h-5 w-5 text-primary" />
+                <CardTitle className="text-base">All Accounts</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">View org-wide accounts</p>
               </CardContent>
             </Link>
           </Card>

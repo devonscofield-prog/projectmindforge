@@ -50,6 +50,7 @@ function SidebarNav() {
         { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
         { href: '/admin/users', label: 'Users', icon: Users },
         { href: '/admin/teams', label: 'Teams', icon: Users },
+        { href: '/admin/accounts', label: 'Accounts', icon: UserCheck },
         { href: '/admin/coaching', label: 'Coaching', icon: TrendingUp },
         { href: '/admin/transcripts', label: 'Transcripts', icon: FileText },
       ]

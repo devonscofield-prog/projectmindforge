@@ -10,7 +10,7 @@ export function MobileBottomNav() {
   const navItems = role === 'admin' 
     ? [
         { href: '/admin', label: 'Home', icon: LayoutDashboard },
-        { href: '/admin/users', label: 'Users', icon: Users },
+        { href: '/admin/accounts', label: 'Accounts', icon: UserCheck },
         { href: '/admin/coaching', label: 'Coaching', icon: TrendingUp },
         { href: '/admin/transcripts', label: 'Transcripts', icon: FileText },
       ]
