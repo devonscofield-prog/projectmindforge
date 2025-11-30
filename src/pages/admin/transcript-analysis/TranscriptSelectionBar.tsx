@@ -101,7 +101,7 @@ export function TranscriptSelectionBar({
             variant="outline"
             size="sm"
             onClick={onPreIndex}
-            disabled={!transcripts?.length || isIndexing || (chunkStatus?.indexed === chunkStatus?.total && chunkStatus?.total > 0)}
+            disabled={!transcripts?.length || isIndexing || (chunkStatus?.indexed === chunkStatus?.total && (chunkStatus?.total ?? 0) > 0)}
             title="Pre-index transcripts for faster RAG queries"
           >
             {isIndexing ? (
