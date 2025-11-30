@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { createLogger } from '@/lib/logger';
+import { toProfile, toTeam } from '@/lib/supabaseAdapters';
 
 const log = createLogger('AdminTeams');
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -85,7 +86,7 @@ export default function AdminTeams() {
         .from('profiles')
         .select('*')
         .in('id', managerIds);
-      managerProfiles = (managerData || []) as unknown as Profile[];
+      managerProfiles = (managerData || []).map(toProfile);
     }
 
     // Fetch member counts
@@ -102,11 +103,14 @@ export default function AdminTeams() {
     });
 
     // Combine data
-    const teamsWithManagers: TeamWithManager[] = teamsData.map((team) => ({
-      ...(team as unknown as Team),
-      manager: managerProfiles.find((m) => m.id === team.manager_id),
-      memberCount: memberCounts[team.id] || 0,
-    }));
+    const teamsWithManagers: TeamWithManager[] = teamsData.map((team) => {
+      const adaptedTeam = toTeam(team);
+      return {
+        ...adaptedTeam,
+        manager: managerProfiles.find((m) => m.id === team.manager_id),
+        memberCount: memberCounts[team.id] || 0,
+      };
+    });
 
     setTeams(teamsWithManagers);
 

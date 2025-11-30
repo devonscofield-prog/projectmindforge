@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { toProfile, toCoachingSession } from '@/lib/supabaseAdapters';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -133,7 +134,7 @@ export default function RepDetail() {
       .maybeSingle();
 
     if (repData) {
-      setRep(repData as unknown as Profile);
+      setRep(toProfile(repData));
     }
 
     // Fetch coaching sessions
@@ -144,7 +145,7 @@ export default function RepDetail() {
       .order('session_date', { ascending: false });
 
     if (coachingData) {
-      setCoaching(coachingData as unknown as CoachingSession[]);
+      setCoaching(coachingData.map(toCoachingSession));
     }
 
     setLoading(false);

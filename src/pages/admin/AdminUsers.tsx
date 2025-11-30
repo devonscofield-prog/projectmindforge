@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { createLogger } from '@/lib/logger';
+import { toProfile, toTeam } from '@/lib/supabaseAdapters';
 
 const log = createLogger('AdminUsers');
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -76,14 +77,21 @@ export default function AdminUsers() {
 
     // Fetch all teams
     const { data: teamsData } = await supabase.from('teams').select('*').order('name');
-    setTeams((teamsData || []) as unknown as Team[]);
+    const adaptedTeams = (teamsData || []).map(toTeam);
+    setTeams(adaptedTeams);
+
+    // Create a map for quick team lookup
+    const teamMap = new Map(adaptedTeams.map(t => [t.id, t]));
 
     // Combine data
-    const usersWithDetails: UserWithDetails[] = profiles.map((profile) => ({
-      ...(profile as unknown as Profile),
-      role: roles?.find((r) => r.user_id === profile.id)?.role as UserRole,
-      team: teamsData?.find((t) => t.id === profile.team_id) as unknown as Team,
-    }));
+    const usersWithDetails: UserWithDetails[] = profiles.map((profile) => {
+      const adaptedProfile = toProfile(profile);
+      return {
+        ...adaptedProfile,
+        role: roles?.find((r) => r.user_id === profile.id)?.role as UserRole,
+        team: profile.team_id ? teamMap.get(profile.team_id) : undefined,
+      };
+    });
 
     setUsers(usersWithDetails);
     setLoading(false);
