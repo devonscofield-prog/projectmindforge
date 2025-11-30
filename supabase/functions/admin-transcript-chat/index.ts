@@ -432,7 +432,38 @@ const DIRECT_INJECTION_MAX = 20;
 // Maximum chunks to include in RAG context
 const RAG_CHUNK_LIMIT = 50;
 
+// Performance logging helper
+async function logPerformanceMetric(
+  supabaseClient: ReturnType<typeof createClient>,
+  functionName: string,
+  durationMs: number,
+  status: 'success' | 'error' | 'timeout',
+  userId?: string,
+  metadata?: Record<string, unknown>
+): Promise<void> {
+  try {
+    // Use raw insert to avoid type issues with new table
+    const { error } = await supabaseClient
+      .from('performance_metrics' as any)
+      .insert({
+        metric_type: 'edge_function',
+        metric_name: functionName,
+        duration_ms: Math.round(durationMs),
+        status,
+        user_id: userId || null,
+        metadata: metadata || {},
+      } as any);
+    
+    if (error) {
+      console.warn('[performance] Failed to log metric:', error.message);
+    }
+  } catch (err) {
+    console.warn('[performance] Failed to log metric:', err);
+  }
+}
+
 serve(async (req) => {
+  const startTime = Date.now();
   const origin = req.headers.get('Origin');
   const corsHeaders = getCorsHeaders(origin);
   
@@ -440,9 +471,15 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  let userId: string | undefined;
+  let transcriptCount = 0;
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
   try {
     const body = await req.json();
-    const { transcript_ids, messages, use_rag, analysis_mode } = body as { 
+    const { transcript_ids, messages, use_rag, analysis_mode } = body as {
       transcript_ids: unknown; 
       messages: unknown;
       use_rag?: unknown;
