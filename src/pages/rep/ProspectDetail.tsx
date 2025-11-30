@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useProspectData } from '@/hooks/useProspectData';
-import { getDashboardUrl } from '@/lib/routes';
-import { ChevronRight, Home } from 'lucide-react';
+import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
 
 // Detail section components
 import {
@@ -76,25 +75,17 @@ export default function ProspectDetail() {
   // Get primary stakeholder for header display
   const primaryStakeholder = stakeholders.find(s => s.is_primary_contact);
 
-  // Get role-specific labels for breadcrumbs
-  const getDashboardLabel = () => {
-    switch (role) {
-      case 'admin': return 'Admin Dashboard';
-      case 'manager': return 'Manager Dashboard';
-      default: return 'Dashboard';
-    }
-  };
-
-  const getAccountsLabel = () => {
-    return role === 'rep' ? 'My Accounts' : 'Accounts';
-  };
-
+  // Get role-specific path for accounts
   const getAccountsPath = () => {
     switch (role) {
       case 'admin': return '/admin/accounts';
       case 'manager': return '/manager/accounts';
       default: return '/rep/prospects';
     }
+  };
+
+  const getAccountsLabel = () => {
+    return role === 'rep' ? 'My Accounts' : 'Accounts';
   };
 
   if (isLoading) {
@@ -119,26 +110,12 @@ export default function ProspectDetail() {
     <AppLayout>
       <div className="space-y-6">
         {/* Breadcrumb Navigation */}
-        <nav className="flex items-center text-sm text-muted-foreground" aria-label="Breadcrumb">
-          <Link 
-            to={getDashboardUrl(role)} 
-            className="flex items-center hover:text-foreground transition-colors"
-          >
-            <Home className="h-4 w-4" />
-            <span className="sr-only">{getDashboardLabel()}</span>
-          </Link>
-          <ChevronRight className="h-4 w-4 mx-2" />
-          <Link 
-            to={getAccountsPath()} 
-            className="hover:text-foreground transition-colors"
-          >
-            {getAccountsLabel()}
-          </Link>
-          <ChevronRight className="h-4 w-4 mx-2" />
-          <span className="text-foreground font-medium truncate max-w-[200px]">
-            {prospect.account_name || prospect.prospect_name}
-          </span>
-        </nav>
+        <PageBreadcrumb 
+          items={[
+            { label: getAccountsLabel(), href: getAccountsPath() },
+            { label: prospect.account_name || prospect.prospect_name }
+          ]}
+        />
 
         {/* Header */}
         <ProspectHeader

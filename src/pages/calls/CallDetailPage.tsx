@@ -9,10 +9,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
 import { getCallWithAnalysis, getAnalysisForCall, CallAnalysis, CallTranscript } from '@/api/aiCallAnalysis';
 import { CallAnalysisResultsView } from '@/components/calls/CallAnalysisResultsView';
 import { CallType, callTypeLabels } from '@/constants/callTypes';
 import { format } from 'date-fns';
+import { getDashboardUrl } from '@/lib/routes';
 import { 
   ArrowLeft, 
   Calendar, 
@@ -129,7 +131,23 @@ export default function CallDetailPage() {
   const getBackPath = () => {
     if (role === 'manager') return '/manager/coaching';
     if (role === 'admin') return '/admin';
-    return '/rep';
+    return '/rep/history';
+  };
+
+  const getCallHistoryPath = () => {
+    switch (role) {
+      case 'admin': return '/admin';
+      case 'manager': return '/manager/coaching';
+      default: return '/rep/history';
+    }
+  };
+
+  const getCallHistoryLabel = () => {
+    switch (role) {
+      case 'admin': return 'Dashboard';
+      case 'manager': return 'Coaching';
+      default: return 'Call History';
+    }
   };
 
   const handleRefresh = async () => {
@@ -211,6 +229,14 @@ export default function CallDetailPage() {
   return (
     <AppLayout>
       <div className="space-y-6">
+        {/* Breadcrumb Navigation */}
+        <PageBreadcrumb 
+          items={[
+            { label: getCallHistoryLabel(), href: getCallHistoryPath() },
+            { label: callTitle }
+          ]}
+        />
+
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
