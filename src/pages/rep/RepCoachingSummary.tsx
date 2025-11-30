@@ -259,6 +259,25 @@ export default function RepCoachingSummary() {
     retry: 1,
   });
 
+  // Call count preview - shows how many calls will be analyzed
+  const { data: callCountPreview, isLoading: isLoadingCallCount } = useQuery({
+    queryKey: ['call-count-preview', targetRepId, dateRange.from.toISOString(), dateRange.to.toISOString()],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('call_transcripts')
+        .select('*', { count: 'exact', head: true })
+        .eq('rep_id', targetRepId!)
+        .eq('analysis_status', 'completed')
+        .gte('call_date', format(dateRange.from, 'yyyy-MM-dd'))
+        .lte('call_date', format(dateRange.to, 'yyyy-MM-dd'));
+      
+      if (error) throw error;
+      return count ?? 0;
+    },
+    enabled: !!targetRepId && !generateRequested && !loadedAnalysis,
+    staleTime: 30 * 1000, // 30 seconds
+  });
+
   const handlePresetChange = (value: string) => {
     setSelectedPreset(value);
     setLoadedAnalysis(null); // Clear loaded analysis when date changes
@@ -786,23 +805,44 @@ export default function RepCoachingSummary() {
                     to identify patterns, strengths, and areas for improvement.
                   </p>
                 </div>
-                <div className="flex flex-col items-center gap-2 w-full">
+                <div className="flex flex-col items-center gap-3 w-full">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <CalendarIcon className="h-4 w-4" />
                     <span>
                       {format(dateRangeInternal.from, 'MMM d, yyyy')} - {format(dateRangeInternal.to, 'MMM d, yyyy')}
                     </span>
                   </div>
+                  
+                  {/* Call count preview */}
+                  <div className="flex items-center gap-2 px-4 py-2 bg-muted/50 rounded-lg">
+                    <BarChart3 className="h-4 w-4 text-primary" />
+                    {isLoadingCallCount ? (
+                      <span className="text-sm text-muted-foreground">Counting calls...</span>
+                    ) : callCountPreview === 0 ? (
+                      <span className="text-sm text-amber-600 dark:text-amber-400">
+                        No analyzed calls found in this period
+                      </span>
+                    ) : (
+                      <span className="text-sm font-medium">
+                        <span className="text-primary">{callCountPreview}</span>
+                        <span className="text-muted-foreground"> call{callCountPreview !== 1 ? 's' : ''} to analyze</span>
+                      </span>
+                    )}
+                  </div>
+                  
                   <Button 
                     size="lg" 
                     onClick={handleGenerateTrends}
                     className="mt-2"
+                    disabled={callCountPreview === 0}
                   >
                     <Sparkles className="h-4 w-4 mr-2" />
                     Generate Trends
                   </Button>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Analysis takes 15-30 seconds
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {callCountPreview === 0 
+                      ? 'Submit calls to generate trends' 
+                      : 'Analysis takes 15-30 seconds'}
                   </p>
                 </div>
               </div>
