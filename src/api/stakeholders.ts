@@ -314,17 +314,30 @@ export async function getStakeholdersForCall(callId: string): Promise<{
     throw new Error(`Failed to get stakeholders for call: ${error.message}`);
   }
 
-  return (data || []).map((row: any) => ({
-    stakeholder: row.stakeholders as unknown as Stakeholder,
-    mention: {
-      id: row.id,
-      call_id: row.call_id,
-      stakeholder_id: row.stakeholder_id,
-      was_present: row.was_present,
-      context_notes: row.context_notes,
-      created_at: row.created_at,
-    } as StakeholderMention,
-  }));
+  interface CallMentionRow {
+    id: string;
+    call_id: string;
+    stakeholder_id: string;
+    was_present: boolean;
+    context_notes: string | null;
+    created_at: string;
+    stakeholders: Stakeholder | null;
+  }
+  
+  return (data || []).map((row) => {
+    const typedRow = row as unknown as CallMentionRow;
+    return {
+      stakeholder: typedRow.stakeholders as Stakeholder,
+      mention: {
+        id: typedRow.id,
+        call_id: typedRow.call_id,
+        stakeholder_id: typedRow.stakeholder_id,
+        was_present: typedRow.was_present,
+        context_notes: typedRow.context_notes,
+        created_at: typedRow.created_at,
+      } as StakeholderMention,
+    };
+  });
 }
 
 /**
