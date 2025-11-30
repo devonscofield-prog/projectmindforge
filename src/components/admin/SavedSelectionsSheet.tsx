@@ -4,6 +4,7 @@ import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { Json } from '@/integrations/supabase/types';
 import {
   Sheet,
   SheetContent,
@@ -37,20 +38,12 @@ import {
   Users,
 } from 'lucide-react';
 
-interface SelectionFilters {
-  dateRange?: { from: string; to: string };
-  selectedTeamId?: string;
-  selectedRepId?: string;
-  accountSearch?: string;
-  selectedCallTypes?: string[];
-}
-
 interface SavedSelection {
   id: string;
   name: string;
   description: string | null;
   transcript_ids: string[];
-  filters: SelectionFilters | null;
+  filters: Json | null;
   share_token: string | null;
   is_shared: boolean;
   created_at: string;

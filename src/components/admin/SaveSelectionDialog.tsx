@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { Json } from '@/integrations/supabase/types';
 import {
   Dialog,
   DialogContent,
@@ -60,6 +61,17 @@ export function SaveSelectionDialog({
       
       const shareToken = isShared ? generateShareToken() : null;
       
+      const filtersPayload = {
+        dateRange: {
+          from: filters.dateRange.from.toISOString(),
+          to: filters.dateRange.to.toISOString(),
+        },
+        selectedTeamId: filters.selectedTeamId,
+        selectedRepId: filters.selectedRepId,
+        accountSearch: filters.accountSearch,
+        selectedCallTypes: filters.selectedCallTypes,
+      };
+
       const { data, error } = await supabase
         .from('admin_transcript_selections')
         .insert({
@@ -67,16 +79,7 @@ export function SaveSelectionDialog({
           name: name.trim(),
           description: description.trim() || null,
           transcript_ids: transcriptIds,
-          filters: {
-            dateRange: {
-              from: filters.dateRange.from.toISOString(),
-              to: filters.dateRange.to.toISOString(),
-            },
-            selectedTeamId: filters.selectedTeamId,
-            selectedRepId: filters.selectedRepId,
-            accountSearch: filters.accountSearch,
-            selectedCallTypes: filters.selectedCallTypes,
-          } as any,
+          filters: filtersPayload as unknown as Json,
           share_token: shareToken,
           is_shared: isShared,
         })

@@ -16,6 +16,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { supabase } from '@/integrations/supabase/client';
+import { Json } from '@/integrations/supabase/types';
 import { TranscriptChatPanel } from '@/components/admin/TranscriptChatPanel';
 import { SaveSelectionDialog } from '@/components/admin/SaveSelectionDialog';
 import { SavedSelectionsSheet } from '@/components/admin/SavedSelectionsSheet';
@@ -149,13 +150,12 @@ export default function AdminTranscriptAnalysis() {
     }
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleLoadSelection = (selection: { id: string; transcript_ids: string[]; filters?: any }) => {
+  const handleLoadSelection = (selection: { id: string; transcript_ids: string[]; filters?: Json | null }) => {
     setSelectedTranscriptIds(new Set(selection.transcript_ids || []));
     setCurrentSelectionId(selection.id);
     
     // Restore filters if available
-    if (selection.filters && typeof selection.filters === 'object') {
+    if (selection.filters && typeof selection.filters === 'object' && !Array.isArray(selection.filters)) {
       const f = selection.filters as {
         dateRange?: { from: string; to: string };
         selectedTeamId?: string;
