@@ -52,3 +52,30 @@ export async function fetchUserActivityLogs(userId: string, limit = 50): Promise
 
   return (data || []) as unknown as UserActivityLog[];
 }
+
+export interface UserActivityLogWithProfile extends UserActivityLog {
+  user_name: string;
+  user_email: string;
+}
+
+export async function fetchAllRecentActivityLogs(limit = 20): Promise<UserActivityLogWithProfile[]> {
+  const { data, error } = await supabase
+    .from('user_activity_logs')
+    .select(`
+      *,
+      profiles:user_id (name, email)
+    `)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('Failed to fetch all activity logs:', error);
+    return [];
+  }
+
+  return (data || []).map((log: any) => ({
+    ...log,
+    user_name: log.profiles?.name || 'Unknown',
+    user_email: log.profiles?.email || '',
+  })) as UserActivityLogWithProfile[];
+}
