@@ -42,3 +42,21 @@ export function getCoachingSummaryUrl(repId?: string): string {
 export function getCallDetailUrl(callId: string): string {
   return `/calls/${callId}`;
 }
+
+/**
+ * Generates the correct dashboard URL based on user role.
+ * - Admin: /admin
+ * - Manager: /manager
+ * - Rep: /rep
+ */
+export function getDashboardUrl(role: UserRole | null): string {
+  switch (role) {
+    case 'admin':
+      return '/admin';
+    case 'manager':
+      return '/manager';
+    case 'rep':
+    default:
+      return '/rep';
+  }
+}
