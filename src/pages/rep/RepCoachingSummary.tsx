@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useParams, Link } from 'react-router-dom';
 import { format } from 'date-fns';
-import { getRepDetailUrl } from '@/lib/routes';
+import { getRepDetailUrl, getDashboardUrl } from '@/lib/routes';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -966,7 +966,7 @@ export default function RepCoachingSummary() {
               </p>
               {isOwnSummary && (
                 <Button asChild className="mt-4">
-                  <Link to="/rep">Submit a Call</Link>
+                  <Link to={getDashboardUrl('rep')}>Submit a Call</Link>
                 </Button>
               )}
             </CardContent>

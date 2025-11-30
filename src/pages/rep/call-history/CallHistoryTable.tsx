@@ -12,6 +12,7 @@ import { CallTranscriptWithHeat } from '@/api/aiCallAnalysis';
 import { CallType, callTypeLabels } from '@/constants/callTypes';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { getDashboardUrl } from '@/lib/routes';
 import {
   CheckCircle,
   AlertCircle,
@@ -149,7 +150,7 @@ export function CallHistoryTable({
                 : 'Submit your first call transcript to get AI-powered coaching and insights.'}
             </p>
             {!hasActiveFilters && (
-              <Button onClick={() => navigate('/rep')}>
+              <Button onClick={() => navigate(getDashboardUrl('rep'))}>
                 <Mic className="h-4 w-4 mr-2" />
                 Submit a Call
               </Button>
