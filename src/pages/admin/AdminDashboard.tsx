@@ -9,6 +9,7 @@ import { Users, Building2, BarChart3, RefreshCw, ChevronDown, Phone } from 'luci
 import { toast } from 'sonner';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { GlobalActivityFeed } from '@/components/admin/GlobalActivityFeed';
+import { CallTrendsChart } from '@/components/admin/CallTrendsChart';
 import { subDays } from 'date-fns';
 
 interface Stats {
@@ -165,6 +166,9 @@ export default function AdminDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Call Trends Chart */}
+        <CallTrendsChart />
 
         {/* Global Activity Feed */}
         <GlobalActivityFeed />
