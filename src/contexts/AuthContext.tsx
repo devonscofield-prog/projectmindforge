@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { UserRole, Profile } from '@/types/database';
 import { toast } from 'sonner';
 import { logUserActivity } from '@/api/userActivityLogs';
+import { preloadRoleRoutes } from '@/lib/routePreloader';
 
 interface AuthContextType {
   user: User | null;
@@ -114,7 +115,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle();
 
       if (roleData) {
-        setRole(roleData.role as UserRole);
+        const userRole = roleData.role as UserRole;
+        setRole(userRole);
+        // Preload routes for this role to improve navigation performance
+        preloadRoleRoutes(userRole);
       }
     } catch (error) {
       console.error('Error fetching user data:', error);
