@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { createLogger } from '@/lib/logger';
 import { toProfile, toTeam } from '@/lib/supabaseAdapters';
+import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 
 const log = createLogger('AdminUsers');
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -39,7 +40,7 @@ interface UserWithDetails extends Profile {
   last_seen_at?: string;
 }
 
-export default function AdminUsers() {
+function AdminUsers() {
   const [users, setUsers] = useState<UserWithDetails[]>([]);
   const onlineUsers = useOnlineUsers();
   const [teams, setTeams] = useState<Team[]>([]);
@@ -450,3 +451,5 @@ export default function AdminUsers() {
     </AppLayout>
   );
 }
+
+export default withPageErrorBoundary(AdminUsers, 'Users');

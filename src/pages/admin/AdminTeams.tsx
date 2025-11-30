@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { createLogger } from '@/lib/logger';
 import { toProfile, toTeam } from '@/lib/supabaseAdapters';
+import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 
 const log = createLogger('AdminTeams');
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -48,7 +49,7 @@ interface ManagerOption {
   name: string;
 }
 
-export default function AdminTeams() {
+function AdminTeams() {
   const [teams, setTeams] = useState<TeamWithManager[]>([]);
   const [managers, setManagers] = useState<ManagerOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -492,3 +493,5 @@ export default function AdminTeams() {
     </AppLayout>
   );
 }
+
+export default withPageErrorBoundary(AdminTeams, 'Teams');

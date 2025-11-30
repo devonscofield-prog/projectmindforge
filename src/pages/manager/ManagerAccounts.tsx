@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { createLogger } from '@/lib/logger';
 import { getAccountDetailUrl } from '@/lib/routes';
+import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 
 const log = createLogger('ManagerAccounts');
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -85,7 +86,7 @@ function HeatScoreBadge({ score }: { score: number | null }) {
   );
 }
 
-export default function ManagerAccounts() {
+function ManagerAccounts() {
   const { user } = useAuth();
   const navigate = useNavigate();
   
@@ -434,3 +435,5 @@ export default function ManagerAccounts() {
     </AppLayout>
   );
 }
+
+export default withPageErrorBoundary(ManagerAccounts, 'Team Accounts');
