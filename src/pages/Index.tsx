@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { getDashboardUrl } from '@/lib/routes';
 
 const Index = () => {
   const { user, role, loading } = useAuth();
@@ -15,13 +16,7 @@ const Index = () => {
     }
 
     // Redirect based on role
-    if (role === 'admin') {
-      navigate('/admin', { replace: true });
-    } else if (role === 'manager') {
-      navigate('/manager', { replace: true });
-    } else {
-      navigate('/rep', { replace: true });
-    }
+    navigate(getDashboardUrl(role), { replace: true });
   }, [user, role, loading, navigate]);
 
   return (
