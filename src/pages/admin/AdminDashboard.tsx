@@ -5,10 +5,9 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Users, Building2, BarChart3, RefreshCw, Activity, MessageSquare, TrendingUp } from 'lucide-react';
+import { Users, Building2, BarChart3, RefreshCw, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown } from 'lucide-react';
 import { GlobalActivityFeed } from '@/components/admin/GlobalActivityFeed';
 
 interface Stats {
@@ -16,9 +15,6 @@ interface Stats {
   totalTeams: number;
   totalReps: number;
   totalManagers: number;
-  totalPerformanceSnapshots: number;
-  totalCoachingSessions: number;
-  totalActivityLogs: number;
 }
 
 export default function AdminDashboard() {
@@ -28,9 +24,6 @@ export default function AdminDashboard() {
     totalTeams: 0,
     totalReps: 0,
     totalManagers: 0,
-    totalPerformanceSnapshots: 0,
-    totalCoachingSessions: 0,
-    totalActivityLogs: 0,
   });
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
@@ -51,21 +44,6 @@ export default function AdminDashboard() {
       .from('user_roles')
       .select('role');
 
-    // Fetch performance snapshots count
-    const { count: perfCount } = await supabase
-      .from('rep_performance_snapshots')
-      .select('*', { count: 'exact', head: true });
-
-    // Fetch coaching sessions count
-    const { count: coachingCount } = await supabase
-      .from('coaching_sessions')
-      .select('*', { count: 'exact', head: true });
-
-    // Fetch activity logs count
-    const { count: activityCount } = await supabase
-      .from('activity_logs')
-      .select('*', { count: 'exact', head: true });
-
     const repCount = roles?.filter((r) => r.role === 'rep').length || 0;
     const managerCount = roles?.filter((r) => r.role === 'manager').length || 0;
 
@@ -74,9 +52,6 @@ export default function AdminDashboard() {
       totalTeams: teamCount || 0,
       totalReps: repCount,
       totalManagers: managerCount,
-      totalPerformanceSnapshots: perfCount || 0,
-      totalCoachingSessions: coachingCount || 0,
-      totalActivityLogs: activityCount || 0,
     });
 
     setLoading(false);
@@ -164,40 +139,6 @@ export default function AdminDashboard() {
             </CardHeader>
             <CardContent>
               <span className="text-3xl font-bold">{stats.totalManagers}</span>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Data Stats - Admin Smoke Test */}
-        <div className="grid gap-6 md:grid-cols-3">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Performance Snapshots</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <span className="text-3xl font-bold">{stats.totalPerformanceSnapshots}</span>
-              <p className="text-xs text-muted-foreground mt-1">Total records (all reps)</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Coaching Sessions</CardTitle>
-              <MessageSquare className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <span className="text-3xl font-bold">{stats.totalCoachingSessions}</span>
-              <p className="text-xs text-muted-foreground mt-1">Total records (all reps)</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Activity Logs</CardTitle>
-              <Activity className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <span className="text-3xl font-bold">{stats.totalActivityLogs}</span>
-              <p className="text-xs text-muted-foreground mt-1">Total records (all reps)</p>
             </CardContent>
           </Card>
         </div>
