@@ -22,7 +22,7 @@ interface PageBreadcrumbProps {
 }
 
 /**
- * Role-aware breadcrumb navigation component.
+ * Role-aware breadcrumb navigation component with animated transitions.
  * Automatically adds the home/dashboard link based on user role.
  * Features a visual trail with clickable intermediate links.
  */
@@ -46,7 +46,7 @@ export function PageBreadcrumb({
   return (
     <nav 
       className={cn(
-        "flex items-center text-sm",
+        "flex items-center text-sm animate-fade-in",
         !compact && "px-3 py-2 rounded-lg bg-muted/40 border border-border/50",
         className
       )}
@@ -54,17 +54,22 @@ export function PageBreadcrumb({
     >
       <ol className="flex items-center flex-wrap gap-1">
         {/* Home/Dashboard Link */}
-        <li className="flex items-center">
+        <li 
+          className="flex items-center animate-fade-in"
+          style={{ animationDelay: '0ms' }}
+        >
           <Link 
             to={getDashboardUrl(role)} 
             className={cn(
-              "flex items-center gap-1.5 px-2 py-1 rounded-md",
-              "text-muted-foreground hover:text-foreground hover:bg-accent/50",
-              "transition-all duration-200"
+              "group flex items-center gap-1.5 px-2 py-1 rounded-md",
+              "text-muted-foreground",
+              "transition-all duration-200 ease-out",
+              "hover:text-foreground hover:bg-accent/50 hover:scale-105",
+              "active:scale-95"
             )}
             title={getDashboardLabel()}
           >
-            <Home className="h-4 w-4" />
+            <Home className="h-4 w-4 transition-transform duration-200 group-hover:rotate-6" />
             <span className="hidden sm:inline text-xs font-medium">
               {getDashboardLabel()}
             </span>
@@ -74,34 +79,61 @@ export function PageBreadcrumb({
         {/* Dynamic Items */}
         {items.map((item, index) => {
           const isLast = index === items.length - 1;
+          const delay = (index + 1) * 50;
           
           return (
-            <li key={index} className="flex items-center">
-              <ChevronRight className="h-3.5 w-3.5 mx-1 text-muted-foreground/60 flex-shrink-0" />
+            <li 
+              key={index} 
+              className="flex items-center animate-fade-in"
+              style={{ animationDelay: `${delay}ms` }}
+            >
+              <ChevronRight 
+                className={cn(
+                  "h-3.5 w-3.5 mx-1 text-muted-foreground/60 flex-shrink-0",
+                  "transition-transform duration-200",
+                  "animate-[slide-in-right_0.2s_ease-out]"
+                )}
+                style={{ animationDelay: `${delay}ms` }}
+              />
               
               {item.href && !isLast ? (
                 <Link 
                   to={item.href} 
                   className={cn(
-                    "flex items-center gap-1.5 px-2 py-1 rounded-md",
-                    "text-muted-foreground hover:text-foreground hover:bg-accent/50",
-                    "transition-all duration-200",
-                    "max-w-[180px] truncate"
+                    "group flex items-center gap-1.5 px-2 py-1 rounded-md",
+                    "text-muted-foreground",
+                    "transition-all duration-200 ease-out",
+                    "hover:text-foreground hover:bg-accent/50 hover:scale-105",
+                    "active:scale-95",
+                    "max-w-[180px]"
                   )}
                 >
-                  {item.icon}
-                  <span className="truncate">{item.label}</span>
+                  {item.icon && (
+                    <span className="transition-transform duration-200 group-hover:scale-110">
+                      {item.icon}
+                    </span>
+                  )}
+                  <span className="truncate relative">
+                    {item.label}
+                    {/* Animated underline on hover */}
+                    <span className="absolute bottom-0 left-0 w-full h-0.5 bg-primary scale-x-0 group-hover:scale-x-100 transition-transform duration-200 origin-left" />
+                  </span>
                 </Link>
               ) : (
                 <span 
                   className={cn(
                     "flex items-center gap-1.5 px-2 py-1 rounded-md",
-                    "text-foreground font-medium",
+                    "font-medium",
                     isLast && "bg-primary/10 text-primary",
-                    "max-w-[200px] truncate"
+                    !isLast && "text-foreground",
+                    "max-w-[200px]",
+                    "animate-scale-in"
                   )}
+                  style={{ animationDelay: `${delay + 50}ms` }}
                 >
-                  {item.icon}
+                  {item.icon && (
+                    <span className="flex-shrink-0">{item.icon}</span>
+                  )}
                   <span className="truncate">{item.label}</span>
                 </span>
               )}
