@@ -64,9 +64,10 @@ export function useOnlineUsers(): Set<string> {
       .on('presence', { event: 'join' }, ({ newPresences }) => {
         setOnlineUsers((prev) => {
           const updated = new Set(prev);
-          (newPresences as PresencePayload[]).forEach((presence) => {
-            if (presence.user_id) {
-              updated.add(presence.user_id);
+          newPresences.forEach((presence) => {
+            const userId = (presence as Record<string, unknown>).user_id;
+            if (typeof userId === 'string') {
+              updated.add(userId);
             }
           });
           return updated;
@@ -75,9 +76,10 @@ export function useOnlineUsers(): Set<string> {
       .on('presence', { event: 'leave' }, ({ leftPresences }) => {
         setOnlineUsers((prev) => {
           const updated = new Set(prev);
-          (leftPresences as PresencePayload[]).forEach((presence) => {
-            if (presence.user_id) {
-              updated.delete(presence.user_id);
+          leftPresences.forEach((presence) => {
+            const userId = (presence as Record<string, unknown>).user_id;
+            if (typeof userId === 'string') {
+              updated.delete(userId);
             }
           });
           return updated;
