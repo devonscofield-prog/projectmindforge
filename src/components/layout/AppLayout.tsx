@@ -1,6 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
+import { PageTransition } from '@/components/ui/page-transition';
 import { 
   LayoutDashboard, 
   Users, 
@@ -172,7 +173,9 @@ export function AppLayout({ children }: AppLayoutProps) {
           {/* Main content */}
           <main id="main-content" className="flex-1 overflow-auto pb-20 md:pb-0" role="main">
             <div className="p-4 md:p-6 lg:p-8">
-              {children}
+              <PageTransition>
+                {children}
+              </PageTransition>
             </div>
           </main>
         </SidebarInset>
