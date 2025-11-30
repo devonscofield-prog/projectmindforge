@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   generateAggregateCoachingTrends,
   AggregateAnalysisMetadata,
@@ -22,6 +23,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { TrendCard } from '@/components/coaching/TrendCard';
 import { CriticalInfoTrends } from '@/components/coaching/CriticalInfoTrends';
 import { PriorityActionCard } from '@/components/coaching/PriorityActionCard';
+import { LeadershipReportExport } from '@/components/coaching/LeadershipReportExport';
+import { TeamComparisonView } from '@/components/coaching/TeamComparisonView';
 import { cn } from '@/lib/utils';
 import {
   BarChart3,
@@ -41,6 +44,8 @@ import {
   Layers,
   Zap,
   Globe,
+  Download,
+  GitCompareArrows,
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -76,6 +81,10 @@ export default function AdminCoachingTrends() {
   
   // Manual generation control
   const [generateRequested, setGenerateRequested] = useState(false);
+  
+  // Export dialog and comparison view state
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [activeTab, setActiveTab] = useState<'analysis' | 'comparison'>('analysis');
 
   // Fetch teams
   const { data: teams } = useQuery({
@@ -281,138 +290,169 @@ export default function AdminCoachingTrends() {
                 AI-powered trend analysis across teams and reps
               </p>
             </div>
-            <Badge variant="outline" className="self-start">
-              Admin View
-            </Badge>
-          </div>
-
-          {/* Scope and Date Range Controls */}
-          <div className="flex flex-wrap items-start gap-4 p-4 bg-muted/50 rounded-lg">
-            {/* Scope Selector */}
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Analysis Scope</Label>
-              <div className="flex items-center gap-2">
-                <Select value={scope} onValueChange={(v) => handleScopeChange(v as AnalysisScope)}>
-                  <SelectTrigger className="w-[160px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="organization">
-                      <div className="flex items-center gap-2">
-                        <Globe className="h-4 w-4" />
-                        Organization
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="team">
-                      <div className="flex items-center gap-2">
-                        <Building2 className="h-4 w-4" />
-                        Team
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="rep">
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4" />
-                        Individual Rep
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-
-                {/* Team Selector */}
-                {scope === 'team' && (
-                  <Select value={selectedTeamId} onValueChange={(v) => { setSelectedTeamId(v); setGenerateRequested(false); }}>
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder="Select team..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {teams?.map(team => (
-                        <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-
-                {/* Rep Selector */}
-                {scope === 'rep' && (
-                  <Select value={selectedRepId} onValueChange={(v) => { setSelectedRepId(v); setGenerateRequested(false); }}>
-                    <SelectTrigger className="w-[200px]">
-                      <SelectValue placeholder="Select rep..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {reps?.map(rep => (
-                        <SelectItem key={rep.id} value={rep.id}>{rep.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-            </div>
-
-            {/* Date Range */}
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Time Period</Label>
-              <div className="flex items-center gap-2">
-                <Select value={selectedPreset} onValueChange={handlePresetChange}>
-                  <SelectTrigger className="w-[140px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TIME_RANGES.map(r => (
-                      <SelectItem key={r.value} value={r.value}>
-                        {r.label}
-                      </SelectItem>
-                    ))}
-                    <SelectItem value="custom">Custom Range</SelectItem>
-                  </SelectContent>
-                </Select>
-                
-                {selectedPreset === 'custom' && (
-                  <>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" size="sm" className="w-[120px] justify-start text-left font-normal">
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {format(dateRange.from, 'MMM d, yy')}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={dateRange.from}
-                          onSelect={handleFromDateChange}
-                          disabled={(date) => date > dateRange.to || date > new Date()}
-                          initialFocus
-                          className={cn("p-3 pointer-events-auto")}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    
-                    <span className="text-muted-foreground text-sm">to</span>
-                    
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" size="sm" className="w-[120px] justify-start text-left font-normal">
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {format(dateRange.to, 'MMM d, yy')}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={dateRange.to}
-                          onSelect={handleToDateChange}
-                          disabled={(date) => date < dateRange.from || date > new Date()}
-                          initialFocus
-                          className={cn("p-3 pointer-events-auto")}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </>
-                )}
-              </div>
+            <div className="flex items-center gap-2">
+              {displayAnalysis && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowExportDialog(true)}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export Report
+                </Button>
+              )}
+              <Badge variant="outline" className="self-start">
+                Admin View
+              </Badge>
             </div>
           </div>
+
+          {/* Tabs for Analysis vs Comparison */}
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'analysis' | 'comparison')} className="w-full">
+            <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsTrigger value="analysis" className="gap-2">
+                <Sparkles className="h-4 w-4" />
+                Analysis
+              </TabsTrigger>
+              <TabsTrigger value="comparison" className="gap-2">
+                <GitCompareArrows className="h-4 w-4" />
+                Team Comparison
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
+
+        {/* Team Comparison View */}
+        {activeTab === 'comparison' ? (
+          <TeamComparisonView dateRange={dateRange} />
+        ) : (
+          <>
+            {/* Scope and Date Range Controls */}
+            <div className="flex flex-wrap items-start gap-4 p-4 bg-muted/50 rounded-lg">
+              {/* Scope Selector */}
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Analysis Scope</Label>
+                <div className="flex items-center gap-2">
+                  <Select value={scope} onValueChange={(v) => handleScopeChange(v as AnalysisScope)}>
+                    <SelectTrigger className="w-[160px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="organization">
+                        <div className="flex items-center gap-2">
+                          <Globe className="h-4 w-4" />
+                          Organization
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="team">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="h-4 w-4" />
+                          Team
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="rep">
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4" />
+                          Individual Rep
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {/* Team Selector */}
+                  {scope === 'team' && (
+                    <Select value={selectedTeamId} onValueChange={(v) => { setSelectedTeamId(v); setGenerateRequested(false); }}>
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Select team..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {teams?.map(team => (
+                          <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+
+                  {/* Rep Selector */}
+                  {scope === 'rep' && (
+                    <Select value={selectedRepId} onValueChange={(v) => { setSelectedRepId(v); setGenerateRequested(false); }}>
+                      <SelectTrigger className="w-[200px]">
+                        <SelectValue placeholder="Select rep..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {reps?.map(rep => (
+                          <SelectItem key={rep.id} value={rep.id}>{rep.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              </div>
+
+              {/* Date Range */}
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Time Period</Label>
+                <div className="flex items-center gap-2">
+                  <Select value={selectedPreset} onValueChange={handlePresetChange}>
+                    <SelectTrigger className="w-[140px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TIME_RANGES.map(r => (
+                        <SelectItem key={r.value} value={r.value}>
+                          {r.label}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="custom">Custom Range</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  {selectedPreset === 'custom' && (
+                    <>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" size="sm" className="w-[120px] justify-start text-left font-normal">
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {format(dateRange.from, 'MMM d, yy')}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={dateRange.from}
+                            onSelect={handleFromDateChange}
+                            disabled={(date) => date > dateRange.to || date > new Date()}
+                            initialFocus
+                            className={cn("p-3 pointer-events-auto")}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      
+                      <span className="text-muted-foreground text-sm">to</span>
+                      
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" size="sm" className="w-[120px] justify-start text-left font-normal">
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {format(dateRange.to, 'MMM d, yy')}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={dateRange.to}
+                            onSelect={handleToDateChange}
+                            disabled={(date) => date < dateRange.from || date > new Date()}
+                            initialFocus
+                            className={cn("p-3 pointer-events-auto")}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
 
         {/* Initial State - Before Generation */}
         {!generateRequested ? (
@@ -804,6 +844,21 @@ export default function AdminCoachingTrends() {
               </Button>
             </div>
           </>
+        )}
+        </>
+        )}
+
+        {/* Export Dialog */}
+        {displayAnalysis && (
+          <LeadershipReportExport
+            open={showExportDialog}
+            onOpenChange={setShowExportDialog}
+            analysis={displayAnalysis}
+            metadata={displayMetadata}
+            dateRange={dateRange}
+            scope={scope}
+            scopeLabel={scopeLabel}
+          />
         )}
       </div>
     </AppLayout>
