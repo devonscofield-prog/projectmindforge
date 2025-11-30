@@ -18,6 +18,12 @@ import {
   ClipboardCheck,
   Briefcase,
   GraduationCap,
+  Microscope,
+  Shield,
+  Handshake,
+  Sparkles,
+  UserCheck,
+  Brain,
 } from 'lucide-react';
 
 export interface AnalysisMode {
@@ -588,6 +594,206 @@ Identify all deals with warning signs: single-threaded, no compelling event, com
 
 **EXECUTIVE SUMMARY**
 Provide a pipeline summary: total qualified value, likely slippage, deals to accelerate, and deals to deprioritize.`,
+  },
+  // COACHING-FOCUSED TEMPLATES
+  {
+    id: 'discovery_deep_dive',
+    label: 'Discovery Deep Dive',
+    icon: Microscope,
+    description: 'In-depth discovery skill assessment with specific coaching',
+    modeIds: ['discovery_audit', 'rep_comparison', 'customer_voice'],
+    starterPrompt: `Perform a deep dive analysis of discovery skills:
+
+**PART 1: DISCOVERY TECHNIQUE BREAKDOWN**
+For each call, evaluate:
+| Technique | Score | Evidence |
+|-----------|-------|----------|
+| Open-ended questions | X/5 | [Examples] |
+| Follow-up probing | X/5 | [Examples] |
+| Pain quantification | X/5 | [Examples] |
+| Stakeholder mapping | X/5 | [Examples] |
+| Timeline/urgency | X/5 | [Examples] |
+
+**PART 2: QUESTION QUALITY ANALYSIS**
+- List the 5 BEST discovery questions asked (with context)
+- List 5 questions that SHOULD have been asked but weren't
+- Identify surface-level vs. root-cause discovery examples
+
+**PART 3: INFORMATION CAPTURED**
+What valuable information was successfully uncovered? What gaps remain? Compare what was learned vs. what's still unknown.
+
+**COACHING RECOMMENDATIONS**
+Provide 3 specific, actionable coaching points with practice exercises for improving discovery skills.`,
+  },
+  {
+    id: 'objection_handling_review',
+    label: 'Objection Handling Review',
+    icon: Shield,
+    description: 'Evaluate objection responses with coaching playbook',
+    modeIds: ['objection_library', 'rep_comparison', 'competitive'],
+    starterPrompt: `Conduct a comprehensive objection handling review:
+
+**PART 1: OBJECTION CATALOG**
+List every objection encountered, categorized by type:
+| Category | Objection | Frequency | How Handled | Effectiveness |
+|----------|-----------|-----------|-------------|---------------|
+| Price | [Quote] | X calls | [Response] | ✅/⚠️/❌ |
+| Timing | [Quote] | X calls | [Response] | ✅/⚠️/❌ |
+| Competition | [Quote] | X calls | [Response] | ✅/⚠️/❌ |
+
+**PART 2: TECHNIQUE ANALYSIS**
+- **Acknowledge-Explore-Respond:** Who used this effectively?
+- **Feel-Felt-Found:** Any examples?
+- **Reframing:** Who turned objections into opportunities?
+Include specific quotes showing good vs. poor techniques.
+
+**PART 3: OBJECTION PLAYBOOK**
+For the top 5 most common objections, create a playbook entry:
+- The objection (verbatim)
+- Root cause / what they're really saying
+- Recommended response with example language
+- Prevention strategy (how to avoid it earlier)
+
+**COACHING FOCUS**
+Identify the rep who needs the most help with objections and provide a specific practice scenario.`,
+  },
+  {
+    id: 'closing_skills_audit',
+    label: 'Closing Skills Audit',
+    icon: Handshake,
+    description: 'Analyze closing techniques and commitment language',
+    modeIds: ['forecast_validation', 'rep_comparison', 'deal_scoring'],
+    starterPrompt: `Audit closing skills and commitment-getting techniques:
+
+**PART 1: CLOSING MOMENTS ANALYSIS**
+For each call, evaluate the close:
+| Rep | Call | Close Attempt? | Technique Used | Outcome | Next Steps Clarity |
+|-----|------|----------------|----------------|---------|-------------------|
+| [Name] | [Account] | Yes/No | [Type] | [Result] | 1-5 |
+
+**PART 2: COMMITMENT LANGUAGE**
+- Find examples of strong commitment language ("Let's schedule..." vs "Maybe we could...")
+- Identify missed closing opportunities where rep could have asked for commitment
+- Compare reps: Who asks for next steps confidently? Who doesn't?
+
+**PART 3: NEXT STEPS QUALITY**
+Score the quality of agreed next steps:
+- Specific date/time confirmed? 
+- Clear action items assigned?
+- Stakeholders committed?
+- Mutual agenda for next meeting?
+
+**PART 4: CLOSING TECHNIQUES OBSERVED**
+- Assumptive closes
+- Alternative choice closes  
+- Summary closes
+- Urgency-based closes
+Which worked? Which fell flat?
+
+**COACHING PLAYBOOK**
+Provide 3 specific closing scenarios to role-play based on gaps observed.`,
+  },
+  {
+    id: 'rapport_communication',
+    label: 'Rapport & Communication',
+    icon: Sparkles,
+    description: 'Soft skills, rapport building, and communication style',
+    modeIds: ['rep_comparison', 'customer_voice', 'general'],
+    starterPrompt: `Analyze rapport building and communication effectiveness:
+
+**PART 1: COMMUNICATION STYLE ASSESSMENT**
+For each rep, evaluate:
+| Skill | Score | Evidence |
+|-------|-------|----------|
+| Active listening | X/5 | [Examples of acknowledging/reflecting] |
+| Empathy shown | X/5 | [Examples of understanding prospect's position] |
+| Conversational flow | X/5 | [Natural vs. scripted feel] |
+| Energy/enthusiasm | X/5 | [Tone and engagement level] |
+| Talk-to-listen ratio | X/5 | [Estimate %] |
+
+**PART 2: RAPPORT BUILDING MOMENTS**
+- Find examples of effective rapport building (personal connection, shared experiences, humor)
+- Identify missed rapport opportunities
+- Note any rapport-breaking moments (interrupting, ignoring cues, being too pushy)
+
+**PART 3: PROSPECT ENGAGEMENT SIGNALS**
+How engaged were prospects? Look for:
+- Long, detailed responses vs. short answers
+- Questions they asked (interest signals)
+- Verbal cues ("That's interesting," "Tell me more" vs. "Sure," "Okay")
+
+**PART 4: COMMUNICATION COACHING**
+Specific recommendations for each rep:
+- What to keep doing
+- What to adjust
+- Practice exercise for improvement`,
+  },
+  {
+    id: 'new_hire_review',
+    label: 'New Hire Call Review',
+    icon: UserCheck,
+    description: 'Comprehensive new rep assessment with onboarding focus',
+    modeIds: ['rep_comparison', 'discovery_audit', 'objection_library'],
+    starterPrompt: `Conduct a new hire performance assessment:
+
+**PART 1: FOUNDATIONAL SKILLS CHECK**
+Score the new hire on core competencies:
+| Skill | Score | Observations |
+|-------|-------|--------------|
+| Product knowledge | X/5 | [Accuracy of info shared] |
+| Process adherence | X/5 | [Following sales methodology] |
+| Discovery basics | X/5 | [Asking right questions] |
+| Handling unknowns | X/5 | [When they don't know something] |
+| Professionalism | X/5 | [Meeting management, follow-up] |
+
+**PART 2: STRENGTHS TO BUILD ON**
+What is this rep doing well naturally? Include specific examples that show promise.
+
+**PART 3: SKILL GAPS TO ADDRESS**
+Priority areas for development:
+1. [Gap] - Evidence: [Quote/observation] - Training needed: [Specific]
+2. [Gap] - Evidence: [Quote/observation] - Training needed: [Specific]
+3. [Gap] - Evidence: [Quote/observation] - Training needed: [Specific]
+
+**PART 4: COMPARE TO BENCHMARK**
+How does this new hire compare to top performers on the same types of calls? What specific behaviors should they model?
+
+**30-60-90 DAY RECOMMENDATIONS**
+Specific milestones and focus areas for the new hire's development plan.`,
+  },
+  {
+    id: 'self_coaching',
+    label: 'Self-Coaching Review',
+    icon: Brain,
+    description: 'Personal performance analysis for self-improvement',
+    modeIds: ['discovery_audit', 'objection_library', 'forecast_validation'],
+    starterPrompt: `Generate a self-coaching analysis for personal improvement:
+
+**PART 1: CALL-BY-CALL SCORECARD**
+For each of my calls:
+| Call | Discovery | Objections | Value Prop | Close | Overall | Key Moment |
+|------|-----------|------------|------------|-------|---------|------------|
+| [Account] | X/5 | X/5 | X/5 | X/5 | X/5 | [Best/worst moment] |
+
+**PART 2: PATTERN RECOGNITION**
+- What am I consistently doing well?
+- What mistakes am I repeating?
+- Are there specific call types or situations where I struggle?
+
+**PART 3: BEST MOMENTS**
+Pull out 3-5 moments from these calls where I performed at my best. What made them work? How can I replicate this?
+
+**PART 4: LEARNING MOMENTS**
+Identify 3-5 moments where I could have done better. For each:
+- What I said/did
+- What I should have said/done
+- Why it matters
+
+**PART 5: PERSONAL ACTION PLAN**
+Based on this analysis, what are the 3 things I should focus on improving? Provide specific practice exercises or scripts I can use.
+
+**WEEKLY FOCUS**
+One specific skill to deliberately practice this week with a measurable goal.`,
   },
 ];
 
