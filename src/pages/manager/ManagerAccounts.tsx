@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('ManagerAccounts');
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -112,7 +115,7 @@ export default function ManagerAccounts() {
       const reps = await getTeamRepsForManager(user.id);
       setTeamReps(reps);
     } catch (error) {
-      console.error('Failed to load team reps:', error);
+      log.error('Failed to load team reps', { error });
     }
   };
 
@@ -151,7 +154,7 @@ export default function ManagerAccounts() {
         setPrimaryStakeholders({});
       }
     } catch (error) {
-      console.error('Failed to load prospects:', error);
+      log.error('Failed to load prospects', { error });
     } finally {
       setIsLoading(false);
     }

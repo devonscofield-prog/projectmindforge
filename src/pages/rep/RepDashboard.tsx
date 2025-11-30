@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('RepDashboard');
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -149,7 +152,7 @@ export default function RepDashboard() {
       // Navigate to the call detail page
       navigate(`/calls/${result.transcript.id}`);
     } catch (error) {
-      console.error('Error submitting call:', error);
+      log.error('Error submitting call', { error });
       toast({
         title: 'Error',
         description: error instanceof Error ? error.message : 'Failed to submit call for analysis',

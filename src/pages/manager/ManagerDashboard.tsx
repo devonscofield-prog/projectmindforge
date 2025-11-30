@@ -2,6 +2,9 @@ import { useEffect, useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('ManagerDashboard');
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -111,7 +114,7 @@ export default function ManagerDashboard() {
           setAiScoreStatsMap(scoreStats);
           setCallCountsMap(callCounts);
         } catch (err) {
-          console.error('Failed to fetch AI score stats or call counts:', err);
+          log.error('Failed to fetch AI score stats or call counts', { error: err });
         }
       }
 

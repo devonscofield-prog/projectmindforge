@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('RepProspects');
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -127,7 +130,7 @@ export default function RepProspects() {
         setStakeholderCounts(sCounts);
       }
     } catch (error) {
-      console.error('Failed to load prospects:', error);
+      log.error('Failed to load prospects', { error });
     } finally {
       setIsLoading(false);
     }

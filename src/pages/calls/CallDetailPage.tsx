@@ -1,6 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('CallDetailPage');
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -58,7 +61,7 @@ export default function CallDetailPage() {
           return;
         }
       } catch (error) {
-        console.error('Poll error:', error);
+        log.error('Poll error', { error });
       }
 
       if (attempts < maxAttempts) {
@@ -109,7 +112,7 @@ export default function CallDetailPage() {
           pollForAnalysis(id);
         }
       } catch (error) {
-        console.error('Error loading call:', error);
+        log.error('Error loading call', { error, callId: id });
         toast({
           title: 'Error',
           description: 'Failed to load call details.',
@@ -139,7 +142,7 @@ export default function CallDetailPage() {
         setAnalysis(result.analysis);
       }
     } catch (error) {
-      console.error('Error refreshing:', error);
+      log.error('Error refreshing', { error, callId: id });
     } finally {
       setLoading(false);
     }
