@@ -10,12 +10,15 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import {
+  FormInput,
+  FormCheckbox,
+  SubmitButton,
+} from '@/components/ui/form-fields';
 import { ChatMessage } from '@/api/adminTranscriptChat';
-import { Download, FileText, File, Loader2 } from 'lucide-react';
+import { Download, FileText, File } from 'lucide-react';
 
 const log = createLogger('ExportChatDialog');
 
@@ -92,7 +95,6 @@ export function ExportChatDialog({
   };
 
   const convertMarkdownToHtml = (md: string): string => {
-    // Simple markdown to HTML conversion for PDF
     let html = md
       .replace(/^# (.+)$/gm, '<h1 style="color: #1a1a1a; margin-bottom: 16px;">$1</h1>')
       .replace(/^## (.+)$/gm, '<h2 style="color: #333; margin-top: 24px; margin-bottom: 12px; border-bottom: 1px solid #ddd; padding-bottom: 8px;">$1</h2>')
@@ -167,15 +169,12 @@ export function ExportChatDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="title">Report Title</Label>
-            <Input
-              id="title"
-              value={reportTitle}
-              onChange={(e) => setReportTitle(e.target.value)}
-              placeholder="Enter report title..."
-            />
-          </div>
+          <FormInput
+            label="Report Title"
+            value={reportTitle}
+            onChange={(e) => setReportTitle(e.target.value)}
+            placeholder="Enter report title..."
+          />
 
           <div className="space-y-3">
             <Label>Export Format</Label>
@@ -207,35 +206,26 @@ export function ExportChatDialog({
             </RadioGroup>
           </div>
 
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="include-transcripts"
-              checked={includeTranscriptList}
-              onCheckedChange={(checked) => setIncludeTranscriptList(checked === true)}
-            />
-            <Label htmlFor="include-transcripts" className="text-sm cursor-pointer">
-              Include list of analyzed transcripts
-            </Label>
-          </div>
+          <FormCheckbox
+            label="Include list of analyzed transcripts"
+            checked={includeTranscriptList}
+            onCheckedChange={setIncludeTranscriptList}
+          />
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleExport} disabled={isExporting || messages.length === 0}>
-            {isExporting ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Exporting...
-              </>
-            ) : (
-              <>
-                <Download className="h-4 w-4 mr-2" />
-                Export
-              </>
-            )}
-          </Button>
+          <SubmitButton
+            onClick={handleExport}
+            disabled={messages.length === 0}
+            isLoading={isExporting}
+            loadingText="Exporting..."
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export
+          </SubmitButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -1,11 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -21,9 +17,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  FormInput,
+  FormTextarea,
+  FormSwitch,
+  SubmitButton,
+} from '@/components/ui/form-fields';
 import { ANALYSIS_MODES, getAnalysisModeById } from '@/components/admin/transcript-analysis/analysisModesConfig';
-import { createCustomPreset, updateCustomPreset, type CustomPreset, type CreateCustomPresetParams } from '@/api/customPresets';
+import { createCustomPreset, updateCustomPreset, type CustomPreset } from '@/api/customPresets';
 import { useToast } from '@/hooks/use-toast';
 import {
   Layers,
@@ -40,8 +43,6 @@ import {
   Briefcase,
   GraduationCap,
   ClipboardCheck,
-  Loader2,
-  Plus,
   X,
 } from 'lucide-react';
 
@@ -91,7 +92,6 @@ export function CreateCustomPresetDialog({
 
   const isEditing = !!editingPreset;
 
-  // Reset form when dialog opens or editingPreset changes
   useEffect(() => {
     if (open) {
       if (editingPreset) {
@@ -205,15 +205,13 @@ export function CreateCustomPresetDialog({
           <div className="space-y-6 py-4">
             {/* Name and Icon */}
             <div className="grid grid-cols-[1fr,auto] gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="preset-name">Preset Name *</Label>
-                <Input
-                  id="preset-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g., Quarterly Business Review"
-                />
-              </div>
+              <FormInput
+                label="Preset Name"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g., Quarterly Business Review"
+              />
               <div className="space-y-2">
                 <Label>Icon</Label>
                 <Select value={iconName} onValueChange={setIconName}>
@@ -238,19 +236,16 @@ export function CreateCustomPresetDialog({
             </div>
 
             {/* Description */}
-            <div className="space-y-2">
-              <Label htmlFor="preset-description">Description</Label>
-              <Input
-                id="preset-description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Brief description of what this preset analyzes"
-              />
-            </div>
+            <FormInput
+              label="Description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Brief description of what this preset analyzes"
+            />
 
             {/* Mode Selection */}
             <div className="space-y-2">
-              <Label>Analysis Modes *</Label>
+              <Label>Analysis Modes <span className="text-destructive">*</span></Label>
               <p className="text-xs text-muted-foreground mb-2">
                 Select the modes to combine in this preset
               </p>
@@ -303,7 +298,7 @@ export function CreateCustomPresetDialog({
             {/* Starter Prompt */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="starter-prompt">Starter Prompt *</Label>
+                <Label>Starter Prompt <span className="text-destructive">*</span></Label>
                 <Button
                   type="button"
                   variant="outline"
@@ -316,32 +311,24 @@ export function CreateCustomPresetDialog({
                   Generate Template
                 </Button>
               </div>
-              <Textarea
-                id="starter-prompt"
+              <FormTextarea
+                label=""
                 value={starterPrompt}
                 onChange={(e) => setStarterPrompt(e.target.value)}
                 placeholder="Write the comprehensive prompt that will be sent when this preset is selected..."
                 className="min-h-[200px] font-mono text-sm"
+                description="This prompt will be sent automatically when the preset is selected."
               />
-              <p className="text-xs text-muted-foreground">
-                This prompt will be sent automatically when the preset is selected.
-              </p>
             </div>
 
             {/* Share Toggle */}
-            <div className="flex items-center justify-between rounded-lg border p-3">
-              <div className="space-y-0.5">
-                <Label htmlFor="is-shared">Share with team</Label>
-                <p className="text-xs text-muted-foreground">
-                  Allow other admins to use this preset
-                </p>
-              </div>
-              <Switch
-                id="is-shared"
-                checked={isShared}
-                onCheckedChange={setIsShared}
-              />
-            </div>
+            <FormSwitch
+              label="Share with team"
+              description="Allow other admins to use this preset"
+              checked={isShared}
+              onCheckedChange={setIsShared}
+              variant="card"
+            />
           </div>
         </ScrollArea>
 
@@ -349,10 +336,13 @@ export function CreateCustomPresetDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+          <SubmitButton
+            onClick={handleSubmit}
+            isLoading={isSubmitting}
+            loadingText={isEditing ? 'Saving...' : 'Creating...'}
+          >
             {isEditing ? 'Save Changes' : 'Create Preset'}
-          </Button>
+          </SubmitButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>
