@@ -9,7 +9,8 @@ import {
   Mic,
   History,
   UserCheck,
-  Menu
+  Menu,
+  FileText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -48,6 +49,7 @@ function SidebarNav() {
         { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
         { href: '/admin/teams', label: 'Teams', icon: Users },
         { href: '/admin/users', label: 'Users', icon: Users },
+        { href: '/admin/transcripts', label: 'Transcripts', icon: FileText },
       ]
     : role === 'manager'
     ? [

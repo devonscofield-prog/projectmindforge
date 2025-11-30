@@ -31,6 +31,7 @@ import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminTeams from "./pages/admin/AdminTeams";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminCoachingTrends from "./pages/admin/AdminCoachingTrends";
+import AdminTranscriptAnalysis from "./pages/admin/AdminTranscriptAnalysis";
 
 // Shared pages
 import CallDetailPage from "./pages/calls/CallDetailPage";
@@ -143,6 +144,11 @@ const App = () => (
             <Route path="/admin/coaching" element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <AdminCoachingTrends />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/transcripts" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminTranscriptAnalysis />
               </ProtectedRoute>
             } />
 
