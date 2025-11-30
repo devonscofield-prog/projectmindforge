@@ -14,6 +14,19 @@ function getCorsHeaders(origin?: string | null): Record<string, string> {
   };
 }
 
+// UUID validation regex
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function validateUUID(value: unknown, fieldName: string): string | null {
+  if (typeof value !== 'string') {
+    return `${fieldName} must be a string`;
+  }
+  if (!UUID_REGEX.test(value)) {
+    return `${fieldName} must be a valid UUID`;
+  }
+  return null;
+}
+
 // Sales veteran system prompt for generating follow-up steps
 const FOLLOW_UP_SYSTEM_PROMPT = `You are a 20-year B2B/SaaS sales veteran and strategic account coach. You've closed hundreds of enterprise deals ranging from $50K to $5M ARR. You understand exactly what separates good follow-up from great follow-up that actually advances deals.
 
@@ -79,11 +92,14 @@ serve(async (req) => {
   }
 
   try {
-    const { prospect_id } = await req.json();
+    const body = await req.json();
+    const { prospect_id } = body as { prospect_id: unknown };
     
-    if (!prospect_id) {
+    // Validate prospect_id
+    const prospectIdError = validateUUID(prospect_id, 'prospect_id');
+    if (prospectIdError) {
       return new Response(
-        JSON.stringify({ error: 'prospect_id is required' }),
+        JSON.stringify({ error: prospectIdError }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

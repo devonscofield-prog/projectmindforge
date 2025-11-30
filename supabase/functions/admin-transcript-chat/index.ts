@@ -47,6 +47,52 @@ interface Message {
   content: string;
 }
 
+// UUID validation regex
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function validateTranscriptIds(ids: unknown): string | null {
+  if (!Array.isArray(ids)) {
+    return 'transcript_ids must be an array';
+  }
+  if (ids.length === 0) {
+    return 'transcript_ids cannot be empty';
+  }
+  if (ids.length > 500) {
+    return 'transcript_ids cannot exceed 500 items';
+  }
+  for (let i = 0; i < ids.length; i++) {
+    if (typeof ids[i] !== 'string' || !UUID_REGEX.test(ids[i])) {
+      return `transcript_ids[${i}] must be a valid UUID`;
+    }
+  }
+  return null;
+}
+
+function validateMessages(messages: unknown): string | null {
+  if (!Array.isArray(messages)) {
+    return 'messages must be an array';
+  }
+  if (messages.length === 0) {
+    return 'messages cannot be empty';
+  }
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+    if (!msg || typeof msg !== 'object') {
+      return `messages[${i}] must be an object`;
+    }
+    if (!['user', 'assistant'].includes(msg.role)) {
+      return `messages[${i}].role must be 'user' or 'assistant'`;
+    }
+    if (typeof msg.content !== 'string' || msg.content.length === 0) {
+      return `messages[${i}].content must be a non-empty string`;
+    }
+    if (msg.content.length > 50000) {
+      return `messages[${i}].content exceeds maximum length of 50000 characters`;
+    }
+  }
+  return null;
+}
+
 // Maximum transcripts for direct injection
 const DIRECT_INJECTION_MAX = 20;
 // Maximum chunks to include in RAG context
@@ -61,22 +107,37 @@ serve(async (req) => {
   }
 
   try {
-    const { transcript_ids, messages, use_rag } = await req.json() as { 
-      transcript_ids: string[]; 
-      messages: Message[];
-      use_rag?: boolean;
+    const body = await req.json();
+    const { transcript_ids, messages, use_rag } = body as { 
+      transcript_ids: unknown; 
+      messages: unknown;
+      use_rag?: unknown;
     };
     
-    if (!transcript_ids || transcript_ids.length === 0) {
+    // Validate transcript_ids
+    const transcriptIdsError = validateTranscriptIds(transcript_ids);
+    if (transcriptIdsError) {
       return new Response(
-        JSON.stringify({ error: 'transcript_ids are required' }),
+        JSON.stringify({ error: transcriptIdsError }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    
+    // Validate messages
+    const messagesError = validateMessages(messages);
+    if (messagesError) {
+      return new Response(
+        JSON.stringify({ error: messagesError }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    // Cast validated values
+    const validatedTranscriptIds = transcript_ids as string[];
+    const validatedMessages = messages as Message[];
+    const shouldUseRag = Boolean(use_rag) || validatedTranscriptIds.length > DIRECT_INJECTION_MAX;
 
-    const shouldUseRag = use_rag || transcript_ids.length > DIRECT_INJECTION_MAX;
-
-    console.log(`[admin-transcript-chat] Starting analysis for ${transcript_ids.length} transcripts (RAG: ${shouldUseRag})`);
+    console.log(`[admin-transcript-chat] Starting analysis for ${validatedTranscriptIds.length} transcripts (RAG: ${shouldUseRag})`);
 
     // Get auth token and verify admin role
     const authHeader = req.headers.get('Authorization');
@@ -126,18 +187,18 @@ serve(async (req) => {
       // RAG mode: Use chunked search
       transcriptContext = await buildRagContext(
         supabase, 
-        transcript_ids, 
-        messages, 
+        validatedTranscriptIds, 
+        validatedMessages, 
         LOVABLE_API_KEY
       );
     } else {
       // Direct injection mode: Fetch full transcripts
-      transcriptContext = await buildDirectContext(supabase, transcript_ids);
+      transcriptContext = await buildDirectContext(supabase, validatedTranscriptIds);
     }
 
     const systemPrompt = ADMIN_TRANSCRIPT_ANALYSIS_PROMPT;
 
-    console.log(`[admin-transcript-chat] Calling Lovable AI with ${messages.length} messages`);
+    console.log(`[admin-transcript-chat] Calling Lovable AI with ${validatedMessages.length} messages`);
 
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -152,7 +213,7 @@ serve(async (req) => {
             role: 'system', 
             content: `${systemPrompt}\n\n## TRANSCRIPTS FOR ANALYSIS\n\n${transcriptContext}` 
           },
-          ...messages
+          ...validatedMessages
         ],
         stream: true,
         temperature: 0.3,

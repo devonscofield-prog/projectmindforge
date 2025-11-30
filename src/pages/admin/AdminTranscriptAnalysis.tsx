@@ -20,6 +20,7 @@ import { TranscriptChatPanel } from '@/components/admin/TranscriptChatPanel';
 import { SaveSelectionDialog } from '@/components/admin/SaveSelectionDialog';
 import { SavedSelectionsSheet } from '@/components/admin/SavedSelectionsSheet';
 import { SavedInsightsSheet } from '@/components/admin/SavedInsightsSheet';
+import { PaginationControls } from '@/components/ui/pagination-controls';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import {
@@ -104,6 +105,10 @@ export default function AdminTranscriptAnalysis() {
   
   // Pre-indexing state
   const [isIndexing, setIsIndexing] = useState(false);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 50;
 
   // Handle shared selection/insight from URL params
   useEffect(() => {
@@ -198,8 +203,13 @@ export default function AdminTranscriptAnalysis() {
     },
   });
 
-  // Fetch transcripts with filters
-  const { data: transcripts, isLoading } = useQuery({
+  // Reset pagination when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [dateRange.from, dateRange.to, selectedTeamId, selectedRepId, accountSearch, selectedCallTypes]);
+
+  // Fetch transcripts with filters and server-side pagination
+  const { data: transcriptsData, isLoading } = useQuery({
     queryKey: [
       'admin-transcripts',
       dateRange.from.toISOString(),
@@ -208,6 +218,8 @@ export default function AdminTranscriptAnalysis() {
       selectedRepId,
       accountSearch,
       selectedCallTypes,
+      currentPage,
+      pageSize,
     ],
     queryFn: async () => {
       // First get rep IDs based on team filter
@@ -225,7 +237,7 @@ export default function AdminTranscriptAnalysis() {
 
       let query = supabase
         .from('call_transcripts')
-        .select('id, call_date, account_name, call_type, raw_text, rep_id')
+        .select('id, call_date, account_name, call_type, raw_text, rep_id', { count: 'exact' })
         .eq('analysis_status', 'completed')
         .gte('call_date', format(dateRange.from, 'yyyy-MM-dd'))
         .lte('call_date', format(dateRange.to, 'yyyy-MM-dd'))
@@ -243,7 +255,12 @@ export default function AdminTranscriptAnalysis() {
         query = query.in('call_type', selectedCallTypes);
       }
 
-      const { data, error } = await query.limit(500);
+      // Apply pagination
+      const from = (currentPage - 1) * pageSize;
+      const to = from + pageSize - 1;
+      query = query.range(from, to);
+
+      const { data, error, count } = await query;
       if (error) throw error;
 
       // Enrich with rep and team names
@@ -256,14 +273,24 @@ export default function AdminTranscriptAnalysis() {
       const profileMap = new Map((profiles || []).map(p => [p.id, p]));
       const teamMap = new Map((teams || []).map(t => [t.id, t.name]));
 
-      return (data || []).map(t => ({
+      const transcripts = (data || []).map(t => ({
         ...t,
         rep_name: profileMap.get(t.rep_id)?.name || 'Unknown',
         team_name: teamMap.get(profileMap.get(t.rep_id)?.team_id || '') || 'Unknown',
       })) as Transcript[];
+
+      return {
+        transcripts,
+        totalCount: count ?? 0,
+        totalPages: Math.ceil((count ?? 0) / pageSize),
+      };
     },
     enabled: true,
   });
+
+  const transcripts = transcriptsData?.transcripts || [];
+  const totalCount = transcriptsData?.totalCount || 0;
+  const totalPages = transcriptsData?.totalPages || 1;
 
   // Query to check which transcripts are already chunked (for RAG pre-indexing)
   const { data: chunkStatus, refetch: refetchChunkStatus } = useQuery({
@@ -719,7 +746,7 @@ export default function AdminTranscriptAnalysis() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">
-              Transcripts ({transcripts?.length || 0})
+              Transcripts ({totalCount} total, showing {transcripts.length})
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -800,6 +827,20 @@ export default function AdminTranscriptAnalysis() {
                   </tbody>
                 </table>
               </ScrollArea>
+            )}
+            
+            {/* Pagination Controls */}
+            {totalCount > pageSize && (
+              <div className="p-4 border-t">
+                <PaginationControls
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={totalCount}
+                  pageSize={pageSize}
+                  onPageChange={setCurrentPage}
+                  showPageSize={false}
+                />
+              </div>
             )}
           </CardContent>
         </Card>
