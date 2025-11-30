@@ -13,7 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { RefreshCw, Activity, Database, Zap, AlertTriangle, TrendingUp } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { RefreshCw, Activity, Database, Zap, AlertTriangle, TrendingUp, Bell, BarChart3 } from 'lucide-react';
 import { PerformanceHealthCard } from '@/components/admin/PerformanceHealthCard';
 import {
   PerformanceTimelineChart,
@@ -21,6 +22,7 @@ import {
   EdgeFunctionBarChart,
   QueryBreakdownChart,
 } from '@/components/admin/PerformanceCharts';
+import { AlertConfigPanel } from '@/components/admin/AlertConfigPanel';
 import {
   getSystemHealth,
   getPerformanceSummary,
@@ -137,7 +139,21 @@ export default function AdminPerformanceMonitor() {
           </Alert>
         )}
 
-        {/* Health Cards */}
+        {/* Tabs for Metrics and Alerts */}
+        <Tabs defaultValue="metrics" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="metrics" className="gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Metrics
+            </TabsTrigger>
+            <TabsTrigger value="alerts" className="gap-2">
+              <Bell className="h-4 w-4" />
+              Alerts
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="metrics" className="space-y-6">
+            {/* Health Cards */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {healthLoading ? (
             <>
@@ -328,6 +344,12 @@ export default function AdminPerformanceMonitor() {
             </Button>
           </CardContent>
         </Card>
+          </TabsContent>
+
+          <TabsContent value="alerts" className="space-y-6">
+            <AlertConfigPanel />
+          </TabsContent>
+        </Tabs>
       </div>
     </AppLayout>
   );

@@ -665,6 +665,30 @@ export type Database = {
         }
         Relationships: []
       }
+      dashboard_cache: {
+        Row: {
+          cache_data: Json
+          cache_key: string
+          computed_at: string | null
+          expires_at: string
+          metadata: Json | null
+        }
+        Insert: {
+          cache_data: Json
+          cache_key: string
+          computed_at?: string | null
+          expires_at: string
+          metadata?: Json | null
+        }
+        Update: {
+          cache_data?: Json
+          cache_key?: string
+          computed_at?: string | null
+          expires_at?: string
+          metadata?: Json | null
+        }
+        Relationships: []
+      }
       email_logs: {
         Row: {
           body: string
@@ -724,6 +748,83 @@ export type Database = {
             columns: ["stakeholder_id"]
             isOneToOne: false
             referencedRelation: "stakeholders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      performance_alert_config: {
+        Row: {
+          alert_on_critical: boolean | null
+          alert_on_warning: boolean | null
+          cooldown_hours: number | null
+          created_at: string | null
+          email: string
+          enabled: boolean | null
+          id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          alert_on_critical?: boolean | null
+          alert_on_warning?: boolean | null
+          cooldown_hours?: number | null
+          created_at?: string | null
+          email: string
+          enabled?: boolean | null
+          id?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          alert_on_critical?: boolean | null
+          alert_on_warning?: boolean | null
+          cooldown_hours?: number | null
+          created_at?: string | null
+          email?: string
+          enabled?: boolean | null
+          id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      performance_alert_history: {
+        Row: {
+          alert_type: string
+          config_id: string | null
+          email_sent_to: string
+          id: string
+          metric_type: string
+          metric_value: number | null
+          sent_at: string | null
+          threshold_value: number | null
+        }
+        Insert: {
+          alert_type: string
+          config_id?: string | null
+          email_sent_to: string
+          id?: string
+          metric_type: string
+          metric_value?: number | null
+          sent_at?: string | null
+          threshold_value?: number | null
+        }
+        Update: {
+          alert_type?: string
+          config_id?: string | null
+          email_sent_to?: string
+          id?: string
+          metric_type?: string
+          metric_value?: number | null
+          sent_at?: string | null
+          threshold_value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "performance_alert_history_config_id_fkey"
+            columns: ["config_id"]
+            isOneToOne: false
+            referencedRelation: "performance_alert_config"
             referencedColumns: ["id"]
           },
         ]
@@ -1213,7 +1314,10 @@ export type Database = {
       }
     }
     Functions: {
+      cleanup_expired_cache: { Args: never; Returns: number }
       cleanup_old_metrics: { Args: never; Returns: number }
+      get_cached_admin_stats: { Args: never; Returns: Json }
+      get_cached_prospect_stats: { Args: never; Returns: Json }
       get_performance_summary: {
         Args: { p_hours?: number }
         Returns: {
@@ -1241,6 +1345,7 @@ export type Database = {
             }
             Returns: boolean
           }
+      invalidate_cache: { Args: { p_cache_key: string }; Returns: undefined }
       is_manager_of_user: {
         Args: { _manager_id: string; _rep_id: string }
         Returns: boolean

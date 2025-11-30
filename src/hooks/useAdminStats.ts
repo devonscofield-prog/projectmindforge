@@ -13,14 +13,45 @@ export interface AdminDashboardStats {
   };
 }
 
+interface CachedAdminStats {
+  totalUsers: number;
+  totalTeams: number;
+  totalCalls: number;
+  totalProspects: number;
+  roleDistribution: {
+    admin: number;
+    manager: number;
+    rep: number;
+  };
+}
+
 /**
- * Fetch admin dashboard overview stats
+ * Fetch admin dashboard overview stats (with server-side caching)
  */
 export function useAdminDashboardStats(): UseQueryResult<AdminDashboardStats, Error> {
   return useQuery({
     queryKey: ['admin-dashboard-stats'],
     queryFn: async (): Promise<AdminDashboardStats> => {
-      // Run all count queries in parallel
+      // Try cached function first
+      const { data: cachedData, error: cacheError } = await supabase.rpc('get_cached_admin_stats');
+      
+      if (!cacheError && cachedData) {
+        const stats = cachedData as unknown as CachedAdminStats;
+        return {
+          userCount: stats.totalUsers ?? 0,
+          teamCount: stats.totalTeams ?? 0,
+          callCount: stats.totalCalls ?? 0,
+          prospectCount: stats.totalProspects ?? 0,
+          roleCounts: {
+            admin: stats.roleDistribution?.admin ?? 0,
+            manager: stats.roleDistribution?.manager ?? 0,
+            rep: stats.roleDistribution?.rep ?? 0,
+          },
+        };
+      }
+
+      // Fallback to direct queries if cache fails
+      console.log('Cache miss or error, fetching directly:', cacheError);
       const [
         { count: userCount },
         { count: teamCount },
@@ -61,13 +92,35 @@ export interface ProspectStats {
   pipelineValue: number;
 }
 
+interface CachedProspectStats {
+  total: number;
+  active: number;
+  hotProspects: number;
+  pipelineValue: number;
+}
+
 /**
- * Fetch prospect statistics
+ * Fetch prospect statistics (with server-side caching)
  */
 export function useProspectStats(): UseQueryResult<ProspectStats, Error> {
   return useQuery({
     queryKey: ['prospect-stats'],
     queryFn: async (): Promise<ProspectStats> => {
+      // Try cached function first
+      const { data: cachedData, error: cacheError } = await supabase.rpc('get_cached_prospect_stats');
+      
+      if (!cacheError && cachedData) {
+        const stats = cachedData as unknown as CachedProspectStats;
+        return {
+          total: stats.total ?? 0,
+          active: stats.active ?? 0,
+          hot: stats.hotProspects ?? 0,
+          pipelineValue: stats.pipelineValue ?? 0,
+        };
+      }
+
+      // Fallback to direct queries if cache fails
+      console.log('Cache miss or error, fetching directly:', cacheError);
       const [
         { count: totalCount },
         { count: activeCount },
