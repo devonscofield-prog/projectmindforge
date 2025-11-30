@@ -21,7 +21,9 @@ import { AccountCombobox } from '@/components/forms/AccountCombobox';
 import { StakeholderCombobox } from '@/components/forms/StakeholderCombobox';
 import { PendingFollowUpsWidget } from '@/components/dashboard/PendingFollowUpsWidget';
 import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
-export default function RepDashboard() {
+import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
+
+function RepDashboard() {
   const {
     user,
     profile
@@ -289,3 +291,5 @@ export default function RepDashboard() {
       </div>
     </AppLayout>;
 }
+
+export default withPageErrorBoundary(RepDashboard, 'Dashboard');

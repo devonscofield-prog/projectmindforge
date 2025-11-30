@@ -7,13 +7,14 @@ import { getRepPageBreadcrumb } from '@/lib/breadcrumbConfig';
 import { Input } from '@/components/ui/input';
 import { listCallTranscriptsForRepWithFilters } from '@/api/aiCallAnalysis';
 import { Search, History } from 'lucide-react';
+import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 import {
   CallHistoryFilters,
   CallHistoryTable,
   useCallHistoryFilters,
 } from './call-history';
 
-export default function RepCallHistory() {
+function RepCallHistory() {
   const { user } = useAuth();
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -122,3 +123,5 @@ export default function RepCallHistory() {
     </AppLayout>
   );
 }
+
+export default withPageErrorBoundary(RepCallHistory, 'Call History');

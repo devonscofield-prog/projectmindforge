@@ -18,6 +18,7 @@ import { Users, Phone, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { getAiScoreStatsForReps, getCallCountsLast30DaysForReps, AiScoreStats } from '@/api/aiCallAnalysis';
 import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
+import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 
 interface RepWithData extends Profile {
   lastCoaching?: CoachingSession;
@@ -27,7 +28,7 @@ interface RepWithData extends Profile {
 
 type SortType = 'name' | 'calls' | 'coaching' | 'ai-score';
 
-export default function ManagerDashboard() {
+function ManagerDashboard() {
   const { user, role } = useAuth();
   const navigate = useNavigate();
   const [reps, setReps] = useState<RepWithData[]>([]);
@@ -362,3 +363,5 @@ export default function ManagerDashboard() {
     </AppLayout>
   );
 }
+
+export default withPageErrorBoundary(ManagerDashboard, 'Manager Dashboard');

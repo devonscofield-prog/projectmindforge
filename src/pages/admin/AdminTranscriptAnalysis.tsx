@@ -7,6 +7,7 @@ import { SavedSelectionsSheet } from '@/components/admin/SavedSelectionsSheet';
 import { SavedInsightsSheet } from '@/components/admin/SavedInsightsSheet';
 import { FileText } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 import {
   TranscriptFilters,
   TranscriptSelectionBar,
@@ -14,7 +15,7 @@ import {
   useTranscriptAnalysis,
 } from './transcript-analysis';
 
-export default function AdminTranscriptAnalysis() {
+function AdminTranscriptAnalysis() {
   const { role } = useAuth();
   const isAdmin = role === 'admin';
   const isManager = role === 'manager';
@@ -201,3 +202,5 @@ export default function AdminTranscriptAnalysis() {
     </AppLayout>
   );
 }
+
+export default withPageErrorBoundary(AdminTranscriptAnalysis, 'Transcript Analysis');

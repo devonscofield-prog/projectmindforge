@@ -16,6 +16,7 @@ import { CallType, callTypeLabels } from '@/constants/callTypes';
 import { format } from 'date-fns';
 import { getDashboardUrl, getCallHistoryUrl } from '@/lib/routes';
 import { getCallDetailBreadcrumbs } from '@/lib/breadcrumbConfig';
+import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 import { 
   ArrowLeft, 
   Calendar, 
@@ -29,7 +30,7 @@ import {
   User
 } from 'lucide-react';
 
-export default function CallDetailPage() {
+function CallDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, role } = useAuth();
@@ -346,3 +347,5 @@ export default function CallDetailPage() {
     </AppLayout>
   );
 }
+
+export default withPageErrorBoundary(CallDetailPage, 'Call Details');
