@@ -29,9 +29,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { streamAdminTranscriptChat, ChatMessage } from '@/api/adminTranscriptChat';
+import { saveAnalysisSession, fetchSessionByTranscripts, AnalysisSession } from '@/api/analysisSessions';
 import { SaveInsightDialog } from '@/components/admin/SaveInsightDialog';
 import { ExportChatDialog } from '@/components/admin/ExportChatDialog';
 import { CreateCustomPresetDialog, getIconComponent } from '@/components/admin/CreateCustomPresetDialog';
+import { AnalysisMessageRenderer } from '@/components/admin/AnalysisMessageRenderer';
 import { 
   ANALYSIS_MODES, 
   MODE_PRESETS,
@@ -43,7 +45,6 @@ import { fetchCustomPresets, deleteCustomPreset, type CustomPreset } from '@/api
 import { useToast } from '@/hooks/use-toast';
 import { useRateLimitCountdown } from '@/hooks/useRateLimitCountdown';
 import { RateLimitCountdown } from '@/components/ui/rate-limit-countdown';
-import ReactMarkdown from 'react-markdown';
 import {
   Send,
   Loader2,
@@ -60,6 +61,9 @@ import {
   Pencil,
   Trash2,
   Share2,
+  History,
+  RotateCcw,
+  CheckCircle2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -85,12 +89,19 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveInsightOpen, setSaveInsightOpen] = useState(false);
   const [insightToSave, setInsightToSave] = useState<string>('');
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [selectedModeId, setSelectedModeId] = useState('general');
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
+  
+  // Session management
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [existingSession, setExistingSession] = useState<AnalysisSession | null>(null);
+  const [showResumePrompt, setShowResumePrompt] = useState(false);
+  const [autoSaved, setAutoSaved] = useState(false);
   
   // Custom preset dialog state
   const [createPresetOpen, setCreatePresetOpen] = useState(false);
@@ -122,6 +133,21 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
   const activePreset = activePresetId ? getPresetById(activePresetId) : null;
   const starterQuestions = selectedMode.starterQuestions;
 
+  // Check for existing session on mount
+  useEffect(() => {
+    const checkExistingSession = async () => {
+      if (selectedTranscripts.length === 0) return;
+      
+      const session = await fetchSessionByTranscripts(selectedTranscripts.map(t => t.id));
+      if (session && session.messages.length > 0) {
+        setExistingSession(session);
+        setShowResumePrompt(true);
+      }
+    };
+    
+    checkExistingSession();
+  }, [selectedTranscripts]);
+
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -137,6 +163,45 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
     inputRef.current?.focus();
   }, []);
 
+  // Auto-save session when messages change (debounced)
+  useEffect(() => {
+    if (messages.length === 0) return;
+    
+    const saveTimeout = setTimeout(async () => {
+      const newSessionId = await saveAnalysisSession(
+        selectedTranscripts.map(t => t.id),
+        messages,
+        selectedModeId,
+        useRag,
+        sessionId || undefined
+      );
+      
+      if (newSessionId && !sessionId) {
+        setSessionId(newSessionId);
+      }
+      
+      setAutoSaved(true);
+      setTimeout(() => setAutoSaved(false), 2000);
+    }, 1000);
+    
+    return () => clearTimeout(saveTimeout);
+  }, [messages, selectedModeId, useRag, selectedTranscripts, sessionId]);
+
+  const resumeSession = () => {
+    if (existingSession) {
+      setMessages(existingSession.messages);
+      setSessionId(existingSession.id);
+      setSelectedModeId(existingSession.analysis_mode || 'general');
+    }
+    setShowResumePrompt(false);
+    setExistingSession(null);
+  };
+
+  const startFresh = () => {
+    setShowResumePrompt(false);
+    setExistingSession(null);
+  };
+
   const sendMessage = useCallback(async (content: string, modeOverride?: string) => {
     if (!content.trim() || isLoading || isRateLimited || selectedTranscripts.length === 0) return;
 
@@ -146,6 +211,7 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
     setMessages(newMessages);
     setInput('');
     setIsLoading(true);
+    setIsStreaming(true);
 
     let assistantContent = '';
     const modeToUse = modeOverride || selectedModeId;
@@ -170,10 +236,12 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
         },
         onDone: () => {
           setIsLoading(false);
+          setIsStreaming(false);
         },
         onError: (err) => {
           setError(err);
           setIsLoading(false);
+          setIsStreaming(false);
           if (err.toLowerCase().includes('rate limit')) {
             startCountdown(60);
             toast({
@@ -187,6 +255,7 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to get response');
       setIsLoading(false);
+      setIsStreaming(false);
     }
   }, [messages, isLoading, isRateLimited, selectedTranscripts, useRag, selectedModeId, toast, startCountdown]);
 
@@ -315,17 +384,25 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
               </Badge>
             )}
           </SheetTitle>
-          {messages.length > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setExportDialogOpen(true)}
-              className="gap-1"
-            >
-              <Download className="h-4 w-4" />
-              Export
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {autoSaved && (
+              <Badge variant="outline" className="text-xs gap-1 text-success border-success/30">
+                <CheckCircle2 className="h-3 w-3" />
+                Saved
+              </Badge>
+            )}
+            {messages.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setExportDialogOpen(true)}
+                className="gap-1"
+              >
+                <Download className="h-4 w-4" />
+                Export
+              </Button>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <FileText className="h-4 w-4" />
@@ -372,10 +449,34 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
         </div>
       </SheetHeader>
 
+      {/* Resume Session Prompt */}
+      {showResumePrompt && existingSession && (
+        <div className="mx-6 mt-4 p-4 rounded-lg border border-primary/20 bg-primary/5">
+          <div className="flex items-start gap-3">
+            <History className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h4 className="font-medium text-sm">Resume Previous Analysis?</h4>
+              <p className="text-xs text-muted-foreground mt-1">
+                You have a saved analysis with {existingSession.messages.length} messages for these transcripts.
+              </p>
+              <div className="flex gap-2 mt-3">
+                <Button size="sm" onClick={resumeSession} className="gap-1">
+                  <RotateCcw className="h-3 w-3" />
+                  Resume
+                </Button>
+                <Button size="sm" variant="outline" onClick={startFresh}>
+                  Start Fresh
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Messages */}
       <ScrollArea ref={scrollAreaRef} className="flex-1 px-6">
         <div className="py-4 space-y-4">
-          {messages.length === 0 ? (
+          {messages.length === 0 && !showResumePrompt ? (
             <div className="space-y-6">
               {/* Built-in Presets */}
               <div className="space-y-2">
@@ -584,30 +685,23 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
               >
                 <div
                   className={cn(
-                    "max-w-[85%] rounded-lg px-4 py-2 group relative",
+                    "rounded-lg px-4 py-3 group relative",
                     message.role === 'user'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted'
+                      ? 'bg-primary text-primary-foreground max-w-[85%]'
+                      : 'bg-muted w-full max-w-full'
                   )}
                 >
                   {message.role === 'assistant' ? (
                     <>
-                      <div className="prose prose-sm dark:prose-invert max-w-none">
-                        <ReactMarkdown
-                          components={{
-                            strong: ({ children }) => (
-                              <strong className="text-primary">{children}</strong>
-                            ),
-                          }}
-                        >
-                          {message.content}
-                        </ReactMarkdown>
-                      </div>
+                      <AnalysisMessageRenderer 
+                        content={message.content} 
+                        isStreaming={isStreaming && i === messages.length - 1}
+                      />
                       {!isLoading && message.content && (
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="absolute -bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-7 text-xs gap-1"
+                          className="absolute -bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-7 text-xs gap-1 bg-background border shadow-sm"
                           onClick={() => {
                             setInsightToSave(message.content);
                             setSaveInsightOpen(true);
@@ -670,7 +764,7 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
             </Button>
           </form>
           <p className="text-xs text-muted-foreground mt-2 text-center">
-            Responses are grounded only in the selected transcripts
+            Responses are grounded only in the selected transcripts • Auto-saved
           </p>
         </div>
       </div>

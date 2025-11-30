@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { createLogger } from '@/lib/logger';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { fetchRecentSessions, deleteAnalysisSession, type AnalysisSession } from '@/api/analysisSessions';
 
 const log = createLogger('SavedInsightsSheet');
 import {
@@ -17,6 +18,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,6 +47,9 @@ import {
   Users,
   Eye,
   Tag,
+  History,
+  MessageSquare,
+  FileText,
 } from 'lucide-react';
 
 interface SavedInsight {
@@ -72,9 +77,11 @@ export function SavedInsightsSheet({
   const queryClient = useQueryClient();
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteSessionId, setDeleteSessionId] = useState<string | null>(null);
   const [viewInsight, setViewInsight] = useState<SavedInsight | null>(null);
+  const [viewSession, setViewSession] = useState<AnalysisSession | null>(null);
 
-  const { data: insights, isLoading } = useQuery({
+  const { data: insights, isLoading: isLoadingInsights } = useQuery({
     queryKey: ['admin-saved-insights', user?.id],
     queryFn: async () => {
       if (!user) return [];
@@ -87,6 +94,12 @@ export function SavedInsightsSheet({
       if (error) throw error;
       return data as SavedInsight[];
     },
+    enabled: open && !!user,
+  });
+
+  const { data: sessions, isLoading: isLoadingSessions } = useQuery({
+    queryKey: ['analysis-sessions', user?.id],
+    queryFn: () => fetchRecentSessions(20),
     enabled: open && !!user,
   });
 
@@ -107,6 +120,18 @@ export function SavedInsightsSheet({
     onError: (error) => {
       log.error('Delete insight error', { error });
       toast.error('Failed to delete insight');
+    },
+  });
+
+  const deleteSessionMutation = useMutation({
+    mutationFn: deleteAnalysisSession,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['analysis-sessions'] });
+      toast.success('Session deleted');
+      setDeleteSessionId(null);
+    },
+    onError: () => {
+      toast.error('Failed to delete session');
     },
   });
 
@@ -131,79 +156,119 @@ export function SavedInsightsSheet({
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
               <Lightbulb className="h-5 w-5 text-amber-500" />
-              Saved Insights
+              Saved Analysis
             </SheetTitle>
             <SheetDescription>
-              View saved analysis insights from your transcript conversations
+              View saved insights and recent analysis sessions
             </SheetDescription>
           </SheetHeader>
 
-          <div className="mt-6">
-            {isLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : !insights?.length ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <Lightbulb className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                <p>No saved insights yet</p>
-                <p className="text-sm">Save insights from your chat conversations</p>
-              </div>
-            ) : (
-              <ScrollArea className="h-[calc(100vh-200px)]">
-                <div className="space-y-6 pr-4">
-                  {/* Own Insights */}
-                  {ownInsights.length > 0 && (
-                    <div className="space-y-3">
-                      <h3 className="text-sm font-medium text-muted-foreground">
-                        Your Insights
-                      </h3>
-                      <div className="space-y-2">
-                        {ownInsights.map(insight => (
-                          <InsightCard
-                            key={insight.id}
-                            insight={insight}
-                            isOwn={true}
-                            copiedId={copiedId}
-                            onView={() => setViewInsight(insight)}
-                            onCopy={() => copyShareUrl(insight)}
-                            onDelete={() => setDeleteId(insight.id)}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
+          <Tabs defaultValue="insights" className="mt-4">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="insights" className="gap-1">
+                <Lightbulb className="h-4 w-4" />
+                Insights
+              </TabsTrigger>
+              <TabsTrigger value="sessions" className="gap-1">
+                <History className="h-4 w-4" />
+                Sessions
+              </TabsTrigger>
+            </TabsList>
 
-                  {/* Shared Insights */}
-                  {sharedInsights.length > 0 && (
-                    <div className="space-y-3">
-                      <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                        <Users className="h-4 w-4" />
-                        Shared With You
-                      </h3>
-                      <div className="space-y-2">
-                        {sharedInsights.map(insight => (
-                          <InsightCard
-                            key={insight.id}
-                            insight={insight}
-                            isOwn={false}
-                            copiedId={copiedId}
-                            onView={() => setViewInsight(insight)}
-                            onCopy={() => copyShareUrl(insight)}
-                            onDelete={() => {}}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
+            <TabsContent value="insights" className="mt-4">
+              {isLoadingInsights ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
-              </ScrollArea>
-            )}
-          </div>
+              ) : !insights?.length ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Lightbulb className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>No saved insights yet</p>
+                  <p className="text-sm">Save insights from your chat conversations</p>
+                </div>
+              ) : (
+                <ScrollArea className="h-[calc(100vh-280px)]">
+                  <div className="space-y-6 pr-4">
+                    {/* Own Insights */}
+                    {ownInsights.length > 0 && (
+                      <div className="space-y-3">
+                        <h3 className="text-sm font-medium text-muted-foreground">
+                          Your Insights
+                        </h3>
+                        <div className="space-y-2">
+                          {ownInsights.map(insight => (
+                            <InsightCard
+                              key={insight.id}
+                              insight={insight}
+                              isOwn={true}
+                              copiedId={copiedId}
+                              onView={() => setViewInsight(insight)}
+                              onCopy={() => copyShareUrl(insight)}
+                              onDelete={() => setDeleteId(insight.id)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Shared Insights */}
+                    {sharedInsights.length > 0 && (
+                      <div className="space-y-3">
+                        <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                          <Users className="h-4 w-4" />
+                          Shared With You
+                        </h3>
+                        <div className="space-y-2">
+                          {sharedInsights.map(insight => (
+                            <InsightCard
+                              key={insight.id}
+                              insight={insight}
+                              isOwn={false}
+                              copiedId={copiedId}
+                              onView={() => setViewInsight(insight)}
+                              onCopy={() => copyShareUrl(insight)}
+                              onDelete={() => {}}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </ScrollArea>
+              )}
+            </TabsContent>
+
+            <TabsContent value="sessions" className="mt-4">
+              {isLoadingSessions ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : !sessions?.length ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <History className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>No analysis sessions yet</p>
+                  <p className="text-sm">Your chat sessions are auto-saved here</p>
+                </div>
+              ) : (
+                <ScrollArea className="h-[calc(100vh-280px)]">
+                  <div className="space-y-2 pr-4">
+                    {sessions.map(session => (
+                      <SessionCard
+                        key={session.id}
+                        session={session}
+                        onView={() => setViewSession(session)}
+                        onDelete={() => setDeleteSessionId(session.id)}
+                      />
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </TabsContent>
+          </Tabs>
         </SheetContent>
       </Sheet>
 
-      {/* Delete Confirmation */}
+      {/* Delete Insight Confirmation */}
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -216,6 +281,27 @@ export function SavedInsightsSheet({
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteId && deleteMutation.mutate(deleteId)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Session Confirmation */}
+      <AlertDialog open={!!deleteSessionId} onOpenChange={() => setDeleteSessionId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Session?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this analysis session. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteSessionId && deleteSessionMutation.mutate(deleteSessionId)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
@@ -241,12 +327,61 @@ export function SavedInsightsSheet({
                 ))}
               </div>
             )}
-            <div className="prose prose-sm dark:prose-invert max-w-none">
+            <div className="prose prose-sm dark:prose-invert max-w-none analysis-markdown">
               <ReactMarkdown>{viewInsight?.content || ''}</ReactMarkdown>
             </div>
             <p className="text-xs text-muted-foreground">
               Saved on {viewInsight && format(new Date(viewInsight.created_at), 'MMMM d, yyyy')}
             </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Session Dialog */}
+      <Dialog open={!!viewSession} onOpenChange={() => setViewSession(null)}>
+        <DialogContent className="sm:max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="h-5 w-5" />
+              {viewSession?.title || 'Analysis Session'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+              <Badge variant="outline" className="gap-1">
+                <FileText className="h-3 w-3" />
+                {viewSession?.transcript_ids.length} transcripts
+              </Badge>
+              <Badge variant="outline" className="gap-1">
+                <MessageSquare className="h-3 w-3" />
+                {viewSession?.messages.length} messages
+              </Badge>
+              <span className="flex items-center gap-1">
+                <Calendar className="h-3 w-3" />
+                {viewSession && format(new Date(viewSession.updated_at), 'MMM d, yyyy h:mm a')}
+              </span>
+            </div>
+            <ScrollArea className="h-[50vh]">
+              <div className="space-y-4 pr-4">
+                {viewSession?.messages.map((message, i) => (
+                  <div
+                    key={i}
+                    className={`p-3 rounded-lg ${
+                      message.role === 'user' 
+                        ? 'bg-primary/10 ml-8' 
+                        : 'bg-muted mr-8'
+                    }`}
+                  >
+                    <p className="text-xs font-medium text-muted-foreground mb-1 uppercase">
+                      {message.role}
+                    </p>
+                    <div className="prose prose-sm dark:prose-invert max-w-none analysis-markdown">
+                      <ReactMarkdown>{message.content}</ReactMarkdown>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
           </div>
         </DialogContent>
       </Dialog>
@@ -321,6 +456,53 @@ function InsightCard({
             <Trash2 className="h-4 w-4 text-destructive" />
           </Button>
         )}
+      </div>
+    </div>
+  );
+}
+
+interface SessionCardProps {
+  session: AnalysisSession;
+  onView: () => void;
+  onDelete: () => void;
+}
+
+function SessionCard({ session, onView, onDelete }: SessionCardProps) {
+  const messageCount = session.messages.length;
+  const userMessages = session.messages.filter(m => m.role === 'user').length;
+  
+  return (
+    <div className="rounded-lg border p-3 hover:bg-muted/50 transition-colors">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <h4 className="font-medium text-sm truncate">
+            {session.title || 'Untitled Session'}
+          </h4>
+          <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <FileText className="h-3 w-3" />
+              {session.transcript_ids.length} transcripts
+            </span>
+            <span className="flex items-center gap-1">
+              <MessageSquare className="h-3 w-3" />
+              {userMessages} questions
+            </span>
+            <span className="flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              {format(new Date(session.updated_at), 'MMM d')}
+            </span>
+          </div>
+        </div>
+      </div>
+      
+      <div className="flex items-center gap-2 mt-3">
+        <Button size="sm" onClick={onView} className="flex-1">
+          <Eye className="h-4 w-4 mr-1" />
+          View
+        </Button>
+        <Button size="sm" variant="outline" onClick={onDelete}>
+          <Trash2 className="h-4 w-4 text-destructive" />
+        </Button>
       </div>
     </div>
   );
