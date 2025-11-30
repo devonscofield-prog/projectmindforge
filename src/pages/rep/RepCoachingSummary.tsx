@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useParams, Link } from 'react-router-dom';
@@ -13,7 +13,16 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { generateCoachingTrends, CoachingTrendAnalysis } from '@/api/aiCallAnalysis';
+import { 
+  generateCoachingTrends, 
+  CoachingTrendAnalysis, 
+  CoachingTrendAnalysisWithMeta, 
+  AnalysisMetadata,
+  DIRECT_ANALYSIS_MAX,
+  SAMPLING_MAX,
+  determineAnalysisTier,
+  AnalysisTier,
+} from '@/api/aiCallAnalysis';
 import { supabase } from '@/integrations/supabase/client';
 import { TrendCard } from '@/components/coaching/TrendCard';
 import { CriticalInfoTrends } from '@/components/coaching/CriticalInfoTrends';
@@ -43,6 +52,8 @@ import {
   Info,
   History,
   Share2,
+  Layers,
+  Zap,
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -465,8 +476,32 @@ export default function RepCoachingSummary() {
   
   const hasValidationErrors = periodValidation?.warnings.some(w => w.type === 'error') ?? false;
 
+  // Extract analysis and metadata from query results
+  const currentAnalysis: CoachingTrendAnalysis | null = useMemo(() => {
+    if (loadedAnalysis) return loadedAnalysis;
+    if (trendAnalysis) return trendAnalysis.analysis;
+    return null;
+  }, [loadedAnalysis, trendAnalysis]);
+  
+  const currentMetadata: AnalysisMetadata | null = useMemo(() => {
+    if (loadedAnalysis) return null; // No metadata for loaded historical analyses
+    if (trendAnalysis) return trendAnalysis.metadata;
+    return null;
+  }, [loadedAnalysis, trendAnalysis]);
+
+  const comparisonAnalysis: CoachingTrendAnalysis | null = useMemo(() => {
+    if (comparisonTrendAnalysis) return comparisonTrendAnalysis.analysis;
+    return null;
+  }, [comparisonTrendAnalysis]);
+
   // Use loaded analysis from history, or fetched analysis
-  const displayAnalysis = loadedAnalysis || trendAnalysis;
+  const displayAnalysis = currentAnalysis;
+  
+  // Determine analysis tier for UI display
+  const previewTier = useMemo((): AnalysisTier | null => {
+    if (callCountPreview === null || callCountPreview === undefined) return null;
+    return determineAnalysisTier(callCountPreview);
+  }, [callCountPreview]);
 
   return (
     <AppLayout>
@@ -813,20 +848,57 @@ export default function RepCoachingSummary() {
                     </span>
                   </div>
                   
-                  {/* Call count preview */}
-                  <div className="flex items-center gap-2 px-4 py-2 bg-muted/50 rounded-lg">
-                    <BarChart3 className="h-4 w-4 text-primary" />
-                    {isLoadingCallCount ? (
-                      <span className="text-sm text-muted-foreground">Counting calls...</span>
-                    ) : callCountPreview === 0 ? (
-                      <span className="text-sm text-amber-600 dark:text-amber-400">
-                        No analyzed calls found in this period
-                      </span>
-                    ) : (
-                      <span className="text-sm font-medium">
-                        <span className="text-primary">{callCountPreview}</span>
-                        <span className="text-muted-foreground"> call{callCountPreview !== 1 ? 's' : ''} to analyze</span>
-                      </span>
+                  {/* Call count preview with tier indicator */}
+                  <div className="flex flex-col items-center gap-2 px-4 py-2 bg-muted/50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <BarChart3 className="h-4 w-4 text-primary" />
+                      {isLoadingCallCount ? (
+                        <span className="text-sm text-muted-foreground">Counting calls...</span>
+                      ) : callCountPreview === 0 ? (
+                        <span className="text-sm text-amber-600 dark:text-amber-400">
+                          No analyzed calls found in this period
+                        </span>
+                      ) : (
+                        <span className="text-sm font-medium">
+                          <span className="text-primary">{callCountPreview}</span>
+                          <span className="text-muted-foreground"> call{callCountPreview !== 1 ? 's' : ''} to analyze</span>
+                        </span>
+                      )}
+                    </div>
+                    {/* Tier indicator */}
+                    {previewTier && callCountPreview && callCountPreview > 0 && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Badge 
+                              variant="outline" 
+                              className={cn(
+                                "text-xs gap-1",
+                                previewTier === 'direct' && "border-green-500/50 text-green-600",
+                                previewTier === 'sampled' && "border-amber-500/50 text-amber-600",
+                                previewTier === 'hierarchical' && "border-orange-500/50 text-orange-600"
+                              )}
+                            >
+                              {previewTier === 'direct' && <Zap className="h-3 w-3" />}
+                              {previewTier === 'sampled' && <Layers className="h-3 w-3" />}
+                              {previewTier === 'hierarchical' && <Layers className="h-3 w-3" />}
+                              {previewTier === 'direct' ? 'Direct Analysis' : 
+                               previewTier === 'sampled' ? 'Smart Sampling' : 'Two-Stage Analysis'}
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            {previewTier === 'direct' && (
+                              <p>All {callCountPreview} calls will be analyzed directly for optimal quality.</p>
+                            )}
+                            {previewTier === 'sampled' && (
+                              <p>Large dataset ({callCountPreview} calls). A representative sample of ~{DIRECT_ANALYSIS_MAX} calls will be analyzed using stratified sampling.</p>
+                            )}
+                            {previewTier === 'hierarchical' && (
+                              <p>Very large dataset ({callCountPreview} calls). Analysis will use a two-stage hierarchical approach for comprehensive insights.</p>
+                            )}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     )}
                   </div>
                   
@@ -842,7 +914,9 @@ export default function RepCoachingSummary() {
                   <p className="text-xs text-muted-foreground mt-1">
                     {callCountPreview === 0 
                       ? 'Submit calls to generate trends' 
-                      : 'Analysis takes 15-30 seconds'}
+                      : previewTier === 'hierarchical' 
+                        ? 'Two-stage analysis may take 1-2 minutes'
+                        : 'Analysis takes 15-30 seconds'}
                   </p>
                 </div>
               </div>
@@ -922,13 +996,13 @@ export default function RepCoachingSummary() {
               }}
             />
           </div>
-        ) : isComparisonMode && comparisonConfirmed && displayAnalysis && comparisonTrendAnalysis ? (
+        ) : isComparisonMode && comparisonConfirmed && displayAnalysis && comparisonAnalysis ? (
           /* Comparison View */
           <CoachingTrendsComparison
             periodA={{
               label: 'Period A',
               dateRange: comparisonDateRange,
-              analysis: comparisonTrendAnalysis,
+              analysis: comparisonAnalysis,
             }}
             periodB={{
               label: 'Period B',

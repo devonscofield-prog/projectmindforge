@@ -1,0 +1,209 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+interface CallData {
+  date: string;
+  framework_scores: {
+    bant: { score: number; summary: string };
+    gap_selling: { score: number; summary: string };
+    active_listening: { score: number; summary: string };
+  } | null;
+  bant_improvements: string[];
+  gap_selling_improvements: string[];
+  active_listening_improvements: string[];
+  critical_info_missing: Array<{ info: string; missed_opportunity: string }> | string[];
+  follow_up_questions: Array<{ question: string; timing_example: string }> | string[];
+  heat_score: number | null;
+}
+
+interface ChunkSummaryRequest {
+  calls: CallData[];
+  chunkIndex: number;
+  dateRange: { from: string; to: string };
+}
+
+const CHUNK_SUMMARY_SYSTEM_PROMPT = `You are an expert sales coaching analyst. Your task is to analyze a small batch of call analyses and produce a CONDENSED SUMMARY that captures the essential patterns and trends.
+
+This summary will be combined with other chunk summaries to form a comprehensive analysis, so focus on:
+1. Key numerical averages and trends
+2. Most frequent issues/patterns
+3. Notable observations that should inform the final analysis
+
+Be concise and data-driven. This is an intermediate step, not the final output.`;
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const { calls, chunkIndex, dateRange } = await req.json() as ChunkSummaryRequest;
+
+    if (!calls || calls.length === 0) {
+      return new Response(
+        JSON.stringify({ error: 'No call data provided' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log(`[generate-coaching-chunk-summary] Analyzing chunk ${chunkIndex} with ${calls.length} calls`);
+
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    if (!LOVABLE_API_KEY) {
+      throw new Error('LOVABLE_API_KEY not configured');
+    }
+
+    // Calculate quick stats for the prompt
+    const bantScores = calls.filter(c => c.framework_scores?.bant?.score != null).map(c => c.framework_scores!.bant.score);
+    const gapScores = calls.filter(c => c.framework_scores?.gap_selling?.score != null).map(c => c.framework_scores!.gap_selling.score);
+    const activeScores = calls.filter(c => c.framework_scores?.active_listening?.score != null).map(c => c.framework_scores!.active_listening.score);
+    const heatScores = calls.filter(c => c.heat_score != null).map(c => c.heat_score!);
+
+    const avgBant = bantScores.length > 0 ? bantScores.reduce((a, b) => a + b, 0) / bantScores.length : null;
+    const avgGap = gapScores.length > 0 ? gapScores.reduce((a, b) => a + b, 0) / gapScores.length : null;
+    const avgActive = activeScores.length > 0 ? activeScores.reduce((a, b) => a + b, 0) / activeScores.length : null;
+    const avgHeat = heatScores.length > 0 ? heatScores.reduce((a, b) => a + b, 0) / heatScores.length : null;
+
+    // Collect all improvement areas and missing info
+    const allBantImprovements = calls.flatMap(c => c.bant_improvements);
+    const allGapImprovements = calls.flatMap(c => c.gap_selling_improvements);
+    const allActiveImprovements = calls.flatMap(c => c.active_listening_improvements);
+    const allMissingInfo = calls.flatMap(c => 
+      c.critical_info_missing.map(item => typeof item === 'object' ? item.info : item)
+    );
+
+    const userPrompt = `Analyze this batch of ${calls.length} calls from ${dateRange.from} to ${dateRange.to}:
+
+Quick Stats:
+- Average BANT Score: ${avgBant?.toFixed(1) ?? 'N/A'}
+- Average Gap Selling Score: ${avgGap?.toFixed(1) ?? 'N/A'}
+- Average Active Listening Score: ${avgActive?.toFixed(1) ?? 'N/A'}
+- Average Heat Score: ${avgHeat?.toFixed(1) ?? 'N/A'}
+
+BANT Improvements Mentioned: ${allBantImprovements.join('; ') || 'None'}
+Gap Selling Improvements Mentioned: ${allGapImprovements.join('; ') || 'None'}
+Active Listening Improvements Mentioned: ${allActiveImprovements.join('; ') || 'None'}
+Critical Info Missing: ${allMissingInfo.join('; ') || 'None'}
+
+Provide a condensed summary of this chunk's patterns and trends.`;
+
+    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash',
+        messages: [
+          { role: 'system', content: CHUNK_SUMMARY_SYSTEM_PROMPT },
+          { role: 'user', content: userPrompt }
+        ],
+        tools: [
+          {
+            type: 'function',
+            function: {
+              name: 'provide_chunk_summary',
+              description: 'Provide condensed summary of this chunk of calls',
+              parameters: {
+                type: 'object',
+                properties: {
+                  avgScores: {
+                    type: 'object',
+                    properties: {
+                      bant: { type: 'number', nullable: true },
+                      gapSelling: { type: 'number', nullable: true },
+                      activeListening: { type: 'number', nullable: true },
+                      heat: { type: 'number', nullable: true }
+                    },
+                    required: ['bant', 'gapSelling', 'activeListening', 'heat']
+                  },
+                  dominantTrends: {
+                    type: 'object',
+                    properties: {
+                      bant: { type: 'string', enum: ['improving', 'stable', 'declining'] },
+                      gapSelling: { type: 'string', enum: ['improving', 'stable', 'declining'] },
+                      activeListening: { type: 'string', enum: ['improving', 'stable', 'declining'] }
+                    },
+                    required: ['bant', 'gapSelling', 'activeListening']
+                  },
+                  topMissingInfo: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: 'Top 3-5 most frequently missing pieces of information'
+                  },
+                  topImprovementAreas: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: 'Top 3-5 areas that need improvement across all frameworks'
+                  },
+                  keyObservations: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: '2-3 key observations about this period that should inform the overall analysis'
+                  }
+                },
+                required: ['avgScores', 'dominantTrends', 'topMissingInfo', 'topImprovementAreas', 'keyObservations']
+              }
+            }
+          }
+        ],
+        tool_choice: { type: 'function', function: { name: 'provide_chunk_summary' } }
+      })
+    });
+
+    if (!aiResponse.ok) {
+      if (aiResponse.status === 429) {
+        return new Response(
+          JSON.stringify({ error: 'Rate limit exceeded, please try again in a moment' }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      if (aiResponse.status === 402) {
+        return new Response(
+          JSON.stringify({ error: 'Usage limit reached, please add credits' }),
+          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      const errorText = await aiResponse.text();
+      console.error('[generate-coaching-chunk-summary] AI Gateway error:', aiResponse.status, errorText);
+      throw new Error(`AI Gateway error: ${aiResponse.status}`);
+    }
+
+    const aiData = await aiResponse.json();
+    const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
+    
+    if (!toolCall || toolCall.function.name !== 'provide_chunk_summary') {
+      console.error('[generate-coaching-chunk-summary] Unexpected AI response:', JSON.stringify(aiData));
+      throw new Error('AI did not return expected structured output');
+    }
+
+    const chunkSummary = JSON.parse(toolCall.function.arguments);
+    
+    // Add metadata to the summary
+    const result = {
+      chunkIndex,
+      dateRange,
+      callCount: calls.length,
+      ...chunkSummary
+    };
+
+    console.log(`[generate-coaching-chunk-summary] Chunk ${chunkIndex} analyzed successfully`);
+
+    return new Response(
+      JSON.stringify(result),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error) {
+    console.error('[generate-coaching-chunk-summary] Error:', error);
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});
