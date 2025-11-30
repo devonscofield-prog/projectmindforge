@@ -347,10 +347,20 @@ export function useProspectData(prospectId: string | undefined) {
     handleRefreshAll();
   };
 
-  const handleUpdateProspect = async (updates: Partial<Prospect>) => {
-    if (!prospect) return;
+  const handleUpdateProspect = async (updates: Partial<Prospect>): Promise<boolean> => {
+    if (!prospect) return false;
     try {
-      await updateProspect(prospect.id, updates);
+      // Filter out null values for fields that don't accept null in updateProspect
+      const sanitizedUpdates: Parameters<typeof updateProspect>[1] = {};
+      if (updates.status !== undefined) sanitizedUpdates.status = updates.status;
+      if (updates.potential_revenue !== undefined) sanitizedUpdates.potential_revenue = updates.potential_revenue ?? undefined;
+      if (updates.salesforce_link !== undefined) sanitizedUpdates.salesforce_link = updates.salesforce_link;
+      if (updates.industry !== undefined) sanitizedUpdates.industry = updates.industry;
+      if (updates.ai_extracted_info !== undefined) sanitizedUpdates.ai_extracted_info = updates.ai_extracted_info ?? undefined;
+      if (updates.suggested_follow_ups !== undefined) sanitizedUpdates.suggested_follow_ups = updates.suggested_follow_ups ?? undefined;
+      if (updates.heat_score !== undefined) sanitizedUpdates.heat_score = updates.heat_score ?? undefined;
+      
+      await updateProspect(prospect.id, sanitizedUpdates);
       setProspect({ ...prospect, ...updates });
       return true;
     } catch (error) {

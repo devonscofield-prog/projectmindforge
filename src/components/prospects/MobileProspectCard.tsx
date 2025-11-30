@@ -52,8 +52,8 @@ function HeatScoreBadge({ score }: { score: number | null }) {
 }
 
 export function MobileProspectCard({ prospect, stakeholderCount, callCount, onClick }: MobileProspectCardProps) {
-  const formatCurrency = (value: number | null | undefined) => {
-    if (value === null || value === undefined) return null;
+  const formatCurrency = (value: number | null | undefined): string | null => {
+    if (value == null) return null;
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
@@ -89,7 +89,7 @@ export function MobileProspectCard({ prospect, stakeholderCount, callCount, onCl
             
             {/* Stats row */}
             <div className="flex items-center gap-4 text-sm">
-              <HeatScoreBadge score={prospect.heat_score} />
+              <HeatScoreBadge score={prospect.heat_score ?? null} />
               
               {formatCurrency(prospect.potential_revenue) && (
                 <span className="text-green-600 font-medium">
