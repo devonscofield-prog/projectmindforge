@@ -34,6 +34,7 @@ import { getBenchmarkComparison } from '@/api/performanceBenchmarks';
 import { PerformanceBenchmarkCard } from '@/components/admin/PerformanceBenchmarkCard';
 import { PerformanceDrillDown } from '@/components/admin/PerformanceDrillDown';
 import { PerformanceRecommendations } from '@/components/admin/PerformanceRecommendations';
+import { ImplementedRecommendationsView } from '@/components/admin/ImplementedRecommendationsView';
 import { toast } from 'sonner';
 
 const TIME_RANGE_OPTIONS = [
@@ -356,6 +357,9 @@ export default function AdminPerformanceMonitor() {
 
         {/* AI Recommendations */}
         <PerformanceRecommendations />
+
+        {/* Implemented Recommendations Tracking */}
+        <ImplementedRecommendationsView />
 
         {/* Maintenance Actions */}
         <Card>
