@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -184,10 +185,19 @@ export function CallAnalysisResultsView({ call, analysis, isOwner, isManager }: 
           {/* Confidence & Model Info */}
           <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t">
             {analysis.confidence !== null && (
-              <div className="flex items-center gap-2">
-                <BarChart3 className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">Confidence: {Math.round(analysis.confidence * 100)}%</span>
-              </div>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-2 cursor-help">
+                      <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">Confidence: {Math.round(analysis.confidence * 100)}%</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p className="text-sm">The AI's self-assessed confidence in its analysis, based on transcript quality, context clarity, and completeness of information.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
             <span className="text-xs text-muted-foreground">Model: {analysis.model_name}</span>
             <span className="text-xs text-muted-foreground">Version: {analysis.prompt_version}</span>
