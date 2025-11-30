@@ -19,6 +19,24 @@ export function getAccountDetailUrl(role: UserRole | null, prospectId: string): 
 }
 
 /**
+ * Generates the rep detail URL.
+ * Both managers and admins use /manager/rep/:repId
+ */
+export function getRepDetailUrl(repId: string, tab?: string): string {
+  const base = `/manager/rep/${repId}`;
+  return tab ? `${base}?tab=${tab}` : base;
+}
+
+/**
+ * Generates the rep coaching summary URL based on role.
+ * - Manager/Admin viewing a rep: /rep/coaching-summary/:repId
+ * - Rep viewing own: /rep/coaching-summary
+ */
+export function getCoachingSummaryUrl(repId?: string): string {
+  return repId ? `/rep/coaching-summary/${repId}` : '/rep/coaching-summary';
+}
+
+/**
  * Generates the correct call detail URL (same for all roles).
  */
 export function getCallDetailUrl(callId: string): string {

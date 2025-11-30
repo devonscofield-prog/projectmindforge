@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { getRepDetailUrl } from '@/lib/routes';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -525,7 +526,7 @@ export default function ManagerCoaching() {
                               <Trash2 className="h-4 w-4" />
                             </Button>
                             <Button variant="outline" size="sm" asChild>
-                              <Link to={`/manager/rep/${session.rep_id}`}>View Rep</Link>
+                              <Link to={getRepDetailUrl(session.rep_id)}>View Rep</Link>
                             </Button>
                           </div>
                         </TableCell>
@@ -718,7 +719,7 @@ export default function ManagerCoaching() {
                   Edit Session
                 </Button>
                 <Button variant="outline" asChild className="flex-1">
-                  <Link to={`/manager/rep/${viewingSession.rep_id}`}>
+                  <Link to={getRepDetailUrl(viewingSession.rep_id)}>
                     <User className="h-4 w-4 mr-2" />
                     View Rep
                   </Link>

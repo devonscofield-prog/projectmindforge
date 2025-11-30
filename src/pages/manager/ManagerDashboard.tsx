@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { createLogger } from '@/lib/logger';
+import { getRepDetailUrl } from '@/lib/routes';
 
 const log = createLogger('ManagerDashboard');
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -333,7 +334,7 @@ export default function ManagerDashboard() {
                             <Button 
                               variant="default" 
                               size="sm" 
-                              onClick={() => navigate(`/manager/rep/${rep.id}?tab=call-history`)}
+                              onClick={() => navigate(getRepDetailUrl(rep.id, 'call-history'))}
                             >
                               <Phone className="h-3.5 w-3.5 mr-1" />
                               View Calls
