@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Users, Building2, BarChart3, RefreshCw, Activity, MessageSquare, TrendingUp, FileText } from 'lucide-react';
+import { Users, Building2, BarChart3, RefreshCw, Activity, MessageSquare, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown } from 'lucide-react';
+import { GlobalActivityFeed } from '@/components/admin/GlobalActivityFeed';
 
 interface Stats {
   totalUsers: number;
@@ -202,64 +202,8 @@ export default function AdminDashboard() {
           </Card>
         </div>
 
-        {/* Quick Actions */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
-          <Card className="hover:bg-muted/50 transition-colors">
-            <Link to="/admin/users">
-              <CardHeader className="flex flex-row items-center gap-3 pb-2">
-                <Users className="h-5 w-5 text-primary" />
-                <CardTitle className="text-base">Manage Users</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">View and manage all users</p>
-              </CardContent>
-            </Link>
-          </Card>
-          <Card className="hover:bg-muted/50 transition-colors">
-            <Link to="/admin/teams">
-              <CardHeader className="flex flex-row items-center gap-3 pb-2">
-                <Building2 className="h-5 w-5 text-primary" />
-                <CardTitle className="text-base">Manage Teams</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">Organize team structure</p>
-              </CardContent>
-            </Link>
-          </Card>
-          <Card className="hover:bg-muted/50 transition-colors">
-            <Link to="/admin/accounts">
-              <CardHeader className="flex flex-row items-center gap-3 pb-2">
-                <Building2 className="h-5 w-5 text-primary" />
-                <CardTitle className="text-base">All Accounts</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">View org-wide accounts</p>
-              </CardContent>
-            </Link>
-          </Card>
-          <Card className="hover:bg-muted/50 transition-colors">
-            <Link to="/admin/coaching">
-              <CardHeader className="flex flex-row items-center gap-3 pb-2">
-                <TrendingUp className="h-5 w-5 text-primary" />
-                <CardTitle className="text-base">Coaching Trends</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">Org-wide coaching analytics</p>
-              </CardContent>
-            </Link>
-          </Card>
-          <Card className="hover:bg-muted/50 transition-colors">
-            <Link to="/admin/transcripts">
-              <CardHeader className="flex flex-row items-center gap-3 pb-2">
-                <FileText className="h-5 w-5 text-primary" />
-                <CardTitle className="text-base">Transcripts</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">Analyze call transcripts</p>
-              </CardContent>
-            </Link>
-          </Card>
-        </div>
+        {/* Global Activity Feed */}
+        <GlobalActivityFeed />
 
         {/* Developer Tools - Collapsible */}
         <Collapsible>
