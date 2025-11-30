@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, UseMutationResult } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   AccountFollowUp,
@@ -17,7 +17,7 @@ interface OptimisticContext {
 /**
  * Hook for completing a follow-up with optimistic update
  */
-export function useCompleteFollowUp(prospectId?: string) {
+export function useCompleteFollowUp(prospectId?: string): UseMutationResult<AccountFollowUp, Error, string, OptimisticContext> {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -84,7 +84,7 @@ export function useCompleteFollowUp(prospectId?: string) {
 /**
  * Hook for reopening a follow-up with optimistic update
  */
-export function useReopenFollowUp(prospectId?: string) {
+export function useReopenFollowUp(prospectId?: string): UseMutationResult<AccountFollowUp, Error, string, OptimisticContext> {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -132,7 +132,7 @@ export function useReopenFollowUp(prospectId?: string) {
 /**
  * Hook for dismissing a follow-up with optimistic update
  */
-export function useDismissFollowUp(prospectId?: string) {
+export function useDismissFollowUp(prospectId?: string): UseMutationResult<AccountFollowUp, Error, string, OptimisticContext> {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -194,7 +194,7 @@ export function useDismissFollowUp(prospectId?: string) {
 /**
  * Hook for restoring a dismissed follow-up with optimistic update
  */
-export function useRestoreFollowUp(prospectId?: string) {
+export function useRestoreFollowUp(prospectId?: string): UseMutationResult<AccountFollowUp, Error, string, OptimisticContext> {
   const queryClient = useQueryClient();
 
   return useMutation({

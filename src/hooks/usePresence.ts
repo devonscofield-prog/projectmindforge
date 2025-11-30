@@ -7,7 +7,7 @@ interface PresencePayload {
   online_at: string;
 }
 
-export function usePresenceTracker(userId: string | null) {
+export function usePresenceTracker(userId: string | null): RealtimeChannel | null {
   const [channel, setChannel] = useState<RealtimeChannel | null>(null);
 
   useEffect(() => {
@@ -40,7 +40,7 @@ export function usePresenceTracker(userId: string | null) {
   return channel;
 }
 
-export function useOnlineUsers() {
+export function useOnlineUsers(): Set<string> {
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
 
   useEffect(() => {

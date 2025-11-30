@@ -102,10 +102,15 @@ export function preloadRoleRoutes(role: "rep" | "manager" | "admin"): void {
   });
 }
 
+interface PreloadHandlers {
+  onMouseEnter: () => void;
+  onFocus: () => void;
+}
+
 /**
  * Create onMouseEnter/onFocus handlers for link preloading
  */
-export function createPreloadHandlers(path: string) {
+export function createPreloadHandlers(path: string): PreloadHandlers {
   let preloaded = false;
   
   const handlePreload = () => {
@@ -124,6 +129,6 @@ export function createPreloadHandlers(path: string) {
 /**
  * Hook to get preload handlers for a route
  */
-export function useRoutePreload(path: string) {
+export function useRoutePreload(path: string): PreloadHandlers {
   return createPreloadHandlers(path);
 }
