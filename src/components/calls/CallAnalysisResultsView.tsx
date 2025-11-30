@@ -183,9 +183,9 @@ export function CallAnalysisResultsView({ call, analysis, isOwner, isManager }: 
           <p className="text-muted-foreground">{analysis.call_summary}</p>
           
           {/* Confidence & Model Info */}
-          <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t">
-            {analysis.confidence !== null && (
-              <TooltipProvider>
+          <TooltipProvider>
+            <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t">
+              {analysis.confidence !== null && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div className="flex items-center gap-2 cursor-help">
@@ -197,9 +197,7 @@ export function CallAnalysisResultsView({ call, analysis, isOwner, isManager }: 
                     <p className="text-sm">The AI's self-assessed confidence in its analysis, based on transcript quality, context clarity, and completeness of information.</p>
                   </TooltipContent>
                 </Tooltip>
-              </TooltipProvider>
-            )}
-            <TooltipProvider>
+              )}
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span className="text-xs text-muted-foreground cursor-help">Model: {analysis.model_name}</span>
@@ -208,8 +206,6 @@ export function CallAnalysisResultsView({ call, analysis, isOwner, isManager }: 
                   <p className="text-sm">The AI model used to analyze this call transcript and generate insights.</p>
                 </TooltipContent>
               </Tooltip>
-            </TooltipProvider>
-            <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span className="text-xs text-muted-foreground cursor-help">Version: {analysis.prompt_version}</span>
@@ -218,8 +214,8 @@ export function CallAnalysisResultsView({ call, analysis, isOwner, isManager }: 
                   <p className="text-sm">The version of the analysis prompt template used. Newer versions may include improved scoring and insights.</p>
                 </TooltipContent>
               </Tooltip>
-            </TooltipProvider>
-          </div>
+            </div>
+          </TooltipProvider>
         </CardContent>
       </Card>
 
