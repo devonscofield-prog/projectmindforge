@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { PageTransition } from '@/components/ui/page-transition';
 import { PullToRefresh } from '@/components/ui/pull-to-refresh';
 import { PullToRefreshProvider, usePullToRefreshContext } from '@/contexts/PullToRefreshContext';
+import { usePerformanceAlertToasts } from '@/hooks/usePerformanceAlertToasts';
 import { 
   LayoutDashboard, 
   Users, 
@@ -189,6 +190,9 @@ function MainContent({ children }: { children: React.ReactNode }) {
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
+  // Enable real-time performance alert toasts for admins
+  usePerformanceAlertToasts();
+
   return (
     <PullToRefreshProvider>
       <SidebarProvider>
