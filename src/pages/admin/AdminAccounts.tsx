@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createLogger } from '@/lib/logger';
+import { getAccountDetailUrl } from '@/lib/routes';
 import { supabase } from '@/integrations/supabase/client';
 
 const log = createLogger('AdminAccounts');
@@ -499,7 +500,7 @@ export default function AdminAccounts() {
                       <TableRow
                         key={prospect.id}
                         className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => navigate(`/admin/accounts/${prospect.id}`)}
+                        onClick={() => navigate(getAccountDetailUrl('admin', prospect.id))}
                       >
                         <TableCell>
                           <p className="font-medium">
