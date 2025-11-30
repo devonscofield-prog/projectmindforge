@@ -47,6 +47,10 @@ export function CallAnalysisResultsView({ call, analysis, isOwner, isManager }: 
   const [editInstructions, setEditInstructions] = useState('');
   const [isRefining, setIsRefining] = useState(false);
   const [showEmailPreview, setShowEmailPreview] = useState(false);
+  
+  // Collapsible state for Call Notes and Recap Email
+  const [notesOpen, setNotesOpen] = useState(true);
+  const [recapOpen, setRecapOpen] = useState(true);
 
   // Shared markdown components for recap email rendering
   const recapMarkdownComponents = {
@@ -173,6 +177,182 @@ export function CallAnalysisResultsView({ call, analysis, isOwner, isManager }: 
           </div>
         </CardContent>
       </Card>
+
+      {/* Call Notes - Collapsible, moved above AI Call Coach */}
+      {analysis.call_notes && (
+        <Collapsible open={notesOpen} onOpenChange={setNotesOpen}>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CollapsibleTrigger className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Call Notes
+                  {isManager && <Badge variant="outline" className="ml-2">Read-only</Badge>}
+                </CardTitle>
+                <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform duration-200 ${notesOpen ? 'rotate-180' : ''}`} />
+              </CollapsibleTrigger>
+              <Button variant="outline" size="sm" onClick={() => handleCopy(analysis.call_notes!, 'Call notes')}>
+                <Copy className="h-4 w-4 mr-2" />
+                Copy
+              </Button>
+            </CardHeader>
+            <CollapsibleContent>
+              <CardContent>
+                <div className="prose prose-sm dark:prose-invert max-w-none bg-muted/30 rounded-lg p-4">
+                  <ReactMarkdown
+                    components={{
+                      p: ({children}) => <p className="mb-2">{children}</p>,
+                      ul: ({children}) => <ul className="list-disc ml-6 mb-2">{children}</ul>,
+                      ol: ({children}) => <ol className="list-decimal ml-6 mb-2">{children}</ol>,
+                      li: ({children}) => <li className="mb-1">{children}</li>,
+                      h1: ({children}) => <h1 className="text-xl font-bold mb-2">{children}</h1>,
+                      h2: ({children}) => <h2 className="text-lg font-bold mb-2">{children}</h2>,
+                      h3: ({children}) => <h3 className="text-base font-bold mb-2">{children}</h3>,
+                      strong: ({children}) => <strong className="font-bold">{children}</strong>,
+                      em: ({children}) => <em className="italic">{children}</em>,
+                    }}
+                  >
+                    {analysis.call_notes}
+                  </ReactMarkdown>
+                </div>
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+      )}
+
+      {/* Recap Email - Collapsible, moved above AI Call Coach */}
+      {analysis.recap_email_draft && (
+        <Collapsible open={recapOpen} onOpenChange={setRecapOpen}>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CollapsibleTrigger className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Mail className="h-5 w-5" />
+                    Recap Email Draft
+                    {isManager && <Badge variant="outline" className="ml-2">Read-only</Badge>}
+                  </CardTitle>
+                  {isOwner && (
+                    <CardDescription className="mt-1">
+                      Edit directly or use AI to refine your email
+                    </CardDescription>
+                  )}
+                </div>
+                <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform duration-200 ${recapOpen ? 'rotate-180' : ''}`} />
+              </CollapsibleTrigger>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={async () => {
+                  const markdown = isOwner ? recapDraft : analysis.recap_email_draft!;
+                  try {
+                    const html = convertMarkdownToHtml(markdown);
+                    const clipboardItem = new ClipboardItem({
+                      'text/html': new Blob([html], { type: 'text/html' }),
+                      'text/plain': new Blob([markdown], { type: 'text/plain' }),
+                    });
+                    await navigator.clipboard.write([clipboardItem]);
+                    toast({ title: 'Copied', description: 'Recap email copied to clipboard.' });
+                  } catch {
+                    // Fallback to plain text if HTML copy fails
+                    await navigator.clipboard.writeText(markdown);
+                    toast({ title: 'Copied', description: 'Recap email copied as plain text.' });
+                  }
+                }}
+              >
+                <Copy className="h-4 w-4 mr-2" />
+                Copy
+              </Button>
+            </CardHeader>
+            <CollapsibleContent>
+              <CardContent className="space-y-4">
+                {isOwner ? (
+                  <>
+                    {/* Edit/Preview toggle */}
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        variant={!showEmailPreview ? "secondary" : "ghost"} 
+                        size="sm"
+                        onClick={() => setShowEmailPreview(false)}
+                      >
+                        Edit
+                      </Button>
+                      <Button 
+                        variant={showEmailPreview ? "secondary" : "ghost"} 
+                        size="sm"
+                        onClick={() => setShowEmailPreview(true)}
+                      >
+                        Preview
+                      </Button>
+                    </div>
+
+                    {showEmailPreview ? (
+                      /* Preview mode with rendered markdown and clickable links */
+                      <div className="prose prose-sm dark:prose-invert max-w-none bg-muted/30 rounded-lg p-4 min-h-[200px]">
+                        <ReactMarkdown components={recapMarkdownComponents}>
+                          {recapDraft}
+                        </ReactMarkdown>
+                      </div>
+                    ) : (
+                      /* Edit mode with textarea */
+                      <Textarea
+                        value={recapDraft}
+                        onChange={(e) => setRecapDraft(e.target.value)}
+                        className="min-h-[200px] font-mono text-sm"
+                        placeholder="No recap email available"
+                      />
+                    )}
+
+                    {recapDraft !== originalRecapDraft && (
+                      <Button onClick={handleUndoEmail} variant="outline" size="sm">
+                        <Undo2 className="mr-2 h-4 w-4" />
+                        Undo Changes
+                      </Button>
+                    )}
+
+                    {/* AI Refinement Section */}
+                    <div className="border-t pt-4 space-y-3">
+                      <Label htmlFor="editInstructions">Refine with AI</Label>
+                      <Input
+                        id="editInstructions"
+                        placeholder="e.g., Make it shorter, more formal, emphasize the demo..."
+                        value={editInstructions}
+                        onChange={(e) => setEditInstructions(e.target.value)}
+                      />
+                      <Button 
+                        onClick={handleRefineEmail} 
+                        disabled={isRefining || !editInstructions.trim()}
+                        variant="secondary"
+                        className="w-full"
+                      >
+                        {isRefining ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Refining...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="mr-2 h-4 w-4" />
+                            Refine Email
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  /* Read-only view for managers with rendered links */
+                  <div className="prose prose-sm dark:prose-invert max-w-none bg-muted/30 rounded-lg p-4">
+                    <ReactMarkdown components={recapMarkdownComponents}>
+                      {analysis.recap_email_draft}
+                    </ReactMarkdown>
+                  </div>
+                )}
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+      )}
 
       {/* AI Call Coach Section */}
       {analysis.coach_output ? (
@@ -424,168 +604,6 @@ export function CallAnalysisResultsView({ call, analysis, isOwner, isManager }: 
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Call Notes - Visible to owner (editable) and manager (read-only) */}
-      {analysis.call_notes && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Call Notes
-              {isManager && <Badge variant="outline" className="ml-2">Read-only</Badge>}
-            </CardTitle>
-            <Button variant="outline" size="sm" onClick={() => handleCopy(analysis.call_notes!, 'Call notes')}>
-              <Copy className="h-4 w-4 mr-2" />
-              Copy
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <div className="prose prose-sm dark:prose-invert max-w-none bg-muted/30 rounded-lg p-4">
-              <ReactMarkdown
-                components={{
-                  p: ({children}) => <p className="mb-2">{children}</p>,
-                  ul: ({children}) => <ul className="list-disc ml-6 mb-2">{children}</ul>,
-                  ol: ({children}) => <ol className="list-decimal ml-6 mb-2">{children}</ol>,
-                  li: ({children}) => <li className="mb-1">{children}</li>,
-                  h1: ({children}) => <h1 className="text-xl font-bold mb-2">{children}</h1>,
-                  h2: ({children}) => <h2 className="text-lg font-bold mb-2">{children}</h2>,
-                  h3: ({children}) => <h3 className="text-base font-bold mb-2">{children}</h3>,
-                  strong: ({children}) => <strong className="font-bold">{children}</strong>,
-                  em: ({children}) => <em className="italic">{children}</em>,
-                }}
-              >
-                {analysis.call_notes}
-              </ReactMarkdown>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Recap Email - Owner can edit, Manager sees read-only */}
-      {analysis.recap_email_draft && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Mail className="h-5 w-5" />
-                Recap Email Draft
-                {isManager && <Badge variant="outline" className="ml-2">Read-only</Badge>}
-              </CardTitle>
-              {isOwner && (
-                <CardDescription className="mt-1">
-                  Edit directly or use AI to refine your email
-                </CardDescription>
-              )}
-            </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={async () => {
-                const markdown = isOwner ? recapDraft : analysis.recap_email_draft!;
-                try {
-                  const html = convertMarkdownToHtml(markdown);
-                  const clipboardItem = new ClipboardItem({
-                    'text/html': new Blob([html], { type: 'text/html' }),
-                    'text/plain': new Blob([markdown], { type: 'text/plain' }),
-                  });
-                  await navigator.clipboard.write([clipboardItem]);
-                  toast({ title: 'Copied', description: 'Recap email copied to clipboard.' });
-                } catch {
-                  // Fallback to plain text if HTML copy fails
-                  await navigator.clipboard.writeText(markdown);
-                  toast({ title: 'Copied', description: 'Recap email copied as plain text.' });
-                }
-              }}
-            >
-              <Copy className="h-4 w-4 mr-2" />
-              Copy
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {isOwner ? (
-              <>
-                {/* Edit/Preview toggle */}
-                <div className="flex items-center gap-2">
-                  <Button 
-                    variant={!showEmailPreview ? "secondary" : "ghost"} 
-                    size="sm"
-                    onClick={() => setShowEmailPreview(false)}
-                  >
-                    Edit
-                  </Button>
-                  <Button 
-                    variant={showEmailPreview ? "secondary" : "ghost"} 
-                    size="sm"
-                    onClick={() => setShowEmailPreview(true)}
-                  >
-                    Preview
-                  </Button>
-                </div>
-
-                {showEmailPreview ? (
-                  /* Preview mode with rendered markdown and clickable links */
-                  <div className="prose prose-sm dark:prose-invert max-w-none bg-muted/30 rounded-lg p-4 min-h-[200px]">
-                    <ReactMarkdown components={recapMarkdownComponents}>
-                      {recapDraft}
-                    </ReactMarkdown>
-                  </div>
-                ) : (
-                  /* Edit mode with textarea */
-                  <Textarea
-                    value={recapDraft}
-                    onChange={(e) => setRecapDraft(e.target.value)}
-                    className="min-h-[200px] font-mono text-sm"
-                    placeholder="No recap email available"
-                  />
-                )}
-
-                {recapDraft !== originalRecapDraft && (
-                  <Button onClick={handleUndoEmail} variant="outline" size="sm">
-                    <Undo2 className="mr-2 h-4 w-4" />
-                    Undo Changes
-                  </Button>
-                )}
-
-                {/* AI Refinement Section */}
-                <div className="border-t pt-4 space-y-3">
-                  <Label htmlFor="editInstructions">Refine with AI</Label>
-                  <Input
-                    id="editInstructions"
-                    placeholder="e.g., Make it shorter, more formal, emphasize the demo..."
-                    value={editInstructions}
-                    onChange={(e) => setEditInstructions(e.target.value)}
-                  />
-                  <Button 
-                    onClick={handleRefineEmail} 
-                    disabled={isRefining || !editInstructions.trim()}
-                    variant="secondary"
-                    className="w-full"
-                  >
-                    {isRefining ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Refining...
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw className="mr-2 h-4 w-4" />
-                        Refine Email
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </>
-            ) : (
-              /* Read-only view for managers with rendered links */
-              <div className="prose prose-sm dark:prose-invert max-w-none bg-muted/30 rounded-lg p-4">
-                <ReactMarkdown components={recapMarkdownComponents}>
-                  {analysis.recap_email_draft}
-                </ReactMarkdown>
-              </div>
-            )}
           </CardContent>
         </Card>
       )}
