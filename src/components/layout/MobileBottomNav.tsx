@@ -34,29 +34,38 @@ export function MobileBottomNav() {
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden">
-      <div className="flex h-16 items-center justify-around px-2">
+    <nav 
+      className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden"
+      role="navigation"
+      aria-label="Mobile navigation"
+    >
+      <ul className="flex h-16 items-center justify-around px-2" role="menubar">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.href);
           
           return (
-            <Link
-              key={item.href}
-              to={item.href}
-              className={cn(
-                "flex flex-1 flex-col items-center justify-center gap-1 py-2 text-xs transition-colors",
-                active 
-                  ? "text-primary" 
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <Icon className={cn("h-5 w-5", active && "text-primary")} />
-              <span className="font-medium">{item.label}</span>
-            </Link>
+            <li key={item.href} role="none">
+              <Link
+                to={item.href}
+                role="menuitem"
+                aria-label={`Navigate to ${item.label}`}
+                aria-current={active ? 'page' : undefined}
+                className={cn(
+                  "flex flex-1 flex-col items-center justify-center gap-1 py-2 px-3 text-xs transition-all duration-200 rounded-lg",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                  active 
+                    ? "text-primary bg-primary/10" 
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+                )}
+              >
+                <Icon className={cn("h-5 w-5", active && "text-primary")} aria-hidden="true" />
+                <span className="font-medium">{item.label}</span>
+              </Link>
+            </li>
           );
         })}
-      </div>
+      </ul>
     </nav>
   );
 }
