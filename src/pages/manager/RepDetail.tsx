@@ -13,12 +13,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ProgressBar } from '@/components/ui/progress-bar';
-import { StatusBadge, getPerformanceStatus } from '@/components/ui/status-badge';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { PerformanceTrendCharts } from '@/components/charts/PerformanceTrendCharts';
-import { Profile, RepPerformanceSnapshot, CoachingSession, ActivityLog, ActivityType } from '@/types/database';
+import { Profile, CoachingSession } from '@/types/database';
 import { ArrowLeft, Plus, AlertCircle, Eye, Loader2, X, Bot, FileText, Mail, ExternalLink, Phone, Calendar, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { format, subDays, isAfter } from 'date-fns';
@@ -31,17 +28,6 @@ import {
 import { AICoachingSnapshot } from '@/components/AICoachingSnapshot';
 import { CallType, callTypeLabels } from '@/constants/callTypes';
 import ReactMarkdown from 'react-markdown';
-
-const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-const activityTypeLabels: Record<ActivityType, string> = {
-  cold_calls: 'Cold Calls',
-  emails: 'Emails',
-  linkedin: 'LinkedIn',
-  demos: 'Demos',
-  meetings: 'Meetings',
-  proposals: 'Proposals',
-};
 
 type TimeframeFilter = '7d' | '30d' | '90d' | 'all';
 
@@ -77,12 +63,10 @@ export default function RepDetail() {
   const { toast } = useToast();
   
   // Get default tab from URL query param
-  const defaultTab = searchParams.get('tab') || 'performance';
+  const defaultTab = searchParams.get('tab') || 'coaching';
   
   const [rep, setRep] = useState<Profile | null>(null);
-  const [performance, setPerformance] = useState<RepPerformanceSnapshot[]>([]);
   const [coaching, setCoaching] = useState<CoachingSession[]>([]);
-  const [activities, setActivities] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -152,18 +136,6 @@ export default function RepDetail() {
       setRep(repData as unknown as Profile);
     }
 
-    // Fetch performance history
-    const { data: perfData } = await supabase
-      .from('rep_performance_snapshots')
-      .select('*')
-      .eq('rep_id', repId)
-      .order('period_year', { ascending: false })
-      .order('period_month', { ascending: false });
-
-    if (perfData) {
-      setPerformance(perfData as unknown as RepPerformanceSnapshot[]);
-    }
-
     // Fetch coaching sessions
     const { data: coachingData } = await supabase
       .from('coaching_sessions')
@@ -173,18 +145,6 @@ export default function RepDetail() {
 
     if (coachingData) {
       setCoaching(coachingData as unknown as CoachingSession[]);
-    }
-
-    // Fetch activity logs
-    const { data: activityData } = await supabase
-      .from('activity_logs')
-      .select('*')
-      .eq('rep_id', repId)
-      .order('activity_date', { ascending: false })
-      .limit(30);
-
-    if (activityData) {
-      setActivities(activityData as unknown as ActivityLog[]);
     }
 
     setLoading(false);
@@ -243,9 +203,6 @@ export default function RepDetail() {
         return 'outline';
     }
   };
-
-  const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
 
   if (loading) {
     return (
@@ -310,9 +267,7 @@ export default function RepDetail() {
 
         <Tabs defaultValue={defaultTab}>
           <TabsList>
-            <TabsTrigger value="performance">Performance</TabsTrigger>
             <TabsTrigger value="coaching">Coaching ({coaching.length})</TabsTrigger>
-            <TabsTrigger value="activity">Activity</TabsTrigger>
             <TabsTrigger value="call-history" className="flex items-center gap-1.5">
               <Phone className="h-4 w-4" />
               Call History ({transcripts.length})
@@ -322,75 +277,6 @@ export default function RepDetail() {
               AI Coaching
             </TabsTrigger>
           </TabsList>
-
-          <TabsContent value="performance" className="mt-6 space-y-6">
-            {/* Performance Trend Charts */}
-            <PerformanceTrendCharts performance={performance} />
-
-            {/* Performance History Table */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Monthly Performance History</CardTitle>
-                <CardDescription>Detailed breakdown by month</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {performance.length > 0 ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Period</TableHead>
-                        <TableHead>Revenue</TableHead>
-                        <TableHead className="w-[150px]">Progress</TableHead>
-                        <TableHead>Demos</TableHead>
-                        <TableHead className="w-[150px]">Progress</TableHead>
-                        <TableHead>Pipeline</TableHead>
-                        <TableHead>Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {performance.map((perf) => {
-                        const revenueStatus = getPerformanceStatus(perf.revenue_closed, perf.revenue_goal);
-                        const demoStatus = getPerformanceStatus(perf.demos_set, perf.demo_goal);
-                        const overallStatus = revenueStatus === 'off-track' || demoStatus === 'off-track'
-                          ? 'off-track'
-                          : revenueStatus === 'at-risk' || demoStatus === 'at-risk'
-                          ? 'at-risk'
-                          : 'on-track';
-
-                        return (
-                          <TableRow key={perf.id}>
-                            <TableCell className="font-medium">
-                              {monthNames[perf.period_month - 1]} {perf.period_year}
-                            </TableCell>
-                            <TableCell>
-                              {formatCurrency(perf.revenue_closed)} / {formatCurrency(perf.revenue_goal)}
-                            </TableCell>
-                            <TableCell>
-                              <ProgressBar value={perf.revenue_closed} goal={perf.revenue_goal} showLabel={false} size="sm" />
-                            </TableCell>
-                            <TableCell>
-                              {perf.demos_set} / {perf.demo_goal}
-                            </TableCell>
-                            <TableCell>
-                              <ProgressBar value={perf.demos_set} goal={perf.demo_goal} showLabel={false} size="sm" />
-                            </TableCell>
-                            <TableCell>{perf.pipeline_count || '-'}</TableCell>
-                            <TableCell>
-                              <StatusBadge status={overallStatus}>
-                                {overallStatus === 'on-track' ? 'On Track' : overallStatus === 'at-risk' ? 'At Risk' : 'Off Track'}
-                              </StatusBadge>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                ) : (
-                  <p className="text-muted-foreground text-center py-8">No performance data available.</p>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
 
           <TabsContent value="coaching" className="mt-6">
             <Card>
@@ -500,40 +386,6 @@ export default function RepDetail() {
                   <p className="text-muted-foreground text-center py-8">
                     No coaching sessions yet. Schedule your first one!
                   </p>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="activity" className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Activity</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {activities.length > 0 ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Count</TableHead>
-                        <TableHead>Notes</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {activities.map((activity) => (
-                        <TableRow key={activity.id}>
-                          <TableCell>{format(new Date(activity.activity_date), 'MMM d, yyyy')}</TableCell>
-                          <TableCell>{activityTypeLabels[activity.activity_type]}</TableCell>
-                          <TableCell>{activity.count}</TableCell>
-                          <TableCell className="max-w-xs truncate">{activity.notes || '-'}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                ) : (
-                  <p className="text-muted-foreground text-center py-8">No activity logged.</p>
                 )}
               </CardContent>
             </Card>
