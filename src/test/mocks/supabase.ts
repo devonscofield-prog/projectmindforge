@@ -1,4 +1,4 @@
-import { vi } from 'vitest';
+import { vi, Mock } from 'vitest';
 
 // Mock data for tests
 export const mockTeams = [
@@ -30,9 +30,47 @@ export const mockProspects = [
   { id: 'prospect-3', prospect_name: 'Old Co', status: 'dormant', heat_score: 3, potential_revenue: 10000 },
 ];
 
+// Type for query result
+interface QueryResult<T> {
+  data: T | null;
+  error: Error | null;
+  count?: number;
+}
+
+// Type for the mock query builder
+interface MockQueryBuilder<T = unknown> {
+  select: Mock;
+  insert: Mock;
+  update: Mock;
+  delete: Mock;
+  eq: Mock;
+  neq: Mock;
+  gt: Mock;
+  gte: Mock;
+  lt: Mock;
+  lte: Mock;
+  like: Mock;
+  ilike: Mock;
+  is: Mock;
+  in: Mock;
+  not: Mock;
+  order: Mock;
+  limit: Mock;
+  range: Mock;
+  single: Mock;
+  maybeSingle: Mock;
+  then: <TResult = QueryResult<T[]>>(
+    resolve: (value: QueryResult<T[]>) => TResult
+  ) => TResult;
+  [Symbol.toStringTag]: string;
+}
+
 // Create chainable mock query builder
-export function createMockQueryBuilder(data: any[] | null = [], error: any = null) {
-  const builder: any = {
+export function createMockQueryBuilder<T = unknown>(
+  data: T[] | null = [],
+  error: Error | null = null
+): MockQueryBuilder<T> {
+  const builder: MockQueryBuilder<T> = {
     select: vi.fn().mockReturnThis(),
     insert: vi.fn().mockReturnThis(),
     update: vi.fn().mockReturnThis(),
@@ -53,17 +91,26 @@ export function createMockQueryBuilder(data: any[] | null = [], error: any = nul
     range: vi.fn().mockReturnThis(),
     single: vi.fn().mockResolvedValue({ data: data?.[0] ?? null, error }),
     maybeSingle: vi.fn().mockResolvedValue({ data: data?.[0] ?? null, error }),
-    then: (resolve: any) => resolve({ data, error, count: data?.length ?? 0 }),
+    then: <TResult>(
+      resolve: (value: QueryResult<T[]>) => TResult
+    ): TResult => resolve({ data, error, count: data?.length ?? 0 }),
+    [Symbol.toStringTag]: 'Promise',
   };
-  
-  // Make the builder thenable for async/await
-  builder[Symbol.toStringTag] = 'Promise';
   
   return builder;
 }
 
+// Type for mock supabase client
+interface MockSupabaseClient {
+  from: Mock;
+  auth: {
+    getSession: Mock;
+    onAuthStateChange: Mock;
+  };
+}
+
 // Create mock supabase client
-export function createMockSupabaseClient() {
+export function createMockSupabaseClient(): MockSupabaseClient {
   return {
     from: vi.fn((table: string) => {
       switch (table) {

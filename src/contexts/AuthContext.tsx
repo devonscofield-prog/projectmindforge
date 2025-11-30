@@ -5,6 +5,9 @@ import { UserRole, Profile } from '@/types/database';
 import { toast } from 'sonner';
 import { logUserActivity } from '@/api/userActivityLogs';
 import { preloadRoleRoutes } from '@/lib/routePreloader';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('auth');
 
 interface AuthContextType {
   user: User | null;
@@ -121,7 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         preloadRoleRoutes(userRole);
       }
     } catch (error) {
-      console.error('Error fetching user data:', error);
+      log.error('Error fetching user data', { error });
     }
   };
 

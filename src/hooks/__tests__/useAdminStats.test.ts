@@ -3,18 +3,19 @@ import { renderHookWithClient, waitFor } from '@/test/test-utils';
 import { useAdminDashboardStats, useProspectStats } from '../useAdminStats';
 import { mockProfiles, mockTeams, mockUserRoles, mockProspects } from '@/test/mocks/supabase';
 
-// Create a custom mock that returns count data
-const createCountMock = (count: number) => ({
-  select: vi.fn().mockReturnValue({
-    then: (resolve: any) => resolve({ data: null, count, error: null }),
-    eq: vi.fn().mockReturnValue({
-      then: (resolve: any) => resolve({ data: null, count, error: null }),
-    }),
-    gte: vi.fn().mockReturnValue({
-      then: (resolve: any) => resolve({ data: mockProspects.filter(p => p.heat_score >= 8), error: null }),
-    }),
-  }),
-});
+// Create a custom mock that returns count data with flexible typing
+function createCountMock(count: number) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const createChainable = (resolveValue: { data: unknown; count?: number; error: null }): any => ({
+    then: <T>(resolve: (value: typeof resolveValue) => T): T => resolve(resolveValue),
+    eq: () => createChainable(resolveValue),
+    gte: () => createChainable(resolveValue),
+  });
+
+  return {
+    select: vi.fn().mockReturnValue(createChainable({ data: null, count, error: null })),
+  };
+}
 
 // Mock the supabase client with Promise.all support
 vi.mock('@/integrations/supabase/client', () => ({
@@ -27,31 +28,36 @@ vi.mock('@/integrations/supabase/client', () => ({
           return createCountMock(mockTeams.length);
         case 'call_transcripts':
           return createCountMock(0);
-        case 'prospects':
+        case 'prospects': {
+          const activeProspects = mockProspects.filter(p => p.status === 'active');
+          const hotProspects = mockProspects.filter(p => p.heat_score >= 8);
+          
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const createProspectChainable = (): any => ({
+            then: <T>(resolve: (value: { data: typeof mockProspects; count: number; error: null }) => T): T => 
+              resolve({ data: mockProspects, count: mockProspects.length, error: null }),
+            eq: () => ({
+              then: <T>(resolve: (value: { data: typeof activeProspects; count: number; error: null }) => T): T => 
+                resolve({ data: activeProspects, count: activeProspects.length, error: null }),
+            }),
+            gte: () => ({
+              then: <T>(resolve: (value: { data: typeof hotProspects; count: number; error: null }) => T): T => 
+                resolve({ data: hotProspects, count: hotProspects.length, error: null }),
+            }),
+          });
+          
+          return {
+            select: vi.fn().mockReturnValue(createProspectChainable()),
+          };
+        }
+        case 'user_roles': {
           return {
             select: vi.fn().mockReturnValue({
-              then: (resolve: any) => resolve({ data: mockProspects, count: mockProspects.length, error: null }),
-              eq: vi.fn().mockReturnValue({
-                then: (resolve: any) => resolve({ 
-                  data: mockProspects.filter(p => p.status === 'active'), 
-                  count: mockProspects.filter(p => p.status === 'active').length, 
-                  error: null 
-                }),
-              }),
-              gte: vi.fn().mockReturnValue({
-                then: (resolve: any) => resolve({ 
-                  data: mockProspects.filter(p => p.heat_score >= 8), 
-                  error: null 
-                }),
-              }),
+              then: <T>(resolve: (value: { data: typeof mockUserRoles; error: null }) => T): T => 
+                resolve({ data: mockUserRoles, error: null }),
             }),
           };
-        case 'user_roles':
-          return {
-            select: vi.fn().mockReturnValue({
-              then: (resolve: any) => resolve({ data: mockUserRoles, error: null }),
-            }),
-          };
+        }
         default:
           return createCountMock(0);
       }
