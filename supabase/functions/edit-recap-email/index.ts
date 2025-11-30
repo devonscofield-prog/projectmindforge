@@ -13,6 +13,29 @@ function getCorsHeaders(origin?: string | null): Record<string, string> {
   };
 }
 
+// Simple in-memory rate limiter
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
+const MAX_REQUESTS_PER_WINDOW = 10;
+
+function checkRateLimit(userId: string): { allowed: boolean; retryAfter?: number } {
+  const now = Date.now();
+  const entry = rateLimitMap.get(userId);
+  
+  if (!entry || now >= entry.resetTime) {
+    rateLimitMap.set(userId, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
+    return { allowed: true };
+  }
+  
+  if (entry.count >= MAX_REQUESTS_PER_WINDOW) {
+    const retryAfter = Math.ceil((entry.resetTime - now) / 1000);
+    return { allowed: false, retryAfter };
+  }
+  
+  entry.count++;
+  return { allowed: true };
+}
+
 // Required links that must be preserved in the output
 const REQUIRED_LINKS = [
   '[StormWind Website](https://info.stormwind.com/)',
@@ -100,6 +123,33 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ error: 'Missing or invalid Authorization header' }),
       { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Extract user ID from JWT for rate limiting
+  const token = authHeader.replace('Bearer ', '');
+  let userId = 'anonymous';
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    userId = payload.sub || 'anonymous';
+  } catch {
+    // Use anonymous if token parsing fails
+  }
+
+  // Check rate limit
+  const rateLimitResult = checkRateLimit(userId);
+  if (!rateLimitResult.allowed) {
+    console.warn(`[edit-recap-email] Rate limit exceeded for user ${userId}`);
+    return new Response(
+      JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
+      { 
+        status: 429, 
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json',
+          'Retry-After': String(rateLimitResult.retryAfter || 60)
+        } 
+      }
     );
   }
 

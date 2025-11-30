@@ -21,6 +21,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PaginationControls } from '@/components/ui/pagination-controls';
 import { Search, Users, Flame, Calendar, DollarSign, ChevronRight, Building2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { getStakeholderCountsForProspects, getPrimaryStakeholdersForProspects } from '@/api/stakeholders';
@@ -102,14 +103,27 @@ export default function AdminAccounts() {
   const [teamFilter, setTeamFilter] = useState<string>('all');
   const [repFilter, setRepFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('last_contact_date');
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
+
+  // Stats (fetched separately for accurate totals)
+  const [stats, setStats] = useState({ total: 0, active: 0, hot: 0, pipelineValue: 0 });
 
   useEffect(() => {
     loadInitialData();
+    loadStats();
   }, []);
 
   useEffect(() => {
+    setCurrentPage(1); // Reset to page 1 when filters change
+  }, [statusFilter, teamFilter, repFilter, sortBy, search, pageSize]);
+
+  useEffect(() => {
     loadProspects();
-  }, [statusFilter, teamFilter, repFilter, sortBy]);
+  }, [statusFilter, teamFilter, repFilter, sortBy, currentPage, pageSize, search]);
 
   const loadInitialData = async () => {
     // Load teams
@@ -124,10 +138,51 @@ export default function AdminAccounts() {
     setReps(profilesData || []);
   };
 
+  const loadStats = async () => {
+    // Get total counts for stats (without pagination)
+    const { count: totalCount } = await supabase
+      .from('prospects')
+      .select('*', { count: 'exact', head: true });
+
+    const { count: activeCount } = await supabase
+      .from('prospects')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'active');
+
+    const { data: hotProspects } = await supabase
+      .from('prospects')
+      .select('heat_score')
+      .gte('heat_score', 8);
+
+    const { data: pipelineData } = await supabase
+      .from('prospects')
+      .select('potential_revenue')
+      .eq('status', 'active');
+
+    const pipelineValue = (pipelineData || []).reduce((sum, p) => sum + (p.potential_revenue ?? 0), 0);
+
+    setStats({
+      total: totalCount || 0,
+      active: activeCount || 0,
+      hot: (hotProspects || []).length,
+      pipelineValue,
+    });
+  };
+
   const loadProspects = async () => {
     setIsLoading(true);
     try {
-      // Fetch all prospects with rep info
+      // Build filter for rep IDs if team is selected
+      let repIdsInTeam: string[] | null = null;
+      if (teamFilter !== 'all') {
+        const { data: teamReps } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('team_id', teamFilter);
+        repIdsInTeam = (teamReps || []).map(r => r.id);
+      }
+
+      // Build the query with server-side pagination
       let query = supabase
         .from('prospects')
         .select(`
@@ -140,21 +195,56 @@ export default function AdminAccounts() {
           potential_revenue,
           last_contact_date,
           rep_id
-        `)
-        .order(sortBy === 'account_name' ? 'account_name' : sortBy, { ascending: sortBy === 'account_name' });
+        `, { count: 'exact' });
 
+      // Apply filters
       if (statusFilter !== 'all') {
         query = query.eq('status', statusFilter as ProspectStatus);
       }
 
       if (repFilter !== 'all') {
         query = query.eq('rep_id', repFilter);
+      } else if (repIdsInTeam && repIdsInTeam.length > 0) {
+        query = query.in('rep_id', repIdsInTeam);
+      } else if (teamFilter !== 'all' && (!repIdsInTeam || repIdsInTeam.length === 0)) {
+        // Team selected but no reps in team - return empty
+        setProspects([]);
+        setTotalCount(0);
+        setIsLoading(false);
+        return;
       }
 
-      const { data: prospectsData } = await query;
+      // Apply search filter
+      if (search.trim()) {
+        query = query.or(`account_name.ilike.%${search.trim()}%,prospect_name.ilike.%${search.trim()}%`);
+      }
 
-      if (!prospectsData) {
+      // Apply sorting
+      const ascending = sortBy === 'account_name';
+      query = query.order(sortBy === 'account_name' ? 'account_name' : sortBy, { ascending });
+
+      // Apply pagination
+      const from = (currentPage - 1) * pageSize;
+      const to = from + pageSize - 1;
+      query = query.range(from, to);
+
+      const { data: prospectsData, count, error } = await query;
+
+      if (error) {
+        console.error('Failed to load prospects:', error);
         setProspects([]);
+        setTotalCount(0);
+        setIsLoading(false);
+        return;
+      }
+
+      setTotalCount(count || 0);
+
+      if (!prospectsData || prospectsData.length === 0) {
+        setProspects([]);
+        setCallCounts({});
+        setStakeholderCounts({});
+        setPrimaryStakeholders({});
         setIsLoading(false);
         return;
       }
@@ -180,7 +270,7 @@ export default function AdminAccounts() {
       const teamMap = new Map(teamsData?.map(t => [t.id, t.name]) || []);
 
       // Combine data
-      let combined: ProspectWithDetails[] = prospectsData.map(p => {
+      const combined: ProspectWithDetails[] = prospectsData.map(p => {
         const rep = repMap.get(p.rep_id);
         return {
           ...p,
@@ -190,43 +280,31 @@ export default function AdminAccounts() {
         };
       });
 
-      // Filter by team if selected
-      if (teamFilter !== 'all') {
-        const repIdsInTeam = repProfiles?.filter(r => r.team_id === teamFilter).map(r => r.id) || [];
-        combined = combined.filter(p => repIdsInTeam.includes(p.rep_id));
-      }
-
       setProspects(combined);
 
-      // Get additional data
-      if (combined.length > 0) {
-        const prospectIds = combined.map(p => p.id);
-        
-        // Get call counts
-        const { data: callData } = await supabase
-          .from('call_transcripts')
-          .select('prospect_id')
-          .in('prospect_id', prospectIds);
-        
-        const counts: Record<string, number> = {};
-        callData?.forEach(c => {
-          if (c.prospect_id) {
-            counts[c.prospect_id] = (counts[c.prospect_id] || 0) + 1;
-          }
-        });
-        setCallCounts(counts);
+      // Get additional data for current page
+      const prospectIds = combined.map(p => p.id);
+      
+      // Get call counts
+      const { data: callData } = await supabase
+        .from('call_transcripts')
+        .select('prospect_id')
+        .in('prospect_id', prospectIds);
+      
+      const counts: Record<string, number> = {};
+      callData?.forEach(c => {
+        if (c.prospect_id) {
+          counts[c.prospect_id] = (counts[c.prospect_id] || 0) + 1;
+        }
+      });
+      setCallCounts(counts);
 
-        const [sCounts, primaryData] = await Promise.all([
-          getStakeholderCountsForProspects(prospectIds),
-          getPrimaryStakeholdersForProspects(prospectIds),
-        ]);
-        setStakeholderCounts(sCounts);
-        setPrimaryStakeholders(primaryData);
-      } else {
-        setCallCounts({});
-        setStakeholderCounts({});
-        setPrimaryStakeholders({});
-      }
+      const [sCounts, primaryData] = await Promise.all([
+        getStakeholderCountsForProspects(prospectIds),
+        getPrimaryStakeholdersForProspects(prospectIds),
+      ]);
+      setStakeholderCounts(sCounts);
+      setPrimaryStakeholders(primaryData);
     } catch (error) {
       console.error('Failed to load prospects:', error);
     } finally {
@@ -234,15 +312,7 @@ export default function AdminAccounts() {
     }
   };
 
-  const filteredProspects = prospects.filter(prospect => {
-    if (!search) return true;
-    const searchLower = search.toLowerCase();
-    return (
-      (prospect.account_name?.toLowerCase().includes(searchLower) ?? false) ||
-      prospect.prospect_name.toLowerCase().includes(searchLower) ||
-      prospect.rep_name.toLowerCase().includes(searchLower)
-    );
-  });
+  const totalPages = Math.ceil(totalCount / pageSize);
 
   const formatCurrency = (value: number | null) => {
     if (value === null) return '—';
@@ -275,7 +345,7 @@ export default function AdminAccounts() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Total Accounts</p>
-                  <p className="text-2xl font-bold">{prospects.length}</p>
+                  <p className="text-2xl font-bold">{stats.total}</p>
                 </div>
               </div>
             </CardContent>
@@ -288,9 +358,7 @@ export default function AdminAccounts() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Active</p>
-                  <p className="text-2xl font-bold">
-                    {prospects.filter(p => p.status === 'active').length}
-                  </p>
+                  <p className="text-2xl font-bold">{stats.active}</p>
                 </div>
               </div>
             </CardContent>
@@ -303,9 +371,7 @@ export default function AdminAccounts() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Hot (8+)</p>
-                  <p className="text-2xl font-bold">
-                    {prospects.filter(p => (p.heat_score ?? 0) >= 8).length}
-                  </p>
+                  <p className="text-2xl font-bold">{stats.hot}</p>
                 </div>
               </div>
             </CardContent>
@@ -318,13 +384,7 @@ export default function AdminAccounts() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Pipeline Value</p>
-                  <p className="text-2xl font-bold">
-                    {formatCurrency(
-                      prospects
-                        .filter(p => p.status === 'active')
-                        .reduce((sum, p) => sum + (p.potential_revenue ?? 0), 0)
-                    )}
-                  </p>
+                  <p className="text-2xl font-bold">{formatCurrency(stats.pipelineValue)}</p>
                 </div>
               </div>
             </CardContent>
@@ -405,7 +465,7 @@ export default function AdminAccounts() {
                   <Skeleton key={i} className="h-16 w-full" />
                 ))}
               </div>
-            ) : filteredProspects.length === 0 ? (
+            ) : prospects.length === 0 ? (
               <div className="text-center py-12">
                 <Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-medium">No accounts found</h3>
@@ -414,95 +474,105 @@ export default function AdminAccounts() {
                 </p>
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Account</TableHead>
-                    <TableHead>Primary Stakeholder</TableHead>
-                    <TableHead>Rep</TableHead>
-                    <TableHead>Team</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Heat</TableHead>
-                    <TableHead>Revenue</TableHead>
-                    <TableHead>Stakeholders</TableHead>
-                    <TableHead>Calls</TableHead>
-                    <TableHead>Last Contact</TableHead>
-                    <TableHead className="w-10"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredProspects.map((prospect) => (
-                    <TableRow
-                      key={prospect.id}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => navigate(`/rep/prospects/${prospect.id}`)}
-                    >
-                      <TableCell>
-                        <p className="font-medium">
-                          {prospect.account_name || prospect.prospect_name}
-                        </p>
-                      </TableCell>
-                      <TableCell>
-                        {primaryStakeholders[prospect.id] ? (
-                          <div>
-                            <p className="font-medium text-sm">{primaryStakeholders[prospect.id].name}</p>
-                            {primaryStakeholders[prospect.id].job_title && (
-                              <p className="text-xs text-muted-foreground">{primaryStakeholders[prospect.id].job_title}</p>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-xs font-normal">
-                          {prospect.rep_name}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {prospect.team_name ? (
-                          <span className="text-sm text-muted-foreground">{prospect.team_name}</span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={statusVariants[prospect.status]}>
-                          {statusLabels[prospect.status]}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <HeatScoreBadge score={prospect.heat_score} />
-                      </TableCell>
-                      <TableCell>
-                        {formatCurrency(prospect.potential_revenue)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1 text-muted-foreground">
-                          <Users className="h-3.5 w-3.5" />
-                          {stakeholderCounts[prospect.id] || 0}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {callCounts[prospect.id] || 0}
-                      </TableCell>
-                      <TableCell>
-                        {prospect.last_contact_date ? (
-                          <div className="flex items-center gap-1 text-muted-foreground">
-                            <Calendar className="h-3 w-3" />
-                            {format(new Date(prospect.last_contact_date), 'MMM d, yyyy')}
-                          </div>
-                        ) : (
-                          '—'
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      </TableCell>
+              <>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Account</TableHead>
+                      <TableHead>Primary Stakeholder</TableHead>
+                      <TableHead>Rep</TableHead>
+                      <TableHead>Team</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Heat</TableHead>
+                      <TableHead>Revenue</TableHead>
+                      <TableHead>Stakeholders</TableHead>
+                      <TableHead>Calls</TableHead>
+                      <TableHead>Last Contact</TableHead>
+                      <TableHead className="w-10"></TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {prospects.map((prospect) => (
+                      <TableRow
+                        key={prospect.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => navigate(`/rep/prospects/${prospect.id}`)}
+                      >
+                        <TableCell>
+                          <p className="font-medium">
+                            {prospect.account_name || prospect.prospect_name}
+                          </p>
+                        </TableCell>
+                        <TableCell>
+                          {primaryStakeholders[prospect.id] ? (
+                            <div>
+                              <p className="font-medium text-sm">{primaryStakeholders[prospect.id].name}</p>
+                              {primaryStakeholders[prospect.id].job_title && (
+                                <p className="text-xs text-muted-foreground">{primaryStakeholders[prospect.id].job_title}</p>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs font-normal">
+                            {prospect.rep_name}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {prospect.team_name ? (
+                            <span className="text-sm text-muted-foreground">{prospect.team_name}</span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={statusVariants[prospect.status]}>
+                            {statusLabels[prospect.status]}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <HeatScoreBadge score={prospect.heat_score} />
+                        </TableCell>
+                        <TableCell>{formatCurrency(prospect.potential_revenue)}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <Users className="h-4 w-4 text-muted-foreground" />
+                            <span>{stakeholderCounts[prospect.id] || 0}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>{callCounts[prospect.id] || 0}</TableCell>
+                        <TableCell>
+                          {prospect.last_contact_date ? (
+                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                              <Calendar className="h-3 w-3" />
+                              {format(new Date(prospect.last_contact_date), 'MMM d, yyyy')}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+
+                {/* Pagination */}
+                <div className="mt-4">
+                  <PaginationControls
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={totalCount}
+                    pageSize={pageSize}
+                    onPageChange={setCurrentPage}
+                    onPageSizeChange={setPageSize}
+                  />
+                </div>
+              </>
             )}
           </CardContent>
         </Card>

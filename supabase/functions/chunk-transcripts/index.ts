@@ -14,6 +14,43 @@ function getCorsHeaders(origin?: string | null): Record<string, string> {
   };
 }
 
+// Simple in-memory rate limiter
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
+const MAX_REQUESTS_PER_WINDOW = 5;
+
+function checkRateLimit(userId: string): { allowed: boolean; retryAfter?: number } {
+  const now = Date.now();
+  const entry = rateLimitMap.get(userId);
+  
+  if (!entry || now >= entry.resetTime) {
+    rateLimitMap.set(userId, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
+    return { allowed: true };
+  }
+  
+  if (entry.count >= MAX_REQUESTS_PER_WINDOW) {
+    const retryAfter = Math.ceil((entry.resetTime - now) / 1000);
+    return { allowed: false, retryAfter };
+  }
+  
+  entry.count++;
+  return { allowed: true };
+}
+
+// Type for transcript chunk
+interface TranscriptChunk {
+  transcript_id: string;
+  chunk_index: number;
+  chunk_text: string;
+  metadata: {
+    account_name: string;
+    call_date: string;
+    call_type: string;
+    rep_name: string;
+    rep_id: string;
+  };
+}
+
 // Chunk size in characters (~500 tokens = ~2000 chars)
 const CHUNK_SIZE = 2000;
 const CHUNK_OVERLAP = 200;
@@ -59,6 +96,23 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ error: 'Invalid authentication' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Check rate limit
+    const rateLimitResult = checkRateLimit(user.id);
+    if (!rateLimitResult.allowed) {
+      console.warn(`[chunk-transcripts] Rate limit exceeded for user ${user.id}`);
+      return new Response(
+        JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
+        { 
+          status: 429, 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json',
+            'Retry-After': String(rateLimitResult.retryAfter || 60)
+          } 
+        }
       );
     }
 
@@ -119,7 +173,7 @@ serve(async (req) => {
     const repMap = new Map((profiles || []).map(p => [p.id, p.name]));
 
     // Chunk each transcript
-    const allChunks: any[] = [];
+    const allChunks: TranscriptChunk[] = [];
     
     for (const transcript of transcripts || []) {
       const chunks = chunkText(transcript.raw_text || '', CHUNK_SIZE, CHUNK_OVERLAP);

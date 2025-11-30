@@ -80,8 +80,9 @@ export function AddRelationshipDialog({
       onRelationshipAdded();
       resetForm();
       onOpenChange(false);
-    } catch (error: any) {
-      if (error.code === '23505') {
+    } catch (error: unknown) {
+      const pgError = error as { code?: string };
+      if (pgError.code === '23505') {
         toast({ title: 'This relationship already exists', variant: 'destructive' });
       } else {
         toast({ title: 'Failed to add relationship', variant: 'destructive' });

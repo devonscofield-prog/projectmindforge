@@ -149,13 +149,20 @@ export default function AdminTranscriptAnalysis() {
     }
   };
 
-  const handleLoadSelection = (selection: any) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleLoadSelection = (selection: { id: string; transcript_ids: string[]; filters?: any }) => {
     setSelectedTranscriptIds(new Set(selection.transcript_ids || []));
     setCurrentSelectionId(selection.id);
     
     // Restore filters if available
-    if (selection.filters) {
-      const f = selection.filters;
+    if (selection.filters && typeof selection.filters === 'object') {
+      const f = selection.filters as {
+        dateRange?: { from: string; to: string };
+        selectedTeamId?: string;
+        selectedRepId?: string;
+        accountSearch?: string;
+        selectedCallTypes?: string[];
+      };
       if (f.dateRange) {
         setDateRange({
           from: new Date(f.dateRange.from),
