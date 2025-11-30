@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,9 +14,13 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { supabase } from '@/integrations/supabase/client';
 import { TranscriptChatPanel } from '@/components/admin/TranscriptChatPanel';
+import { SaveSelectionDialog } from '@/components/admin/SaveSelectionDialog';
+import { SavedSelectionsSheet } from '@/components/admin/SavedSelectionsSheet';
+import { SavedInsightsSheet } from '@/components/admin/SavedInsightsSheet';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import {
   CalendarIcon,
@@ -30,6 +35,9 @@ import {
   Sparkles,
   Info,
   ChevronDown,
+  Save,
+  FolderOpen,
+  Lightbulb,
 } from 'lucide-react';
 
 const TIME_RANGES = [
@@ -70,6 +78,8 @@ interface Transcript {
 }
 
 export default function AdminTranscriptAnalysis() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  
   // Filter state
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>(() => createDateRange(30));
   const [selectedPreset, setSelectedPreset] = useState<string>('30');
@@ -80,9 +90,75 @@ export default function AdminTranscriptAnalysis() {
   
   // Selection state
   const [selectedTranscriptIds, setSelectedTranscriptIds] = useState<Set<string>>(new Set());
+  const [currentSelectionId, setCurrentSelectionId] = useState<string | null>(null);
   
   // Chat panel state
   const [chatOpen, setChatOpen] = useState(false);
+  
+  // Dialog states
+  const [saveSelectionOpen, setSaveSelectionOpen] = useState(false);
+  const [savedSelectionsOpen, setSavedSelectionsOpen] = useState(false);
+  const [savedInsightsOpen, setSavedInsightsOpen] = useState(false);
+
+  // Handle shared selection/insight from URL params
+  useEffect(() => {
+    const shareToken = searchParams.get('share');
+    const insightToken = searchParams.get('insight');
+    
+    if (shareToken) {
+      loadSharedSelection(shareToken);
+    }
+    if (insightToken) {
+      // Just open insights panel - the insight view will be handled there
+      setSavedInsightsOpen(true);
+    }
+  }, [searchParams]);
+
+  const loadSharedSelection = async (shareToken: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('admin_transcript_selections')
+        .select('*')
+        .eq('share_token', shareToken)
+        .single();
+      
+      if (error || !data) {
+        toast.error('Shared selection not found or access denied');
+        setSearchParams({});
+        return;
+      }
+      
+      // Load the selection
+      handleLoadSelection(data);
+      toast.success(`Loaded shared selection: ${data.name}`);
+      setSearchParams({});
+    } catch (err) {
+      console.error('Error loading shared selection:', err);
+      toast.error('Failed to load shared selection');
+      setSearchParams({});
+    }
+  };
+
+  const handleLoadSelection = (selection: any) => {
+    setSelectedTranscriptIds(new Set(selection.transcript_ids || []));
+    setCurrentSelectionId(selection.id);
+    
+    // Restore filters if available
+    if (selection.filters) {
+      const f = selection.filters;
+      if (f.dateRange) {
+        setDateRange({
+          from: new Date(f.dateRange.from),
+          to: new Date(f.dateRange.to),
+        });
+        setSelectedPreset('custom');
+      }
+      if (f.selectedTeamId) setSelectedTeamId(f.selectedTeamId);
+      if (f.selectedRepId) setSelectedRepId(f.selectedRepId);
+      if (f.accountSearch) setAccountSearch(f.accountSearch);
+      if (f.selectedCallTypes) setSelectedCallTypes(f.selectedCallTypes);
+    }
+  };
 
   // Fetch teams
   const { data: teams } = useQuery({
@@ -448,6 +524,35 @@ export default function AdminTranscriptAnalysis() {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Save/Load Buttons */}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSaveSelectionOpen(true)}
+                disabled={selectedTranscriptIds.size === 0}
+              >
+                <Save className="h-4 w-4 mr-1" />
+                Save
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSavedSelectionsOpen(true)}
+              >
+                <FolderOpen className="h-4 w-4 mr-1" />
+                Load
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSavedInsightsOpen(true)}
+              >
+                <Lightbulb className="h-4 w-4 mr-1" />
+                Insights
+              </Button>
+            </div>
+            
             <div className="flex items-center gap-2">
               <span className={cn("text-sm font-medium", analysisMode.color)}>
                 {analysisMode.label}
@@ -482,12 +587,41 @@ export default function AdminTranscriptAnalysis() {
                 <TranscriptChatPanel
                   selectedTranscripts={selectedTranscripts}
                   useRag={analysisMode.useRag}
+                  selectionId={currentSelectionId}
                   onClose={() => setChatOpen(false)}
                 />
               </SheetContent>
             </Sheet>
           </div>
         </div>
+
+        {/* Save Selection Dialog */}
+        <SaveSelectionDialog
+          open={saveSelectionOpen}
+          onOpenChange={setSaveSelectionOpen}
+          transcriptIds={Array.from(selectedTranscriptIds)}
+          filters={{
+            dateRange,
+            selectedTeamId,
+            selectedRepId,
+            accountSearch,
+            selectedCallTypes,
+          }}
+          onSaved={(id) => setCurrentSelectionId(id)}
+        />
+
+        {/* Saved Selections Sheet */}
+        <SavedSelectionsSheet
+          open={savedSelectionsOpen}
+          onOpenChange={setSavedSelectionsOpen}
+          onLoadSelection={handleLoadSelection}
+        />
+
+        {/* Saved Insights Sheet */}
+        <SavedInsightsSheet
+          open={savedInsightsOpen}
+          onOpenChange={setSavedInsightsOpen}
+        />
 
         {/* Transcript Table */}
         <Card>

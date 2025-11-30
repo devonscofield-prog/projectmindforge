@@ -5,6 +5,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { streamAdminTranscriptChat, ChatMessage } from '@/api/adminTranscriptChat';
+import { SaveInsightDialog } from '@/components/admin/SaveInsightDialog';
 import ReactMarkdown from 'react-markdown';
 import {
   Send,
@@ -18,6 +19,7 @@ import {
   Target,
   Zap,
   Search,
+  Lightbulb,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -35,6 +37,7 @@ interface Transcript {
 interface TranscriptChatPanelProps {
   selectedTranscripts: Transcript[];
   useRag?: boolean;
+  selectionId?: string | null;
   onClose: () => void;
 }
 
@@ -66,11 +69,13 @@ const STARTER_QUESTIONS = [
   },
 ];
 
-export function TranscriptChatPanel({ selectedTranscripts, useRag = false, onClose }: TranscriptChatPanelProps) {
+export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selectionId, onClose }: TranscriptChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saveInsightOpen, setSaveInsightOpen] = useState(false);
+  const [insightToSave, setInsightToSave] = useState<string>('');
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -224,25 +229,41 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, onClo
               >
                 <div
                   className={cn(
-                    "max-w-[85%] rounded-lg px-4 py-2",
+                    "max-w-[85%] rounded-lg px-4 py-2 group relative",
                     message.role === 'user'
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-muted'
                   )}
                 >
                   {message.role === 'assistant' ? (
-                    <div className="prose prose-sm dark:prose-invert max-w-none">
-                      <ReactMarkdown
-                        components={{
-                          // Style citations
-                          strong: ({ children }) => (
-                            <strong className="text-primary">{children}</strong>
-                          ),
-                        }}
-                      >
-                        {message.content}
-                      </ReactMarkdown>
-                    </div>
+                    <>
+                      <div className="prose prose-sm dark:prose-invert max-w-none">
+                        <ReactMarkdown
+                          components={{
+                            // Style citations
+                            strong: ({ children }) => (
+                              <strong className="text-primary">{children}</strong>
+                            ),
+                          }}
+                        >
+                          {message.content}
+                        </ReactMarkdown>
+                      </div>
+                      {!isLoading && message.content && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="absolute -bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-7 text-xs gap-1"
+                          onClick={() => {
+                            setInsightToSave(message.content);
+                            setSaveInsightOpen(true);
+                          }}
+                        >
+                          <Lightbulb className="h-3 w-3" />
+                          Save Insight
+                        </Button>
+                      )}
+                    </>
                   ) : (
                     <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                   )}
@@ -292,6 +313,15 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, onClo
           Responses are grounded only in the selected transcripts
         </p>
       </div>
+
+      {/* Save Insight Dialog */}
+      <SaveInsightDialog
+        open={saveInsightOpen}
+        onOpenChange={setSaveInsightOpen}
+        content={insightToSave}
+        chatContext={messages}
+        selectionId={selectionId}
+      />
     </div>
   );
 }

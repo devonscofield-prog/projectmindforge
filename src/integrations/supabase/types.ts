@@ -103,6 +103,95 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_chat_insights: {
+        Row: {
+          admin_id: string
+          chat_context: Json | null
+          content: string
+          created_at: string
+          id: string
+          is_shared: boolean | null
+          selection_id: string | null
+          share_token: string | null
+          tags: string[] | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          admin_id: string
+          chat_context?: Json | null
+          content: string
+          created_at?: string
+          id?: string
+          is_shared?: boolean | null
+          selection_id?: string | null
+          share_token?: string | null
+          tags?: string[] | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          admin_id?: string
+          chat_context?: Json | null
+          content?: string
+          created_at?: string
+          id?: string
+          is_shared?: boolean | null
+          selection_id?: string | null
+          share_token?: string | null
+          tags?: string[] | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_chat_insights_selection_id_fkey"
+            columns: ["selection_id"]
+            isOneToOne: false
+            referencedRelation: "admin_transcript_selections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      admin_transcript_selections: {
+        Row: {
+          admin_id: string
+          created_at: string
+          description: string | null
+          filters: Json | null
+          id: string
+          is_shared: boolean | null
+          name: string
+          share_token: string | null
+          transcript_ids: string[]
+          updated_at: string
+        }
+        Insert: {
+          admin_id: string
+          created_at?: string
+          description?: string | null
+          filters?: Json | null
+          id?: string
+          is_shared?: boolean | null
+          name: string
+          share_token?: string | null
+          transcript_ids: string[]
+          updated_at?: string
+        }
+        Update: {
+          admin_id?: string
+          created_at?: string
+          description?: string | null
+          filters?: Json | null
+          id?: string
+          is_shared?: boolean | null
+          name?: string
+          share_token?: string | null
+          transcript_ids?: string[]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ai_call_analysis: {
         Row: {
           call_effectiveness_score: number | null
