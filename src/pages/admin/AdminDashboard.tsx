@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -12,68 +13,46 @@ import { GlobalActivityFeed } from '@/components/admin/GlobalActivityFeed';
 import { CallTrendsChart } from '@/components/admin/CallTrendsChart';
 import { subDays } from 'date-fns';
 
-interface Stats {
-  totalUsers: number;
-  totalTeams: number;
-  totalReps: number;
-  totalManagers: number;
-  callsAnalyzedLast7Days: number;
-}
-
 export default function AdminDashboard() {
   const { role } = useAuth();
-  const [stats, setStats] = useState<Stats>({
-    totalUsers: 0,
-    totalTeams: 0,
-    totalReps: 0,
-    totalManagers: 0,
-    callsAnalyzedLast7Days: 0,
-  });
-  const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
 
-  const fetchStats = async () => {
-    const sevenDaysAgo = subDays(new Date(), 7).toISOString();
+  // Consolidated stats query
+  const { data: stats, isLoading, refetch } = useQuery({
+    queryKey: ['admin-dashboard-stats'],
+    queryFn: async () => {
+      const sevenDaysAgo = subDays(new Date(), 7).toISOString();
 
-    // Fetch user count
-    const { count: userCount } = await supabase
-      .from('profiles')
-      .select('*', { count: 'exact', head: true });
+      // Run all queries in parallel for better performance
+      const [
+        { count: userCount },
+        { count: teamCount },
+        { data: roles },
+        { count: callsCount },
+      ] = await Promise.all([
+        supabase.from('profiles').select('*', { count: 'exact', head: true }),
+        supabase.from('teams').select('*', { count: 'exact', head: true }),
+        supabase.from('user_roles').select('role'),
+        supabase
+          .from('call_transcripts')
+          .select('*', { count: 'exact', head: true })
+          .eq('analysis_status', 'completed')
+          .gte('created_at', sevenDaysAgo),
+      ]);
 
-    // Fetch teams count
-    const { count: teamCount } = await supabase
-      .from('teams')
-      .select('*', { count: 'exact', head: true });
+      const repCount = roles?.filter((r) => r.role === 'rep').length || 0;
+      const managerCount = roles?.filter((r) => r.role === 'manager').length || 0;
 
-    // Fetch role counts
-    const { data: roles } = await supabase
-      .from('user_roles')
-      .select('role');
-
-    // Fetch calls analyzed in last 7 days
-    const { count: callsCount } = await supabase
-      .from('call_transcripts')
-      .select('*', { count: 'exact', head: true })
-      .eq('analysis_status', 'completed')
-      .gte('created_at', sevenDaysAgo);
-
-    const repCount = roles?.filter((r) => r.role === 'rep').length || 0;
-    const managerCount = roles?.filter((r) => r.role === 'manager').length || 0;
-
-    setStats({
-      totalUsers: userCount || 0,
-      totalTeams: teamCount || 0,
-      totalReps: repCount,
-      totalManagers: managerCount,
-      callsAnalyzedLast7Days: callsCount || 0,
-    });
-
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    fetchStats();
-  }, []);
+      return {
+        totalUsers: userCount || 0,
+        totalTeams: teamCount || 0,
+        totalReps: repCount,
+        totalManagers: managerCount,
+        callsAnalyzedLast7Days: callsCount || 0,
+      };
+    },
+    staleTime: 60 * 1000, // 1 minute
+  });
 
   const handleSeedData = async () => {
     setSeeding(true);
@@ -85,8 +64,7 @@ export default function AdminDashboard() {
       }
       
       toast.success('Demo data reset successfully');
-      // Refresh stats after seeding
-      fetchStats();
+      refetch();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to seed data';
       toast.error(errorMessage);
@@ -95,7 +73,7 @@ export default function AdminDashboard() {
     }
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <AppLayout>
         <div className="flex items-center justify-center h-64">
@@ -125,7 +103,7 @@ export default function AdminDashboard() {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <span className="text-3xl font-bold">{stats.totalUsers}</span>
+              <span className="text-3xl font-bold">{stats?.totalUsers ?? 0}</span>
             </CardContent>
           </Card>
           <Card>
@@ -134,7 +112,7 @@ export default function AdminDashboard() {
               <Building2 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <span className="text-3xl font-bold">{stats.totalTeams}</span>
+              <span className="text-3xl font-bold">{stats?.totalTeams ?? 0}</span>
             </CardContent>
           </Card>
           <Card>
@@ -143,7 +121,7 @@ export default function AdminDashboard() {
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <span className="text-3xl font-bold">{stats.totalReps}</span>
+              <span className="text-3xl font-bold">{stats?.totalReps ?? 0}</span>
             </CardContent>
           </Card>
           <Card>
@@ -152,7 +130,7 @@ export default function AdminDashboard() {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <span className="text-3xl font-bold">{stats.totalManagers}</span>
+              <span className="text-3xl font-bold">{stats?.totalManagers ?? 0}</span>
             </CardContent>
           </Card>
           <Card>
@@ -161,7 +139,7 @@ export default function AdminDashboard() {
               <Phone className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <span className="text-3xl font-bold">{stats.callsAnalyzedLast7Days}</span>
+              <span className="text-3xl font-bold">{stats?.callsAnalyzedLast7Days ?? 0}</span>
               <p className="text-xs text-muted-foreground mt-1">Analyzed</p>
             </CardContent>
           </Card>

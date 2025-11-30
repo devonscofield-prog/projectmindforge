@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { Json } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
+import { useTeams, useReps } from '@/hooks';
 import { createDateRange, Transcript } from './constants';
 
 export function useTranscriptAnalysis() {
@@ -100,37 +101,10 @@ export function useTranscriptAnalysis() {
     }
   };
 
-  // Fetch teams
-  const { data: teams } = useQuery({
-    queryKey: ['admin-all-teams'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('teams')
-        .select('id, name')
-        .order('name');
-      if (error) throw error;
-      return data || [];
-    },
-  });
-
-  // Fetch all reps (filtered by team)
-  const { data: reps } = useQuery({
-    queryKey: ['admin-all-reps', selectedTeamId],
-    queryFn: async () => {
-      let query = supabase
-        .from('user_with_role')
-        .select('id, name, team_id')
-        .eq('role', 'rep')
-        .eq('is_active', true);
-      
-      if (selectedTeamId !== 'all') {
-        query = query.eq('team_id', selectedTeamId);
-      }
-      
-      const { data, error } = await query.order('name');
-      if (error) throw error;
-      return data || [];
-    },
+  // Use reusable hooks for teams and reps
+  const { data: teams } = useTeams();
+  const { data: reps } = useReps({ 
+    teamId: selectedTeamId !== 'all' ? selectedTeamId : undefined 
   });
 
   // Reset pagination when filters change
