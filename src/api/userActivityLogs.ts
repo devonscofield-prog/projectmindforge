@@ -59,23 +59,39 @@ export interface UserActivityLogWithProfile extends UserActivityLog {
 }
 
 export async function fetchAllRecentActivityLogs(limit = 20): Promise<UserActivityLogWithProfile[]> {
-  const { data, error } = await supabase
+  // Fetch logs first
+  const { data: logs, error: logsError } = await supabase
     .from('user_activity_logs')
-    .select(`
-      *,
-      profiles:user_id (name, email)
-    `)
+    .select('*')
     .order('created_at', { ascending: false })
     .limit(limit);
 
-  if (error) {
-    console.error('Failed to fetch all activity logs:', error);
+  if (logsError) {
+    console.error('Failed to fetch all activity logs:', logsError);
     return [];
   }
 
-  return (data || []).map((log: any) => ({
+  if (!logs || logs.length === 0) return [];
+
+  // Get unique user IDs
+  const userIds = [...new Set(logs.map(log => log.user_id))];
+
+  // Fetch profiles for those users
+  const { data: profiles, error: profilesError } = await supabase
+    .from('profiles')
+    .select('id, name, email')
+    .in('id', userIds);
+
+  if (profilesError) {
+    console.error('Failed to fetch profiles:', profilesError);
+  }
+
+  // Create a map for quick lookup
+  const profileMap = new Map((profiles || []).map(p => [p.id, p]));
+
+  return logs.map((log) => ({
     ...log,
-    user_name: log.profiles?.name || 'Unknown',
-    user_email: log.profiles?.email || '',
+    user_name: profileMap.get(log.user_id)?.name || 'Unknown',
+    user_email: profileMap.get(log.user_id)?.email || '',
   })) as UserActivityLogWithProfile[];
 }
