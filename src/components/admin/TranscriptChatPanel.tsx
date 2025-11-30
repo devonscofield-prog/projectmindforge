@@ -48,29 +48,34 @@ interface TranscriptChatPanelProps {
 
 const STARTER_QUESTIONS = [
   {
+    icon: Target,
+    label: 'Deal Health (MEDDIC)',
+    prompt: 'Score these deals using MEDDIC criteria (Metrics, Economic Buyer, Decision Criteria, Decision Process, Identify Pain, Champion). Which deals have the weakest qualification? What specific gaps should reps address?',
+  },
+  {
     icon: AlertCircle,
-    label: 'Objections',
-    prompt: 'What objections come up repeatedly across these calls? List them with specific examples and which calls they appeared in.',
+    label: 'Pipeline Risk',
+    prompt: 'Identify deals showing warning signs: price sensitivity without value anchor, competitor mentions with momentum, vague next steps, single-threaded relationships, or missing decision makers. Rank by revenue at risk.',
   },
   {
     icon: Users,
-    label: 'Pricing Discussions',
-    prompt: 'Compare how different reps handle pricing discussions. What techniques are working and what could be improved?',
-  },
-  {
-    icon: Target,
-    label: 'Competitors',
-    prompt: 'What competitor names are mentioned and in what context? Are there patterns in how competitors come up?',
+    label: 'Rep Performance',
+    prompt: 'Compare rep techniques across these calls. Who is doing deep discovery? Who rushes to demo? What language patterns differentiate top performers? Provide specific coaching recommendations.',
   },
   {
     icon: TrendingUp,
-    label: 'Pain Points',
-    prompt: 'What are the most common customer pain points mentioned across these calls?',
+    label: 'Win/Loss Patterns',
+    prompt: 'What language patterns and behaviors differentiate calls that are progressing well vs stalling? Look for commitment language, objection handling, and next step quality.',
   },
   {
     icon: Zap,
-    label: 'Key Themes',
-    prompt: 'Summarize the key themes across these calls. What patterns emerge in successful vs unsuccessful conversations?',
+    label: 'Competitive Intel',
+    prompt: 'Build a competitive intelligence summary: Which competitors are mentioned? What positioning or objections come up? What win themes emerge? Provide battle card insights.',
+  },
+  {
+    icon: Search,
+    label: 'Buying Committee',
+    prompt: 'Map the organizational dynamics across these deals. Where are we single-threaded? Who are the real decision makers vs influencers? Are we engaging champions effectively?',
   },
 ];
 
