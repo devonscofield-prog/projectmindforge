@@ -1,8 +1,11 @@
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useProspectData } from '@/hooks/useProspectData';
+import { getDashboardUrl } from '@/lib/routes';
+import { ChevronRight, Home } from 'lucide-react';
 
 // Detail section components
 import {
@@ -28,6 +31,7 @@ import type { Stakeholder } from '@/api/stakeholders';
 
 export default function ProspectDetail() {
   const { id } = useParams<{ id: string }>();
+  const { role } = useAuth();
   
   // Use the custom hook for all data and handlers
   const {
@@ -72,6 +76,27 @@ export default function ProspectDetail() {
   // Get primary stakeholder for header display
   const primaryStakeholder = stakeholders.find(s => s.is_primary_contact);
 
+  // Get role-specific labels for breadcrumbs
+  const getDashboardLabel = () => {
+    switch (role) {
+      case 'admin': return 'Admin Dashboard';
+      case 'manager': return 'Manager Dashboard';
+      default: return 'Dashboard';
+    }
+  };
+
+  const getAccountsLabel = () => {
+    return role === 'rep' ? 'My Accounts' : 'Accounts';
+  };
+
+  const getAccountsPath = () => {
+    switch (role) {
+      case 'admin': return '/admin/accounts';
+      case 'manager': return '/manager/accounts';
+      default: return '/rep/prospects';
+    }
+  };
+
   if (isLoading) {
     return (
       <AppLayout>
@@ -93,6 +118,28 @@ export default function ProspectDetail() {
   return (
     <AppLayout>
       <div className="space-y-6">
+        {/* Breadcrumb Navigation */}
+        <nav className="flex items-center text-sm text-muted-foreground" aria-label="Breadcrumb">
+          <Link 
+            to={getDashboardUrl(role)} 
+            className="flex items-center hover:text-foreground transition-colors"
+          >
+            <Home className="h-4 w-4" />
+            <span className="sr-only">{getDashboardLabel()}</span>
+          </Link>
+          <ChevronRight className="h-4 w-4 mx-2" />
+          <Link 
+            to={getAccountsPath()} 
+            className="hover:text-foreground transition-colors"
+          >
+            {getAccountsLabel()}
+          </Link>
+          <ChevronRight className="h-4 w-4 mx-2" />
+          <span className="text-foreground font-medium truncate max-w-[200px]">
+            {prospect.account_name || prospect.prospect_name}
+          </span>
+        </nav>
+
         {/* Header */}
         <ProspectHeader
           prospect={prospect}
