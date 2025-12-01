@@ -1,10 +1,9 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import { toProfile, toCoachingSession } from '@/lib/supabaseAdapters';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { useRepProfile, useCoachingSessions, useCreateCoachingSession, repDetailKeys } from '@/hooks/useRepDetailQueries';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -17,8 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
-import { Profile, CoachingSession } from '@/types/database';
-import { Plus, AlertCircle, Loader2, Phone, Calendar, Sparkles, ExternalLink, ChevronDown, Brain, Search } from 'lucide-react';
+import { Plus, AlertCircle, Loader2, Phone, Calendar, Sparkles, ExternalLink, ChevronDown, Brain, Search, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { format, subDays, isAfter } from 'date-fns';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
@@ -64,13 +62,11 @@ export default function RepDetail() {
   const { user, profile, role } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   
   // Get default tab from URL query param
   const defaultTab = searchParams.get('tab') || 'call-history';
   
-  const [rep, setRep] = useState<Profile | null>(null);
-  const [coaching, setCoaching] = useState<CoachingSession[]>([]);
-  const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
     session_date: format(new Date(), 'yyyy-MM-dd'),
@@ -87,12 +83,19 @@ export default function RepDetail() {
   // AI Coaching Snapshot collapsed state (collapsed by default)
   const [snapshotOpen, setSnapshotOpen] = useState(false);
 
-  // Fetch transcripts for rep using React Query
+  // Fetch data using React Query
+  const { data: rep, isLoading: isLoadingProfile, error: profileError } = useRepProfile(repId);
+  const { data: coaching = [], isLoading: isLoadingCoaching } = useCoachingSessions(repId);
   const { data: transcripts = [], isLoading: isLoadingTranscripts } = useQuery({
     queryKey: ['callTranscripts', repId],
     queryFn: () => listCallTranscriptsForRep(repId!),
     enabled: !!repId,
   });
+  
+  const createCoachingMutation = useCreateCoachingSession();
+
+  // Combined loading state for critical data
+  const loading = isLoadingProfile;
 
   // Filter transcripts by timeframe and search
   const filteredTranscripts = useMemo(() => {
@@ -123,73 +126,48 @@ export default function RepDetail() {
   }, [transcripts, timeframe, callSearch]);
 
 
-  const fetchData = async () => {
-    if (!repId) return;
-
-    // Fetch rep profile
-    const { data: repData } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', repId)
-      .maybeSingle();
-
-    if (repData) {
-      setRep(toProfile(repData));
-    }
-
-    // Fetch coaching sessions
-    const { data: coachingData } = await supabase
-      .from('coaching_sessions')
-      .select('*')
-      .eq('rep_id', repId)
-      .order('session_date', { ascending: false });
-
-    if (coachingData) {
-      setCoaching(coachingData.map(toCoachingSession));
-    }
-
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, [repId]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !repId) return;
 
-    const { error } = await supabase.from('coaching_sessions').insert({
-      rep_id: repId,
-      manager_id: user.id,
-      session_date: formData.session_date,
-      focus_area: formData.focus_area,
-      notes: formData.notes || null,
-      action_items: formData.action_items || null,
-      follow_up_date: formData.follow_up_date || null,
-    });
+    createCoachingMutation.mutate(
+      {
+        rep_id: repId,
+        manager_id: user.id,
+        session_date: formData.session_date,
+        focus_area: formData.focus_area,
+        notes: formData.notes || null,
+        action_items: formData.action_items || null,
+        follow_up_date: formData.follow_up_date || null,
+      },
+      {
+        onSuccess: () => {
+          toast({
+            title: 'Session Created',
+            description: 'Coaching session has been recorded.',
+          });
+          setDialogOpen(false);
+          setFormData({
+            session_date: format(new Date(), 'yyyy-MM-dd'),
+            focus_area: '',
+            notes: '',
+            action_items: '',
+            follow_up_date: '',
+          });
+        },
+        onError: () => {
+          toast({
+            title: 'Error',
+            description: 'Failed to create coaching session. Please try again.',
+            variant: 'destructive',
+          });
+        },
+      }
+    );
+  };
 
-    if (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to create coaching session. Please try again.',
-        variant: 'destructive',
-      });
-    } else {
-      toast({
-        title: 'Session Created',
-        description: 'Coaching session has been recorded.',
-      });
-      setDialogOpen(false);
-      setFormData({
-        session_date: format(new Date(), 'yyyy-MM-dd'),
-        focus_area: '',
-        notes: '',
-        action_items: '',
-        follow_up_date: '',
-      });
-      fetchData();
-    }
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: repDetailKeys.all });
   };
 
   const getStatusBadgeVariant = (status: string) => {
@@ -254,12 +232,22 @@ export default function RepDetail() {
             <h1 className="text-3xl font-bold">{rep.name}</h1>
             <p className="text-muted-foreground">{rep.email}</p>
           </div>
-          <Button variant="outline" asChild>
-            <Link to={`/rep/coaching-summary/${repId}`}>
-              <Sparkles className="h-4 w-4 mr-2" />
-              Coaching Trends
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleRefresh}
+              disabled={isLoadingProfile || isLoadingCoaching || isLoadingTranscripts}
+            >
+              <RefreshCw className={`h-4 w-4 ${(isLoadingProfile || isLoadingCoaching || isLoadingTranscripts) ? 'animate-spin' : ''}`} />
+            </Button>
+            <Button variant="outline" asChild>
+              <Link to={`/rep/coaching-summary/${repId}`}>
+                <Sparkles className="h-4 w-4 mr-2" />
+                Coaching Trends
+              </Link>
+            </Button>
+          </div>
         </div>
 
         {/* AI Coaching Snapshot - Collapsible, collapsed by default */}
