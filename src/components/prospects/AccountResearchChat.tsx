@@ -6,32 +6,16 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { RateLimitCountdown } from '@/components/ui/rate-limit-countdown';
 import { Search, Loader2, Copy, Check, ChevronDown, Plus, X, Building2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
 import { streamAccountResearch, type AccountResearchRequest } from '@/api/accountResearch';
+import { useRateLimitCountdown } from '@/hooks/useRateLimitCountdown';
+import { industryOptions } from '@/components/prospects/detail/constants';
 import type { Prospect } from '@/api/prospects';
 import type { Stakeholder } from '@/api/stakeholders';
-
-const INDUSTRIES = [
-  'Technology',
-  'Healthcare',
-  'Finance & Banking',
-  'Manufacturing',
-  'Retail & E-commerce',
-  'Professional Services',
-  'Education',
-  'Real Estate',
-  'Transportation & Logistics',
-  'Energy & Utilities',
-  'Media & Entertainment',
-  'Telecommunications',
-  'Government',
-  'Non-profit',
-  'Other',
-];
 
 const DEAL_STAGES = [
   'Prospecting',
@@ -77,13 +61,16 @@ export function AccountResearchChat({
   const [researchResult, setResearchResult] = useState('');
   const [copied, setCopied] = useState(false);
   const [showForm, setShowForm] = useState(true);
-  const resultRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  
+  // Rate limiting
+  const { secondsRemaining, isRateLimited, startCountdown } = useRateLimitCountdown(60);
 
   // Initialize form from prospect data when opening
   useEffect(() => {
     if (open) {
       setCompanyName(prospect?.account_name || prospect?.prospect_name || '');
-      setWebsite(prospect?.salesforce_link || '');
+      setWebsite(''); // Website requires manual entry - salesforce_link is for SF records
       setIndustry(prospect?.industry || '');
       
       // Auto-populate stakeholders
@@ -129,6 +116,11 @@ export function AccountResearchChat({
       return;
     }
 
+    if (isRateLimited) {
+      toast.error(`Please wait ${secondsRemaining} seconds before researching again`);
+      return;
+    }
+
     setIsResearching(true);
     setResearchResult('');
     setShowForm(false);
@@ -155,8 +147,8 @@ export function AccountResearchChat({
       onDelta: (text) => {
         setResearchResult(prev => prev + text);
         // Auto-scroll to bottom
-        if (resultRef.current) {
-          resultRef.current.scrollTop = resultRef.current.scrollHeight;
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
         }
       },
       onDone: () => {
@@ -165,17 +157,26 @@ export function AccountResearchChat({
       },
       onError: (error) => {
         setIsResearching(false);
-        toast.error(error.message);
+        if (error.message.includes('Rate limit') || error.message.includes('429')) {
+          startCountdown(60);
+          toast.error('Rate limited. Please wait before trying again.');
+        } else {
+          toast.error(error.message);
+        }
         setShowForm(true);
       },
     });
   };
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(researchResult);
-    setCopied(true);
-    toast.success('Copied to clipboard');
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(researchResult);
+      setCopied(true);
+      toast.success('Copied to clipboard');
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      toast.error('Failed to copy to clipboard');
+    }
   };
 
   const handleNewResearch = () => {
@@ -196,8 +197,14 @@ export function AccountResearchChat({
           </SheetDescription>
         </SheetHeader>
 
-        <ScrollArea className="flex-1 px-6" ref={resultRef}>
-          <div className="py-4 space-y-6">
+        {isRateLimited && (
+          <div className="px-6 py-2 border-b bg-muted/50">
+            <RateLimitCountdown secondsRemaining={secondsRemaining} />
+          </div>
+        )}
+
+        <ScrollArea className="flex-1 px-6">
+          <div ref={scrollContainerRef} className="py-4 space-y-6">
             {showForm ? (
               <>
                 {/* Company Information */}
@@ -235,8 +242,8 @@ export function AccountResearchChat({
                           <SelectValue placeholder="Select industry" />
                         </SelectTrigger>
                         <SelectContent>
-                          {INDUSTRIES.map(ind => (
-                            <SelectItem key={ind} value={ind}>{ind}</SelectItem>
+                          {industryOptions.map(opt => (
+                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -373,7 +380,7 @@ export function AccountResearchChat({
           {showForm ? (
             <Button
               onClick={handleStartResearch}
-              disabled={isResearching || !companyName.trim()}
+              disabled={isResearching || !companyName.trim() || isRateLimited}
               className="flex-1"
             >
               {isResearching ? (
