@@ -1,22 +1,11 @@
 import { format } from 'date-fns';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, Flame, Calendar, ChevronRight } from 'lucide-react';
+import { Users, Calendar, ChevronRight } from 'lucide-react';
 import { ProspectStatus } from '@/api/prospects';
-
-const statusLabels: Record<ProspectStatus, string> = {
-  active: 'Active',
-  won: 'Won',
-  lost: 'Lost',
-  dormant: 'Dormant',
-};
-
-const statusVariants: Record<ProspectStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-  active: 'default',
-  won: 'secondary',
-  lost: 'destructive',
-  dormant: 'outline',
-};
+import { statusLabels, statusVariants } from '@/constants/prospects';
+import { formatCurrency } from '@/lib/formatters';
+import { HeatScoreBadge } from '@/components/ui/heat-score-badge';
 
 interface MobileProspectCardProps {
   prospect: {
@@ -34,34 +23,7 @@ interface MobileProspectCardProps {
   onClick: () => void;
 }
 
-function HeatScoreBadge({ score }: { score: number | null }) {
-  if (score === null) return null;
-  
-  let colorClass = 'text-muted-foreground';
-  if (score >= 8) colorClass = 'text-red-500';
-  else if (score >= 6) colorClass = 'text-orange-500';
-  else if (score >= 4) colorClass = 'text-yellow-500';
-  else colorClass = 'text-blue-500';
-
-  return (
-    <div className="flex items-center gap-1">
-      <Flame className={`h-4 w-4 ${colorClass}`} />
-      <span className={`text-sm font-medium ${colorClass}`}>{score}/10</span>
-    </div>
-  );
-}
-
 export function MobileProspectCard({ prospect, stakeholderCount, callCount, onClick }: MobileProspectCardProps) {
-  const formatCurrency = (value: number | null | undefined): string | null => {
-    if (value == null) return null;
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
-
   return (
     <Card 
       variant="interactive"

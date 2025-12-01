@@ -28,7 +28,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { TableSkeleton } from '@/components/ui/skeletons';
-import { Search, Users, Flame, Calendar, DollarSign, ChevronRight, Building2 } from 'lucide-react';
+import { Search, Users, Calendar, DollarSign, ChevronRight, Building2, Flame } from 'lucide-react';
 import { format } from 'date-fns';
 import { 
   listProspectsForTeam, 
@@ -39,52 +39,9 @@ import {
   type ProspectFilters 
 } from '@/api/prospects';
 import { getStakeholderCountsForProspects, getPrimaryStakeholdersForProspects } from '@/api/stakeholders';
-
-const statusLabels: Record<ProspectStatus, string> = {
-  active: 'Active',
-  won: 'Won',
-  lost: 'Lost',
-  dormant: 'Dormant',
-};
-
-const statusVariants: Record<ProspectStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-  active: 'default',
-  won: 'secondary',
-  lost: 'destructive',
-  dormant: 'outline',
-};
-
-const industryOptions = [
-  { value: 'education', label: 'Education' },
-  { value: 'local_government', label: 'Local Government' },
-  { value: 'state_government', label: 'State Government' },
-  { value: 'federal_government', label: 'Federal Government' },
-  { value: 'healthcare', label: 'Healthcare' },
-  { value: 'msp', label: 'MSP' },
-  { value: 'technology', label: 'Technology' },
-  { value: 'finance', label: 'Finance' },
-  { value: 'manufacturing', label: 'Manufacturing' },
-  { value: 'retail', label: 'Retail' },
-  { value: 'nonprofit', label: 'Nonprofit' },
-  { value: 'other', label: 'Other' },
-];
-
-function HeatScoreBadge({ score }: { score: number | null }) {
-  if (score === null) return <span className="text-muted-foreground">—</span>;
-  
-  let colorClass = 'text-muted-foreground';
-  if (score >= 8) colorClass = 'text-red-500';
-  else if (score >= 6) colorClass = 'text-orange-500';
-  else if (score >= 4) colorClass = 'text-yellow-500';
-  else colorClass = 'text-blue-500';
-
-  return (
-    <div className="flex items-center gap-1">
-      <Flame className={`h-4 w-4 ${colorClass}`} />
-      <span className={colorClass}>{score}/10</span>
-    </div>
-  );
-}
+import { statusLabels, statusVariants, industryOptions } from '@/constants/prospects';
+import { formatCurrency } from '@/lib/formatters';
+import { HeatScoreBadge } from '@/components/ui/heat-score-badge';
 
 function ManagerAccounts() {
   const { user } = useAuth();
@@ -173,16 +130,6 @@ function ManagerAccounts() {
       prospect.rep_name.toLowerCase().includes(searchLower)
     );
   });
-
-  const formatCurrency = (value: number | null) => {
-    if (value === null) return '—';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
 
   return (
     <AppLayout>

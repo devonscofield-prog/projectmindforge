@@ -19,6 +19,7 @@ import { format } from 'date-fns';
 import { getDashboardUrl, getCallHistoryUrl } from '@/lib/routes';
 import { getCallDetailBreadcrumbs } from '@/lib/breadcrumbConfig';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
+import { formatCurrency } from '@/lib/formatters';
 import { 
   ArrowLeft, 
   Calendar, 
@@ -159,9 +160,6 @@ function CallDetailPage() {
     }
     return null;
   };
-
-  const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
 
   if (loading) {
     return (

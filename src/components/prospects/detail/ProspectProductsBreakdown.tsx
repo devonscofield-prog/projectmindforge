@@ -16,11 +16,12 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { getProspectProductsSummary, ProspectProductSummary } from '@/api/callProducts';
-import { Package, DollarSign, Hash, Calendar, ChevronDown, TrendingUp } from 'lucide-react';
+import { Package, DollarSign, Calendar, ChevronDown, TrendingUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { getCallDetailUrl } from '@/lib/routes';
 import { createLogger } from '@/lib/logger';
+import { formatCurrency } from '@/lib/formatters';
 
 const log = createLogger('ProspectProductsBreakdown');
 
@@ -48,9 +49,6 @@ export function ProspectProductsBreakdown({ prospectId }: ProspectProductsBreakd
 
     loadProducts();
   }, [prospectId]);
-
-  const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
 
   const toggleProduct = (productId: string) => {
     setExpandedProducts(prev => {
@@ -143,14 +141,14 @@ export function ProspectProductsBreakdown({ prospectId }: ProspectProductsBreakd
                               {product.product_name}
                             </div>
                           </TableCell>
-                          <TableCell className="text-right font-mono">
+                           <TableCell className="text-right font-mono">
                             {formatCurrency(product.total_revenue)}
                           </TableCell>
                           <TableCell className="text-center">
                             <Badge variant="secondary">{product.call_count}</Badge>
                           </TableCell>
                           <TableCell className="text-right text-muted-foreground">
-                            {formatCurrency(product.avg_unit_price)}
+                            {formatCurrency(product.avg_unit_price ?? 0)}
                           </TableCell>
                           <TableCell className="text-right text-sm text-muted-foreground">
                             {format(new Date(product.most_recent_call_date), 'MMM d, yyyy')}
