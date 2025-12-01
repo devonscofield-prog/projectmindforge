@@ -61,6 +61,7 @@ export interface CallTranscript {
   potential_revenue: number | null;
   call_type: CallType | null;
   call_type_other: string | null;
+  prospect_id: string | null;
 }
 
 export interface CallTranscriptWithHeat extends CallTranscript {

@@ -80,3 +80,31 @@ export async function updateProspectActiveRevenue(
 
   if (error) throw error;
 }
+
+export async function updateCallProduct(
+  productId: string,
+  updates: {
+    unit_price?: number;
+    quantity?: number;
+    promotion_notes?: string;
+  }
+): Promise<CallProduct> {
+  const { data, error } = await supabase
+    .from('call_products')
+    .update(updates)
+    .eq('id', productId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteCallProduct(productId: string): Promise<void> {
+  const { error } = await supabase
+    .from('call_products')
+    .delete()
+    .eq('id', productId);
+
+  if (error) throw error;
+}

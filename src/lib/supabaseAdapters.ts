@@ -194,6 +194,7 @@ export function toCallTranscript(row: CallTranscriptRow): CallTranscript {
     potential_revenue: row.potential_revenue,
     call_type: row.call_type as CallTranscript['call_type'],
     call_type_other: row.call_type_other,
+    prospect_id: row.prospect_id,
   };
 }
 
