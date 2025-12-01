@@ -8,8 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { RateLimitCountdown } from '@/components/ui/rate-limit-countdown';
+import { AnalysisMessageRenderer } from '@/components/admin/AnalysisMessageRenderer';
 import { Search, Loader2, Copy, Check, ChevronDown, Plus, X, Building2, Save, History, RefreshCw } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { streamAccountResearch, type AccountResearchRequest } from '@/api/accountResearch';
@@ -465,15 +465,19 @@ export function AccountResearchChat({
                       : 'previously'}
                   </span>
                 </div>
-                <div className="prose prose-sm dark:prose-invert max-w-none">
-                  <ReactMarkdown>{savedResearch.content}</ReactMarkdown>
-                </div>
+                <AnalysisMessageRenderer 
+                  content={savedResearch.content} 
+                  isStreaming={false}
+                />
               </div>
             ) : (
               /* New Research Results */
-              <div className="prose prose-sm dark:prose-invert max-w-none">
+              <div>
                 {researchResult ? (
-                  <ReactMarkdown>{researchResult}</ReactMarkdown>
+                  <AnalysisMessageRenderer 
+                    content={researchResult} 
+                    isStreaming={isResearching}
+                  />
                 ) : (
                   <div className="flex items-center justify-center py-12">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
