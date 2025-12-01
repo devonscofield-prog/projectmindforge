@@ -334,7 +334,7 @@ function CallDetailPage() {
         </Card>
 
         {/* Products Summary */}
-        <CallProductsSummary callId={id!} />
+        <CallProductsSummary callId={id!} prospectId={transcript.prospect_id} isOwner={isOwner} />
 
         {/* Analysis Results - Uses shared component with ownership info */}
         <CallAnalysisResultsView 
