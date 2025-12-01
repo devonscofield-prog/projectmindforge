@@ -13,6 +13,7 @@ import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
 import { CallAnalysisPageSkeleton } from '@/components/ui/skeletons';
 import { getCallWithAnalysis, getAnalysisForCall, CallAnalysis, CallTranscript } from '@/api/aiCallAnalysis';
 import { CallAnalysisResultsView } from '@/components/calls/CallAnalysisResultsView';
+import { CallProductsSummary } from '@/components/calls/CallProductsSummary';
 import { CallType, callTypeLabels } from '@/constants/callTypes';
 import { format } from 'date-fns';
 import { getDashboardUrl, getCallHistoryUrl } from '@/lib/routes';
@@ -331,6 +332,9 @@ function CallDetailPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Products Summary */}
+        <CallProductsSummary callId={id!} />
 
         {/* Analysis Results - Uses shared component with ownership info */}
         <CallAnalysisResultsView 
