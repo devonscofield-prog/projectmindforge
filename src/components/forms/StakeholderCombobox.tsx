@@ -92,11 +92,9 @@ export function StakeholderCombobox({
           role="combobox"
           aria-expanded={open}
           className="w-full justify-between font-normal"
-          disabled={disabled || !prospectId}
+          disabled={disabled}
         >
-          {!prospectId ? (
-            <span className="text-muted-foreground">Select account first</span>
-          ) : value ? (
+          {value ? (
             <span className="flex items-center gap-2 truncate">
               <User className="h-4 w-4 text-muted-foreground shrink-0" />
               <span className="truncate">{value}</span>
@@ -113,7 +111,7 @@ export function StakeholderCombobox({
       <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
         <Command shouldFilter={false}>
           <CommandInput 
-            placeholder="Search stakeholders..." 
+            placeholder={!prospectId ? "Type stakeholder name..." : "Search stakeholders..."} 
             value={searchValue}
             onValueChange={setSearchValue}
           />
@@ -133,6 +131,8 @@ export function StakeholderCombobox({
                       <Plus className="h-4 w-4" />
                       Create "{searchValue.trim()}"
                     </button>
+                  ) : !prospectId ? (
+                    'Type a stakeholder name for this new account.'
                   ) : stakeholders.length === 0 ? (
                     'No stakeholders yet. Type a name to add one.'
                   ) : (
