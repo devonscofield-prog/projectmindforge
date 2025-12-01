@@ -42,6 +42,10 @@ const AdminPerformanceMonitor = lazy(() => import("./pages/admin/AdminPerformanc
 // Lazy load - Shared pages
 const CallDetailPage = lazy(() => import("./pages/calls/CallDetailPage"));
 
+// Lazy load - Marketing pages (public)
+const ROICalculatorPage = lazy(() => import("./pages/marketing/ROICalculatorPage"));
+const PitchDeckPage = lazy(() => import("./pages/marketing/PitchDeckPage"));
+
 // Create query client with logging
 const queryClient = createQueryClient();
 
@@ -199,6 +203,10 @@ const App = () => (
                     <AdminPerformanceMonitor />
                   </ProtectedRoute>
                 } />
+
+                {/* Marketing Routes (Public) */}
+                <Route path="/marketing/roi-calculator" element={<ROICalculatorPage />} />
+                <Route path="/marketing/pitch-deck" element={<PitchDeckPage />} />
 
                 <Route path="*" element={<NotFound />} />
               </Routes>

@@ -1,0 +1,10 @@
+export { TitleSlide } from './TitleSlide';
+export { ChallengeSlide } from './ChallengeSlide';
+export { SolutionSlide } from './SolutionSlide';
+export { FeaturesSlide } from './FeaturesSlide';
+export { ROISlide } from './ROISlide';
+export { HowItWorksSlide } from './HowItWorksSlide';
+export { ComparisonSlide } from './ComparisonSlide';
+export { RoadmapSlide } from './RoadmapSlide';
+export { SuccessSlide } from './SuccessSlide';
+export { CTASlide } from './CTASlide';
