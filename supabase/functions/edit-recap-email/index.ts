@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
 
 // CORS: Restrict to production domains
 function getCorsHeaders(origin?: string | null): Record<string, string> {
@@ -42,6 +43,13 @@ const REQUIRED_LINKS = [
   '[View Sample Courses](https://info.stormwind.com/training-samples)'
 ];
 
+// Zod validation schema
+const editRecapEmailSchema = z.object({
+  original_recap_email_draft: z.string().min(10, "Email draft too short").max(10000, "Email draft too long"),
+  edit_instructions: z.string().min(1, "Edit instructions required").max(500, "Instructions too long"),
+  call_summary: z.string().max(2000, "Call summary too long").optional().nullable()
+});
+
 // System prompt for email editing
 const EDIT_SYSTEM_PROMPT = `You are an email editor helping a sales rep refine a recap email.
 
@@ -65,46 +73,6 @@ interface EditRecapEmailRequest {
   original_recap_email_draft: string;
   edit_instructions: string;
   call_summary?: string | null;
-}
-
-/**
- * Validate that the request body has required fields
- */
-function validateRequest(body: unknown): { valid: true; data: EditRecapEmailRequest } | { valid: false; error: string } {
-  if (!body || typeof body !== 'object') {
-    return { valid: false, error: 'Request body must be a JSON object' };
-  }
-
-  const { original_recap_email_draft, edit_instructions, call_summary } = body as Record<string, unknown>;
-
-  if (typeof original_recap_email_draft !== 'string' || original_recap_email_draft.trim().length === 0) {
-    return { valid: false, error: 'original_recap_email_draft must be a non-empty string' };
-  }
-
-  if (typeof edit_instructions !== 'string' || edit_instructions.trim().length === 0) {
-    return { valid: false, error: 'edit_instructions must be a non-empty string' };
-  }
-
-  // call_summary is optional, but if provided must be string or null
-  if (call_summary !== undefined && call_summary !== null && typeof call_summary !== 'string') {
-    return { valid: false, error: 'call_summary must be a string or null if provided' };
-  }
-
-  return {
-    valid: true,
-    data: {
-      original_recap_email_draft: original_recap_email_draft.trim(),
-      edit_instructions: edit_instructions.trim(),
-      call_summary: typeof call_summary === 'string' ? call_summary.trim() : null
-    }
-  };
-}
-
-/**
- * Validate that output contains required links
- */
-function validateOutputLinks(output: string): boolean {
-  return REQUIRED_LINKS.every(link => output.includes(link));
 }
 
 serve(async (req) => {
@@ -165,16 +133,20 @@ serve(async (req) => {
       );
     }
 
-    const validation = validateRequest(body);
-    if (!validation.valid) {
-      console.warn('[edit-recap-email] Validation failed:', validation.error);
+    const validation = editRecapEmailSchema.safeParse(body);
+    if (!validation.success) {
+      const errors = validation.error.errors.map(err => ({
+        path: err.path.join('.'),
+        message: err.message
+      }));
+      console.warn('[edit-recap-email] Validation failed:', errors);
       return new Response(
-        JSON.stringify({ error: validation.error }),
+        JSON.stringify({ error: 'Validation failed', issues: errors }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const { original_recap_email_draft, edit_instructions, call_summary } = validation.data;
+    const { original_recap_email_draft, edit_instructions, call_summary }: EditRecapEmailRequest = validation.data;
     console.log('[edit-recap-email] Processing edit request');
     console.log('[edit-recap-email] Instructions:', edit_instructions.substring(0, 100) + '...');
 
@@ -251,10 +223,9 @@ serve(async (req) => {
     }
 
     // Validate that required links are preserved
-    if (!validateOutputLinks(updatedEmail)) {
-      console.warn('[edit-recap-email] AI output missing required links, attempting to append them');
-      // If links are missing, we'll still return the result but log a warning
-      // The UI can handle this case
+    if (!REQUIRED_LINKS.every(link => updatedEmail.includes(link))) {
+      console.warn('[edit-recap-email] AI output missing required links');
+      // Still return the result but log a warning
     }
 
     console.log('[edit-recap-email] Successfully generated updated email');

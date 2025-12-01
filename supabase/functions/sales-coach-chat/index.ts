@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
 
 // Rate limiting: 20 requests per minute per user
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
@@ -57,43 +58,16 @@ function getCorsHeaders(origin?: string | null): Record<string, string> {
   };
 }
 
-// UUID validation regex
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Zod validation schemas
+const chatMessageSchema = z.object({
+  role: z.enum(['user', 'assistant']),
+  content: z.string().min(1, "Message content cannot be empty").max(50000, "Message too long")
+});
 
-function validateUUID(value: unknown, fieldName: string): string | null {
-  if (typeof value !== 'string') {
-    return `${fieldName} must be a string`;
-  }
-  if (!UUID_REGEX.test(value)) {
-    return `${fieldName} must be a valid UUID`;
-  }
-  return null;
-}
-
-function validateMessages(messages: unknown): string | null {
-  if (!Array.isArray(messages)) {
-    return 'messages must be an array';
-  }
-  if (messages.length === 0) {
-    return 'messages cannot be empty';
-  }
-  for (let i = 0; i < messages.length; i++) {
-    const msg = messages[i];
-    if (!msg || typeof msg !== 'object') {
-      return `messages[${i}] must be an object`;
-    }
-    if (!['user', 'assistant'].includes(msg.role)) {
-      return `messages[${i}].role must be 'user' or 'assistant'`;
-    }
-    if (typeof msg.content !== 'string' || msg.content.length === 0) {
-      return `messages[${i}].content must be a non-empty string`;
-    }
-    if (msg.content.length > 50000) {
-      return `messages[${i}].content exceeds maximum length of 50000 characters`;
-    }
-  }
-  return null;
-}
+const salesCoachChatSchema = z.object({
+  prospect_id: z.string().uuid({ message: "Invalid prospect_id UUID format" }),
+  messages: z.array(chatMessageSchema).min(1, "At least one message required").max(50, "Too many messages")
+});
 
 const SALES_COACH_SYSTEM_PROMPT = `You are a 30-year veteran sales manager who has seen it all and closed deals at every level. You're friendly, direct, and tactical. You've managed hundreds of reps and have a sixth sense for what works and what doesn't.
 
@@ -136,29 +110,31 @@ serve(async (req) => {
   }
 
   try {
-    const body = await req.json();
-    const { prospect_id, messages } = body as { 
-      prospect_id: unknown; 
-      messages: unknown;
-    };
-    
-    // Validate prospect_id
-    const prospectIdError = validateUUID(prospect_id, 'prospect_id');
-    if (prospectIdError) {
+    // Parse and validate request body
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
       return new Response(
-        JSON.stringify({ error: prospectIdError }),
+        JSON.stringify({ error: 'Invalid JSON in request body' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-    
-    // Validate messages
-    const messagesError = validateMessages(messages);
-    if (messagesError) {
+
+    const validation = salesCoachChatSchema.safeParse(body);
+    if (!validation.success) {
+      const errors = validation.error.errors.map(err => ({
+        path: err.path.join('.'),
+        message: err.message
+      }));
+      console.warn('[sales-coach-chat] Validation failed:', errors);
       return new Response(
-        JSON.stringify({ error: messagesError }),
+        JSON.stringify({ error: 'Validation failed', issues: errors }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const { prospect_id, messages } = validation.data;
 
     console.log(`[sales-coach-chat] Starting for prospect: ${prospect_id}`);
 
@@ -268,9 +244,7 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
-    // Cast validated messages to proper type
-    const validatedMessages = messages as Message[];
-    console.log(`[sales-coach-chat] Calling Lovable AI with ${validatedMessages.length} messages`);
+    console.log(`[sales-coach-chat] Calling Lovable AI with ${messages.length} messages`);
 
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -285,7 +259,7 @@ serve(async (req) => {
             role: 'system', 
             content: `${SALES_COACH_SYSTEM_PROMPT}\n\n## ACCOUNT CONTEXT\n${contextPrompt}` 
           },
-          ...validatedMessages
+          ...messages
         ],
         stream: true,
       })

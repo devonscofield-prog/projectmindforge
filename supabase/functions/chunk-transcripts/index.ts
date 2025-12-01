@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
 
 // CORS: Restrict to production domains
 function getCorsHeaders(origin?: string | null): Record<string, string> {
@@ -37,6 +38,11 @@ function checkRateLimit(userId: string): { allowed: boolean; retryAfter?: number
   return { allowed: true };
 }
 
+// Zod validation schema
+const chunkTranscriptsSchema = z.object({
+  transcript_ids: z.array(z.string().uuid()).min(1, "At least one transcript required").max(100, "Maximum 100 transcripts allowed")
+});
+
 // Type for transcript chunk
 interface TranscriptChunk {
   transcript_id: string;
@@ -64,14 +70,31 @@ serve(async (req) => {
   }
 
   try {
-    const { transcript_ids } = await req.json() as { transcript_ids: string[] };
-    
-    if (!transcript_ids || transcript_ids.length === 0) {
+    // Parse and validate request body
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
       return new Response(
-        JSON.stringify({ error: 'transcript_ids are required' }),
+        JSON.stringify({ error: 'Invalid JSON in request body' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const validation = chunkTranscriptsSchema.safeParse(body);
+    if (!validation.success) {
+      const errors = validation.error.errors.map((err: { path: (string | number)[]; message: string }) => ({
+        path: err.path.join('.'),
+        message: err.message
+      }));
+      console.warn('[chunk-transcripts] Validation failed:', errors);
+      return new Response(
+        JSON.stringify({ error: 'Validation failed', issues: errors }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { transcript_ids } = validation.data;
 
     console.log(`[chunk-transcripts] Processing ${transcript_ids.length} transcripts`);
 
@@ -136,7 +159,7 @@ serve(async (req) => {
       .in('transcript_id', transcript_ids);
 
     const chunkedIds = new Set((existingChunks || []).map(c => c.transcript_id));
-    const idsToChunk = transcript_ids.filter(id => !chunkedIds.has(id));
+    const idsToChunk = transcript_ids.filter((id: string) => !chunkedIds.has(id));
 
     console.log(`[chunk-transcripts] ${chunkedIds.size} already chunked, ${idsToChunk.length} to process`);
 

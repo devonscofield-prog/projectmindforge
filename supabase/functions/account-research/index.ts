@@ -1,20 +1,28 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface ResearchRequest {
-  companyName: string;
-  website?: string;
-  industry?: string;
-  stakeholders?: Array<{ name: string; title?: string; role?: string }>;
-  productPitch?: string;
-  dealStage?: string;
-  knownChallenges?: string;
-  additionalNotes?: string;
-}
+// Zod validation schema
+const researchRequestSchema = z.object({
+  companyName: z.string().min(1, "Company name is required").max(200),
+  website: z.string().url("Invalid website URL").optional(),
+  industry: z.string().max(100).optional(),
+  stakeholders: z.array(
+    z.object({
+      name: z.string().min(1).max(100),
+      title: z.string().max(100).optional(),
+      role: z.string().max(100).optional()
+    })
+  ).max(20, "Maximum 20 stakeholders allowed").optional(),
+  productPitch: z.string().max(1000, "Pitch too long (max 1000 chars)").optional(),
+  dealStage: z.string().max(100).optional(),
+  knownChallenges: z.string().max(2000).optional(),
+  additionalNotes: z.string().max(2000).optional()
+});
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -22,22 +30,44 @@ serve(async (req) => {
   }
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
-    }
-
-    const requestData: ResearchRequest = await req.json();
-    const { companyName, website, industry, stakeholders, productPitch, dealStage, knownChallenges, additionalNotes } = requestData;
-
-    if (!companyName) {
+    // Parse and validate request body
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
       return new Response(
-        JSON.stringify({ error: 'Company name is required' }),
+        JSON.stringify({ error: 'Invalid JSON in request body' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('Starting account research for:', companyName);
+    const validation = researchRequestSchema.safeParse(body);
+    if (!validation.success) {
+      const errors = validation.error.errors.map(err => ({
+        path: err.path.join('.'),
+        message: err.message
+      }));
+      console.warn('[account-research] Validation failed:', errors);
+      return new Response(
+        JSON.stringify({ error: 'Validation failed', issues: errors }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { companyName, website, industry, stakeholders, productPitch, dealStage, knownChallenges, additionalNotes } = validation.data;
+
+    console.log('[account-research] Processing research request for:', companyName);
+
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    if (!LOVABLE_API_KEY) {
+      console.error('[account-research] LOVABLE_API_KEY is not configured');
+      return new Response(
+        JSON.stringify({ error: 'AI service not configured' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    
 
     // Build context sections for the prompt
     const contextSections: string[] = [];
