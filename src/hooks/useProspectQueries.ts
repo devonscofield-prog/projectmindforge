@@ -17,6 +17,9 @@ import { createLogger } from '@/lib/logger';
 
 const log = createLogger('useProspectQueries');
 
+// Re-export types for consumers
+export type { ProspectStatus, ProspectFilters } from '@/api/prospects';
+
 export const prospectKeys = {
   all: ['prospects'] as const,
   lists: () => [...prospectKeys.all, 'list'] as const,
