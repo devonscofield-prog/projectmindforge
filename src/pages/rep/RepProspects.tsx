@@ -27,7 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Skeleton } from '@/components/ui/skeleton';
+import { MobileProspectListSkeleton, TableSkeleton } from '@/components/ui/skeletons';
 import { PullToRefresh } from '@/components/ui/pull-to-refresh';
 import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
 import { Search, Users, Flame, Calendar, DollarSign, ChevronRight, Building2 } from 'lucide-react';
@@ -292,11 +292,14 @@ function RepProspects() {
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="space-y-3">
-                {[...Array(5)].map((_, i) => (
-                  <Skeleton key={i} className="h-16 w-full" />
-                ))}
-              </div>
+              <>
+                <div className="md:hidden">
+                  <MobileProspectListSkeleton count={5} />
+                </div>
+                <div className="hidden md:block">
+                  <TableSkeleton rows={5} columns={9} />
+                </div>
+              </>
             ) : filteredProspects.length === 0 ? (
               <div className="text-center py-12">
                 <div className="mx-auto mb-4 rounded-full bg-muted p-4 w-fit">

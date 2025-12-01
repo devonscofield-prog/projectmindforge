@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
+import { CallAnalysisPageSkeleton } from '@/components/ui/skeletons';
 import { getCallWithAnalysis, getAnalysisForCall, CallAnalysis, CallTranscript } from '@/api/aiCallAnalysis';
 import { CallAnalysisResultsView } from '@/components/calls/CallAnalysisResultsView';
 import { CallType, callTypeLabels } from '@/constants/callTypes';
@@ -164,12 +165,7 @@ function CallDetailPage() {
   if (loading) {
     return (
       <AppLayout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-center space-y-4">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mx-auto" />
-            <p className="text-muted-foreground">Loading call details...</p>
-          </div>
-        </div>
+        <CallAnalysisPageSkeleton />
       </AppLayout>
     );
   }

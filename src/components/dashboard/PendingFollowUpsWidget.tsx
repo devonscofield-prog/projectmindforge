@@ -6,7 +6,7 @@ import { getAccountDetailUrl } from '@/lib/routes';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
+import { FollowUpListSkeleton } from '@/components/ui/skeletons';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { SwipeableCard } from '@/components/ui/swipeable-card';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -114,11 +114,7 @@ export function PendingFollowUpsWidget({ repId }: PendingFollowUpsWidgetProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
-          </div>
+          <FollowUpListSkeleton count={3} />
         </CardContent>
       </Card>
     );

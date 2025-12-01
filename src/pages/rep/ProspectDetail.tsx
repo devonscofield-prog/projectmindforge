@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { Skeleton } from '@/components/ui/skeleton';
+import { DetailPageSkeleton } from '@/components/ui/skeletons';
 import { useProspectData } from '@/hooks/useProspectData';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
 import { getAccountDetailBreadcrumbs } from '@/lib/breadcrumbConfig';
@@ -80,13 +80,7 @@ function ProspectDetail() {
   if (isLoading) {
     return (
       <AppLayout>
-        <div className="space-y-6">
-          <Skeleton className="h-8 w-48" />
-          <div className="grid gap-6 md:grid-cols-3">
-            <Skeleton className="h-64 md:col-span-2" />
-            <Skeleton className="h-64" />
-          </div>
-        </div>
+        <DetailPageSkeleton />
       </AppLayout>
     );
   }
