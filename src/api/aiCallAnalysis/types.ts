@@ -19,6 +19,14 @@ export interface AnalysisMetadata {
 }
 
 // ============= CALL TRANSCRIPT TYPES =============
+export interface ProductEntry {
+  productId: string;
+  productName: string;
+  unitPrice: number;
+  quantity: number;
+  promotionNotes?: string;
+}
+
 export interface CreateCallTranscriptParams {
   repId: string;
   callDate: string;
@@ -31,6 +39,7 @@ export interface CreateCallTranscriptParams {
   rawText: string;
   prospectId?: string;
   stakeholderId?: string;
+  products?: Omit<ProductEntry, 'productName'>[];
 }
 
 export interface CallTranscript {

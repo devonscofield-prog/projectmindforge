@@ -13,12 +13,14 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { createCallTranscriptAndAnalyze } from '@/api/aiCallAnalysis';
+import type { ProductEntry } from '@/api/aiCallAnalysis';
 import { updateProspect } from '@/api/prospects';
 import { CallType, callTypeOptions } from '@/constants/callTypes';
 import { format } from 'date-fns';
 import { Send, Loader2, Mic, Pencil, BarChart3 } from 'lucide-react';
 import { AccountCombobox } from '@/components/forms/AccountCombobox';
 import { StakeholderCombobox } from '@/components/forms/StakeholderCombobox';
+import { ProductSelector } from '@/components/forms/ProductSelector';
 import { PendingFollowUpsWidget } from '@/components/dashboard/PendingFollowUpsWidget';
 import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
@@ -46,6 +48,7 @@ function RepDashboard() {
   const [callDate, setCallDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [callType, setCallType] = useState<CallType>('first_demo');
   const [callTypeOther, setCallTypeOther] = useState('');
+  const [selectedProducts, setSelectedProducts] = useState<ProductEntry[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const handleAccountChange = (name: string, prospectId: string | null, salesforceLink?: string | null) => {
     setAccountName(name);
@@ -152,7 +155,13 @@ function RepDashboard() {
         potentialRevenue: potentialRevenue ? parseFloat(potentialRevenue) : undefined,
         rawText: transcript,
         prospectId: selectedProspectId || undefined,
-        stakeholderId: selectedStakeholderId || undefined
+        stakeholderId: selectedStakeholderId || undefined,
+        products: selectedProducts.length > 0 ? selectedProducts.map(p => ({
+          productId: p.productId,
+          unitPrice: p.unitPrice,
+          quantity: p.quantity,
+          promotionNotes: p.promotionNotes,
+        })) : undefined,
       });
 
       // Check for rate limit error in analyze response
@@ -282,10 +291,19 @@ function RepDashboard() {
                     <p className="text-xs text-muted-foreground">
                       Include the full conversation for best analysis results.
                     </p>
-                  </div>
+                    </div>
 
-                  {/* Submit Button */}
-                  <Button type="submit" disabled={isSubmitting || !transcript.trim() || stakeholderName.trim().length < 2 || accountName.trim().length < 2 || (!selectedProspectId || !existingAccountHasSalesforceLink) && !salesforceAccountLink.trim()} className="w-full h-12 text-lg" size="lg">
+                    {/* Product Selection */}
+                    <div className="space-y-2">
+                      <Label htmlFor="products">Products Discussed (Optional)</Label>
+                      <ProductSelector
+                        value={selectedProducts}
+                        onChange={setSelectedProducts}
+                      />
+                    </div>
+
+                    {/* Submit Button */}
+                    <Button type="submit" disabled={isSubmitting || !transcript.trim() || stakeholderName.trim().length < 2 || accountName.trim().length < 2 || (!selectedProspectId || !existingAccountHasSalesforceLink) && !salesforceAccountLink.trim()} className="w-full h-12 text-lg" size="lg">
                     {isSubmitting ? <>
                         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                         Analyzing Call...

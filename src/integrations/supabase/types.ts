@@ -421,6 +421,51 @@ export type Database = {
         }
         Relationships: []
       }
+      call_products: {
+        Row: {
+          call_id: string
+          created_at: string | null
+          id: string
+          product_id: string
+          promotion_notes: string | null
+          quantity: number
+          unit_price: number
+        }
+        Insert: {
+          call_id: string
+          created_at?: string | null
+          id?: string
+          product_id: string
+          promotion_notes?: string | null
+          quantity?: number
+          unit_price: number
+        }
+        Update: {
+          call_id?: string
+          created_at?: string | null
+          id?: string
+          product_id?: string
+          promotion_notes?: string | null
+          quantity?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_products_call_id_fkey"
+            columns: ["call_id"]
+            isOneToOne: false
+            referencedRelation: "call_transcripts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       call_stakeholder_mentions: {
         Row: {
           call_id: string
@@ -976,6 +1021,33 @@ export type Database = {
         }
         Relationships: []
       }
+      products: {
+        Row: {
+          created_at: string | null
+          display_order: number
+          id: string
+          is_active: boolean | null
+          name: string
+          slug: string
+        }
+        Insert: {
+          created_at?: string | null
+          display_order?: number
+          id?: string
+          is_active?: boolean | null
+          name: string
+          slug: string
+        }
+        Update: {
+          created_at?: string | null
+          display_order?: number
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          slug?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -1064,6 +1136,7 @@ export type Database = {
       prospects: {
         Row: {
           account_name: string | null
+          active_revenue: number | null
           ai_extracted_info: Json | null
           created_at: string
           deleted_at: string | null
@@ -1085,6 +1158,7 @@ export type Database = {
         }
         Insert: {
           account_name?: string | null
+          active_revenue?: number | null
           ai_extracted_info?: Json | null
           created_at?: string
           deleted_at?: string | null
@@ -1106,6 +1180,7 @@ export type Database = {
         }
         Update: {
           account_name?: string | null
+          active_revenue?: number | null
           ai_extracted_info?: Json | null
           created_at?: string
           deleted_at?: string | null

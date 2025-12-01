@@ -2,6 +2,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { createLogger } from '@/lib/logger';
 import { getOrCreateProspect, linkCallToProspect } from '@/api/prospects';
 import { toCallTranscript, toCallAnalysis, toCoachOutput } from '@/lib/supabaseAdapters';
+import { insertCallProducts, updateProspectActiveRevenue } from '@/api/callProducts';
 import type {
   CreateCallTranscriptParams,
   CallTranscript,
@@ -84,6 +85,28 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
     log.debug('Linked call to prospect', { prospectId });
   } catch (prospectError) {
     log.error('Failed to create/link prospect', { error: prospectError });
+  }
+
+  // Insert call products if provided
+  if (params.products && params.products.length > 0) {
+    try {
+      await insertCallProducts(transcript.id, params.products);
+      log.info('Inserted call products', { 
+        callId: transcript.id, 
+        count: params.products.length 
+      });
+
+      // Update prospect's active revenue if linked to a prospect
+      if (prospectId) {
+        await updateProspectActiveRevenue(prospectId);
+        log.info('Updated prospect active revenue', { 
+          prospectId 
+        });
+      }
+    } catch (productError) {
+      log.error('Failed to insert call products', { error: productError });
+      // Don't throw - transcript is already created, products are optional
+    }
   }
 
   // Call the analyze_call edge function

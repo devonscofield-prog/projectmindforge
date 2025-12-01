@@ -3,6 +3,7 @@ export type {
   AnalysisTier,
   AnalysisMetadata,
   CreateCallTranscriptParams,
+  ProductEntry,
   CallTranscript,
   CallTranscriptWithHeat,
   AnalysisStatus,
