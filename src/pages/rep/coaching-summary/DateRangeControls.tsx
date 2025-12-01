@@ -63,7 +63,7 @@ export function DateRangeControls({
 }: DateRangeControlsProps) {
   const handleQuickFix = (quickFix: string) => {
     if (quickFix === 'use-previous-period') {
-      setComparisonDateRange(createPreviousPeriodRange(dateRange));
+      // handleComparisonPresetChange('previous') already calculates and sets the date range
       setComparisonPreset('previous');
       setComparisonConfirmed(false);
     } else if (quickFix === 'shift-period-a') {

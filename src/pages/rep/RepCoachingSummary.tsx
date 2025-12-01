@@ -71,6 +71,8 @@ export default function RepCoachingSummary() {
     handleCompareFromHistory,
     handleExitHistoryComparison,
     handleRunComparison,
+    setComparisonDateRange,
+    setComparisonConfirmed,
   } = state;
 
   const getBreadcrumbItems = () => {
@@ -120,15 +122,9 @@ export default function RepCoachingSummary() {
             onComparisonFromDateChange={handleComparisonFromDateChange}
             onComparisonToDateChange={handleComparisonToDateChange}
             onRunComparison={handleRunComparison}
-            setComparisonDateRange={(range) => {
-              // Quick fix handlers are managed directly in DateRangeControls now
-            }}
-            setComparisonPreset={(preset) => {
-              handleComparisonPresetChange(preset);
-            }}
-            setComparisonConfirmed={(confirmed) => {
-              if (confirmed) handleRunComparison();
-            }}
+            setComparisonDateRange={setComparisonDateRange}
+            setComparisonPreset={handleComparisonPresetChange}
+            setComparisonConfirmed={setComparisonConfirmed}
           />
         </div>
 
