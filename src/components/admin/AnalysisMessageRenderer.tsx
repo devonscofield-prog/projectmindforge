@@ -20,6 +20,7 @@ import {
   Users,
   Target,
   TrendingUp,
+  HelpCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -36,9 +37,11 @@ const SECTION_PATTERNS = [
   { pattern: /^#{1,3}\s*✅\s*(.+)$/m, icon: CheckCircle2, type: 'success' },
   { pattern: /^#{1,3}\s*💡\s*(.+)$/m, icon: Lightbulb, type: 'insight' },
   { pattern: /^#{1,3}\s*🔍\s*(.+)$/m, icon: Target, type: 'analysis' },
+  { pattern: /^#{1,3}\s*🎯\s*(.+)$/m, icon: Target, type: 'analysis' },
   { pattern: /^#{1,3}\s*👥\s*(.+)$/m, icon: Users, type: 'people' },
   { pattern: /^#{1,3}\s*📈\s*(.+)$/m, icon: TrendingUp, type: 'trend' },
   { pattern: /^#{1,3}\s*📄\s*(.+)$/m, icon: FileText, type: 'document' },
+  { pattern: /^#{1,3}\s*❓\s*(.+)$/m, icon: HelpCircle, type: 'questions' },
   { pattern: /^#{1,3}\s*EXECUTIVE SUMMARY/im, icon: BarChart3, type: 'summary' },
   { pattern: /^#{1,3}\s*KEY FINDINGS/im, icon: Target, type: 'analysis' },
   { pattern: /^#{1,3}\s*RECOMMENDATIONS/im, icon: Lightbulb, type: 'insight' },
@@ -56,6 +59,7 @@ const TYPE_STYLES: Record<string, { bg: string; border: string; icon: string }> 
   people: { bg: 'bg-blue-500/5', border: 'border-blue-500/20', icon: 'text-blue-500' },
   trend: { bg: 'bg-emerald-500/5', border: 'border-emerald-500/20', icon: 'text-emerald-500' },
   document: { bg: 'bg-muted/50', border: 'border-border', icon: 'text-muted-foreground' },
+  questions: { bg: 'bg-orange-500/5', border: 'border-orange-500/20', icon: 'text-orange-500' },
 };
 
 interface ParsedSection {
@@ -118,7 +122,7 @@ function parseContentIntoSections(content: string): { sections: ParsedSection[];
     }
     
     return {
-      title: part.header.replace(/^[📊⚠️✅💡🔍👥📈📄]\s*/, ''),
+      title: part.header.replace(/^[📊⚠️✅💡🔍🎯👥📈📄❓]\s*/, ''),
       content: part.content,
       type,
       Icon,
