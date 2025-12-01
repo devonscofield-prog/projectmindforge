@@ -15,6 +15,7 @@ export * from './useProspectQueries';
 export * from './useManagerDashboardQueries';
 export * from './useAdminTeamsQueries';
 export * from './useAdminUsersQueries';
+export * from './useManagerCoachingQueries';
 
 // Mutation hooks with optimistic updates
 export * from './useFollowUpMutations';

@@ -1,9 +1,15 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { toProfile, toCoachingSession } from '@/lib/supabaseAdapters';
 import { getRepDetailUrl } from '@/lib/routes';
+import { 
+  useManagerCoachingSessions, 
+  useTeamRepsForManager,
+  managerCoachingKeys,
+  type CoachingWithRep 
+} from '@/hooks/useManagerCoachingQueries';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
 import { getManagerPageBreadcrumb } from '@/lib/breadcrumbConfig';
@@ -20,15 +26,10 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { CoachingSession, Profile } from '@/types/database';
+import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
 import { format } from 'date-fns';
-import { Plus, ArrowUpDown, Pencil, Trash2, Calendar, User, Target, FileText, CheckSquare, CalendarClock } from 'lucide-react';
-import { getTeamRepsForManager } from '@/api/prospects';
+import { Plus, ArrowUpDown, Pencil, Trash2, Calendar, User, Target, FileText, CheckSquare, CalendarClock, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-
-interface CoachingWithRep extends CoachingSession {
-  rep?: Profile;
-}
 
 type SortField = 'date' | 'follow-up';
 type SortOrder = 'asc' | 'desc';
@@ -38,9 +39,16 @@ const ITEMS_PER_PAGE = 10;
 export default function ManagerCoaching() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [sessions, setSessions] = useState<CoachingWithRep[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [teamReps, setTeamReps] = useState<{ id: string; name: string }[]>([]);
+  const queryClient = useQueryClient();
+  
+  // Fetch data using React Query
+  const { data: sessions = [], isLoading: sessionsLoading } = useManagerCoachingSessions(user?.id);
+  const { data: teamReps = [] } = useTeamRepsForManager(user?.id);
+  
+  // Handle refresh
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: managerCoachingKeys.all });
+  };
   
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -76,58 +84,6 @@ export default function ManagerCoaching() {
   // Computed dialog state
   const isDialogOpen = dialogOpen || editingSession !== null;
   const isEditMode = editingSession !== null;
-
-  const fetchData = async () => {
-    if (!user) return;
-    
-    // Get all coaching sessions by this manager
-    const { data: coachingData } = await supabase
-      .from('coaching_sessions')
-      .select('*')
-      .eq('manager_id', user.id)
-      .order('session_date', { ascending: false });
-
-    if (coachingData && coachingData.length > 0) {
-      // Get unique rep IDs
-      const repIds = [...new Set(coachingData.map((c) => c.rep_id))];
-
-      // Fetch rep profiles
-      const { data: repProfiles } = await supabase
-        .from('profiles')
-        .select('*')
-        .in('id', repIds);
-
-      // Map profiles to domain objects
-      const adaptedProfiles = (repProfiles || []).map(toProfile);
-      const profileMap = new Map(adaptedProfiles.map(p => [p.id, p]));
-
-      // Combine data
-      const sessionsWithReps: CoachingWithRep[] = coachingData.map((session) => {
-        const adaptedSession = toCoachingSession(session);
-        return {
-          ...adaptedSession,
-          rep: profileMap.get(session.rep_id),
-        };
-      });
-
-      setSessions(sessionsWithReps);
-    } else {
-      setSessions([]);
-    }
-
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    if (!user) return;
-    fetchData();
-  }, [user]);
-
-  useEffect(() => {
-    if (user) {
-      getTeamRepsForManager(user.id).then(setTeamReps);
-    }
-  }, [user]);
 
   // Reset page when filters change
   useEffect(() => {
@@ -195,7 +151,7 @@ export default function ManagerCoaching() {
       } else {
         toast({ title: 'Success', description: 'Coaching session updated' });
         handleDialogClose(false);
-        fetchData();
+        queryClient.invalidateQueries({ queryKey: managerCoachingKeys.sessions(user.id) });
       }
     } else {
       // Create new session
@@ -216,7 +172,7 @@ export default function ManagerCoaching() {
       } else {
         toast({ title: 'Success', description: 'Coaching session created' });
         handleDialogClose(false);
-        fetchData();
+        queryClient.invalidateQueries({ queryKey: managerCoachingKeys.sessions(user.id) });
       }
     }
   };
@@ -237,7 +193,9 @@ export default function ManagerCoaching() {
     } else {
       toast({ title: 'Success', description: 'Coaching session deleted' });
       setDeletingSession(null);
-      fetchData();
+      if (user) {
+        queryClient.invalidateQueries({ queryKey: managerCoachingKeys.sessions(user.id) });
+      }
     }
   };
 
@@ -320,7 +278,7 @@ export default function ManagerCoaching() {
     return pages;
   };
 
-  if (loading) {
+  if (sessionsLoading) {
     return (
       <AppLayout>
         <div className="flex items-center justify-center h-64">
@@ -341,14 +299,19 @@ export default function ManagerCoaching() {
             <p className="text-muted-foreground mt-1">All your coaching sessions with team members</p>
           </div>
           
-          <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
-            <DialogTrigger asChild>
-              <Button onClick={() => setDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                New Session
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
+          <div className="flex items-center gap-2">
+            <Button onClick={handleRefresh} variant="outline" size="sm">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+            <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
+              <DialogTrigger asChild>
+                <Button onClick={() => setDialogOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Session
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
               <DialogHeader>
                 <DialogTitle>{isEditMode ? 'Edit Coaching Session' : 'Create Coaching Session'}</DialogTitle>
               </DialogHeader>
@@ -437,8 +400,10 @@ export default function ManagerCoaching() {
               </form>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
 
+        <QueryErrorBoundary>
         <Card>
           <CardHeader>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -598,6 +563,7 @@ export default function ManagerCoaching() {
             )}
           </CardContent>
         </Card>
+        </QueryErrorBoundary>
       </div>
 
       {/* Delete Confirmation Dialog */}
