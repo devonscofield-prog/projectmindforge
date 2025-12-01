@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { z } from 'zod';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,8 +9,18 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { updateProspect } from '@/api/prospects';
 import type { Prospect, OpportunityDetails } from '@/api/prospects';
-import { Edit, Save, X, Bot, Users, TrendingUp } from 'lucide-react';
+import { Edit, Save, X, Bot, Users, TrendingUp, AlertCircle } from 'lucide-react';
 import { formatCurrency } from './constants';
+
+const opportunityDetailsSchema = z.object({
+  potential_revenue: z.number().min(0, 'Potential revenue cannot be negative').optional().or(z.literal(undefined)),
+  it_users_count: z.number().int().min(0, 'IT users count cannot be negative').optional().or(z.literal(undefined)),
+  end_users_count: z.number().int().min(0, 'End users count cannot be negative').optional().or(z.literal(undefined)),
+  ai_users_count: z.number().int().min(0, 'AI users count cannot be negative').optional().or(z.literal(undefined)),
+  compliance_users_count: z.number().int().min(0, 'Compliance users count cannot be negative').optional().or(z.literal(undefined)),
+  security_awareness_count: z.number().int().min(0, 'Security awareness count cannot be negative').optional().or(z.literal(undefined)),
+  notes: z.string().max(1000, 'Notes must be less than 1000 characters').optional().or(z.literal(undefined)),
+});
 
 interface ProspectOpportunityDetailsProps {
   prospect: Prospect;
@@ -20,6 +31,7 @@ export function ProspectOpportunityDetails({ prospect, onUpdate }: ProspectOppor
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   const opportunityDetails = prospect.opportunity_details || {};
   
@@ -34,6 +46,26 @@ export function ProspectOpportunityDetails({ prospect, onUpdate }: ProspectOppor
   });
 
   const handleSave = async () => {
+    // Validate form data
+    const validation = opportunityDetailsSchema.safeParse(formData);
+    
+    if (!validation.success) {
+      const errors: Record<string, string> = {};
+      validation.error.errors.forEach((err) => {
+        if (err.path[0]) {
+          errors[err.path[0].toString()] = err.message;
+        }
+      });
+      setValidationErrors(errors);
+      toast({
+        title: 'Validation failed',
+        description: 'Please fix the errors before saving',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setValidationErrors({});
     setIsSaving(true);
     try {
       const updated = await updateProspect(prospect.id, {
@@ -67,6 +99,7 @@ export function ProspectOpportunityDetails({ prospect, onUpdate }: ProspectOppor
       security_awareness_count: opportunityDetails.security_awareness_count,
       notes: opportunityDetails.notes,
     });
+    setValidationErrors({});
     setIsEditing(false);
   };
 
@@ -108,16 +141,24 @@ export function ProspectOpportunityDetails({ prospect, onUpdate }: ProspectOppor
         <div className="space-y-2">
           <Label htmlFor="potential_revenue" className="text-base font-semibold">Potential Revenue</Label>
           {isEditing ? (
-            <Input
-              id="potential_revenue"
-              type="number"
-              min="0"
-              step="1000"
-              value={formData.potential_revenue || ''}
-              onChange={(e) => setFormData({ ...formData, potential_revenue: parseFloat(e.target.value) || undefined })}
-              placeholder="Enter potential revenue"
-              className="text-lg"
-            />
+            <>
+              <Input
+                id="potential_revenue"
+                type="number"
+                min="0"
+                step="1000"
+                value={formData.potential_revenue || ''}
+                onChange={(e) => setFormData({ ...formData, potential_revenue: parseFloat(e.target.value) || undefined })}
+                placeholder="Enter potential revenue"
+                className={`text-lg ${validationErrors.potential_revenue ? 'border-destructive' : ''}`}
+              />
+              {validationErrors.potential_revenue && (
+                <div className="flex items-center gap-1 text-xs text-destructive">
+                  <AlertCircle className="h-3 w-3" />
+                  <span>{validationErrors.potential_revenue}</span>
+                </div>
+              )}
+            </>
           ) : (
             <p className="text-3xl font-bold text-primary">
               {opportunityDetails.potential_revenue ? formatCurrency(opportunityDetails.potential_revenue) : '-'}
@@ -135,13 +176,22 @@ export function ProspectOpportunityDetails({ prospect, onUpdate }: ProspectOppor
             <div className="space-y-2">
               <Label htmlFor="it_users">IT Users</Label>
               {isEditing ? (
-                <Input
-                  id="it_users"
-                  type="number"
-                  min="0"
-                  value={formData.it_users_count || ''}
-                  onChange={(e) => setFormData({ ...formData, it_users_count: parseInt(e.target.value) || undefined })}
-                />
+                <>
+                  <Input
+                    id="it_users"
+                    type="number"
+                    min="0"
+                    value={formData.it_users_count || ''}
+                    onChange={(e) => setFormData({ ...formData, it_users_count: parseInt(e.target.value) || undefined })}
+                    className={validationErrors.it_users_count ? 'border-destructive' : ''}
+                  />
+                  {validationErrors.it_users_count && (
+                    <div className="flex items-center gap-1 text-xs text-destructive">
+                      <AlertCircle className="h-3 w-3" />
+                      <span>{validationErrors.it_users_count}</span>
+                    </div>
+                  )}
+                </>
               ) : (
                 <p className="text-2xl font-bold">{opportunityDetails.it_users_count || '-'}</p>
               )}
@@ -149,13 +199,22 @@ export function ProspectOpportunityDetails({ prospect, onUpdate }: ProspectOppor
             <div className="space-y-2">
               <Label htmlFor="end_users">End Users</Label>
               {isEditing ? (
-                <Input
-                  id="end_users"
-                  type="number"
-                  min="0"
-                  value={formData.end_users_count || ''}
-                  onChange={(e) => setFormData({ ...formData, end_users_count: parseInt(e.target.value) || undefined })}
-                />
+                <>
+                  <Input
+                    id="end_users"
+                    type="number"
+                    min="0"
+                    value={formData.end_users_count || ''}
+                    onChange={(e) => setFormData({ ...formData, end_users_count: parseInt(e.target.value) || undefined })}
+                    className={validationErrors.end_users_count ? 'border-destructive' : ''}
+                  />
+                  {validationErrors.end_users_count && (
+                    <div className="flex items-center gap-1 text-xs text-destructive">
+                      <AlertCircle className="h-3 w-3" />
+                      <span>{validationErrors.end_users_count}</span>
+                    </div>
+                  )}
+                </>
               ) : (
                 <p className="text-2xl font-bold">{opportunityDetails.end_users_count || '-'}</p>
               )}
@@ -163,13 +222,22 @@ export function ProspectOpportunityDetails({ prospect, onUpdate }: ProspectOppor
             <div className="space-y-2">
               <Label htmlFor="ai_users">AI Users</Label>
               {isEditing ? (
-                <Input
-                  id="ai_users"
-                  type="number"
-                  min="0"
-                  value={formData.ai_users_count || ''}
-                  onChange={(e) => setFormData({ ...formData, ai_users_count: parseInt(e.target.value) || undefined })}
-                />
+                <>
+                  <Input
+                    id="ai_users"
+                    type="number"
+                    min="0"
+                    value={formData.ai_users_count || ''}
+                    onChange={(e) => setFormData({ ...formData, ai_users_count: parseInt(e.target.value) || undefined })}
+                    className={validationErrors.ai_users_count ? 'border-destructive' : ''}
+                  />
+                  {validationErrors.ai_users_count && (
+                    <div className="flex items-center gap-1 text-xs text-destructive">
+                      <AlertCircle className="h-3 w-3" />
+                      <span>{validationErrors.ai_users_count}</span>
+                    </div>
+                  )}
+                </>
               ) : (
                 <p className="text-2xl font-bold">{opportunityDetails.ai_users_count || '-'}</p>
               )}
@@ -177,13 +245,22 @@ export function ProspectOpportunityDetails({ prospect, onUpdate }: ProspectOppor
             <div className="space-y-2">
               <Label htmlFor="compliance_users">Compliance Users</Label>
               {isEditing ? (
-                <Input
-                  id="compliance_users"
-                  type="number"
-                  min="0"
-                  value={formData.compliance_users_count || ''}
-                  onChange={(e) => setFormData({ ...formData, compliance_users_count: parseInt(e.target.value) || undefined })}
-                />
+                <>
+                  <Input
+                    id="compliance_users"
+                    type="number"
+                    min="0"
+                    value={formData.compliance_users_count || ''}
+                    onChange={(e) => setFormData({ ...formData, compliance_users_count: parseInt(e.target.value) || undefined })}
+                    className={validationErrors.compliance_users_count ? 'border-destructive' : ''}
+                  />
+                  {validationErrors.compliance_users_count && (
+                    <div className="flex items-center gap-1 text-xs text-destructive">
+                      <AlertCircle className="h-3 w-3" />
+                      <span>{validationErrors.compliance_users_count}</span>
+                    </div>
+                  )}
+                </>
               ) : (
                 <p className="text-2xl font-bold">{opportunityDetails.compliance_users_count || '-'}</p>
               )}
@@ -191,13 +268,22 @@ export function ProspectOpportunityDetails({ prospect, onUpdate }: ProspectOppor
             <div className="space-y-2">
               <Label htmlFor="security_users">Security Awareness</Label>
               {isEditing ? (
-                <Input
-                  id="security_users"
-                  type="number"
-                  min="0"
-                  value={formData.security_awareness_count || ''}
-                  onChange={(e) => setFormData({ ...formData, security_awareness_count: parseInt(e.target.value) || undefined })}
-                />
+                <>
+                  <Input
+                    id="security_users"
+                    type="number"
+                    min="0"
+                    value={formData.security_awareness_count || ''}
+                    onChange={(e) => setFormData({ ...formData, security_awareness_count: parseInt(e.target.value) || undefined })}
+                    className={validationErrors.security_awareness_count ? 'border-destructive' : ''}
+                  />
+                  {validationErrors.security_awareness_count && (
+                    <div className="flex items-center gap-1 text-xs text-destructive">
+                      <AlertCircle className="h-3 w-3" />
+                      <span>{validationErrors.security_awareness_count}</span>
+                    </div>
+                  )}
+                </>
               ) : (
                 <p className="text-2xl font-bold">{opportunityDetails.security_awareness_count || '-'}</p>
               )}
@@ -209,13 +295,28 @@ export function ProspectOpportunityDetails({ prospect, onUpdate }: ProspectOppor
         <div className="space-y-2">
           <Label htmlFor="notes">Additional Notes</Label>
           {isEditing ? (
-            <Textarea
-              id="notes"
-              value={formData.notes || ''}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              placeholder="Add context about promotions, budget timing, multi-year deals, etc."
-              rows={3}
-            />
+            <>
+              <Textarea
+                id="notes"
+                value={formData.notes || ''}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                placeholder="Add context about promotions, budget timing, multi-year deals, etc."
+                rows={3}
+                maxLength={1000}
+                className={validationErrors.notes ? 'border-destructive' : ''}
+              />
+              {validationErrors.notes && (
+                <div className="flex items-center gap-1 text-xs text-destructive">
+                  <AlertCircle className="h-3 w-3" />
+                  <span>{validationErrors.notes}</span>
+                </div>
+              )}
+              {formData.notes && (
+                <p className="text-xs text-muted-foreground text-right">
+                  {formData.notes.length}/1000 characters
+                </p>
+              )}
+            </>
           ) : (
             <p className="text-sm text-muted-foreground">
               {opportunityDetails.notes || 'No additional notes'}
