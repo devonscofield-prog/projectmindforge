@@ -1,17 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { createLogger } from '@/lib/logger';
+import { useQueryClient } from '@tanstack/react-query';
 import { getAccountDetailUrl } from '@/lib/routes';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
-
-const log = createLogger('ManagerAccounts');
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
 import { getManagerPageBreadcrumb } from '@/lib/breadcrumbConfig';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -28,108 +27,76 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { TableSkeleton } from '@/components/ui/skeletons';
-import { Search, Users, Calendar, DollarSign, ChevronRight, Building2, Flame } from 'lucide-react';
+import { Search, Users, Calendar, DollarSign, ChevronRight, Building2, Flame, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import { 
-  listProspectsForTeam, 
-  getTeamRepsForManager,
-  getCallCountsForProspects,
-  type ProspectWithRep, 
+  useTeamProspects,
+  useCallCounts,
+  useStakeholderCounts,
+  usePrimaryStakeholders,
+  prospectKeys,
   type ProspectStatus,
   type ProspectFilters 
-} from '@/api/prospects';
-import { getStakeholderCountsForProspects, getPrimaryStakeholdersForProspects } from '@/api/stakeholders';
+} from '@/hooks/useProspectQueries';
+import { useTeamReps } from '@/hooks/useReps';
 import { statusLabels, statusVariants, industryOptions } from '@/constants/prospects';
 import { formatCurrency } from '@/lib/formatters';
 import { HeatScoreBadge } from '@/components/ui/heat-score-badge';
+import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
 
 function ManagerAccounts() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   
-  const [prospects, setProspects] = useState<ProspectWithRep[]>([]);
-  const [teamReps, setTeamReps] = useState<{ id: string; name: string }[]>([]);
-  const [callCounts, setCallCounts] = useState<Record<string, number>>({});
-  const [stakeholderCounts, setStakeholderCounts] = useState<Record<string, number>>({});
-  const [primaryStakeholders, setPrimaryStakeholders] = useState<Record<string, { name: string; job_title: string | null }>>({});
-  const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [repFilter, setRepFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<ProspectFilters['sortBy']>('last_contact_date');
 
-  useEffect(() => {
-    if (!user?.id) return;
-    loadTeamReps();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  // Fetch team reps
+  const { data: teamReps = [] } = useTeamReps(user?.id);
 
-  useEffect(() => {
-    if (!user?.id) return;
-    loadProspects();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, statusFilter, repFilter, sortBy]);
+  // Build filters for prospects query
+  const filters: ProspectFilters & { repId?: string } = useMemo(() => ({
+    sortBy,
+    sortOrder: 'desc',
+    statuses: statusFilter !== 'all' ? [statusFilter as ProspectStatus] : undefined,
+    repId: repFilter !== 'all' ? repFilter : undefined,
+  }), [sortBy, statusFilter, repFilter]);
 
-  const loadTeamReps = async () => {
-    if (!user?.id) return;
-    try {
-      const reps = await getTeamRepsForManager(user.id);
-      setTeamReps(reps);
-    } catch (error) {
-      log.error('Failed to load team reps', { error });
-    }
-  };
+  // Fetch prospects
+  const { 
+    data: prospects = [], 
+    isLoading: isLoadingProspects,
+    error: prospectsError 
+  } = useTeamProspects(user?.id, filters);
 
-  const loadProspects = async () => {
-    if (!user?.id) return;
-    
-    setIsLoading(true);
-    try {
-      const filters: ProspectFilters & { repId?: string } = {
-        sortBy,
-        sortOrder: 'desc',
-        repId: repFilter !== 'all' ? repFilter : undefined,
-      };
-      
-      if (statusFilter !== 'all') {
-        filters.statuses = [statusFilter as ProspectStatus];
-      }
+  // Get prospect IDs for related data
+  const prospectIds = useMemo(() => prospects.map(p => p.id), [prospects]);
 
-      const data = await listProspectsForTeam(user.id, filters);
-      setProspects(data);
+  // Fetch related data
+  const { data: callCounts = {} } = useCallCounts(prospectIds, prospectIds.length > 0);
+  const { data: stakeholderCounts = {} } = useStakeholderCounts(prospectIds, prospectIds.length > 0);
+  const { data: primaryStakeholders = {} } = usePrimaryStakeholders(prospectIds, prospectIds.length > 0);
 
-      // Get call counts, stakeholder counts, and primary stakeholders
-      if (data.length > 0) {
-        const prospectIds = data.map(p => p.id);
-        const [counts, sCounts, primaryData] = await Promise.all([
-          getCallCountsForProspects(prospectIds),
-          getStakeholderCountsForProspects(prospectIds),
-          getPrimaryStakeholdersForProspects(prospectIds),
-        ]);
-        setCallCounts(counts);
-        setStakeholderCounts(sCounts);
-        setPrimaryStakeholders(primaryData);
-      } else {
-        setCallCounts({});
-        setStakeholderCounts({});
-        setPrimaryStakeholders({});
-      }
-    } catch (error) {
-      log.error('Failed to load prospects', { error });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const filteredProspects = prospects.filter(prospect => {
-    if (!search) return true;
+  // Client-side search filter
+  const filteredProspects = useMemo(() => {
+    if (!search) return prospects;
     const searchLower = search.toLowerCase();
-    return (
+    return prospects.filter(prospect => 
       (prospect.account_name?.toLowerCase().includes(searchLower) ?? false) ||
       prospect.prospect_name.toLowerCase().includes(searchLower) ||
       prospect.rep_name.toLowerCase().includes(searchLower)
     );
-  });
+  }, [prospects, search]);
+
+  // Refresh handler
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: prospectKeys.lists() });
+  };
+
+  const isLoading = isLoadingProspects;
 
   return (
     <AppLayout>
@@ -137,11 +104,22 @@ function ManagerAccounts() {
         <PageBreadcrumb items={getManagerPageBreadcrumb('accounts')} />
         
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Team Accounts</h1>
-          <p className="text-muted-foreground">
-            View all accounts from your team's sales representatives
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Team Accounts</h1>
+            <p className="text-muted-foreground">
+              View all accounts from your team's sales representatives
+            </p>
+          </div>
+          <Button 
+            onClick={handleRefresh} 
+            variant="outline" 
+            size="sm"
+            disabled={isLoading}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
         </div>
 
         {/* Stats Cards */}
@@ -262,11 +240,12 @@ function ManagerAccounts() {
         </Card>
 
         {/* Prospects Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>All Team Accounts</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <QueryErrorBoundary>
+          <Card>
+            <CardHeader>
+              <CardTitle>All Team Accounts</CardTitle>
+            </CardHeader>
+            <CardContent>
             {isLoading ? (
               <TableSkeleton rows={5} columns={11} />
             ) : filteredProspects.length === 0 ? (
@@ -372,8 +351,9 @@ function ManagerAccounts() {
                 </TableBody>
               </Table>
             )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </QueryErrorBoundary>
       </div>
     </AppLayout>
   );

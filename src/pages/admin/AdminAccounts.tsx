@@ -1,16 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createLogger } from '@/lib/logger';
+import { useQueryClient } from '@tanstack/react-query';
 import { getAccountDetailUrl } from '@/lib/routes';
-import { supabase } from '@/integrations/supabase/client';
-
-const log = createLogger('AdminAccounts');
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
 import { getAdminPageBreadcrumb } from '@/lib/breadcrumbConfig';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -28,254 +26,79 @@ import {
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PaginationControls } from '@/components/ui/pagination-controls';
-import { Search, Users, Calendar, DollarSign, ChevronRight, Building2, Flame } from 'lucide-react';
+import { Search, Users, Calendar, DollarSign, ChevronRight, Building2, Flame, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
-import { getStakeholderCountsForProspects, getPrimaryStakeholdersForProspects } from '@/api/stakeholders';
+import {
+  useAdminProspects,
+  useAdminProspectStats,
+  useCallCounts,
+  useStakeholderCounts,
+  usePrimaryStakeholders,
+  prospectKeys,
+} from '@/hooks/useProspectQueries';
+import { useTeams } from '@/hooks/useTeams';
+import { useReps } from '@/hooks/useReps';
 import { statusLabels, statusVariants, industryOptions } from '@/constants/prospects';
 import { formatCurrency } from '@/lib/formatters';
 import { HeatScoreBadge } from '@/components/ui/heat-score-badge';
-
-type ProspectStatus = 'active' | 'won' | 'lost' | 'dormant';
-
-interface ProspectWithDetails {
-  id: string;
-  prospect_name: string;
-  account_name: string | null;
-  status: ProspectStatus;
-  industry: string | null;
-  heat_score: number | null;
-  potential_revenue: number | null;
-  last_contact_date: string | null;
-  rep_id: string;
-  rep_name: string;
-  team_name: string | null;
-}
+import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
 
 export default function AdminAccounts() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   
-  const [prospects, setProspects] = useState<ProspectWithDetails[]>([]);
-  const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
-  const [reps, setReps] = useState<{ id: string; name: string }[]>([]);
-  const [callCounts, setCallCounts] = useState<Record<string, number>>({});
-  const [stakeholderCounts, setStakeholderCounts] = useState<Record<string, number>>({});
-  const [primaryStakeholders, setPrimaryStakeholders] = useState<Record<string, { name: string; job_title: string | null }>>({});
-  const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [teamFilter, setTeamFilter] = useState<string>('all');
   const [repFilter, setRepFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('last_contact_date');
-  
-  // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalCount, setTotalCount] = useState(0);
   const [pageSize, setPageSize] = useState(25);
 
-  // Stats (fetched separately for accurate totals)
-  const [stats, setStats] = useState({ total: 0, active: 0, hot: 0, pipelineValue: 0 });
+  // Fetch teams and reps
+  const { data: teams = [] } = useTeams();
+  const { data: reps = [] } = useReps();
 
-  useEffect(() => {
-    loadInitialData();
-    loadStats();
-  }, []);
+  // Fetch stats (cached for 5 minutes)
+  const { data: stats = { total: 0, active: 0, hot: 0, pipelineValue: 0 } } = useAdminProspectStats();
 
-  useEffect(() => {
-    setCurrentPage(1); // Reset to page 1 when filters change
-  }, [statusFilter, teamFilter, repFilter, sortBy, search, pageSize]);
+  // Build filters for prospects query
+  const filters = useMemo(() => ({
+    statusFilter,
+    teamFilter,
+    repFilter,
+    sortBy,
+    search,
+    currentPage,
+    pageSize,
+  }), [statusFilter, teamFilter, repFilter, sortBy, search, currentPage, pageSize]);
 
-  useEffect(() => {
-    loadProspects();
-  }, [statusFilter, teamFilter, repFilter, sortBy, currentPage, pageSize, search]);
+  // Fetch prospects with pagination
+  const { 
+    data: prospectsData,
+    isLoading: isLoadingProspects,
+    error: prospectsError 
+  } = useAdminProspects(filters);
 
-  const loadInitialData = async () => {
-    // Load teams
-    const { data: teamsData } = await supabase.from('teams').select('id, name').order('name');
-    setTeams(teamsData || []);
+  const prospects = prospectsData?.prospects || [];
+  const totalCount = prospectsData?.totalCount || 0;
 
-    // Load all reps
-    const { data: profilesData } = await supabase
-      .from('profiles')
-      .select('id, name')
-      .order('name');
-    setReps(profilesData || []);
-  };
+  // Get prospect IDs for related data
+  const prospectIds = useMemo(() => prospects.map(p => p.id), [prospects]);
 
-  const loadStats = async () => {
-    // Get total counts for stats (without pagination)
-    const { count: totalCount } = await supabase
-      .from('prospects')
-      .select('*', { count: 'exact', head: true });
+  // Fetch related data
+  const { data: callCounts = {} } = useCallCounts(prospectIds, prospectIds.length > 0);
+  const { data: stakeholderCounts = {} } = useStakeholderCounts(prospectIds, prospectIds.length > 0);
+  const { data: primaryStakeholders = {} } = usePrimaryStakeholders(prospectIds, prospectIds.length > 0);
 
-    const { count: activeCount } = await supabase
-      .from('prospects')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'active');
-
-    const { data: hotProspects } = await supabase
-      .from('prospects')
-      .select('heat_score')
-      .gte('heat_score', 8);
-
-    const { data: pipelineData } = await supabase
-      .from('prospects')
-      .select('potential_revenue')
-      .eq('status', 'active');
-
-    const pipelineValue = (pipelineData || []).reduce((sum, p) => sum + (p.potential_revenue ?? 0), 0);
-
-    setStats({
-      total: totalCount || 0,
-      active: activeCount || 0,
-      hot: (hotProspects || []).length,
-      pipelineValue,
-    });
-  };
-
-  const loadProspects = async () => {
-    setIsLoading(true);
-    try {
-      // Build filter for rep IDs if team is selected
-      let repIdsInTeam: string[] | null = null;
-      if (teamFilter !== 'all') {
-        const { data: teamReps } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('team_id', teamFilter);
-        repIdsInTeam = (teamReps || []).map(r => r.id);
-      }
-
-      // Build the query with server-side pagination
-      let query = supabase
-        .from('prospects')
-        .select(`
-          id,
-          prospect_name,
-          account_name,
-          status,
-          industry,
-          heat_score,
-          potential_revenue,
-          last_contact_date,
-          rep_id
-        `, { count: 'exact' });
-
-      // Apply filters
-      if (statusFilter !== 'all') {
-        query = query.eq('status', statusFilter as ProspectStatus);
-      }
-
-      if (repFilter !== 'all') {
-        query = query.eq('rep_id', repFilter);
-      } else if (repIdsInTeam && repIdsInTeam.length > 0) {
-        query = query.in('rep_id', repIdsInTeam);
-      } else if (teamFilter !== 'all' && (!repIdsInTeam || repIdsInTeam.length === 0)) {
-        // Team selected but no reps in team - return empty
-        setProspects([]);
-        setTotalCount(0);
-        setIsLoading(false);
-        return;
-      }
-
-      // Apply search filter
-      if (search.trim()) {
-        query = query.or(`account_name.ilike.%${search.trim()}%,prospect_name.ilike.%${search.trim()}%`);
-      }
-
-      // Apply sorting
-      const ascending = sortBy === 'account_name';
-      query = query.order(sortBy === 'account_name' ? 'account_name' : sortBy, { ascending });
-
-      // Apply pagination
-      const from = (currentPage - 1) * pageSize;
-      const to = from + pageSize - 1;
-      query = query.range(from, to);
-
-      const { data: prospectsData, count, error } = await query;
-
-      if (error) {
-        log.error('Failed to load prospects', { error });
-        setProspects([]);
-        setTotalCount(0);
-        setIsLoading(false);
-        return;
-      }
-
-      setTotalCount(count || 0);
-
-      if (!prospectsData || prospectsData.length === 0) {
-        setProspects([]);
-        setCallCounts({});
-        setStakeholderCounts({});
-        setPrimaryStakeholders({});
-        setIsLoading(false);
-        return;
-      }
-
-      // Get unique rep IDs
-      const repIds = [...new Set(prospectsData.map(p => p.rep_id))];
-      
-      // Fetch rep profiles with teams
-      const { data: repProfiles } = await supabase
-        .from('profiles')
-        .select('id, name, team_id')
-        .in('id', repIds);
-
-      // Fetch teams for profiles
-      const teamIds = [...new Set(repProfiles?.map(r => r.team_id).filter(Boolean) || [])];
-      const { data: teamsData } = await supabase
-        .from('teams')
-        .select('id, name')
-        .in('id', teamIds as string[]);
-
-      // Build lookup maps
-      const repMap = new Map(repProfiles?.map(r => [r.id, r]) || []);
-      const teamMap = new Map(teamsData?.map(t => [t.id, t.name]) || []);
-
-      // Combine data
-      const combined: ProspectWithDetails[] = prospectsData.map(p => {
-        const rep = repMap.get(p.rep_id);
-        return {
-          ...p,
-          status: p.status as ProspectStatus,
-          rep_name: rep?.name || 'Unknown',
-          team_name: rep?.team_id ? teamMap.get(rep.team_id) || null : null,
-        };
-      });
-
-      setProspects(combined);
-
-      // Get additional data for current page
-      const prospectIds = combined.map(p => p.id);
-      
-      // Get call counts
-      const { data: callData } = await supabase
-        .from('call_transcripts')
-        .select('prospect_id')
-        .in('prospect_id', prospectIds);
-      
-      const counts: Record<string, number> = {};
-      callData?.forEach(c => {
-        if (c.prospect_id) {
-          counts[c.prospect_id] = (counts[c.prospect_id] || 0) + 1;
-        }
-      });
-      setCallCounts(counts);
-
-      const [sCounts, primaryData] = await Promise.all([
-        getStakeholderCountsForProspects(prospectIds),
-        getPrimaryStakeholdersForProspects(prospectIds),
-      ]);
-      setStakeholderCounts(sCounts);
-      setPrimaryStakeholders(primaryData);
-    } catch (error) {
-      log.error('Failed to load prospects', { error });
-    } finally {
-      setIsLoading(false);
-    }
+  // Refresh handler
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: prospectKeys.lists() });
+    queryClient.invalidateQueries({ queryKey: prospectKeys.stats() });
   };
 
   const totalPages = Math.ceil(totalCount / pageSize);
+  const isLoading = isLoadingProspects;
 
   return (
     <AppLayout>
@@ -283,11 +106,22 @@ export default function AdminAccounts() {
         <PageBreadcrumb items={getAdminPageBreadcrumb('accounts')} />
         
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">All Accounts</h1>
-          <p className="text-muted-foreground">
-            View all accounts across the organization
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">All Accounts</h1>
+            <p className="text-muted-foreground">
+              View all accounts across the organization
+            </p>
+          </div>
+          <Button 
+            onClick={handleRefresh} 
+            variant="outline" 
+            size="sm"
+            disabled={isLoading}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
         </div>
 
         {/* Stats Cards */}
@@ -409,11 +243,12 @@ export default function AdminAccounts() {
         </Card>
 
         {/* Prospects Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>All Organization Accounts</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <QueryErrorBoundary>
+          <Card>
+            <CardHeader>
+              <CardTitle>All Organization Accounts</CardTitle>
+            </CardHeader>
+            <CardContent>
             {isLoading ? (
               <div className="space-y-3">
                 {[...Array(5)].map((_, i) => (
@@ -512,7 +347,7 @@ export default function AdminAccounts() {
                           <ChevronRight className="h-4 w-4 text-muted-foreground" />
                         </TableCell>
                       </TableRow>
-                    ))}
+                ))}
                   </TableBody>
                 </Table>
 
@@ -529,8 +364,9 @@ export default function AdminAccounts() {
                 </div>
               </>
             )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </QueryErrorBoundary>
       </div>
     </AppLayout>
   );
