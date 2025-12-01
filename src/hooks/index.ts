@@ -11,6 +11,7 @@ export * from './useTeams';
 export * from './useReps';
 export * from './useProfiles';
 export * from './useAdminStats';
+export * from './useProspectQueries';
 
 // Mutation hooks with optimistic updates
 export * from './useFollowUpMutations';

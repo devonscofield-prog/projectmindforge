@@ -1,11 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { createLogger } from '@/lib/logger';
+import { useQueryClient } from '@tanstack/react-query';
 import { getAccountDetailUrl } from '@/lib/routes';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
-
-const log = createLogger('RepProspects');
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
 import { getRepPageBreadcrumb } from '@/lib/breadcrumbConfig';
@@ -32,85 +30,68 @@ import { PullToRefresh } from '@/components/ui/pull-to-refresh';
 import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
 import { Search, Users, Calendar, DollarSign, ChevronRight, Building2, Flame } from 'lucide-react';
 import { format } from 'date-fns';
-import { 
-  listProspectsForRep, 
-  getCallCountsForProspects,
-  type Prospect, 
-  type ProspectStatus,
-  type ProspectFilters 
-} from '@/api/prospects';
-import { getStakeholderCountsForProspects } from '@/api/stakeholders';
+import { type ProspectStatus, type ProspectFilters } from '@/api/prospects';
 import { MobileProspectCard } from '@/components/prospects/MobileProspectCard';
 import { statusLabels, statusVariants, industryOptions } from '@/constants/prospects';
 import { formatCurrency } from '@/lib/formatters';
 import { HeatScoreBadge } from '@/components/ui/heat-score-badge';
+import { 
+  useRepProspects, 
+  useCallCounts, 
+  useStakeholderCounts,
+  prospectKeys 
+} from '@/hooks/useProspectQueries';
 
 function RepProspects() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   
-  const [prospects, setProspects] = useState<Prospect[]>([]);
-  const [callCounts, setCallCounts] = useState<Record<string, number>>({});
-  const [stakeholderCounts, setStakeholderCounts] = useState<Record<string, number>>({});
-  const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<ProspectFilters['sortBy']>('last_contact_date');
 
-  useEffect(() => {
-    if (!user?.id) return;
-    loadProspects();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, statusFilter, sortBy]);
+  // Fetch prospects with React Query
+  const filters: ProspectFilters = useMemo(() => ({
+    sortBy,
+    sortOrder: 'desc' as const,
+    ...(statusFilter !== 'all' && { statuses: [statusFilter as ProspectStatus] }),
+  }), [statusFilter, sortBy]);
 
-  const loadProspects = async () => {
-    if (!user?.id) return;
-    
-    setIsLoading(true);
-    try {
-      const filters: ProspectFilters = {
-        sortBy,
-        sortOrder: 'desc',
-      };
-      
-      if (statusFilter !== 'all') {
-        filters.statuses = [statusFilter as ProspectStatus];
-      }
+  const { 
+    data: prospects = [], 
+    isLoading,
+    refetch: refetchProspects 
+  } = useRepProspects(user?.id, filters);
 
-      const data = await listProspectsForRep(user.id, filters);
-      setProspects(data);
+  const prospectIds = useMemo(() => prospects.map(p => p.id), [prospects]);
 
-      // Get call counts and stakeholder counts
-      if (data.length > 0) {
-        const prospectIds = data.map(p => p.id);
-        const [counts, sCounts] = await Promise.all([
-          getCallCountsForProspects(prospectIds),
-          getStakeholderCountsForProspects(prospectIds),
-        ]);
-        setCallCounts(counts);
-        setStakeholderCounts(sCounts);
-      }
-    } catch (error) {
-      log.error('Failed to load prospects', { error });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const { data: callCounts = {} } = useCallCounts(prospectIds);
+  const { data: stakeholderCounts = {} } = useStakeholderCounts(prospectIds);
 
   // Pull-to-refresh handler
-  const handleRefresh = useCallback(async () => {
-    await loadProspects();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, statusFilter, sortBy]);
+  const handleRefresh = async () => {
+    await queryClient.invalidateQueries({ queryKey: prospectKeys.lists() });
+  };
 
-  const filteredProspects = prospects.filter(prospect => {
-    if (!search) return true;
+  const filteredProspects = useMemo(() => {
+    if (!search) return prospects;
     const searchLower = search.toLowerCase();
-    return (
+    return prospects.filter(prospect =>
       (prospect.account_name?.toLowerCase().includes(searchLower) ?? false) ||
       prospect.prospect_name.toLowerCase().includes(searchLower)
     );
-  });
+  }, [prospects, search]);
+
+  // Calculate stats from filtered data
+  const stats = useMemo(() => ({
+    total: prospects.length,
+    active: prospects.filter(p => p.status === 'active').length,
+    hot: prospects.filter(p => (p.heat_score ?? 0) >= 8).length,
+    pipelineValue: prospects
+      .filter(p => p.status === 'active')
+      .reduce((sum, p) => sum + (p.potential_revenue ?? 0), 0),
+  }), [prospects]);
 
   return (
     <AppLayout>
@@ -135,7 +116,7 @@ function RepProspects() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Total Accounts</p>
-                  <p className="text-2xl font-bold">{prospects.length}</p>
+                  <p className="text-2xl font-bold">{stats.total}</p>
                 </div>
               </div>
             </CardContent>
@@ -148,9 +129,7 @@ function RepProspects() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Active</p>
-                  <p className="text-2xl font-bold">
-                    {prospects.filter(p => p.status === 'active').length}
-                  </p>
+                  <p className="text-2xl font-bold">{stats.active}</p>
                 </div>
               </div>
             </CardContent>
