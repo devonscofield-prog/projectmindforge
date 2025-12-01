@@ -50,6 +50,7 @@ export interface Prospect {
 }
 
 export interface OpportunityDetails {
+  potential_revenue?: number;
   it_users_count?: number;
   end_users_count?: number;
   ai_users_count?: number;

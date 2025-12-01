@@ -30,25 +30,9 @@ function HeatScoreDisplay({ score }: { score: number | null }) {
 }
 
 export function ProspectQuickStats({ prospect, stakeholderCount, callCount }: ProspectQuickStatsProps) {
-  // Calculate potential revenue from opportunity details if available
+  // Use manual potential revenue from opportunity details, fallback to legacy field
   const opportunityDetails = prospect.opportunity_details || {};
-  const hasCounts = opportunityDetails.it_users_count || 
-                     opportunityDetails.end_users_count || 
-                     opportunityDetails.ai_users_count ||
-                     opportunityDetails.compliance_users_count ||
-                     opportunityDetails.security_awareness_count;
-
-  let potentialRevenue = prospect.potential_revenue;
-  
-  // If user counts are provided, calculate estimated potential
-  if (hasCounts) {
-    const itRevenue = (opportunityDetails.it_users_count || 0) * 350;
-    const endUserRevenue = (opportunityDetails.end_users_count || 0) * 150;
-    const aiRevenue = (opportunityDetails.ai_users_count || 0) * 500;
-    const complianceRevenue = (opportunityDetails.compliance_users_count || 0) * 120;
-    const securityRevenue = (opportunityDetails.security_awareness_count || 0) * 100;
-    potentialRevenue = itRevenue + endUserRevenue + aiRevenue + complianceRevenue + securityRevenue;
-  }
+  const potentialRevenue = opportunityDetails.potential_revenue ?? prospect.potential_revenue;
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
@@ -60,7 +44,6 @@ export function ProspectQuickStats({ prospect, stakeholderCount, callCount }: Pr
             <div className="min-w-0">
               <p className="text-xs md:text-sm text-muted-foreground">Potential</p>
               <p className="text-base md:text-lg font-bold truncate">{formatCurrency(potentialRevenue)}</p>
-              {hasCounts && <p className="text-xs text-muted-foreground">Estimated</p>}
             </div>
           </div>
         </CardContent>
