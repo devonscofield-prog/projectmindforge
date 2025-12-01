@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
 
 // Rate limiting: 10 requests per minute per user
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
@@ -43,9 +44,14 @@ function getCorsHeaders(origin?: string | null): Record<string, string> {
   return {
     'Access-Control-Allow-Origin': isAllowed ? requestOrigin : allowedOrigins[0],
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
   };
 }
+
+// Zod validation schema
+const regenerateInsightsSchema = z.object({
+  prospect_id: z.string().uuid({ message: "Invalid prospect_id UUID format" })
+});
 
 // System prompt for generating consolidated account insights
 const INSIGHTS_SYSTEM_PROMPT = `You are a senior B2B sales analyst. Your task is to analyze ALL available data about an account (calls, emails, stakeholders) and generate comprehensive, actionable insights.
@@ -100,14 +106,31 @@ serve(async (req) => {
   }
 
   try {
-    const { prospect_id } = await req.json();
-    
-    if (!prospect_id) {
+    // Parse and validate request body
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
       return new Response(
-        JSON.stringify({ error: 'prospect_id is required' }),
+        JSON.stringify({ error: 'Invalid JSON in request body' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const validation = regenerateInsightsSchema.safeParse(body);
+    if (!validation.success) {
+      const errors = validation.error.errors.map(err => ({
+        path: err.path.join('.'),
+        message: err.message
+      }));
+      console.warn('[regenerate-account-insights] Validation failed:', errors);
+      return new Response(
+        JSON.stringify({ error: 'Validation failed', issues: errors }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { prospect_id } = validation.data;
 
     console.log(`[regenerate-account-insights] Starting for prospect: ${prospect_id}`);
 

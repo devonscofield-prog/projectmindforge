@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
 
 // Rate limiting: 10 requests per minute per user (this is a heavier operation)
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
@@ -47,18 +48,10 @@ function getCorsHeaders(origin?: string | null): Record<string, string> {
   };
 }
 
-// UUID validation regex
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function validateUUID(value: unknown, fieldName: string): string | null {
-  if (typeof value !== 'string') {
-    return `${fieldName} must be a string`;
-  }
-  if (!UUID_REGEX.test(value)) {
-    return `${fieldName} must be a valid UUID`;
-  }
-  return null;
-}
+// Zod validation schema
+const generateFollowUpsSchema = z.object({
+  prospect_id: z.string().uuid({ message: "Invalid prospect_id UUID format" })
+});
 
 // Sales veteran system prompt for generating follow-up steps
 const FOLLOW_UP_SYSTEM_PROMPT = `You are a 20-year B2B/SaaS sales veteran and strategic account coach. You've closed hundreds of enterprise deals ranging from $50K to $5M ARR. You understand exactly what separates good follow-up from great follow-up that actually advances deals.
@@ -125,17 +118,31 @@ serve(async (req) => {
   }
 
   try {
-    const body = await req.json();
-    const { prospect_id } = body as { prospect_id: unknown };
-    
-    // Validate prospect_id
-    const prospectIdError = validateUUID(prospect_id, 'prospect_id');
-    if (prospectIdError) {
+    // Parse and validate request body
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
       return new Response(
-        JSON.stringify({ error: prospectIdError }),
+        JSON.stringify({ error: 'Invalid JSON in request body' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const validation = generateFollowUpsSchema.safeParse(body);
+    if (!validation.success) {
+      const errors = validation.error.errors.map(err => ({
+        path: err.path.join('.'),
+        message: err.message
+      }));
+      console.warn('[generate-account-follow-ups] Validation failed:', errors);
+      return new Response(
+        JSON.stringify({ error: 'Validation failed', issues: errors }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { prospect_id } = validation.data;
 
     console.log(`[generate-account-follow-ups] Starting for prospect: ${prospect_id}`);
 

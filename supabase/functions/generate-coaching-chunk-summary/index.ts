@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
 
 // CORS: Restrict to production domains
 function getCorsHeaders(origin?: string | null): Record<string, string> {
@@ -36,26 +37,32 @@ function checkRateLimit(userId: string): { allowed: boolean; retryAfter?: number
   return { allowed: true };
 }
 
-interface CallData {
-  date: string;
-  framework_scores: {
-    bant: { score: number; summary: string };
-    gap_selling: { score: number; summary: string };
-    active_listening: { score: number; summary: string };
-  } | null;
-  bant_improvements: string[];
-  gap_selling_improvements: string[];
-  active_listening_improvements: string[];
-  critical_info_missing: Array<{ info: string; missed_opportunity: string }> | string[];
-  follow_up_questions: Array<{ question: string; timing_example: string }> | string[];
-  heat_score: number | null;
-}
+// Zod validation schemas
+const frameworkScoresSchema = z.object({
+  bant: z.object({ score: z.number().min(0).max(100), summary: z.string() }),
+  gap_selling: z.object({ score: z.number().min(0).max(100), summary: z.string() }),
+  active_listening: z.object({ score: z.number().min(0).max(100), summary: z.string() })
+}).nullable();
 
-interface ChunkSummaryRequest {
-  calls: CallData[];
-  chunkIndex: number;
-  dateRange: { from: string; to: string };
-}
+const callDataSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  framework_scores: frameworkScoresSchema,
+  bant_improvements: z.array(z.string()),
+  gap_selling_improvements: z.array(z.string()),
+  active_listening_improvements: z.array(z.string()),
+  critical_info_missing: z.array(z.union([z.string(), z.object({ info: z.string(), missed_opportunity: z.string() })])),
+  follow_up_questions: z.array(z.union([z.string(), z.object({ question: z.string(), timing_example: z.string() })])),
+  heat_score: z.number().min(1).max(10).nullable()
+});
+
+const chunkSummaryRequestSchema = z.object({
+  calls: z.array(callDataSchema).min(1, "At least one call required").max(100, "Too many calls in chunk"),
+  chunkIndex: z.number().int().nonnegative(),
+  dateRange: z.object({
+    from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+  })
+});
 
 const CHUNK_SUMMARY_SYSTEM_PROMPT = `You are an expert sales coaching analyst. Your task is to analyze a small batch of call analyses and produce a CONDENSED SUMMARY that captures the essential patterns and trends.
 
@@ -105,14 +112,31 @@ serve(async (req) => {
   }
 
   try {
-    const { calls, chunkIndex, dateRange } = await req.json() as ChunkSummaryRequest;
-
-    if (!calls || calls.length === 0) {
+    // Parse and validate request body
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
       return new Response(
-        JSON.stringify({ error: 'No call data provided' }),
+        JSON.stringify({ error: 'Invalid JSON in request body' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const validation = chunkSummaryRequestSchema.safeParse(body);
+    if (!validation.success) {
+      const errors = validation.error.errors.map(err => ({
+        path: err.path.join('.'),
+        message: err.message
+      }));
+      console.warn('[generate-coaching-chunk-summary] Validation failed:', errors);
+      return new Response(
+        JSON.stringify({ error: 'Validation failed', issues: errors }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { calls, chunkIndex, dateRange } = validation.data;
 
     console.log(`[generate-coaching-chunk-summary] Analyzing chunk ${chunkIndex} with ${calls.length} calls`);
 
