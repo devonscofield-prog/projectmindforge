@@ -14,6 +14,7 @@ export interface ProspectWithRep {
   account_name: string | null;
   salesforce_link: string | null;
   potential_revenue: number | null;
+  active_revenue: number | null;
   status: ProspectStatus;
   industry: string | null;
   ai_extracted_info: ProspectIntel | null;
@@ -34,6 +35,7 @@ export interface Prospect {
   account_name: string | null;
   salesforce_link: string | null;
   potential_revenue: number | null;
+  active_revenue: number | null;
   status: ProspectStatus;
   industry: string | null;
   ai_extracted_info: ProspectIntel | null;

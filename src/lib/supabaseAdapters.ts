@@ -91,6 +91,7 @@ export function toProspect(row: ProspectRow): Prospect {
     account_name: row.account_name,
     salesforce_link: row.salesforce_link,
     potential_revenue: row.potential_revenue,
+    active_revenue: row.active_revenue ?? null,
     status: row.status as ProspectStatus,
     industry: row.industry,
     ai_extracted_info: parseJsonField<ProspectIntel>(row.ai_extracted_info, isProspectIntel),
