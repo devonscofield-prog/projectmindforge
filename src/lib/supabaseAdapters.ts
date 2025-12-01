@@ -9,7 +9,8 @@ import type { Database, Json } from '@/integrations/supabase/types';
 import type { 
   Prospect, 
   ProspectWithRep, 
-  ProspectIntel, 
+  ProspectIntel,
+  OpportunityDetails, 
   ProspectActivity,
   ProspectStatus,
   ProspectActivityType,
@@ -43,6 +44,14 @@ type TeamRow = Database['public']['Tables']['teams']['Row'];
 type CoachingSessionRow = Database['public']['Tables']['coaching_sessions']['Row'];
 
 // ============= TYPE GUARDS =============
+
+/**
+ * Type guard for OpportunityDetails
+ */
+export function isOpportunityDetails(value: unknown): value is OpportunityDetails {
+  if (!isObject(value)) return false;
+  return true;
+}
 
 /**
  * Type guard for ProspectIntel
@@ -95,6 +104,7 @@ export function toProspect(row: ProspectRow): Prospect {
     status: row.status as ProspectStatus,
     industry: row.industry,
     ai_extracted_info: parseJsonField<ProspectIntel>(row.ai_extracted_info, isProspectIntel),
+    opportunity_details: parseJsonField<OpportunityDetails>(row.opportunity_details, isOpportunityDetails),
     suggested_follow_ups: row.suggested_follow_ups as string[] | null,
     last_contact_date: row.last_contact_date,
     heat_score: row.heat_score,

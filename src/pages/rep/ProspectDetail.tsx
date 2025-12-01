@@ -20,6 +20,7 @@ import {
   ProspectQuickInfo,
   ProspectStakeholdersSection,
   ProspectProductsBreakdown,
+  ProspectOpportunityDetails,
 } from '@/components/prospects/detail';
 
 // Existing dialog/sheet components
@@ -117,6 +118,15 @@ function ProspectDetail() {
         <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
+            {/* Opportunity Details */}
+            <ProspectOpportunityDetails
+              prospect={prospect}
+              onUpdate={(updated) => {
+                // Reload prospect data to reflect changes
+                loadProspectData();
+              }}
+            />
+
             {/* Stakeholders Section */}
             <ProspectStakeholdersSection
               stakeholders={stakeholders}

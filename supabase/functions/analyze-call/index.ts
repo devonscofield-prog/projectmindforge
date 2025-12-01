@@ -182,6 +182,14 @@ Champion score guidelines:
 - 3-4: Neutral or showing some concerns that need addressing
 - 1-2: Skeptical, resistant, or actively blocking
 
+### User Count Extraction
+Extract organization size information when the prospect mentions team sizes, user counts, or organization details:
+- it_users: Number of IT/technical staff mentioned
+- end_users: Total employee count or non-technical users mentioned
+- ai_users: Users who would need AI-specific training mentioned
+- source_quote: The exact quote where this information was mentioned
+Only extract if explicitly mentioned - do not estimate or guess.
+
 FINAL OUTPUT:
 Return all fields via the submit_call_analysis function call.`;
 
@@ -257,6 +265,12 @@ interface ProspectIntel {
   };
   competitors_mentioned?: string[];
   industry?: string;
+  user_counts?: {
+    it_users?: number;
+    end_users?: number;
+    ai_users?: number;
+    source_quote?: string;
+  };
 }
 
 interface StakeholderIntel {
@@ -507,6 +521,16 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
                 type: "string", 
                 enum: ["education", "local_government", "state_government", "federal_government", "healthcare", "msp", "technology", "finance", "manufacturing", "retail", "nonprofit", "other"],
                 description: "The likely industry based on this call transcript"
+              },
+              user_counts: {
+                type: "object",
+                description: "Organization size information if explicitly mentioned - DO NOT estimate or guess",
+                properties: {
+                  it_users: { type: "number", description: "Number of IT/technical staff explicitly mentioned" },
+                  end_users: { type: "number", description: "Total employee count or non-technical users explicitly mentioned" },
+                  ai_users: { type: "number", description: "Users who would need AI-specific training explicitly mentioned" },
+                  source_quote: { type: "string", description: "The exact quote where this information was mentioned" }
+                }
               }
             }
           },
@@ -893,6 +917,44 @@ serve(async (req) => {
               .update(prospectUpdates)
               .eq('id', callData.prospect_id);
             console.log(`[analyze-call] Updated prospect ${callData.prospect_id} with AI intel`);
+          }
+
+          // Auto-populate opportunity_details if user counts were extracted
+          if (analysis.prospect_intel?.user_counts && (analysis.prospect_intel.user_counts.it_users || analysis.prospect_intel.user_counts.end_users || analysis.prospect_intel.user_counts.ai_users)) {
+            console.log('[analyze-call] Auto-populating opportunity details with user counts');
+            
+            // Fetch current opportunity_details to merge
+            const { data: currentProspectDetails } = await supabaseAdmin
+              .from('prospects')
+              .select('opportunity_details')
+              .eq('id', callData.prospect_id)
+              .single();
+            
+            const currentDetails = (currentProspectDetails?.opportunity_details as any) || {};
+            
+            // Update prospect with extracted user counts
+            const { error: updateOpportunityError } = await supabaseAdmin
+              .from('prospects')
+              .update({
+                opportunity_details: {
+                  ...currentDetails,
+                  it_users_count: analysis.prospect_intel.user_counts.it_users || currentDetails.it_users_count,
+                  end_users_count: analysis.prospect_intel.user_counts.end_users || currentDetails.end_users_count,
+                  ai_users_count: analysis.prospect_intel.user_counts.ai_users || currentDetails.ai_users_count,
+                  auto_populated_from: {
+                    source: 'transcript' as const,
+                    source_id: callId,
+                    extracted_at: new Date().toISOString(),
+                  },
+                },
+              })
+              .eq('id', callData.prospect_id);
+            
+            if (updateOpportunityError) {
+              console.error('[analyze-call] Failed to update opportunity details:', updateOpportunityError);
+            } else {
+              console.log('[analyze-call] Successfully auto-populated opportunity details');
+            }
           }
         }
       } catch (prospectErr) {
