@@ -1,8 +1,14 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { createLogger } from '@/lib/logger';
-import { toProfile, toTeam } from '@/lib/supabaseAdapters';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
+import { 
+  useAdminUsers, 
+  useAdminUsersTeams,
+  adminUsersKeys,
+  type UserWithDetails 
+} from '@/hooks/useAdminUsersQueries';
 
 const log = createLogger('AdminUsers');
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -27,24 +33,22 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { PaginationControls } from '@/components/ui/pagination-controls';
 import { TableSkeleton } from '@/components/ui/skeletons';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Profile, Team, UserRole } from '@/types/database';
+import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
+import { UserRole } from '@/types/database';
 import { format, formatDistanceToNow } from 'date-fns';
-import { Pencil, History, Users } from 'lucide-react';
+import { Pencil, History, Users, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useOnlineUsers } from '@/hooks/usePresence';
 import { UserActivityLogSheet } from '@/components/admin/UserActivityLogSheet';
 
-interface UserWithDetails extends Profile {
-  role?: UserRole;
-  team?: Team;
-  last_seen_at?: string;
-}
-
 function AdminUsers() {
-  const [users, setUsers] = useState<UserWithDetails[]>([]);
+  const queryClient = useQueryClient();
   const onlineUsers = useOnlineUsers();
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [loading, setLoading] = useState(true);
+  
+  // Fetch data using React Query
+  const { data: users = [], isLoading: usersLoading } = useAdminUsers();
+  const { data: teams = [] } = useAdminUsersTeams();
+  
   const [roleFilter, setRoleFilter] = useState<'all' | UserRole>('all');
   
   // Pagination state
@@ -61,46 +65,10 @@ function AdminUsers() {
   const [activitySheetOpen, setActivitySheetOpen] = useState(false);
   const [activityUser, setActivityUser] = useState<UserWithDetails | null>(null);
 
-  const fetchData = async () => {
-    // Fetch all profiles
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('*')
-      .order('name');
-
-    if (!profiles) {
-      setLoading(false);
-      return;
-    }
-
-    // Fetch all roles
-    const { data: roles } = await supabase.from('user_roles').select('*');
-
-    // Fetch all teams
-    const { data: teamsData } = await supabase.from('teams').select('*').order('name');
-    const adaptedTeams = (teamsData || []).map(toTeam);
-    setTeams(adaptedTeams);
-
-    // Create a map for quick team lookup
-    const teamMap = new Map(adaptedTeams.map(t => [t.id, t]));
-
-    // Combine data
-    const usersWithDetails: UserWithDetails[] = profiles.map((profile) => {
-      const adaptedProfile = toProfile(profile);
-      return {
-        ...adaptedProfile,
-        role: roles?.find((r) => r.user_id === profile.id)?.role as UserRole,
-        team: profile.team_id ? teamMap.get(profile.team_id) : undefined,
-      };
-    });
-
-    setUsers(usersWithDetails);
-    setLoading(false);
+  // Handle refresh
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: adminUsersKeys.all });
   };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
 
   // Reset to page 1 when filter changes
   useEffect(() => {
@@ -176,7 +144,7 @@ function AdminUsers() {
       setEditingUser(null);
       
       // Refresh data
-      await fetchData();
+      queryClient.invalidateQueries({ queryKey: adminUsersKeys.all });
     } catch (error) {
       log.error('Failed to update user', { error });
       toast.error('Failed to update user');
@@ -190,7 +158,7 @@ function AdminUsers() {
     setCurrentPage(1);
   };
 
-  if (loading) {
+  if (usersLoading) {
     return (
       <AppLayout>
         <div className="space-y-8">
@@ -221,10 +189,17 @@ function AdminUsers() {
         <PageBreadcrumb items={getAdminPageBreadcrumb('users')} />
         
         <div>
-          <h1 className="text-3xl font-bold">Users</h1>
+          <div className="flex items-center justify-between">
+            <h1 className="text-3xl font-bold">Users</h1>
+            <Button onClick={handleRefresh} variant="outline" size="sm">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
           <p className="text-muted-foreground mt-1">View and manage all users in the system</p>
         </div>
 
+        <QueryErrorBoundary>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
@@ -368,6 +343,7 @@ function AdminUsers() {
             )}
           </CardContent>
         </Card>
+        </QueryErrorBoundary>
       </div>
 
       {/* Edit User Dialog */}
