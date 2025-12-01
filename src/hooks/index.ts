@@ -13,6 +13,8 @@ export * from './useProfiles';
 export * from './useAdminStats';
 export * from './useProspectQueries';
 export * from './useManagerDashboardQueries';
+export * from './useAdminTeamsQueries';
+export * from './useAdminUsersQueries';
 
 // Mutation hooks with optimistic updates
 export * from './useFollowUpMutations';

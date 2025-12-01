@@ -1,8 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { createLogger } from '@/lib/logger';
-import { toProfile, toTeam } from '@/lib/supabaseAdapters';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
+import { 
+  useAdminTeams, 
+  useManagerOptions,
+  adminTeamsKeys,
+  type TeamWithManager,
+  type ManagerOption 
+} from '@/hooks/useAdminTeamsQueries';
 
 const log = createLogger('AdminTeams');
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -14,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
 import {
   Dialog,
   DialogContent,
@@ -34,25 +42,16 @@ import {
 } from '@/components/ui/alert-dialog';
 import { TableSkeleton } from '@/components/ui/skeletons';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Team, Profile } from '@/types/database';
 import { format } from 'date-fns';
-import { Plus, Pencil, Trash2, Building2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Building2, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 
-interface TeamWithManager extends Team {
-  manager?: Profile;
-  memberCount: number;
-}
-
-interface ManagerOption {
-  id: string;
-  name: string;
-}
-
 function AdminTeams() {
-  const [teams, setTeams] = useState<TeamWithManager[]>([]);
-  const [managers, setManagers] = useState<ManagerOption[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  
+  // Fetch data using React Query
+  const { data: teams = [], isLoading: teamsLoading } = useAdminTeams();
+  const { data: managers = [] } = useManagerOptions();
   
   // Dialog states
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -63,81 +62,10 @@ function AdminTeams() {
   const [formData, setFormData] = useState({ name: '', manager_id: '' });
   const [saving, setSaving] = useState(false);
 
-  const fetchData = async () => {
-    // Fetch all teams
-    const { data: teamsData } = await supabase
-      .from('teams')
-      .select('*')
-      .order('name');
-
-    if (!teamsData) {
-      setLoading(false);
-      return;
-    }
-
-    // Get manager IDs
-    const managerIds = teamsData
-      .filter((t) => t.manager_id)
-      .map((t) => t.manager_id as string);
-
-    // Fetch manager profiles
-    let managerProfiles: Profile[] = [];
-    if (managerIds.length > 0) {
-      const { data: managerData } = await supabase
-        .from('profiles')
-        .select('*')
-        .in('id', managerIds);
-      managerProfiles = (managerData || []).map(toProfile);
-    }
-
-    // Fetch member counts
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('team_id')
-      .not('team_id', 'is', null);
-
-    const memberCounts: Record<string, number> = {};
-    profiles?.forEach((p) => {
-      if (p.team_id) {
-        memberCounts[p.team_id] = (memberCounts[p.team_id] || 0) + 1;
-      }
-    });
-
-    // Combine data
-    const teamsWithManagers: TeamWithManager[] = teamsData.map((team) => {
-      const adaptedTeam = toTeam(team);
-      return {
-        ...adaptedTeam,
-        manager: managerProfiles.find((m) => m.id === team.manager_id),
-        memberCount: memberCounts[team.id] || 0,
-      };
-    });
-
-    setTeams(teamsWithManagers);
-
-    // Fetch all users with manager role for manager dropdown
-    const { data: managerRoles } = await supabase
-      .from('user_roles')
-      .select('user_id')
-      .eq('role', 'manager');
-
-    if (managerRoles && managerRoles.length > 0) {
-      const managerUserIds = managerRoles.map((r) => r.user_id);
-      const { data: managerUsers } = await supabase
-        .from('profiles')
-        .select('id, name')
-        .in('id', managerUserIds)
-        .order('name');
-      
-      setManagers(managerUsers || []);
-    }
-
-    setLoading(false);
+  // Handle refresh
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: adminTeamsKeys.all });
   };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
 
   const handleCreateTeam = async () => {
     if (!formData.name.trim()) {
@@ -157,7 +85,7 @@ function AdminTeams() {
       toast.success('Team created successfully');
       setCreateDialogOpen(false);
       setFormData({ name: '', manager_id: '' });
-      await fetchData();
+      queryClient.invalidateQueries({ queryKey: adminTeamsKeys.all });
     } catch (error) {
       log.error('Failed to create team', { error });
       toast.error('Failed to create team');
@@ -188,7 +116,7 @@ function AdminTeams() {
       setEditDialogOpen(false);
       setEditingTeam(null);
       setFormData({ name: '', manager_id: '' });
-      await fetchData();
+      queryClient.invalidateQueries({ queryKey: adminTeamsKeys.all });
     } catch (error) {
       log.error('Failed to update team', { error });
       toast.error('Failed to update team');
@@ -221,7 +149,7 @@ function AdminTeams() {
       toast.success('Team deleted successfully');
       setDeleteDialogOpen(false);
       setDeletingTeam(null);
-      await fetchData();
+      queryClient.invalidateQueries({ queryKey: adminTeamsKeys.all });
     } catch (error) {
       log.error('Failed to delete team', { error });
       toast.error('Failed to delete team');
@@ -244,7 +172,7 @@ function AdminTeams() {
     setDeleteDialogOpen(true);
   };
 
-  if (loading) {
+  if (teamsLoading) {
     return (
       <AppLayout>
         <div className="space-y-8">
@@ -279,15 +207,22 @@ function AdminTeams() {
             <h1 className="text-3xl font-bold">Teams</h1>
             <p className="text-muted-foreground mt-1">View and manage all sales teams</p>
           </div>
-          <Button onClick={() => {
-            setFormData({ name: '', manager_id: '' });
-            setCreateDialogOpen(true);
-          }}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Team
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={handleRefresh} variant="outline" size="sm">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+            <Button onClick={() => {
+              setFormData({ name: '', manager_id: '' });
+              setCreateDialogOpen(true);
+            }}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Team
+            </Button>
+          </div>
         </div>
 
+        <QueryErrorBoundary>
         <Card>
           <CardHeader>
             <CardTitle>All Teams</CardTitle>
@@ -352,6 +287,7 @@ function AdminTeams() {
             )}
           </CardContent>
         </Card>
+        </QueryErrorBoundary>
       </div>
 
       {/* Create Team Dialog */}
