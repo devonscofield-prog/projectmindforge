@@ -73,10 +73,19 @@ function RepDashboard() {
     if (!user?.id) return undefined;
 
     // Validation
-    if (!stakeholderName.trim()) {
+    const trimmedStakeholderName = stakeholderName.trim();
+    if (!trimmedStakeholderName) {
       toast({
         title: 'Error',
-        description: 'Stakeholder is required',
+        description: 'Stakeholder name is required',
+        variant: 'destructive'
+      });
+      return;
+    }
+    if (trimmedStakeholderName.length < 2) {
+      toast({
+        title: 'Error',
+        description: 'Stakeholder name must be at least 2 characters',
         variant: 'destructive'
       });
       return;
@@ -267,7 +276,7 @@ function RepDashboard() {
                   </div>
 
                   {/* Submit Button */}
-                  <Button type="submit" disabled={isSubmitting || !transcript.trim() || !stakeholderName.trim() || !accountName.trim() || (!selectedProspectId || !existingAccountHasSalesforceLink) && !salesforceAccountLink.trim()} className="w-full h-12 text-lg" size="lg">
+                  <Button type="submit" disabled={isSubmitting || !transcript.trim() || stakeholderName.trim().length < 2 || !accountName.trim() || (!selectedProspectId || !existingAccountHasSalesforceLink) && !salesforceAccountLink.trim()} className="w-full h-12 text-lg" size="lg">
                     {isSubmitting ? <>
                         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                         Analyzing Call...
