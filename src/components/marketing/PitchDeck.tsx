@@ -11,6 +11,7 @@ import {
 import {
   TitleSlide,
   ChallengeSlide,
+  DiscoverySlide,
   SolutionSlide,
   FeaturesSlide,
   ROISlide,
@@ -24,6 +25,7 @@ import {
 const slides = [
   { id: 'title', component: TitleSlide, name: 'Overview' },
   { id: 'challenge', component: ChallengeSlide, name: 'Problems We Solve' },
+  { id: 'discovery', component: DiscoverySlide, name: 'Discovery Framework' },
   { id: 'solution', component: SolutionSlide, name: 'Capabilities' },
   { id: 'features', component: FeaturesSlide, name: 'Features' },
   { id: 'roi', component: ROISlide, name: 'Business Impact' },

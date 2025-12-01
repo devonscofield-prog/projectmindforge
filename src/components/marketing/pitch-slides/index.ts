@@ -1,5 +1,6 @@
 export { TitleSlide } from './TitleSlide';
 export { ChallengeSlide } from './ChallengeSlide';
+export { DiscoverySlide } from './DiscoverySlide';
 export { SolutionSlide } from './SolutionSlide';
 export { FeaturesSlide } from './FeaturesSlide';
 export { ROISlide } from './ROISlide';

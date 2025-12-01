@@ -45,6 +45,7 @@ const CallDetailPage = lazy(() => import("./pages/calls/CallDetailPage"));
 // Lazy load - Marketing pages (public)
 const ROICalculatorPage = lazy(() => import("./pages/marketing/ROICalculatorPage"));
 const PitchDeckPage = lazy(() => import("./pages/marketing/PitchDeckPage"));
+const DiscoveryQuestionsPage = lazy(() => import("./pages/marketing/DiscoveryQuestionsPage"));
 
 // Create query client with logging
 const queryClient = createQueryClient();
@@ -207,6 +208,7 @@ const App = () => (
                 {/* Marketing Routes (Public) */}
                 <Route path="/marketing/roi-calculator" element={<ROICalculatorPage />} />
                 <Route path="/marketing/pitch-deck" element={<PitchDeckPage />} />
+                <Route path="/marketing/discovery-questions" element={<DiscoveryQuestionsPage />} />
 
                 <Route path="*" element={<NotFound />} />
               </Routes>
