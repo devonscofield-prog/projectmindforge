@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PullToRefresh } from '@/components/ui/pull-to-refresh';
 import { MobileCallCard } from '@/components/calls/MobileCallCard';
-import { ListSkeleton, TableSkeleton } from '@/components/ui/skeletons';
+import { MobileCallListSkeleton, TableSkeleton } from '@/components/ui/skeletons';
 import { ComponentErrorBoundary } from '@/components/ui/component-error-boundary';
 import { CallTranscriptWithHeat } from '@/api/aiCallAnalysis';
 import { CallType, callTypeLabels } from '@/constants/callTypes';
@@ -132,7 +132,7 @@ export function CallHistoryTable({
         {isLoading ? (
           <>
             <div className="md:hidden">
-              <ListSkeleton count={5} />
+              <MobileCallListSkeleton count={5} />
             </div>
             <div className="hidden md:block">
               <TableSkeleton rows={8} columns={8} />
