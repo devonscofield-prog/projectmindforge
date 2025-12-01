@@ -1,8 +1,9 @@
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { useDateRangeSelector, DateRange, createPreviousPeriodRange } from '@/hooks/useDateRangeSelector';
 import { 
   generateCoachingTrends, 
   CoachingTrendAnalysis, 
@@ -11,25 +12,55 @@ import {
   AnalysisTier,
 } from '@/api/aiCallAnalysis';
 import { 
-  DateRange, 
-  createDateRange, 
-  createPreviousPeriodRange, 
   validatePeriods,
   formatDateISO,
   DATE_CHANGE_DEBOUNCE,
 } from './dateUtils';
+import type { DateRange as DateUtilsRange } from './dateUtils';
 
 export function useCoachingSummaryState() {
   const { user, role } = useAuth();
   const { repId } = useParams<{ repId?: string }>();
   const queryClient = useQueryClient();
   
-  const dateChangeTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // Main date range hook with debouncing
+  const {
+    dateRange,
+    selectedPreset,
+    handlePresetChange: onPresetChange,
+    handleFromDateChange: onFromDateChange,
+    handleToDateChange: onToDateChange,
+  } = useDateRangeSelector({
+    initialPreset: '30',
+    debounceMs: DATE_CHANGE_DEBOUNCE,
+    onChange: () => {
+      setLoadedAnalysis(null);
+      setGenerateRequested(false);
+      if (isComparisonMode && comparisonPreset === 'previous') {
+        const compRange = createPreviousPeriodRange(dateRange);
+        setComparisonDateRange(compRange);
+      }
+      if (isComparisonMode) {
+        setComparisonConfirmed(false);
+      }
+    },
+  });
   
-  // Date range state
-  const [dateRangeInternal, setDateRangeInternal] = useState<DateRange>(() => createDateRange(30));
-  const [dateRange, setDateRange] = useState<DateRange>(() => createDateRange(30));
-  const [selectedPreset, setSelectedPreset] = useState<string>('30');
+  // Comparison date range hook
+  const {
+    dateRange: comparisonDateRange,
+    selectedPreset: comparisonPreset,
+    handlePresetChange: onComparisonPresetChange,
+    handleFromDateChange: onComparisonFromDateChange,
+    handleToDateChange: onComparisonToDateChange,
+    setCustomDateRange: setComparisonDateRange,
+  } = useDateRangeSelector({
+    initialPreset: 'custom',
+    debounceMs: DATE_CHANGE_DEBOUNCE,
+    onChange: () => {
+      setComparisonConfirmed(false);
+    },
+  });
   
   // Generation control
   const [generateRequested, setGenerateRequested] = useState(false);
@@ -37,13 +68,6 @@ export function useCoachingSummaryState() {
   // Comparison mode state
   const [isComparisonMode, setIsComparisonMode] = useState(false);
   const [comparisonConfirmed, setComparisonConfirmed] = useState(false);
-  const [comparisonDateRangeInternal, setComparisonDateRangeInternal] = useState<DateRange>(() => 
-    createPreviousPeriodRange(createDateRange(30))
-  );
-  const [comparisonDateRange, setComparisonDateRange] = useState<DateRange>(() => 
-    createPreviousPeriodRange(createDateRange(30))
-  );
-  const [comparisonPreset, setComparisonPreset] = useState<string>('previous');
   
   // History state
   const [showHistory, setShowHistory] = useState(false);
@@ -55,30 +79,11 @@ export function useCoachingSummaryState() {
   // History comparison
   const [historyComparisonAnalysis, setHistoryComparisonAnalysis] = useState<{
     analysis: CoachingTrendAnalysis;
-    dateRange: DateRange;
+    dateRange: DateUtilsRange;
   } | null>(null);
   
   const targetRepId = repId || user?.id;
   const isOwnSummary = !repId || repId === user?.id;
-
-  // Debounced date range update
-  const debounceDateRangeUpdate = useCallback((
-    newRange: DateRange,
-    setInternal: React.Dispatch<React.SetStateAction<DateRange>>,
-    setDebounced: React.Dispatch<React.SetStateAction<DateRange>>,
-    additionalCallback?: () => void
-  ) => {
-    setInternal(newRange);
-    
-    if (dateChangeTimerRef.current) {
-      clearTimeout(dateChangeTimerRef.current);
-    }
-    
-    dateChangeTimerRef.current = setTimeout(() => {
-      setDebounced(newRange);
-      additionalCallback?.();
-    }, DATE_CHANGE_DEBOUNCE);
-  }, []);
 
   // Rep profile query
   const { data: repProfile } = useQuery({
@@ -146,112 +151,44 @@ export function useCoachingSummaryState() {
 
   // Handlers
   const handlePresetChange = useCallback((value: string) => {
-    setSelectedPreset(value);
-    setLoadedAnalysis(null);
-    setGenerateRequested(false);
-    if (value !== 'custom') {
-      const newRange = createDateRange(parseInt(value));
-      setDateRangeInternal(newRange);
-      setDateRange(newRange);
-      if (isComparisonMode && comparisonPreset === 'previous') {
-        const compRange = createPreviousPeriodRange(newRange);
-        setComparisonDateRangeInternal(compRange);
-        setComparisonDateRange(compRange);
-      }
-      if (isComparisonMode) {
-        setComparisonConfirmed(false);
-      }
-    }
-  }, [isComparisonMode, comparisonPreset]);
+    onPresetChange(value as any);
+  }, [onPresetChange]);
 
   const handleFromDateChange = useCallback((date: Date | undefined) => {
-    if (date) {
-      date.setHours(0, 0, 0, 0);
-      const newRange = { ...dateRangeInternal, from: date };
-      setSelectedPreset('custom');
-      setLoadedAnalysis(null);
-      setGenerateRequested(false);
-      
-      debounceDateRangeUpdate(newRange, setDateRangeInternal, setDateRange, () => {
-        if (isComparisonMode && comparisonPreset === 'previous') {
-          const compRange = createPreviousPeriodRange(newRange);
-          setComparisonDateRangeInternal(compRange);
-          setComparisonDateRange(compRange);
-        }
-        if (isComparisonMode) {
-          setComparisonConfirmed(false);
-        }
-      });
-    }
-  }, [dateRangeInternal, isComparisonMode, comparisonPreset, debounceDateRangeUpdate]);
+    onFromDateChange(date);
+  }, [onFromDateChange]);
 
   const handleToDateChange = useCallback((date: Date | undefined) => {
-    if (date) {
-      date.setHours(23, 59, 59, 999);
-      const newRange = { ...dateRangeInternal, to: date };
-      setSelectedPreset('custom');
-      setLoadedAnalysis(null);
-      setGenerateRequested(false);
-      
-      debounceDateRangeUpdate(newRange, setDateRangeInternal, setDateRange, () => {
-        if (isComparisonMode && comparisonPreset === 'previous') {
-          const compRange = createPreviousPeriodRange(newRange);
-          setComparisonDateRangeInternal(compRange);
-          setComparisonDateRange(compRange);
-        }
-        if (isComparisonMode) {
-          setComparisonConfirmed(false);
-        }
-      });
-    }
-  }, [dateRangeInternal, isComparisonMode, comparisonPreset, debounceDateRangeUpdate]);
+    onToDateChange(date);
+  }, [onToDateChange]);
 
   const handleComparisonPresetChange = useCallback((value: string) => {
-    setComparisonPreset(value);
     if (value === 'previous') {
       const compRange = createPreviousPeriodRange(dateRange);
-      setComparisonDateRangeInternal(compRange);
       setComparisonDateRange(compRange);
+    } else {
+      onComparisonPresetChange(value as any);
     }
-    setComparisonConfirmed(false);
-  }, [dateRange]);
+  }, [dateRange, onComparisonPresetChange, setComparisonDateRange]);
 
   const handleComparisonFromDateChange = useCallback((date: Date | undefined) => {
-    if (date) {
-      date.setHours(0, 0, 0, 0);
-      const newRange = { ...comparisonDateRangeInternal, from: date };
-      setComparisonPreset('custom');
-      
-      debounceDateRangeUpdate(newRange, setComparisonDateRangeInternal, setComparisonDateRange, () => {
-        setComparisonConfirmed(false);
-      });
-    }
-  }, [comparisonDateRangeInternal, debounceDateRangeUpdate]);
+    onComparisonFromDateChange(date);
+  }, [onComparisonFromDateChange]);
 
   const handleComparisonToDateChange = useCallback((date: Date | undefined) => {
-    if (date) {
-      date.setHours(23, 59, 59, 999);
-      const newRange = { ...comparisonDateRangeInternal, to: date };
-      setComparisonPreset('custom');
-      
-      debounceDateRangeUpdate(newRange, setComparisonDateRangeInternal, setComparisonDateRange, () => {
-        setComparisonConfirmed(false);
-      });
-    }
-  }, [comparisonDateRangeInternal, debounceDateRangeUpdate]);
+    onComparisonToDateChange(date);
+  }, [onComparisonToDateChange]);
 
   const handleComparisonToggle = useCallback((checked: boolean) => {
     setIsComparisonMode(checked);
     if (checked) {
       const compRange = createPreviousPeriodRange(dateRange);
-      setComparisonDateRangeInternal(compRange);
       setComparisonDateRange(compRange);
-      setComparisonPreset('previous');
       setComparisonConfirmed(false);
     } else {
       setComparisonConfirmed(false);
     }
-  }, [dateRange]);
+  }, [dateRange, setComparisonDateRange]);
 
   const handleForceRefresh = useCallback(() => {
     setLoadedAnalysis(null);
@@ -264,17 +201,15 @@ export function useCoachingSummaryState() {
     setGenerateRequested(true);
   }, []);
 
-  const handleLoadFromHistory = useCallback((analysis: CoachingTrendAnalysis, historyDateRange: DateRange) => {
-    setDateRange(historyDateRange);
-    setDateRangeInternal(historyDateRange);
-    setSelectedPreset('custom');
+  const handleLoadFromHistory = useCallback((analysis: CoachingTrendAnalysis, historyDateRange: DateUtilsRange) => {
+    setComparisonDateRange(historyDateRange as DateRange);
     setLoadedAnalysis(analysis);
     setGenerateRequested(true);
     setHistoryComparisonAnalysis(null);
     queryClient.invalidateQueries({ queryKey: ['coaching-trend-history', targetRepId] });
-  }, [queryClient, targetRepId]);
+  }, [queryClient, targetRepId, setComparisonDateRange]);
 
-  const handleCompareFromHistory = useCallback((analysis: CoachingTrendAnalysis, historyDateRange: DateRange) => {
+  const handleCompareFromHistory = useCallback((analysis: CoachingTrendAnalysis, historyDateRange: DateUtilsRange) => {
     setHistoryComparisonAnalysis({ analysis, dateRange: historyDateRange });
     setIsComparisonMode(true);
     setComparisonConfirmed(true);
@@ -295,7 +230,7 @@ export function useCoachingSummaryState() {
   const isAnyFetching = isFetching || (isComparisonMode && comparisonConfirmed && isComparisonFetching);
   
   const periodValidation = useMemo(() => 
-    isComparisonMode ? validatePeriods(comparisonDateRange, dateRange) : null,
+    isComparisonMode ? validatePeriods(comparisonDateRange as DateUtilsRange, dateRange as DateUtilsRange) : null,
     [isComparisonMode, comparisonDateRange, dateRange]
   );
   
@@ -336,10 +271,8 @@ export function useCoachingSummaryState() {
     
     // Date state
     dateRange,
-    dateRangeInternal,
     selectedPreset,
     comparisonDateRange,
-    comparisonDateRangeInternal,
     comparisonPreset,
     
     // Mode state

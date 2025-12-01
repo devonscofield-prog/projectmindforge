@@ -18,7 +18,6 @@ import {
 interface DateRangeControlsProps {
   // Primary date range
   dateRange: DateRange;
-  dateRangeInternal: DateRange;
   selectedPreset: string;
   onPresetChange: (value: string) => void;
   onFromDateChange: (date: Date | undefined) => void;
@@ -27,7 +26,6 @@ interface DateRangeControlsProps {
   // Comparison
   isComparisonMode: boolean;
   comparisonDateRange: DateRange;
-  comparisonDateRangeInternal: DateRange;
   comparisonPreset: string;
   comparisonConfirmed: boolean;
   isComparisonFetching: boolean;
@@ -44,14 +42,12 @@ interface DateRangeControlsProps {
 
 export function DateRangeControls({
   dateRange,
-  dateRangeInternal,
   selectedPreset,
   onPresetChange,
   onFromDateChange,
   onToDateChange,
   isComparisonMode,
   comparisonDateRange,
-  comparisonDateRangeInternal,
   comparisonPreset,
   comparisonConfirmed,
   isComparisonFetching,
@@ -120,15 +116,15 @@ export function DateRangeControls({
                 <PopoverTrigger asChild>
                   <Button variant="outline" size="sm" className="w-[120px] justify-start text-left font-normal">
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {formatDateShort(dateRangeInternal.from)}
+                    {formatDateShort(dateRange.from)}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
                     mode="single"
-                    selected={dateRangeInternal.from}
+                    selected={dateRange.from}
                     onSelect={onFromDateChange}
-                    disabled={(date) => date > dateRangeInternal.to || date > new Date()}
+                    disabled={(date) => date > dateRange.to || date > new Date()}
                     initialFocus
                     className={cn("p-3 pointer-events-auto")}
                   />
@@ -141,15 +137,15 @@ export function DateRangeControls({
                 <PopoverTrigger asChild>
                   <Button variant="outline" size="sm" className="w-[120px] justify-start text-left font-normal">
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {formatDateShort(dateRangeInternal.to)}
+                    {formatDateShort(dateRange.to)}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
                     mode="single"
-                    selected={dateRangeInternal.to}
+                    selected={dateRange.to}
                     onSelect={onToDateChange}
-                    disabled={(date) => date < dateRangeInternal.from || date > new Date()}
+                    disabled={(date) => date < dateRange.from || date > new Date()}
                     initialFocus
                     className={cn("p-3 pointer-events-auto")}
                   />
@@ -185,15 +181,15 @@ export function DateRangeControls({
                     <PopoverTrigger asChild>
                       <Button variant="outline" size="sm" className="w-[120px] justify-start text-left font-normal">
                         <CalendarIcon className="mr-2 h-4 w-4" />
-                        {formatDateShort(comparisonDateRangeInternal.from)}
+                        {formatDateShort(comparisonDateRange.from)}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
                       <Calendar
                         mode="single"
-                        selected={comparisonDateRangeInternal.from}
+                        selected={comparisonDateRange.from}
                         onSelect={onComparisonFromDateChange}
-                        disabled={(date) => date > comparisonDateRangeInternal.to || date > new Date()}
+                        disabled={(date) => date > comparisonDateRange.to || date > new Date()}
                         initialFocus
                         className={cn("p-3 pointer-events-auto")}
                       />
@@ -206,15 +202,15 @@ export function DateRangeControls({
                     <PopoverTrigger asChild>
                       <Button variant="outline" size="sm" className="w-[120px] justify-start text-left font-normal">
                         <CalendarIcon className="mr-2 h-4 w-4" />
-                        {formatDateShort(comparisonDateRangeInternal.to)}
+                        {formatDateShort(comparisonDateRange.to)}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
                       <Calendar
                         mode="single"
-                        selected={comparisonDateRangeInternal.to}
+                        selected={comparisonDateRange.to}
                         onSelect={onComparisonToDateChange}
-                        disabled={(date) => date < comparisonDateRangeInternal.from || date > new Date()}
+                        disabled={(date) => date < comparisonDateRange.from || date > new Date()}
                         initialFocus
                         className={cn("p-3 pointer-events-auto")}
                       />
