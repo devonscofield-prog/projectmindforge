@@ -7,6 +7,7 @@ This guide covers development setup, conventions, and best practices.
 - [Getting Started](#getting-started)
 - [Development Workflow](#development-workflow)
 - [Code Conventions](#code-conventions)
+- [Data Fetching with React Query](#data-fetching-with-react-query)
 - [Testing](#testing)
 - [Performance](#performance)
 - [Debugging](#debugging)
@@ -103,6 +104,36 @@ supabase/
 git checkout -b feature/my-feature
 git commit -m "feat: add new feature"
 git push origin feature/my-feature
+```
+
+---
+
+## Data Fetching with React Query
+
+**CRITICAL RULE**: All server data fetching MUST use React Query. No manual `useState`/`useEffect` patterns.
+
+See **[React Query Patterns & Guidelines](./REACT_QUERY_PATTERNS.md)** for comprehensive documentation including:
+- Query key factory pattern
+- `staleTime` guidelines
+- Mutation patterns with optimistic updates
+- Cache invalidation strategies
+- Ready-to-use templates
+
+### Quick Example
+
+```typescript
+// ❌ WRONG - Don't do this
+const [data, setData] = useState([]);
+useEffect(() => {
+  fetchData().then(setData);
+}, []);
+
+// ✅ CORRECT - Use React Query
+const { data } = useQuery({
+  queryKey: featureKeys.list(),
+  queryFn: fetchData,
+  staleTime: 2 * 60 * 1000,
+});
 ```
 
 ---
@@ -475,8 +506,13 @@ Migrations run automatically when applied in Lovable:
 ### Code Review Checklist
 
 - [ ] Types are properly defined
+- [ ] **All data fetching uses React Query** (no manual `useState`/`useEffect`)
+- [ ] **Query keys use factory pattern** for consistency
+- [ ] **Appropriate `staleTime` set** based on data volatility (see [patterns doc](./REACT_QUERY_PATTERNS.md))
+- [ ] **`enabled` flag used** for conditional queries
 - [ ] Loading/error states handled
 - [ ] Queries use appropriate cache settings
+- [ ] **Mutations include cache invalidation** for related queries
 - [ ] Mutations include optimistic updates where beneficial
 - [ ] Components are reasonably sized
 - [ ] Design tokens used for styling
