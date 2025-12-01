@@ -18,6 +18,7 @@ import { AddProductToCallDialog } from './AddProductToCallDialog';
 import { Package, DollarSign, Hash, Tag, Pencil, Trash2, Plus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { createLogger } from '@/lib/logger';
+import { formatCurrency } from '@/lib/formatters';
 
 const log = createLogger('CallProductsSummary');
 
@@ -149,9 +150,6 @@ export function CallProductsSummary({ callId, prospectId, isOwner }: CallProduct
   if (products.length === 0) {
     return null;
   }
-
-  const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
 
   const totalRevenue = products.reduce((sum, p) => sum + (p.unit_price * p.quantity), 0);
 

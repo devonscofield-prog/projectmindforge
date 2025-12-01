@@ -13,6 +13,7 @@ import { CallType, callTypeLabels } from '@/constants/callTypes';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { getDashboardUrl } from '@/lib/routes';
+import { formatCurrency } from '@/lib/formatters';
 import {
   CheckCircle,
   AlertCircle,
@@ -103,16 +104,6 @@ export function CallHistoryTable({
         {heatScore}/10
       </Badge>
     );
-  };
-
-  const formatCurrency = (value: number | null) => {
-    if (value === null || value === undefined) return '-';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
   };
 
   return (
