@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Flame, RefreshCw, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Flame, RefreshCw, Loader2, AlertCircle, CheckCircle2, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import type { Prospect } from '@/api/prospects';
 import type { CallRecord } from '@/hooks/useProspectData';
@@ -13,6 +13,7 @@ interface ProspectAIInsightsProps {
   emailLogs: EmailLog[];
   isRefreshingInsights: boolean;
   onRefreshInsights: () => void;
+  onResearchAccount?: () => void;
 }
 
 export function ProspectAIInsights({
@@ -21,6 +22,7 @@ export function ProspectAIInsights({
   emailLogs,
   isRefreshingInsights,
   onRefreshInsights,
+  onResearchAccount,
 }: ProspectAIInsightsProps) {
   const aiInfo = prospect.ai_extracted_info as {
     business_context?: string;
@@ -65,18 +67,30 @@ export function ProspectAIInsights({
             }
           </CardDescription>
         </div>
-        <Button
-          variant={hasNewDataSinceAnalysis ? "default" : "outline"}
-          size="sm"
-          onClick={onRefreshInsights}
-          disabled={isRefreshingInsights}
-        >
-          {isRefreshingInsights ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <RefreshCw className="h-4 w-4" />
+        <div className="flex items-center gap-2">
+          {onResearchAccount && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onResearchAccount}
+            >
+              <Search className="h-4 w-4 mr-1" />
+              Research
+            </Button>
           )}
-        </Button>
+          <Button
+            variant={hasNewDataSinceAnalysis ? "default" : "outline"}
+            size="sm"
+            onClick={onRefreshInsights}
+            disabled={isRefreshingInsights}
+          >
+            {isRefreshingInsights ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {!aiInfo ? (

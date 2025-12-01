@@ -27,6 +27,7 @@ import { StakeholderDetailSheet } from '@/components/prospects/StakeholderDetail
 import { StakeholderRelationshipMap } from '@/components/prospects/StakeholderRelationshipMap';
 import { AddEmailLogDialog } from '@/components/prospects/AddEmailLogDialog';
 import { SalesCoachChat } from '@/components/prospects/SalesCoachChat';
+import { AccountResearchChat } from '@/components/prospects/AccountResearchChat';
 
 import type { Stakeholder } from '@/api/stakeholders';
 
@@ -68,6 +69,7 @@ function ProspectDetail() {
   const [isAddEmailOpen, setIsAddEmailOpen] = useState(false);
   const [selectedStakeholder, setSelectedStakeholder] = useState<Stakeholder | null>(null);
   const [isStakeholderSheetOpen, setIsStakeholderSheetOpen] = useState(false);
+  const [isResearchOpen, setIsResearchOpen] = useState(false);
 
   const handleStakeholderClick = (stakeholder: Stakeholder) => {
     setSelectedStakeholder(stakeholder);
@@ -141,6 +143,7 @@ function ProspectDetail() {
               emailLogs={emailLogs}
               isRefreshingInsights={isRefreshingInsights}
               onRefreshInsights={handleRefreshInsightsOnly}
+              onResearchAccount={() => setIsResearchOpen(true)}
             />
 
             {/* Suggested Follow-Up Steps */}
@@ -224,6 +227,14 @@ function ProspectDetail() {
       <SalesCoachChat 
         prospectId={prospect.id} 
         accountName={prospect.account_name || prospect.prospect_name} 
+      />
+
+      {/* Account Research Chat */}
+      <AccountResearchChat
+        open={isResearchOpen}
+        onOpenChange={setIsResearchOpen}
+        prospect={prospect}
+        stakeholders={stakeholders}
       />
     </AppLayout>
   );
