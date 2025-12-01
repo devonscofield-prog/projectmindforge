@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,14 +8,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { RateLimitCountdown } from '@/components/ui/rate-limit-countdown';
-import { Search, Loader2, Copy, Check, ChevronDown, Plus, X, Building2, Save } from 'lucide-react';
+import { Search, Loader2, Copy, Check, ChevronDown, Plus, X, Building2, Save, History, RefreshCw } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
+import { format } from 'date-fns';
 import { streamAccountResearch, type AccountResearchRequest } from '@/api/accountResearch';
 import { useRateLimitCountdown } from '@/hooks/useRateLimitCountdown';
 import { industryOptions } from '@/components/prospects/detail/constants';
 import type { Prospect } from '@/api/prospects';
 import type { Stakeholder } from '@/api/stakeholders';
+
+interface SavedResearchInfo {
+  account_research?: string;
+  account_research_date?: string;
+}
 
 const DEAL_STAGES = [
   'Prospecting',
@@ -65,11 +71,24 @@ export function AccountResearchChat({
   const [showForm, setShowForm] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [viewMode, setViewMode] = useState<'previous' | 'new' | 'result'>('previous');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const researchResultRef = useRef('');
   
   // Rate limiting
   const { secondsRemaining, isRateLimited, startCountdown } = useRateLimitCountdown(60);
+
+  // Get saved research from prospect
+  const savedResearch = useMemo(() => {
+    const aiInfo = prospect?.ai_extracted_info as SavedResearchInfo | null;
+    if (aiInfo?.account_research) {
+      return {
+        content: aiInfo.account_research,
+        date: aiInfo.account_research_date ? new Date(aiInfo.account_research_date) : null,
+      };
+    }
+    return null;
+  }, [prospect?.ai_extracted_info]);
 
   // Initialize form from prospect data when opening
   useEffect(() => {
@@ -95,11 +114,21 @@ export function AccountResearchChat({
         setKnownChallenges(aiInfo.pain_points.join(', '));
       }
 
-      // Reset results
+      // Reset results and determine initial view
       setResearchResult('');
-      setShowForm(true);
+      setCopied(false);
+      setSaved(false);
+      
+      // If there's saved research, show it by default; otherwise show form
+      if (savedResearch) {
+        setViewMode('previous');
+        setShowForm(false);
+      } else {
+        setViewMode('new');
+        setShowForm(true);
+      }
     }
-  }, [open, prospect, stakeholders]);
+  }, [open, prospect, stakeholders, savedResearch]);
 
   const handleAddStakeholder = () => {
     setStakeholderInputs([...stakeholderInputs, { name: '', title: '', role: '' }]);
@@ -131,6 +160,7 @@ export function AccountResearchChat({
     researchResultRef.current = '';
     setShowForm(false);
     setSaved(false);
+    setViewMode('result');
 
     const request: AccountResearchRequest = {
       companyName: companyName.trim(),
@@ -211,6 +241,28 @@ export function AccountResearchChat({
     researchResultRef.current = '';
     setShowForm(true);
     setSaved(false);
+    setViewMode('new');
+  };
+
+  const handleViewPrevious = () => {
+    if (savedResearch) {
+      setResearchResult('');
+      setShowForm(false);
+      setViewMode('previous');
+      setSaved(true); // It's already saved
+    }
+  };
+
+  const handleCopyPrevious = async () => {
+    if (!savedResearch?.content) return;
+    try {
+      await navigator.clipboard.writeText(savedResearch.content);
+      setCopied(true);
+      toast.success('Copied to clipboard');
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      toast.error('Failed to copy to clipboard');
+    }
   };
 
   const handleSaveToAccount = async () => {
@@ -402,8 +454,23 @@ export function AccountResearchChat({
                   />
                 </div>
               </>
+            ) : viewMode === 'previous' && savedResearch ? (
+              /* Previous Saved Research */
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
+                  <History className="h-4 w-4" />
+                  <span>
+                    Saved {savedResearch.date 
+                      ? format(savedResearch.date, 'MMM d, yyyy \'at\' h:mm a')
+                      : 'previously'}
+                  </span>
+                </div>
+                <div className="prose prose-sm dark:prose-invert max-w-none">
+                  <ReactMarkdown>{savedResearch.content}</ReactMarkdown>
+                </div>
+              </div>
             ) : (
-              /* Research Results */
+              /* New Research Results */
               <div className="prose prose-sm dark:prose-invert max-w-none">
                 {researchResult ? (
                   <ReactMarkdown>{researchResult}</ReactMarkdown>
@@ -426,23 +493,60 @@ export function AccountResearchChat({
         {/* Footer Actions */}
         <div className="border-t px-6 py-4 flex gap-2">
           {showForm ? (
-            <Button
-              onClick={handleStartResearch}
-              disabled={isResearching || !companyName.trim() || isRateLimited}
-              className="flex-1"
-            >
-              {isResearching ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Researching...
-                </>
-              ) : (
-                <>
-                  <Search className="h-4 w-4 mr-2" />
-                  Start Research
-                </>
+            <>
+              {savedResearch && (
+                <Button
+                  variant="outline"
+                  onClick={handleViewPrevious}
+                >
+                  <History className="h-4 w-4 mr-2" />
+                  View Previous
+                </Button>
               )}
-            </Button>
+              <Button
+                onClick={handleStartResearch}
+                disabled={isResearching || !companyName.trim() || isRateLimited}
+                className="flex-1"
+              >
+                {isResearching ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Researching...
+                  </>
+                ) : (
+                  <>
+                    <Search className="h-4 w-4 mr-2" />
+                    Start Research
+                  </>
+                )}
+              </Button>
+            </>
+          ) : viewMode === 'previous' ? (
+            <>
+              <Button
+                variant="outline"
+                onClick={handleNewResearch}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Run New Research
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleCopyPrevious}
+              >
+                {copied ? (
+                  <>
+                    <Check className="h-4 w-4 mr-2" />
+                    Copied
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-4 w-4 mr-2" />
+                    Copy
+                  </>
+                )}
+              </Button>
+            </>
           ) : (
             <>
               <Button
