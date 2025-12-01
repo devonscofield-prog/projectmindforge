@@ -51,9 +51,9 @@ export function FeaturesSlide() {
   return (
     <div className="flex flex-col h-full px-8 py-6">
       <div className="text-center mb-6">
-        <h2 className="text-3xl md:text-4xl font-bold mb-3">Key Features</h2>
+        <h2 className="text-3xl md:text-4xl font-bold mb-3">Feature Overview</h2>
         <p className="text-muted-foreground text-lg">
-          Everything you need to drive sales excellence
+          Key capabilities available in the platform today
         </p>
       </div>
       

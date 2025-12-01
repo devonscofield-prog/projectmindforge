@@ -1,104 +1,118 @@
-import { Settings, Users, Sparkles, TrendingUp, Check } from 'lucide-react';
+import { CheckCircle2, Circle, Clock } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
 
 const phases = [
   {
-    icon: Settings,
-    title: 'Setup & Integration',
-    timeline: 'Week 1-2',
+    phase: 'Phase 1',
+    title: 'Foundation',
+    status: 'complete',
     items: [
-      'Platform configuration',
-      'Call recording integration',
-      'Team hierarchy setup',
-      'Custom framework selection',
+      'AI call analysis engine',
+      'Multi-framework scoring',
+      'Role-based dashboards',
+      'Basic reporting',
     ],
-    color: 'bg-blue-500',
-    borderColor: 'border-blue-500',
   },
   {
-    icon: Users,
-    title: 'Team Onboarding',
-    timeline: 'Week 3-4',
+    phase: 'Phase 2',
+    title: 'Intelligence',
+    status: 'complete',
     items: [
-      'User training sessions',
-      'Dashboard familiarization',
-      'First call uploads',
-      'Coach bot introduction',
+      'AI sales coach chat',
+      'Stakeholder tracking',
+      'Automated follow-ups',
+      'Performance alerts',
     ],
-    color: 'bg-purple-500',
-    borderColor: 'border-purple-500',
   },
   {
-    icon: Sparkles,
-    title: 'First Insights',
-    timeline: 'Month 2',
+    phase: 'Phase 3',
+    title: 'Scale',
+    status: 'current',
     items: [
-      'Initial trend analysis',
-      'Coaching opportunities identified',
-      'Baseline metrics established',
-      'Quick wins realized',
+      'Team-wide trend analysis',
+      'Leadership reports',
+      'Cross-team comparisons',
+      'Advanced coaching insights',
     ],
-    color: 'bg-green-500',
-    borderColor: 'border-green-500',
   },
   {
-    icon: TrendingUp,
-    title: 'ROI Realization',
-    timeline: 'Month 3+',
+    phase: 'Phase 4',
+    title: 'Expand',
+    status: 'planned',
     items: [
-      'Measurable win rate improvement',
-      'Time savings quantified',
-      'Coaching efficiency gains',
-      'Revenue impact visible',
+      'CRM integrations',
+      'Call recording connections',
+      'Custom AI models',
+      'API access',
     ],
-    color: 'bg-amber-500',
-    borderColor: 'border-amber-500',
   },
 ];
+
+function StatusIcon({ status }: { status: string }) {
+  if (status === 'complete') {
+    return <CheckCircle2 className="h-5 w-5 text-green-500" />;
+  }
+  if (status === 'current') {
+    return <Clock className="h-5 w-5 text-primary animate-pulse" />;
+  }
+  return <Circle className="h-5 w-5 text-muted-foreground" />;
+}
 
 export function RoadmapSlide() {
   return (
     <div className="flex flex-col h-full px-8 py-6">
       <div className="text-center mb-6">
-        <h2 className="text-3xl md:text-4xl font-bold mb-3">Implementation Roadmap</h2>
+        <h2 className="text-3xl md:text-4xl font-bold mb-3">Development Roadmap</h2>
         <p className="text-muted-foreground text-lg">
-          From setup to ROI in 90 days
+          Platform evolution and upcoming capabilities
         </p>
       </div>
       
-      <div className="flex-1 overflow-auto">
-        <div className="grid md:grid-cols-4 gap-4">
-          {phases.map((phase, index) => (
-            <div 
-              key={index} 
-              className={`p-5 rounded-xl border-2 ${phase.borderColor} bg-card relative`}
-            >
-              <div className={`absolute -top-3 left-4 px-3 py-1 ${phase.color} text-white text-xs font-bold rounded-full`}>
-                {phase.timeline}
+      <div className="grid md:grid-cols-4 gap-4 flex-1">
+        {phases.map((phase, index) => (
+          <Card 
+            key={index} 
+            className={`${phase.status === 'current' ? 'border-primary border-2' : ''}`}
+          >
+            <CardContent className="p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <StatusIcon status={phase.status} />
+                <span className="text-xs font-bold text-muted-foreground uppercase">
+                  {phase.phase}
+                </span>
               </div>
-              
-              <div className={`inline-flex p-2 rounded-lg ${phase.color} mt-2 mb-3`}>
-                <phase.icon className="h-5 w-5 text-white" />
-              </div>
-              
-              <h3 className="font-semibold mb-3">{phase.title}</h3>
-              
+              <h3 className="font-semibold text-lg mb-3">{phase.title}</h3>
               <ul className="space-y-2">
-                {phase.items.map((item, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm">
-                    <Check className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
-                    <span className="text-muted-foreground">{item}</span>
+                {phase.items.map((item, itemIndex) => (
+                  <li key={itemIndex} className="text-sm text-muted-foreground flex items-start gap-2">
+                    <span className="text-primary mt-1">•</span>
+                    {item}
                   </li>
                 ))}
               </ul>
-            </div>
-          ))}
-        </div>
+              {phase.status === 'current' && (
+                <div className="mt-4 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium inline-block">
+                  In Progress
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ))}
       </div>
       
-      <div className="mt-6 text-center">
-        <p className="text-sm text-muted-foreground">
-          <span className="font-semibold">Dedicated success manager</span> assigned to ensure smooth implementation
-        </p>
+      <div className="mt-4 flex justify-center gap-6 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <CheckCircle2 className="h-4 w-4 text-green-500" />
+          <span>Complete</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Clock className="h-4 w-4 text-primary" />
+          <span>In Progress</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Circle className="h-4 w-4 text-muted-foreground" />
+          <span>Planned</span>
+        </div>
       </div>
     </div>
   );
