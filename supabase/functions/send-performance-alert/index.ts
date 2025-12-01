@@ -8,16 +8,18 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+interface AlertMetric {
+  metric_type: string;
+  metric_value: number;
+  threshold_value: number;
+  status: string;
+}
+
 interface AlertRequest {
   config_id: string;
   email: string;
   alert_type: "warning" | "critical";
-  metrics: {
-    metric_type: string;
-    metric_value: number;
-    threshold_value: number;
-    status: string;
-  }[];
+  metrics: AlertMetric[];
   dashboard_url?: string;
 }
 
@@ -41,7 +43,7 @@ serve(async (req) => {
     const statusColor = alert_type === "critical" ? "#dc2626" : "#f59e0b";
     const statusLabel = alert_type === "critical" ? "🚨 CRITICAL" : "⚠️ WARNING";
 
-    const metricsHtml = metrics.map(m => `
+    const metricsHtml = metrics.map((m: AlertMetric) => `
       <tr>
         <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${m.metric_type}</td>
         <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; font-weight: bold; color: ${statusColor};">${m.metric_value.toFixed(2)}</td>

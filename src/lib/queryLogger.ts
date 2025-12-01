@@ -255,7 +255,14 @@ export const queryLogger = {
   },
 };
 
+// Augment Window interface for type safety
+declare global {
+  interface Window {
+    queryLogger: typeof queryLogger;
+  }
+}
+
 // Expose to window for debugging in development
 if (import.meta.env.DEV) {
-  (window as unknown as { queryLogger: typeof queryLogger }).queryLogger = queryLogger;
+  window.queryLogger = queryLogger;
 }
