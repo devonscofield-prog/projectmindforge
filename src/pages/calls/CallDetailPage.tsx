@@ -1,6 +1,7 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useQueryClient } from '@tanstack/react-query';
 import { createLogger } from '@/lib/logger';
 
 const log = createLogger('CallDetailPage');
@@ -11,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
 import { CallAnalysisPageSkeleton } from '@/components/ui/skeletons';
-import { getCallWithAnalysis, getAnalysisForCall, CallAnalysis, CallTranscript } from '@/api/aiCallAnalysis';
+import { CallAnalysis, CallTranscript } from '@/api/aiCallAnalysis';
 import { CallAnalysisResultsView } from '@/components/calls/CallAnalysisResultsView';
 import { CallProductsSummary } from '@/components/calls/CallProductsSummary';
 import { CallType, callTypeLabels } from '@/constants/callTypes';
@@ -20,6 +21,7 @@ import { getDashboardUrl, getCallHistoryUrl } from '@/lib/routes';
 import { getCallDetailBreadcrumbs } from '@/lib/breadcrumbConfig';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 import { formatCurrency } from '@/lib/formatters';
+import { useCallWithAnalysis, useAnalysisPolling, callDetailKeys } from '@/hooks/useCallDetailQueries';
 import { 
   ArrowLeft, 
   Calendar, 
@@ -38,118 +40,76 @@ function CallDetailPage() {
   const navigate = useNavigate();
   const { user, role } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  const [transcript, setTranscript] = useState<CallTranscript | null>(null);
-  const [analysis, setAnalysis] = useState<CallAnalysis | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [notAuthorized, setNotAuthorized] = useState(false);
-  const [isPolling, setIsPolling] = useState(false);
+  // Fetch call with analysis
+  const { 
+    data: callData, 
+    isLoading, 
+    error,
+    isError 
+  } = useCallWithAnalysis(id, user?.id, role || undefined);
+
+  // Determine if we should poll for analysis
+  const shouldPoll = useMemo(() => {
+    if (!callData?.transcript) return false;
+    const status = callData.transcript.analysis_status;
+    return status === 'pending' || status === 'processing';
+  }, [callData?.transcript]);
+
+  // Poll for analysis when needed
+  const { data: polledAnalysis } = useAnalysisPolling(id, shouldPoll);
+
+  // Use polled analysis if available, otherwise use initial analysis
+  const transcript = callData?.transcript;
+  const analysis = polledAnalysis || callData?.analysis || null;
 
   const isOwner = transcript?.rep_id === user?.id;
   const isManager = role === 'manager' || role === 'admin';
 
-  // Poll for analysis completion
-  const pollForAnalysis = useCallback(async (callId: string) => {
-    setIsPolling(true);
-    let attempts = 0;
-    const maxAttempts = 30;
-
-    const poll = async () => {
-      attempts++;
-      try {
-        const result = await getAnalysisForCall(callId);
-        if (result) {
-          setAnalysis(result);
-          setIsPolling(false);
-          toast({
-            title: 'Analysis complete',
-            description: 'Your call has been analyzed.',
-          });
-          return;
-        }
-      } catch (error) {
-        log.error('Poll error', { error });
-      }
-
-      if (attempts < maxAttempts) {
-        setTimeout(poll, 2000);
-      } else {
-        setIsPolling(false);
-        toast({
-          title: 'Analysis taking longer than expected',
-          description: 'Please refresh the page in a moment.',
-          variant: 'destructive',
-        });
-      }
-    };
-
-    poll();
-  }, [toast]);
-
-  useEffect(() => {
-    async function loadCall() {
-      if (!id || !user?.id) return;
-
-      setLoading(true);
-      try {
-        const result = await getCallWithAnalysis(id);
-        
-        if (!result) {
-          toast({
-            title: 'Call not found',
-            description: 'The requested call could not be found.',
-            variant: 'destructive',
-          });
-          navigate(-1);
-          return;
-        }
-
-        // Role-based access check
-        if (role === 'rep' && result.transcript.rep_id !== user.id) {
-          setNotAuthorized(true);
-          setLoading(false);
-          return;
-        }
-
-        setTranscript(result.transcript);
-        setAnalysis(result.analysis);
-
-        // If analysis is still pending/processing, start polling
-        if (!result.analysis && (result.transcript.analysis_status === 'pending' || result.transcript.analysis_status === 'processing')) {
-          pollForAnalysis(id);
-        }
-      } catch (error) {
-        log.error('Error loading call', { error, callId: id });
-        toast({
-          title: 'Error',
-          description: 'Failed to load call details.',
-          variant: 'destructive',
-        });
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadCall();
-  }, [id, user, role, navigate, toast, pollForAnalysis]);
-
   const getBackPath = () => getCallHistoryUrl(role);
 
-  const handleRefresh = async () => {
+  const handleRefresh = () => {
     if (!id) return;
-    setLoading(true);
-    try {
-      const result = await getCallWithAnalysis(id);
-      if (result) {
-        setTranscript(result.transcript);
-        setAnalysis(result.analysis);
-      }
-    } catch (error) {
-      log.error('Error refreshing', { error, callId: id });
-    } finally {
-      setLoading(false);
-    }
+    queryClient.invalidateQueries({ queryKey: callDetailKeys.call(id) });
+    queryClient.invalidateQueries({ queryKey: callDetailKeys.analysis(id) });
   };
+
+  // Handle error states
+  if (isError) {
+    const isNotAuthorized = error?.message === 'Not authorized to view this call';
+    const isNotFound = error?.message === 'Call not found';
+
+    if (isNotAuthorized) {
+      return (
+        <AppLayout>
+          <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+            <ShieldAlert className="h-16 w-16 text-destructive" />
+            <h1 className="text-2xl font-bold">Not Authorized</h1>
+            <p className="text-muted-foreground">You are not authorized to view this call.</p>
+            <Button onClick={() => navigate(getBackPath())}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back
+            </Button>
+          </div>
+        </AppLayout>
+      );
+    }
+
+    if (isNotFound) {
+      return (
+        <AppLayout>
+          <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+            <h1 className="text-2xl font-bold">Call Not Found</h1>
+            <Button onClick={() => navigate(getBackPath())}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back
+            </Button>
+          </div>
+        </AppLayout>
+      );
+    }
+  }
 
   const getCallTypeDisplay = (t: CallTranscript) => {
     if (t.call_type === 'other' && t.call_type_other) {
@@ -161,26 +121,10 @@ function CallDetailPage() {
     return null;
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <AppLayout>
         <CallAnalysisPageSkeleton />
-      </AppLayout>
-    );
-  }
-
-  if (notAuthorized) {
-    return (
-      <AppLayout>
-        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-          <ShieldAlert className="h-16 w-16 text-destructive" />
-          <h1 className="text-2xl font-bold">Not Authorized</h1>
-          <p className="text-muted-foreground">You are not authorized to view this call.</p>
-          <Button onClick={() => navigate(getBackPath())}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
-          </Button>
-        </div>
       </AppLayout>
     );
   }
@@ -224,10 +168,10 @@ function CallDetailPage() {
               </p>
             </div>
           </div>
-          {(transcript.analysis_status === 'pending' || transcript.analysis_status === 'processing' || isPolling) && (
-            <Button variant="outline" onClick={handleRefresh} disabled={loading}>
-              <RefreshCw className={`h-4 w-4 mr-2 ${isPolling ? 'animate-spin' : ''}`} />
-              {isPolling ? 'Analyzing...' : 'Refresh'}
+          {(transcript.analysis_status === 'pending' || transcript.analysis_status === 'processing' || shouldPoll) && (
+            <Button variant="outline" onClick={handleRefresh} disabled={isLoading}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${shouldPoll ? 'animate-spin' : ''}`} />
+              {shouldPoll ? 'Analyzing...' : 'Refresh'}
             </Button>
           )}
         </div>
@@ -323,7 +267,7 @@ function CallDetailPage() {
                     transcript.analysis_status === 'error' ? 'destructive' : 
                     'secondary'
                   }>
-                    {transcript.analysis_status === 'processing' || isPolling ? 'Analyzing...' : transcript.analysis_status}
+                    {transcript.analysis_status === 'processing' || shouldPoll ? 'Analyzing...' : transcript.analysis_status}
                   </Badge>
                 </div>
               </div>

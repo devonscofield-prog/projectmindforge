@@ -1,9 +1,9 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { createLogger } from '@/lib/logger';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { subDays, format, startOfDay } from 'date-fns';
+import { subDays, format } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const log = createLogger('CallTrendsChart');
@@ -14,15 +14,9 @@ interface DailyCount {
 }
 
 export function CallTrendsChart() {
-  const [data, setData] = useState<DailyCount[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-
-  const fetchTrends = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    
-    try {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['call-trends', '30-days'],
+    queryFn: async () => {
       const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
 
       const { data: calls, error: fetchError } = await supabase
@@ -57,25 +51,17 @@ export function CallTrendsChart() {
         count,
       }));
 
-      setData(chartData);
-    } catch (err) {
-      log.error('Error fetching call trends', { error: err });
-      setError(err instanceof Error ? err : new Error('Failed to load trends'));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchTrends();
-  }, [fetchTrends]);
+      return chartData;
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes - trends data doesn't change frequently
+  });
 
   // Re-throw error for error boundary to catch
   if (error) {
     throw error;
   }
 
-  if (loading) {
+  if (isLoading || !data) {
     return (
       <Card>
         <CardHeader>
