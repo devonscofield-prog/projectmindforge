@@ -1,12 +1,16 @@
-import { useEffect, useState, useMemo } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import { createLogger } from '@/lib/logger';
-import { toCoachingSession } from '@/lib/supabaseAdapters';
+import { useQueryClient } from '@tanstack/react-query';
 import { getRepDetailUrl } from '@/lib/routes';
+import { 
+  useManagerReps, 
+  useRepCoachingSessions, 
+  useAiScoreStats, 
+  useRepCallCounts,
+  managerDashboardKeys 
+} from '@/hooks/useManagerDashboardQueries';
 
-const log = createLogger('ManagerDashboard');
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -14,9 +18,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Profile, CoachingSession } from '@/types/database';
-import { Users, Phone, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Users, Phone, TrendingUp, TrendingDown, Minus, RefreshCw } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
-import { getAiScoreStatsForReps, getCallCountsLast30DaysForReps, AiScoreStats } from '@/api/aiCallAnalysis';
+import { AiScoreStats } from '@/api/aiCallAnalysis';
 import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 
@@ -31,114 +35,39 @@ type SortType = 'name' | 'calls' | 'coaching' | 'ai-score';
 function ManagerDashboard() {
   const { user, role } = useAuth();
   const navigate = useNavigate();
-  const [reps, setReps] = useState<RepWithData[]>([]);
-  const [aiScoreStatsMap, setAiScoreStatsMap] = useState<Map<string, AiScoreStats>>(new Map());
-  const [callCountsMap, setCallCountsMap] = useState<Record<string, number>>({});
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [sortBy, setSortBy] = useState<SortType>('name');
 
-  useEffect(() => {
-    if (!user?.id) return;
+  // Fetch rep profiles
+  const { data: repProfiles = [], isLoading: repsLoading } = useManagerReps(user?.id, role || undefined);
+  
+  // Extract rep IDs for dependent queries
+  const repIds = useMemo(() => repProfiles.map(r => r.id), [repProfiles]);
 
-    const fetchData = async () => {
-      let repProfiles: Profile[] | null = null;
+  // Fetch dependent data in parallel
+  const { data: coachingMap = new Map() } = useRepCoachingSessions(repIds);
+  const { data: aiScoreStatsMap = new Map() } = useAiScoreStats(repIds);
+  const { data: callCountsMap = {} } = useRepCallCounts(repIds);
 
-      if (role === 'admin') {
-        // Admins can see all reps - get all profiles that have 'rep' role
-        const { data: repRoles } = await supabase
-          .from('user_roles')
-          .select('user_id')
-          .eq('role', 'rep');
+  // Handle refresh
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: managerDashboardKeys.all });
+  };
 
-        if (repRoles && repRoles.length > 0) {
-          const repUserIds = repRoles.map((r) => r.user_id);
-          const { data: profiles } = await supabase
-            .from('profiles')
-            .select('*')
-            .in('id', repUserIds)
-            .eq('is_active', true);
-          repProfiles = profiles;
-        }
-      } else {
-        // Managers only see their team's reps
-        const { data: teams } = await supabase
-          .from('teams')
-          .select('id')
-          .eq('manager_id', user.id);
-
-        if (!teams || teams.length === 0) {
-          setLoading(false);
-          return;
-        }
-
-        const teamIds = teams.map((t) => t.id);
-
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('*')
-          .in('team_id', teamIds)
-          .eq('is_active', true);
-        repProfiles = profiles;
-      }
-
-      if (!repProfiles || repProfiles.length === 0) {
-        setLoading(false);
-        return;
-      }
-
-      const repIds = repProfiles.map((r) => r.id);
-
-      // Get latest coaching sessions for all reps
-      const { data: coachingSessions } = await supabase
-        .from('coaching_sessions')
-        .select('*')
-        .in('rep_id', repIds)
-        .order('session_date', { ascending: false });
-
-      // Combine data
-      const repsWithData: Omit<RepWithData, 'latestAiAnalysis' | 'callsLast30Days'>[] = repProfiles.map((rep) => {
-        const coaching = coachingSessions?.find((c) => c.rep_id === rep.id);
-
-        return {
-          ...rep,
-          lastCoaching: coaching ? toCoachingSession(coaching) : undefined,
-        };
-      });
-
-      setReps(repsWithData as RepWithData[]);
-
-      // Fetch AI score stats and call counts in parallel
-      if (repProfiles.length > 0) {
-        try {
-          const [scoreStats, callCounts] = await Promise.all([
-            getAiScoreStatsForReps(repIds),
-            getCallCountsLast30DaysForReps(repIds)
-          ]);
-          setAiScoreStatsMap(scoreStats);
-          setCallCountsMap(callCounts);
-        } catch (err) {
-          log.error('Failed to fetch AI score stats or call counts', { error: err });
-        }
-      }
-
-      setLoading(false);
-    };
-
-    fetchData();
-  }, [user, role]);
-
-  // Process reps with AI score stats and call counts
+  // Process reps with coaching, AI score stats, and call counts
   const processedReps: RepWithData[] = useMemo(() => {
-    return reps.map((rep) => {
+    return repProfiles.map((rep) => {
+      const lastCoaching = coachingMap.get(rep.id) || undefined;
       const aiScoreStats = aiScoreStatsMap.get(rep.id) || null;
       const callsLast30Days = callCountsMap[rep.id] ?? 0;
       return {
         ...rep,
+        lastCoaching,
         aiScoreStats,
         callsLast30Days,
       };
     });
-  }, [reps, aiScoreStatsMap, callCountsMap]);
+  }, [repProfiles, coachingMap, aiScoreStatsMap, callCountsMap]);
 
   // Calculate summary stats
   const totalCalls = useMemo(() => {
@@ -173,7 +102,7 @@ function ManagerDashboard() {
     return result;
   }, [processedReps, sortBy]);
 
-  if (loading) {
+  if (repsLoading) {
     return (
       <AppLayout>
         <div className="flex items-center justify-center h-64">
@@ -187,11 +116,17 @@ function ManagerDashboard() {
     <AppLayout>
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
         {/* Page Header */}
-        <div className="space-y-1">
-          <h1 className="text-3xl font-bold tracking-tight">Team Overview</h1>
-          <p className="text-muted-foreground">
-            Track your reps' coaching status and call activity for {format(new Date(), 'MMMM yyyy')}
-          </p>
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <h1 className="text-3xl font-bold tracking-tight">Team Overview</h1>
+            <p className="text-muted-foreground">
+              Track your reps' coaching status and call activity for {format(new Date(), 'MMMM yyyy')}
+            </p>
+          </div>
+          <Button onClick={handleRefresh} variant="outline" size="sm">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
         </div>
 
         {/* Summary Cards */}
