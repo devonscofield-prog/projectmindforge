@@ -808,9 +808,12 @@ serve(async (req) => {
     console.log('[analyze-call] Analysis generated');
 
     // Step 5: Insert into ai_call_analysis using service role client
+    // Extract stakeholders_intel before inserting (it's not a column in the table)
+    const { stakeholders_intel, ...analysisForDb } = analysis;
+    
     const { data: analysisResult, error: insertError } = await supabaseAdmin
       .from('ai_call_analysis')
-      .insert(analysis)
+      .insert(analysisForDb)
       .select('id')
       .single();
 
