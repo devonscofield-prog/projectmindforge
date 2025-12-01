@@ -113,6 +113,11 @@ export function DiscoveryQuestionsCheatSheet() {
                 Back to Pitch Deck
               </Button>
             </Link>
+            <Link to="/marketing/executive-summary">
+              <Button variant="ghost" size="sm">
+                Executive Summary
+              </Button>
+            </Link>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={handlePrint} className="gap-2">

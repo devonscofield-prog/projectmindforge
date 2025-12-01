@@ -1,6 +1,7 @@
-import { ArrowRight, PlayCircle, MessageSquare, Calendar } from 'lucide-react';
+import { ArrowRight, PlayCircle, MessageSquare, Calendar, FileText, Calculator, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Link } from 'react-router-dom';
 
 const nextSteps = [
   {
@@ -45,14 +46,29 @@ export function CTASlide() {
       </div>
       
       <div className="mt-8 text-center space-y-4">
-        <div className="flex flex-wrap justify-center gap-4">
+        <div className="flex flex-wrap justify-center gap-3">
           <Button size="lg" className="gap-2">
             Start Demo
             <ArrowRight className="h-4 w-4" />
           </Button>
-          <Button size="lg" variant="outline" className="gap-2">
-            View ROI Calculator
-          </Button>
+          <Link to="/marketing/roi-calculator">
+            <Button size="lg" variant="outline" className="gap-2">
+              <Calculator className="h-4 w-4" />
+              ROI Calculator
+            </Button>
+          </Link>
+          <Link to="/marketing/executive-summary">
+            <Button size="lg" variant="outline" className="gap-2">
+              <FileText className="h-4 w-4" />
+              Executive Summary
+            </Button>
+          </Link>
+          <Link to="/marketing/discovery-questions">
+            <Button size="lg" variant="outline" className="gap-2">
+              <HelpCircle className="h-4 w-4" />
+              Discovery Questions
+            </Button>
+          </Link>
         </div>
         <p className="text-sm text-muted-foreground">
           Questions? Reach out to the project team for a walkthrough.
