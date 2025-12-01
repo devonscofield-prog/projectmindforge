@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   Sheet,
   SheetContent,
@@ -25,18 +25,12 @@ export function UserActivityLogSheet({
   userId, 
   userName 
 }: UserActivityLogSheetProps) {
-  const [logs, setLogs] = useState<UserActivityLog[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (open && userId) {
-      setLoading(true);
-      fetchUserActivityLogs(userId).then((data) => {
-        setLogs(data);
-        setLoading(false);
-      });
-    }
-  }, [open, userId]);
+  const { data: logs = [], isLoading } = useQuery({
+    queryKey: ['user-activity-logs', userId],
+    queryFn: () => fetchUserActivityLogs(userId),
+    enabled: open && !!userId,
+    staleTime: 30 * 1000, // 30 seconds
+  });
 
   const getActivityIcon = (type: string) => {
     switch (type) {
@@ -86,7 +80,7 @@ export function UserActivityLogSheet({
         </SheetHeader>
 
         <ScrollArea className="h-[calc(100vh-140px)] mt-6 pr-4">
-          {loading ? (
+          {isLoading ? (
             <div className="flex items-center justify-center h-32">
               <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             </div>

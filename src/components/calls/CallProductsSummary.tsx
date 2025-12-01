@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -12,15 +12,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { getCallProducts, updateCallProduct, deleteCallProduct, insertCallProducts, updateProspectActiveRevenue, CallProduct } from '@/api/callProducts';
 import { EditProductDialog } from './EditProductDialog';
 import { AddProductToCallDialog } from './AddProductToCallDialog';
 import { Package, DollarSign, Hash, Tag, Pencil, Trash2, Plus } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { createLogger } from '@/lib/logger';
 import { formatCurrency } from '@/lib/formatters';
-
-const log = createLogger('CallProductsSummary');
+import { 
+  useCallProducts, 
+  useUpdateCallProduct, 
+  useDeleteCallProduct, 
+  useAddCallProduct 
+} from '@/hooks/useCallDetailQueries';
 
 interface CallProductsSummaryProps {
   callId: string;
@@ -44,106 +45,31 @@ interface ProductWithDetails {
 }
 
 export function CallProductsSummary({ callId, prospectId, isOwner }: CallProductsSummaryProps) {
-  const { toast } = useToast();
-  const [products, setProducts] = useState<ProductWithDetails[]>([]);
-  const [loading, setLoading] = useState(true);
   const [editingProduct, setEditingProduct] = useState<ProductWithDetails | null>(null);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
   const [isAddingProduct, setIsAddingProduct] = useState(false);
 
-  const loadProducts = async () => {
-    try {
-      const data = await getCallProducts(callId);
-      setProducts(data as ProductWithDetails[]);
-    } catch (error) {
-      log.error('Error loading products', { error, callId });
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Fetch products
+  const { data: products = [], isLoading } = useCallProducts(callId);
 
-  useEffect(() => {
-    loadProducts();
-  }, [callId]);
+  // Mutations
+  const updateMutation = useUpdateCallProduct(prospectId);
+  const deleteMutation = useDeleteCallProduct(prospectId);
+  const addMutation = useAddCallProduct(callId, prospectId);
 
   const handleSaveProduct = async (productId: string, updates: { unit_price: number; quantity: number; promotion_notes: string }) => {
-    try {
-      await updateCallProduct(productId, updates);
-      await loadProducts();
-      
-      // Update prospect active revenue if linked
-      if (prospectId) {
-        await updateProspectActiveRevenue(prospectId);
-      }
-
-      toast({
-        title: 'Product updated',
-        description: 'Product information has been updated successfully.',
-      });
-    } catch (error) {
-      log.error('Error updating product', { error, productId });
-      toast({
-        title: 'Error',
-        description: 'Failed to update product information.',
-        variant: 'destructive',
-      });
-    }
+    updateMutation.mutate({ productId, updates });
   };
 
   const handleDeleteProduct = async (productId: string) => {
-    try {
-      await deleteCallProduct(productId);
-      await loadProducts();
-      
-      // Update prospect active revenue if linked
-      if (prospectId) {
-        await updateProspectActiveRevenue(prospectId);
-      }
-
-      toast({
-        title: 'Product removed',
-        description: 'Product has been removed from this call.',
-      });
-    } catch (error) {
-      log.error('Error deleting product', { error, productId });
-      toast({
-        title: 'Error',
-        description: 'Failed to remove product.',
-        variant: 'destructive',
-      });
-    }
+    deleteMutation.mutate(productId);
   };
 
   const handleAddProduct = async (productId: string, unitPrice: number, quantity: number, promotionNotes: string) => {
-    try {
-      await insertCallProducts(callId, [{
-        productId,
-        unitPrice,
-        quantity,
-        promotionNotes: promotionNotes || undefined,
-      }]);
-      await loadProducts();
-      
-      // Update prospect active revenue if linked
-      if (prospectId) {
-        await updateProspectActiveRevenue(prospectId);
-      }
-
-      toast({
-        title: 'Product added',
-        description: 'Product has been added to this call.',
-      });
-    } catch (error) {
-      log.error('Error adding product', { error });
-      toast({
-        title: 'Error',
-        description: 'Failed to add product.',
-        variant: 'destructive',
-      });
-    }
+    addMutation.mutate({ productId, unitPrice, quantity, promotionNotes });
   };
 
-  if (loading) {
+  if (isLoading) {
     return null;
   }
 

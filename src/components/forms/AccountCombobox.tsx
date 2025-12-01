@@ -1,8 +1,6 @@
-import { useState, useEffect } from 'react';
-import { createLogger } from '@/lib/logger';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Check, ChevronsUpDown, Plus, Building2 } from 'lucide-react';
-
-const log = createLogger('AccountCombobox');
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,7 +16,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { listProspectsForRep, type Prospect } from '@/api/prospects';
+import { listProspectsForRep } from '@/api/prospects';
 
 interface AccountComboboxProps {
   repId: string;
@@ -38,26 +36,15 @@ export function AccountCombobox({
   disabled = false,
 }: AccountComboboxProps) {
   const [open, setOpen] = useState(false);
-  const [prospects, setProspects] = useState<Prospect[]>([]);
-  const [loading, setLoading] = useState(false);
   const [searchValue, setSearchValue] = useState('');
 
   // Fetch prospects for the rep
-  useEffect(() => {
-    async function fetchProspects() {
-      if (!repId) return;
-      setLoading(true);
-      try {
-        const data = await listProspectsForRep(repId);
-        setProspects(data);
-      } catch (error) {
-        log.error('Failed to fetch prospects', { error });
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchProspects();
-  }, [repId]);
+  const { data: prospects = [], isLoading } = useQuery({
+    queryKey: ['rep-prospects', repId],
+    queryFn: () => listProspectsForRep(repId),
+    enabled: !!repId,
+    staleTime: 5 * 60 * 1000, // 5 minutes - form data can be cached longer
+  });
 
   // Get unique account names with their prospect IDs and salesforce links
   const accountOptions = prospects.reduce<{ accountName: string; prospectId: string; salesforceLink: string | null }[]>((acc, prospect) => {
@@ -119,7 +106,7 @@ export function AccountCombobox({
             onValueChange={setSearchValue}
           />
           <CommandList>
-            {loading ? (
+            {isLoading ? (
               <div className="p-4 text-sm text-center text-muted-foreground">
                 Loading accounts...
               </div>

@@ -1,8 +1,6 @@
-import { useState, useEffect } from 'react';
-import { createLogger } from '@/lib/logger';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Check, ChevronsUpDown, Plus, User, Crown } from 'lucide-react';
-
-const log = createLogger('StakeholderCombobox');
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,7 +16,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { listStakeholdersForProspect, type Stakeholder } from '@/api/stakeholders';
+import { listStakeholdersForProspect } from '@/api/stakeholders';
 
 interface StakeholderComboboxProps {
   prospectId: string | null;
@@ -38,29 +36,15 @@ export function StakeholderCombobox({
   disabled = false,
 }: StakeholderComboboxProps) {
   const [open, setOpen] = useState(false);
-  const [stakeholders, setStakeholders] = useState<Stakeholder[]>([]);
-  const [loading, setLoading] = useState(false);
   const [searchValue, setSearchValue] = useState('');
 
   // Fetch stakeholders when prospectId changes
-  useEffect(() => {
-    async function fetchStakeholders() {
-      if (!prospectId) {
-        setStakeholders([]);
-        return;
-      }
-      setLoading(true);
-      try {
-        const data = await listStakeholdersForProspect(prospectId);
-        setStakeholders(data);
-      } catch (error) {
-        log.error('Failed to fetch stakeholders', { error });
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchStakeholders();
-  }, [prospectId]);
+  const { data: stakeholders = [], isLoading } = useQuery({
+    queryKey: ['prospect-stakeholders', prospectId],
+    queryFn: () => listStakeholdersForProspect(prospectId!),
+    enabled: !!prospectId,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  });
 
   // Check if current search value is a new stakeholder
   const isNewStakeholder = searchValue.trim() && 
@@ -116,7 +100,7 @@ export function StakeholderCombobox({
             onValueChange={setSearchValue}
           />
           <CommandList>
-            {loading ? (
+            {isLoading ? (
               <div className="p-4 text-sm text-center text-muted-foreground">
                 Loading stakeholders...
               </div>
