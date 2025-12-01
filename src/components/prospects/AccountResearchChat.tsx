@@ -66,6 +66,7 @@ export function AccountResearchChat({
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const researchResultRef = useRef('');
   
   // Rate limiting
   const { secondsRemaining, isRateLimited, startCountdown } = useRateLimitCountdown(60);
@@ -127,7 +128,9 @@ export function AccountResearchChat({
 
     setIsResearching(true);
     setResearchResult('');
+    researchResultRef.current = '';
     setShowForm(false);
+    setSaved(false);
 
     const request: AccountResearchRequest = {
       companyName: companyName.trim(),
@@ -149,18 +152,38 @@ export function AccountResearchChat({
     await streamAccountResearch({
       request,
       onDelta: (text) => {
+        researchResultRef.current += text;
         setResearchResult(prev => prev + text);
         // Auto-scroll to bottom
         if (scrollContainerRef.current) {
           scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
         }
       },
-      onDone: () => {
+      onDone: async () => {
         setIsResearching(false);
-        toast.success('Research complete');
+        
+        // Auto-save if callback exists and we have results
+        if (onSaveResearch && researchResultRef.current && prospect) {
+          try {
+            const success = await onSaveResearch(researchResultRef.current);
+            if (success) {
+              setSaved(true);
+              toast.success('Research complete and saved');
+            } else {
+              toast.success('Research complete');
+              toast.warning('Auto-save failed - click Save to retry');
+            }
+          } catch (err) {
+            toast.success('Research complete');
+            toast.warning('Auto-save failed - click Save to retry');
+          }
+        } else {
+          toast.success('Research complete');
+        }
       },
       onError: (error) => {
         setIsResearching(false);
+        researchResultRef.current = '';
         if (error.message.includes('Rate limit') || error.message.includes('429')) {
           startCountdown(60);
           toast.error('Rate limited. Please wait before trying again.');
@@ -185,6 +208,7 @@ export function AccountResearchChat({
 
   const handleNewResearch = () => {
     setResearchResult('');
+    researchResultRef.current = '';
     setShowForm(true);
     setSaved(false);
   };
