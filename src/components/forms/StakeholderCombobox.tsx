@@ -67,7 +67,7 @@ export function StakeholderCombobox({
     !stakeholders.some(s => s.name.toLowerCase() === searchValue.trim().toLowerCase());
 
   const handleSelect = (stakeholderName: string, stakeholderId: string | null) => {
-    onChange(stakeholderName, stakeholderId);
+    onChange(stakeholderName.trim(), stakeholderId);
     setOpen(false);
     setSearchValue('');
   };
