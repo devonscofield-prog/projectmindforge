@@ -4,6 +4,7 @@ export * from './use-toast';
 export * from './usePresence';
 export * from './useProspectData';
 export * from './useRateLimitCountdown';
+export * from './useDateRangeSelector';
 
 // Data fetching hooks
 export * from './useTeams';

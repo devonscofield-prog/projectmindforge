@@ -32,10 +32,8 @@ export default function RepCoachingSummary() {
     isOwnSummary,
     repProfile,
     dateRange,
-    dateRangeInternal,
     selectedPreset,
     comparisonDateRange,
-    comparisonDateRangeInternal,
     comparisonPreset,
     generateRequested,
     isComparisonMode,
@@ -107,14 +105,12 @@ export default function RepCoachingSummary() {
           {/* Date Range Controls */}
           <DateRangeControls
             dateRange={dateRange}
-            dateRangeInternal={dateRangeInternal}
             selectedPreset={selectedPreset}
             onPresetChange={handlePresetChange}
             onFromDateChange={handleFromDateChange}
             onToDateChange={handleToDateChange}
             isComparisonMode={isComparisonMode}
             comparisonDateRange={comparisonDateRange}
-            comparisonDateRangeInternal={comparisonDateRangeInternal}
             comparisonPreset={comparisonPreset}
             comparisonConfirmed={comparisonConfirmed}
             isComparisonFetching={isComparisonFetching}

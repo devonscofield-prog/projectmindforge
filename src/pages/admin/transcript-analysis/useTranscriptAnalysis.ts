@@ -7,10 +7,11 @@ import { createLogger } from '@/lib/logger';
 import { Json } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { useDateRangeSelector } from '@/hooks/useDateRangeSelector';
 
 const log = createLogger('transcriptAnalysis');
 import { useTeams, useReps } from '@/hooks';
-import { createDateRange, Transcript } from './constants';
+import { Transcript } from './constants';
 
 interface UseTranscriptAnalysisOptions {
   scope?: 'org' | 'team' | 'self';
@@ -29,9 +30,16 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
   const isTeamScoped = scope === 'team';
   const isSelfScoped = scope === 'self';
   
+  // Date range hook
+  const {
+    dateRange,
+    selectedPreset,
+    handlePresetChange: onPresetChange,
+    handleFromDateChange: onFromDateChange,
+    handleToDateChange: onToDateChange,
+  } = useDateRangeSelector({ initialPreset: '30' });
+  
   // Filter state
-  const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>(() => createDateRange(30));
-  const [selectedPreset, setSelectedPreset] = useState<string>('30');
   const [selectedTeamId, setSelectedTeamId] = useState<string>('all');
   const [selectedRepId, setSelectedRepId] = useState<string>('all');
   const [accountSearch, setAccountSearch] = useState<string>('');
@@ -106,11 +114,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
         selectedCallTypes?: string[];
       };
       if (f.dateRange) {
-        setDateRange({
-          from: new Date(f.dateRange.from),
-          to: new Date(f.dateRange.to),
-        });
-        setSelectedPreset('custom');
+        onPresetChange('custom');
       }
       if (f.selectedTeamId) setSelectedTeamId(f.selectedTeamId);
       if (f.selectedRepId) setSelectedRepId(f.selectedRepId);
@@ -299,26 +303,15 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
   };
 
   const handlePresetChange = (value: string) => {
-    setSelectedPreset(value);
-    if (value !== 'custom') {
-      setDateRange(createDateRange(parseInt(value)));
-    }
+    onPresetChange(value as any);
   };
 
   const handleFromDateChange = (date: Date | undefined) => {
-    if (date) {
-      date.setHours(0, 0, 0, 0);
-      setDateRange(prev => ({ ...prev, from: date }));
-      setSelectedPreset('custom');
-    }
+    onFromDateChange(date);
   };
 
   const handleToDateChange = (date: Date | undefined) => {
-    if (date) {
-      date.setHours(23, 59, 59, 999);
-      setDateRange(prev => ({ ...prev, to: date }));
-      setSelectedPreset('custom');
-    }
+    onToDateChange(date);
   };
 
   const toggleTranscript = (id: string) => {

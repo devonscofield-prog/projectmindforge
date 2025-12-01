@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
+import { useDateRangeSelector } from '@/hooks/useDateRangeSelector';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
 import { getAdminPageBreadcrumb } from '@/lib/breadcrumbConfig';
@@ -55,22 +56,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 
 type AnalysisScope = 'organization' | 'team' | 'rep';
 
-const TIME_RANGES = [
-  { value: '7', label: 'Last 7 days' },
-  { value: '30', label: 'Last 30 days' },
-  { value: '90', label: 'Last 90 days' },
-  { value: '180', label: 'Last 6 months' },
-];
-
-function createDateRange(daysBack: number): { from: Date; to: Date } {
-  const to = new Date();
-  to.setHours(23, 59, 59, 999);
-  const from = new Date();
-  from.setDate(from.getDate() - daysBack);
-  from.setHours(0, 0, 0, 0);
-  return { from, to };
-}
-
 export default function AdminCoachingTrends() {
   const { role } = useAuth();
   
@@ -79,12 +64,21 @@ export default function AdminCoachingTrends() {
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
   const [selectedRepId, setSelectedRepId] = useState<string>('');
   
-  // Date range state
-  const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>(() => createDateRange(30));
-  const [selectedPreset, setSelectedPreset] = useState<string>('30');
-  
   // Manual generation control
   const [generateRequested, setGenerateRequested] = useState(false);
+  
+  // Date range hook
+  const {
+    dateRange,
+    selectedPreset,
+    presets: TIME_RANGES,
+    handlePresetChange: onPresetChange,
+    handleFromDateChange,
+    handleToDateChange,
+  } = useDateRangeSelector({
+    initialPreset: '30',
+    onChange: () => setGenerateRequested(false),
+  });
   
   // Export dialog and comparison view state
   const [showExportDialog, setShowExportDialog] = useState(false);
@@ -178,29 +172,7 @@ export default function AdminCoachingTrends() {
   });
 
   const handlePresetChange = (value: string) => {
-    setSelectedPreset(value);
-    setGenerateRequested(false);
-    if (value !== 'custom') {
-      setDateRange(createDateRange(parseInt(value)));
-    }
-  };
-
-  const handleFromDateChange = (date: Date | undefined) => {
-    if (date) {
-      date.setHours(0, 0, 0, 0);
-      setDateRange(prev => ({ ...prev, from: date }));
-      setSelectedPreset('custom');
-      setGenerateRequested(false);
-    }
-  };
-
-  const handleToDateChange = (date: Date | undefined) => {
-    if (date) {
-      date.setHours(23, 59, 59, 999);
-      setDateRange(prev => ({ ...prev, to: date }));
-      setSelectedPreset('custom');
-      setGenerateRequested(false);
-    }
+    onPresetChange(value as any);
   };
 
   const handleScopeChange = (newScope: AnalysisScope) => {

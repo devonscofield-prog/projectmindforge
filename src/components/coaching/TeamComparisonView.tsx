@@ -1,8 +1,9 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { format, subDays, subMonths } from 'date-fns';
+import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { generateAggregateCoachingTrends, CoachingTrendAnalysis } from '@/api/aiCallAnalysis';
+import { useDateRangeSelector } from '@/hooks/useDateRangeSelector';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -41,40 +42,27 @@ interface TeamAnalysisResult {
   error: string | null;
 }
 
-type TimePreset = 'last7' | 'last30' | 'last90' | 'last6months' | 'custom';
-
-const TIME_PRESETS: { value: TimePreset; label: string }[] = [
-  { value: 'last7', label: 'Last 7 days' },
-  { value: 'last30', label: 'Last 30 days' },
-  { value: 'last90', label: 'Last 90 days' },
-  { value: 'last6months', label: 'Last 6 months' },
-  { value: 'custom', label: 'Custom range' },
-];
-
-function getPresetDateRange(preset: TimePreset): { from: Date; to: Date } {
-  const to = new Date();
-  switch (preset) {
-    case 'last7':
-      return { from: subDays(to, 7), to };
-    case 'last30':
-      return { from: subDays(to, 30), to };
-    case 'last90':
-      return { from: subDays(to, 90), to };
-    case 'last6months':
-      return { from: subMonths(to, 6), to };
-    default:
-      return { from: subDays(to, 30), to };
-  }
-}
-
 export function TeamComparisonView({ dateRange, onClose }: TeamComparisonViewProps) {
   const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
   const [teamAnalyses, setTeamAnalyses] = useState<Map<string, TeamAnalysisResult>>(new Map());
   const [isComparing, setIsComparing] = useState(false);
   
-  // Local date range state for independent control
-  const [localDateRange, setLocalDateRange] = useState<{ from: Date; to: Date }>(dateRange);
-  const [selectedPreset, setSelectedPreset] = useState<TimePreset>('last30');
+  // Local date range hook for independent control
+  const {
+    dateRange: localDateRange,
+    selectedPreset,
+    presets: TIME_PRESETS,
+    handlePresetChange: onPresetChange,
+    handleFromDateChange,
+    handleToDateChange,
+  } = useDateRangeSelector({
+    initialPreset: '30',
+    onChange: () => {
+      if (teamAnalyses.size > 0) {
+        setTeamAnalyses(new Map());
+      }
+    },
+  });
 
   // Fetch all teams
   const { data: teams } = useQuery({
@@ -89,37 +77,8 @@ export function TeamComparisonView({ dateRange, onClose }: TeamComparisonViewPro
     },
   });
 
-  // Handle preset change
-  const handlePresetChange = (preset: TimePreset) => {
-    setSelectedPreset(preset);
-    if (preset !== 'custom') {
-      setLocalDateRange(getPresetDateRange(preset));
-    }
-    // Clear results when date range changes
-    if (teamAnalyses.size > 0) {
-      setTeamAnalyses(new Map());
-    }
-  };
-
-  // Handle custom date changes
-  const handleFromDateChange = (date: Date | undefined) => {
-    if (date) {
-      setSelectedPreset('custom');
-      setLocalDateRange(prev => ({ ...prev, from: date }));
-      if (teamAnalyses.size > 0) {
-        setTeamAnalyses(new Map());
-      }
-    }
-  };
-
-  const handleToDateChange = (date: Date | undefined) => {
-    if (date) {
-      setSelectedPreset('custom');
-      setLocalDateRange(prev => ({ ...prev, to: date }));
-      if (teamAnalyses.size > 0) {
-        setTeamAnalyses(new Map());
-      }
-    }
+  const handlePresetChange = (value: string) => {
+    onPresetChange(value as any);
   };
 
   const handleAddTeam = (teamId: string) => {
@@ -253,13 +212,13 @@ export function TeamComparisonView({ dateRange, onClose }: TeamComparisonViewPro
           <Label className="text-sm font-medium">Time Period</Label>
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex-1 min-w-[140px]">
-              <Select value={selectedPreset} onValueChange={(v) => handlePresetChange(v as TimePreset)}>
+              <Select value={selectedPreset as string} onValueChange={(v) => handlePresetChange(v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select period" />
                 </SelectTrigger>
                 <SelectContent>
                   {TIME_PRESETS.map(preset => (
-                    <SelectItem key={preset.value} value={preset.value}>
+                    <SelectItem key={preset.value} value={preset.value as string}>
                       {preset.label}
                     </SelectItem>
                   ))}
