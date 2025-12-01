@@ -5,16 +5,16 @@ const metrics = [
   {
     icon: Clock,
     value: '70%',
-    label: 'Reduction in Documentation Time',
-    description: 'AI-generated notes, summaries, and recap emails',
+    label: 'Admin Time Reduction',
+    description: 'Less time on documentation with AI-generated notes and emails',
     color: 'text-blue-500',
     bgColor: 'bg-blue-500/10',
   },
   {
     icon: TrendingUp,
     value: '5-15%',
-    label: 'Win Rate Improvement',
-    description: 'Better methodology adherence and deal execution',
+    label: 'Expected Win Rate Lift',
+    description: 'Through better methodology adherence and deal execution',
     color: 'text-green-500',
     bgColor: 'bg-green-500/10',
   },
@@ -22,15 +22,15 @@ const metrics = [
     icon: Users,
     value: '4x',
     label: 'Coaching Scalability',
-    description: 'More reps coached effectively per manager',
+    description: 'More reps can receive personalized coaching per manager',
     color: 'text-purple-500',
     bgColor: 'bg-purple-500/10',
   },
   {
     icon: DollarSign,
-    value: '300%+',
-    label: 'Average First Year ROI',
-    description: 'Typical payback period of 2-3 months',
+    value: '2-3 mo',
+    label: 'Expected Payback',
+    description: 'Typical time to realize positive ROI from platform adoption',
     color: 'text-amber-500',
     bgColor: 'bg-amber-500/10',
   },
@@ -40,9 +40,9 @@ export function ROISlide() {
   return (
     <div className="flex flex-col h-full px-8 py-6">
       <div className="text-center mb-8">
-        <h2 className="text-3xl md:text-4xl font-bold mb-3">Proven ROI</h2>
+        <h2 className="text-3xl md:text-4xl font-bold mb-3">Expected Business Impact</h2>
         <p className="text-muted-foreground text-lg">
-          Measurable impact from day one
+          Projected benefits based on industry benchmarks
         </p>
       </div>
       
@@ -67,7 +67,7 @@ export function ROISlide() {
       
       <div className="mt-6 p-4 rounded-xl bg-primary/10 text-center">
         <p className="text-sm font-medium">
-          Try our <span className="text-primary">ROI Calculator</span> to see your personalized impact estimate
+          Use our <span className="text-primary">ROI Calculator</span> to model impact for our specific team size
         </p>
       </div>
     </div>

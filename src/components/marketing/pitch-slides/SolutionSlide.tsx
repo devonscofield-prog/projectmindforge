@@ -27,9 +27,9 @@ export function SolutionSlide() {
   return (
     <div className="flex flex-col h-full px-8 py-6">
       <div className="text-center mb-8">
-        <h2 className="text-3xl md:text-4xl font-bold mb-3">The Solution</h2>
+        <h2 className="text-3xl md:text-4xl font-bold mb-3">Platform Capabilities</h2>
         <p className="text-muted-foreground text-lg">
-          An AI-powered platform that transforms sales performance
+          Four core pillars powering our sales enablement solution
         </p>
       </div>
       
@@ -52,7 +52,7 @@ export function SolutionSlide() {
       
       <div className="mt-8 text-center">
         <div className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-primary/10 text-primary font-medium">
-          All powered by enterprise-grade AI
+          Built on Lovable Cloud with enterprise-grade AI
         </div>
       </div>
     </div>

@@ -22,16 +22,16 @@ import {
 } from './pitch-slides';
 
 const slides = [
-  { id: 'title', component: TitleSlide, name: 'Title' },
-  { id: 'challenge', component: ChallengeSlide, name: 'The Challenge' },
-  { id: 'solution', component: SolutionSlide, name: 'The Solution' },
-  { id: 'features', component: FeaturesSlide, name: 'Key Features' },
-  { id: 'roi', component: ROISlide, name: 'Proven ROI' },
+  { id: 'title', component: TitleSlide, name: 'Overview' },
+  { id: 'challenge', component: ChallengeSlide, name: 'Problems We Solve' },
+  { id: 'solution', component: SolutionSlide, name: 'Capabilities' },
+  { id: 'features', component: FeaturesSlide, name: 'Features' },
+  { id: 'roi', component: ROISlide, name: 'Business Impact' },
   { id: 'how-it-works', component: HowItWorksSlide, name: 'How It Works' },
-  { id: 'comparison', component: ComparisonSlide, name: 'Competitive Advantage' },
-  { id: 'roadmap', component: RoadmapSlide, name: 'Implementation' },
-  { id: 'success', component: SuccessSlide, name: 'Customer Success' },
-  { id: 'cta', component: CTASlide, name: 'Get Started' },
+  { id: 'comparison', component: ComparisonSlide, name: 'Why This Approach' },
+  { id: 'roadmap', component: RoadmapSlide, name: 'Roadmap' },
+  { id: 'success', component: SuccessSlide, name: 'Expected Outcomes' },
+  { id: 'cta', component: CTASlide, name: 'Next Steps' },
 ];
 
 export function PitchDeck() {

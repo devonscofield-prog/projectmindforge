@@ -4,22 +4,22 @@ const steps = [
   {
     icon: Upload,
     step: '01',
-    title: 'Record & Upload',
-    description: 'Connect your call recording platform or upload transcripts directly',
+    title: 'Capture Calls',
+    description: 'Reps upload call transcripts or connect recording platforms',
     color: 'bg-blue-500',
   },
   {
     icon: Sparkles,
     step: '02',
-    title: 'AI Analysis',
-    description: 'Instant insights, scores, and coaching recommendations generated',
+    title: 'AI Processing',
+    description: 'Automatic analysis generates scores, insights, and recommendations',
     color: 'bg-purple-500',
   },
   {
     icon: LineChart,
     step: '03',
-    title: 'Track & Improve',
-    description: 'Monitor progress, identify patterns, and measure ROI over time',
+    title: 'Act & Improve',
+    description: 'Teams use insights for coaching, follow-ups, and skill development',
     color: 'bg-green-500',
   },
 ];
@@ -57,7 +57,7 @@ export function HowItWorksSlide() {
       
       <div className="mt-8 text-center">
         <p className="text-muted-foreground">
-          <span className="font-semibold">No complex integrations required.</span> Get started in minutes.
+          <span className="font-semibold">Minimal setup required.</span> Most teams are productive within the first week.
         </p>
       </div>
     </div>
