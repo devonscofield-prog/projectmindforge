@@ -32,25 +32,53 @@ export function useProspectCore({ prospectId }: UseProspectCoreOptions) {
   const loadCoreData = useCallback(async () => {
     if (!prospectId) return null;
 
-    const [prospectData, stakeholdersData, relationshipsData, callsData] = await Promise.all([
-      getProspectById(prospectId),
-      listStakeholdersForProspect(prospectId),
-      listRelationshipsForProspect(prospectId),
-      getCallsForProspect(prospectId),
-    ]);
+    try {
+      // Use Promise.allSettled to handle partial failures gracefully
+      const results = await Promise.allSettled([
+        getProspectById(prospectId),
+        listStakeholdersForProspect(prospectId),
+        listRelationshipsForProspect(prospectId),
+        getCallsForProspect(prospectId),
+      ]);
 
-    if (!prospectData) {
-      toast({ title: 'Account not found', variant: 'destructive' });
-      navigate('/rep/prospects');
-      return null;
+      // Extract results, using defaults for failed requests
+      const prospectData = results[0].status === 'fulfilled' ? results[0].value : null;
+      const stakeholdersData = results[1].status === 'fulfilled' ? results[1].value : [];
+      const relationshipsData = results[2].status === 'fulfilled' ? results[2].value : [];
+      const callsData = results[3].status === 'fulfilled' ? results[3].value : [];
+
+      // Log any failures for debugging
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          const names = ['prospect', 'stakeholders', 'relationships', 'calls'];
+          log.warn(`Failed to load ${names[index]}`, { error: result.reason });
+        }
+      });
+
+      if (!prospectData) {
+        toast({ title: 'Account not found', variant: 'destructive' });
+        // Check current path to navigate appropriately
+        const currentPath = window.location.pathname;
+        if (currentPath.startsWith('/admin')) {
+          navigate('/admin/accounts');
+        } else if (currentPath.startsWith('/manager')) {
+          navigate('/manager/accounts');
+        } else {
+          navigate('/rep/prospects');
+        }
+        return null;
+      }
+
+      setProspect(prospectData);
+      setStakeholders(stakeholdersData);
+      setRelationships(relationshipsData);
+      setCalls(callsData);
+
+      return { prospectData, stakeholdersData, relationshipsData, callsData };
+    } catch (error) {
+      log.error('Unexpected error loading core data', { error });
+      throw error;
     }
-
-    setProspect(prospectData);
-    setStakeholders(stakeholdersData);
-    setRelationships(relationshipsData);
-    setCalls(callsData);
-
-    return { prospectData, stakeholdersData, relationshipsData, callsData };
   }, [prospectId, navigate, toast]);
 
   const handleStatusChange = useCallback(async (newStatus: ProspectStatus) => {
