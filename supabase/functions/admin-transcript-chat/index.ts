@@ -433,6 +433,7 @@ const DIRECT_INJECTION_MAX = 20;
 const RAG_CHUNK_LIMIT = 50;
 
 // Performance logging helper
+// Note: Using type assertion because performance_metrics table type is not in generated types yet
 async function logPerformanceMetric(
   supabaseClient: ReturnType<typeof createClient>,
   functionName: string,
@@ -442,16 +443,15 @@ async function logPerformanceMetric(
   metadata?: Record<string, unknown>
 ): Promise<void> {
   try {
-    // Use raw insert to avoid type issues with new table
     const { error } = await supabaseClient
       .from('performance_metrics' as any)
       .insert({
-        metric_type: 'edge_function',
+        metric_type: 'edge_function' as const,
         metric_name: functionName,
         duration_ms: Math.round(durationMs),
         status,
         user_id: userId || null,
-        metadata: metadata || {},
+        metadata: metadata || null,
       } as any);
     
     if (error) {

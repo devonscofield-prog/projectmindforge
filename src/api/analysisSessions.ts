@@ -31,7 +31,7 @@ export async function saveAnalysisSession(
     ? firstUserMessage.content.slice(0, 100) + (firstUserMessage.content.length > 100 ? '...' : '')
     : 'Analysis Session';
   
-  // Convert messages to Json type
+  // Convert messages to Json type (requires intermediate unknown cast for type safety)
   const messagesJson = messages as unknown as Json;
   
   if (sessionId) {

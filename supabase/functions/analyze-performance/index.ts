@@ -61,43 +61,75 @@ serve(async (req) => {
 
     // Identify problematic operations
     const slowQueries = (performanceSummary || [])
-      .filter((m: any) => m.metric_type === "query" && m.avg_duration_ms > 500)
-      .sort((a: any, b: any) => b.avg_duration_ms - a.avg_duration_ms)
+      .filter((m: { metric_type: string; avg_duration_ms: number }) => 
+        m.metric_type === "query" && m.avg_duration_ms > 500
+      )
+      .sort((a: { avg_duration_ms: number }, b: { avg_duration_ms: number }) => 
+        b.avg_duration_ms - a.avg_duration_ms
+      )
       .slice(0, 5);
 
     const slowEdgeFunctions = (performanceSummary || [])
-      .filter((m: any) => m.metric_type === "edge_function" && m.avg_duration_ms > 3000)
-      .sort((a: any, b: any) => b.avg_duration_ms - a.avg_duration_ms)
+      .filter((m: { metric_type: string; avg_duration_ms: number }) => 
+        m.metric_type === "edge_function" && m.avg_duration_ms > 3000
+      )
+      .sort((a: { avg_duration_ms: number }, b: { avg_duration_ms: number }) => 
+        b.avg_duration_ms - a.avg_duration_ms
+      )
       .slice(0, 5);
 
     const highErrorOperations = (performanceSummary || [])
-      .filter((m: any) => m.error_rate > 1)
-      .sort((a: any, b: any) => b.error_rate - a.error_rate)
+      .filter((m: { error_rate: number }) => m.error_rate > 1)
+      .sort((a: { error_rate: number }, b: { error_rate: number }) => 
+        b.error_rate - a.error_rate
+      )
       .slice(0, 5);
 
-    const prompt = `You are a performance optimization expert analyzing a web application's backend performance metrics.
+const prompt = `You are a performance optimization expert analyzing a web application's backend performance metrics.
 
 ## Current Performance Data (Last 24 Hours)
 
 ### Slow Database Queries (>500ms avg):
 ${slowQueries.length > 0 
-  ? slowQueries.map((q: any) => `- ${q.metric_name}: avg=${q.avg_duration_ms}ms, p99=${q.p99_duration_ms}ms, calls=${q.total_count}`).join('\n')
+  ? slowQueries.map((q: { 
+      metric_name: string; 
+      avg_duration_ms: number; 
+      p99_duration_ms: number; 
+      total_count: number 
+    }) => 
+      `- ${q.metric_name}: avg=${q.avg_duration_ms}ms, p99=${q.p99_duration_ms}ms, calls=${q.total_count}`
+    ).join('\n')
   : 'No slow queries detected'}
 
 ### Slow Edge Functions (>3s avg):
 ${slowEdgeFunctions.length > 0
-  ? slowEdgeFunctions.map((f: any) => `- ${f.metric_name}: avg=${f.avg_duration_ms}ms, p99=${f.p99_duration_ms}ms, calls=${f.total_count}`).join('\n')
+  ? slowEdgeFunctions.map((f: { 
+      metric_name: string; 
+      avg_duration_ms: number; 
+      p99_duration_ms: number; 
+      total_count: number 
+    }) => 
+      `- ${f.metric_name}: avg=${f.avg_duration_ms}ms, p99=${f.p99_duration_ms}ms, calls=${f.total_count}`
+    ).join('\n')
   : 'No slow edge functions detected'}
 
 ### High Error Rate Operations (>1%):
 ${highErrorOperations.length > 0
-  ? highErrorOperations.map((o: any) => `- ${o.metric_name} (${o.metric_type}): error_rate=${o.error_rate}%, errors=${o.error_count}/${o.total_count}`).join('\n')
+  ? highErrorOperations.map((o: { 
+      metric_name: string; 
+      metric_type: string; 
+      error_rate: number; 
+      error_count: number; 
+      total_count: number 
+    }) => 
+      `- ${o.metric_name} (${o.metric_type}): error_rate=${o.error_rate}%, errors=${o.error_count}/${o.total_count}`
+    ).join('\n')
   : 'No high error rate operations detected'}
 
 ### Overall Statistics:
 - Total operations tracked: ${(performanceSummary || []).length}
-- Total calls: ${(performanceSummary || []).reduce((sum: number, m: any) => sum + m.total_count, 0)}
-- Total errors: ${(performanceSummary || []).reduce((sum: number, m: any) => sum + m.error_count, 0)}
+- Total calls: ${(performanceSummary || []).reduce((sum: number, m: { total_count: number }) => sum + m.total_count, 0)}
+- Total errors: ${(performanceSummary || []).reduce((sum: number, m: { error_count: number }) => sum + m.error_count, 0)}
 
 Based on this data, provide 3-5 specific, actionable recommendations to improve performance. Focus on:
 1. The most impactful optimizations (high call count + slow performance)

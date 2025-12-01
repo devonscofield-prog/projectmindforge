@@ -242,8 +242,9 @@ serve(async (req) => {
     }
 
     // Fetch AI analyses for calls
-    const callIds = (calls || []).map(c => c.id);
-    let analyses: Record<string, any> = {};
+    // Note: Using 'any' here because database query returns partial data that doesn't match full type definitions
+    const callIds = (calls || []).map((c: any) => c.id);
+    const analyses: Record<string, any> = {};
     
     if (callIds.length > 0) {
       const { data: analysisData } = await supabase
@@ -252,10 +253,9 @@ serve(async (req) => {
         .in('call_id', callIds);
       
       if (analysisData) {
-        analyses = analysisData.reduce((acc, a) => {
-          acc[a.call_id] = a;
-          return acc;
-        }, {} as Record<string, any>);
+        for (const a of analysisData) {
+          analyses[a.call_id] = a;
+        }
       }
     }
 
@@ -323,6 +323,7 @@ serve(async (req) => {
   }
 });
 
+// Note: Using 'any' here because database queries return partial data with selected fields only
 function buildAccountContext(
   prospect: any,
   calls: any[],

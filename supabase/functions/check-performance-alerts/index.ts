@@ -88,15 +88,22 @@ serve(async (req) => {
     let totalErrors = 0;
 
     for (const row of summaryData || []) {
-      if (row.metric_type === "query") {
-        avgQueryTime += row.avg_duration_ms * row.total_count;
-        queryCount += row.total_count;
-      } else if (row.metric_type === "edge_function") {
-        avgEdgeFunctionTime += row.avg_duration_ms * row.total_count;
-        edgeFunctionCount += row.total_count;
+      const typedRow = row as {
+        metric_type: string;
+        avg_duration_ms: number;
+        total_count: number;
+        error_count: number;
+      };
+      
+      if (typedRow.metric_type === "query") {
+        avgQueryTime += typedRow.avg_duration_ms * typedRow.total_count;
+        queryCount += typedRow.total_count;
+      } else if (typedRow.metric_type === "edge_function") {
+        avgEdgeFunctionTime += typedRow.avg_duration_ms * typedRow.total_count;
+        edgeFunctionCount += typedRow.total_count;
       }
-      totalCount += row.total_count;
-      totalErrors += row.error_count;
+      totalCount += typedRow.total_count;
+      totalErrors += typedRow.error_count;
     }
 
     if (queryCount > 0) avgQueryTime /= queryCount;
