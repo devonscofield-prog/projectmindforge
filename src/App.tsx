@@ -46,6 +46,7 @@ const CallDetailPage = lazy(() => import("./pages/calls/CallDetailPage"));
 const ROICalculatorPage = lazy(() => import("./pages/marketing/ROICalculatorPage"));
 const PitchDeckPage = lazy(() => import("./pages/marketing/PitchDeckPage"));
 const DiscoveryQuestionsPage = lazy(() => import("./pages/marketing/DiscoveryQuestionsPage"));
+const ExecutiveSummaryPage = lazy(() => import("./pages/marketing/ExecutiveSummaryPage"));
 
 // Create query client with logging
 const queryClient = createQueryClient();
@@ -209,6 +210,7 @@ const App = () => (
                 <Route path="/marketing/roi-calculator" element={<ROICalculatorPage />} />
                 <Route path="/marketing/pitch-deck" element={<PitchDeckPage />} />
                 <Route path="/marketing/discovery-questions" element={<DiscoveryQuestionsPage />} />
+                <Route path="/marketing/executive-summary" element={<ExecutiveSummaryPage />} />
 
                 <Route path="*" element={<NotFound />} />
               </Routes>
