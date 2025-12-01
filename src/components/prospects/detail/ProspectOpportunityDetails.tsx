@@ -24,6 +24,7 @@ export function ProspectOpportunityDetails({ prospect, onUpdate }: ProspectOppor
   const opportunityDetails = prospect.opportunity_details || {};
   
   const [formData, setFormData] = useState<OpportunityDetails>({
+    potential_revenue: opportunityDetails.potential_revenue,
     it_users_count: opportunityDetails.it_users_count,
     end_users_count: opportunityDetails.end_users_count,
     ai_users_count: opportunityDetails.ai_users_count,
@@ -41,7 +42,7 @@ export function ProspectOpportunityDetails({ prospect, onUpdate }: ProspectOppor
       onUpdate(updated);
       setIsEditing(false);
       toast({
-        title: 'Opportunity details updated',
+        title: 'Potential opportunity updated',
         description: 'Changes saved successfully',
       });
     } catch (error) {
@@ -58,6 +59,7 @@ export function ProspectOpportunityDetails({ prospect, onUpdate }: ProspectOppor
 
   const handleCancel = () => {
     setFormData({
+      potential_revenue: opportunityDetails.potential_revenue,
       it_users_count: opportunityDetails.it_users_count,
       end_users_count: opportunityDetails.end_users_count,
       ai_users_count: opportunityDetails.ai_users_count,
@@ -68,34 +70,6 @@ export function ProspectOpportunityDetails({ prospect, onUpdate }: ProspectOppor
     setIsEditing(false);
   };
 
-  // Calculate potential revenue based on user counts
-  const calculatePotentialRevenue = () => {
-    const {
-      it_users_count = 0,
-      end_users_count = 0,
-      ai_users_count = 0,
-      compliance_users_count = 0,
-      security_awareness_count = 0,
-    } = isEditing ? formData : opportunityDetails;
-
-    // Rough estimates per product type
-    const itRevenue = it_users_count * 350; // Enterprise IT avg $350/user
-    const endUserRevenue = end_users_count * 150; // Desktop Apps avg $150/user
-    const aiRevenue = ai_users_count * 500; // AI Bundle avg $500/user
-    const complianceRevenue = compliance_users_count * 120; // Compliance avg $120/user
-    const securityRevenue = security_awareness_count * 100; // Security avg $100/user
-
-    return itRevenue + endUserRevenue + aiRevenue + complianceRevenue + securityRevenue;
-  };
-
-  const potentialRevenue = calculatePotentialRevenue();
-
-  const hasUserCounts = opportunityDetails.it_users_count || 
-                        opportunityDetails.end_users_count || 
-                        opportunityDetails.ai_users_count ||
-                        opportunityDetails.compliance_users_count ||
-                        opportunityDetails.security_awareness_count;
-
   const isAutoPopulated = opportunityDetails.auto_populated_from?.source;
 
   return (
@@ -103,7 +77,7 @@ export function ProspectOpportunityDetails({ prospect, onUpdate }: ProspectOppor
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
         <div className="flex items-center gap-2">
           <TrendingUp className="h-5 w-5 text-primary" />
-          <CardTitle>Opportunity Details</CardTitle>
+          <CardTitle>Potential Opportunity</CardTitle>
           {isAutoPopulated && (
             <Badge variant="outline" className="text-xs">
               <Bot className="h-3 w-3 mr-1" />
@@ -130,6 +104,27 @@ export function ProspectOpportunityDetails({ prospect, onUpdate }: ProspectOppor
         )}
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Potential Revenue Input */}
+        <div className="space-y-2">
+          <Label htmlFor="potential_revenue" className="text-base font-semibold">Potential Revenue</Label>
+          {isEditing ? (
+            <Input
+              id="potential_revenue"
+              type="number"
+              min="0"
+              step="1000"
+              value={formData.potential_revenue || ''}
+              onChange={(e) => setFormData({ ...formData, potential_revenue: parseFloat(e.target.value) || undefined })}
+              placeholder="Enter potential revenue"
+              className="text-lg"
+            />
+          ) : (
+            <p className="text-3xl font-bold text-primary">
+              {opportunityDetails.potential_revenue ? formatCurrency(opportunityDetails.potential_revenue) : '-'}
+            </p>
+          )}
+        </div>
+
         {/* User Counts Grid */}
         <div>
           <div className="flex items-center gap-2 mb-3">
@@ -209,19 +204,6 @@ export function ProspectOpportunityDetails({ prospect, onUpdate }: ProspectOppor
             </div>
           </div>
         </div>
-
-        {/* Potential Revenue Display */}
-        {hasUserCounts && (
-          <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Estimated Potential Revenue</p>
-                <p className="text-3xl font-bold text-primary">{formatCurrency(potentialRevenue)}</p>
-                <p className="text-xs text-muted-foreground mt-1">Based on user counts and average pricing</p>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Notes */}
         <div className="space-y-2">
