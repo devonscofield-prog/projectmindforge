@@ -322,5 +322,9 @@ export function useCoachingSummaryState() {
     handleCompareFromHistory,
     handleExitHistoryComparison,
     handleRunComparison,
+    
+    // Setters for DateRangeControls
+    setComparisonDateRange,
+    setComparisonConfirmed,
   };
 }
