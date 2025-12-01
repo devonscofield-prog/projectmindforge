@@ -1147,6 +1147,7 @@ export type Database = {
           id: string
           industry: string | null
           last_contact_date: string | null
+          opportunity_details: Json | null
           potential_revenue: number | null
           prospect_name: string
           rep_id: string
@@ -1169,6 +1170,7 @@ export type Database = {
           id?: string
           industry?: string | null
           last_contact_date?: string | null
+          opportunity_details?: Json | null
           potential_revenue?: number | null
           prospect_name: string
           rep_id: string
@@ -1191,6 +1193,7 @@ export type Database = {
           id?: string
           industry?: string | null
           last_contact_date?: string | null
+          opportunity_details?: Json | null
           potential_revenue?: number | null
           prospect_name?: string
           rep_id?: string

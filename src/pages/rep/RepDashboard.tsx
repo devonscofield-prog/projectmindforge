@@ -44,7 +44,6 @@ function RepDashboard() {
   const [salesforceAccountLink, setSalesforceAccountLink] = useState('');
   const [existingAccountHasSalesforceLink, setExistingAccountHasSalesforceLink] = useState(false);
   const [isEditingSalesforceLink, setIsEditingSalesforceLink] = useState(false);
-  const [potentialRevenue, setPotentialRevenue] = useState('');
   const [callDate, setCallDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [callType, setCallType] = useState<CallType>('first_demo');
   const [callTypeOther, setCallTypeOther] = useState('');
@@ -152,7 +151,6 @@ function RepDashboard() {
         stakeholderName: stakeholderName.trim(),
         accountName: accountName.trim(),
         salesforceAccountLink: salesforceAccountLink.trim() || undefined,
-        potentialRevenue: potentialRevenue ? parseFloat(potentialRevenue) : undefined,
         rawText: transcript,
         prospectId: selectedProspectId || undefined,
         stakeholderId: selectedStakeholderId || undefined,
@@ -235,26 +233,20 @@ function RepDashboard() {
                     </div>
                   </div>
 
-                  {/* Salesforce Link and Revenue Row */}
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="salesforceAccountLink">
-                        Salesforce Account Link {(!selectedProspectId || !existingAccountHasSalesforceLink) && '*'}
-                      </Label>
-                      <div className="flex gap-2">
-                        <Input id="salesforceAccountLink" type="url" placeholder="https://..." value={salesforceAccountLink} onChange={e => setSalesforceAccountLink(e.target.value)} disabled={existingAccountHasSalesforceLink && !isEditingSalesforceLink} className="flex-1" />
-                        {existingAccountHasSalesforceLink && !isEditingSalesforceLink && <Button type="button" variant="outline" size="icon" onClick={() => setIsEditingSalesforceLink(true)} title="Edit Salesforce link">
-                            <Pencil className="h-4 w-4" />
-                          </Button>}
-                      </div>
-                      {existingAccountHasSalesforceLink && <p className="text-xs text-muted-foreground">
-                          {isEditingSalesforceLink ? 'Editing account link' : 'Using existing account link'}
-                        </p>}
+                  {/* Salesforce Link Row */}
+                  <div className="space-y-2">
+                    <Label htmlFor="salesforceAccountLink">
+                      Salesforce Account Link {(!selectedProspectId || !existingAccountHasSalesforceLink) && '*'}
+                    </Label>
+                    <div className="flex gap-2">
+                      <Input id="salesforceAccountLink" type="url" placeholder="https://..." value={salesforceAccountLink} onChange={e => setSalesforceAccountLink(e.target.value)} disabled={existingAccountHasSalesforceLink && !isEditingSalesforceLink} className="flex-1" />
+                      {existingAccountHasSalesforceLink && !isEditingSalesforceLink && <Button type="button" variant="outline" size="icon" onClick={() => setIsEditingSalesforceLink(true)} title="Edit Salesforce link">
+                          <Pencil className="h-4 w-4" />
+                        </Button>}
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="potentialRevenue">Potential Revenue (optional)</Label>
-                      <Input id="potentialRevenue" type="number" min="0" step="0.01" placeholder="e.g., 50000" value={potentialRevenue} onChange={e => setPotentialRevenue(e.target.value)} />
-                    </div>
+                    {existingAccountHasSalesforceLink && <p className="text-xs text-muted-foreground">
+                        {isEditingSalesforceLink ? 'Editing account link' : 'Using existing account link'}
+                      </p>}
                   </div>
 
                   {/* Date and Call Type Row */}

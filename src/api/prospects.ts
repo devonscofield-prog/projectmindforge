@@ -39,6 +39,7 @@ export interface Prospect {
   status: ProspectStatus;
   industry: string | null;
   ai_extracted_info: ProspectIntel | null;
+  opportunity_details: OpportunityDetails | null;
   suggested_follow_ups: string[] | null;
   last_contact_date: string | null;
   heat_score: number | null;
@@ -46,6 +47,20 @@ export interface Prospect {
   follow_ups_last_generated_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface OpportunityDetails {
+  it_users_count?: number;
+  end_users_count?: number;
+  ai_users_count?: number;
+  compliance_users_count?: number;
+  security_awareness_count?: number;
+  notes?: string;
+  auto_populated_from?: {
+    source: 'transcript' | 'research' | 'email';
+    source_id?: string;
+    extracted_at?: string;
+  };
 }
 
 export interface ProspectIntel {
@@ -62,6 +77,12 @@ export interface ProspectIntel {
   key_opportunities?: string[];
   relationship_health?: string;
   last_analyzed_at?: string;
+  user_counts?: {
+    it_users?: number;
+    end_users?: number;
+    ai_users?: number;
+    source_quote?: string;
+  };
 }
 
 export interface ProspectActivity {
@@ -294,6 +315,7 @@ export async function updateProspect(
     salesforce_link?: string | null;
     industry?: string | null;
     ai_extracted_info?: ProspectIntel;
+    opportunity_details?: OpportunityDetails;
     suggested_follow_ups?: string[];
     heat_score?: number;
   }
