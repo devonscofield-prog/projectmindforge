@@ -1081,6 +1081,7 @@ export type Database = {
           status: Database["public"]["Enums"]["prospect_status"]
           suggested_follow_ups: Json | null
           updated_at: string
+          website: string | null
         }
         Insert: {
           account_name?: string | null
@@ -1101,6 +1102,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["prospect_status"]
           suggested_follow_ups?: Json | null
           updated_at?: string
+          website?: string | null
         }
         Update: {
           account_name?: string | null
@@ -1121,6 +1123,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["prospect_status"]
           suggested_follow_ups?: Json | null
           updated_at?: string
+          website?: string | null
         }
         Relationships: []
       }

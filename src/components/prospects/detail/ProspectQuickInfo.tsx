@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ExternalLink, Plus, Pencil, Check, X, Loader2 } from 'lucide-react';
+import { ExternalLink, Plus, Pencil, Check, X, Loader2, Globe } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { industryOptions } from './constants';
@@ -29,6 +29,11 @@ export function ProspectQuickInfo({ prospect, onUpdateProspect }: ProspectQuickI
   const [editedIndustry, setEditedIndustry] = useState('');
   const [isSavingIndustry, setIsSavingIndustry] = useState(false);
 
+  // Website editing state
+  const [isEditingWebsite, setIsEditingWebsite] = useState(false);
+  const [editedWebsite, setEditedWebsite] = useState('');
+  const [isSavingWebsite, setIsSavingWebsite] = useState(false);
+
   // Salesforce link editing state
   const [isEditingSalesforceLink, setIsEditingSalesforceLink] = useState(false);
   const [editedSalesforceLink, setEditedSalesforceLink] = useState('');
@@ -46,6 +51,21 @@ export function ProspectQuickInfo({ prospect, onUpdateProspect }: ProspectQuickI
       }
     } finally {
       setIsSavingIndustry(false);
+    }
+  };
+
+  const handleSaveWebsite = async () => {
+    setIsSavingWebsite(true);
+    try {
+      const success = await onUpdateProspect({ website: editedWebsite || null } as any);
+      if (success) {
+        setIsEditingWebsite(false);
+        toast({ title: 'Website updated' });
+      } else {
+        toast({ title: 'Failed to update website', variant: 'destructive' });
+      }
+    } finally {
+      setIsSavingWebsite(false);
     }
   };
 
@@ -168,6 +188,95 @@ export function ProspectQuickInfo({ prospect, onUpdateProspect }: ProspectQuickI
                 >
                   <Plus className="h-3 w-3 mr-1" />
                   Add Industry
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Website with Edit */}
+        <div className="pt-2 space-y-2">
+          <span className="text-muted-foreground text-xs">Website</span>
+          {isEditingWebsite ? (
+            <div className="space-y-2">
+              <Input
+                type="url"
+                placeholder="https://company.com"
+                value={editedWebsite}
+                onChange={(e) => setEditedWebsite(e.target.value)}
+                className="h-8 text-sm"
+                disabled={isSavingWebsite}
+              />
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="default"
+                  className="h-7 text-xs"
+                  onClick={handleSaveWebsite}
+                  disabled={isSavingWebsite}
+                >
+                  {isSavingWebsite ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <>
+                      <Check className="h-3 w-3 mr-1" />
+                      Save
+                    </>
+                  )}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={() => {
+                    setIsEditingWebsite(false);
+                    setEditedWebsite((prospect as any).website || '');
+                  }}
+                  disabled={isSavingWebsite}
+                >
+                  <X className="h-3 w-3 mr-1" />
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              {(prospect as any).website ? (
+                <>
+                  <a
+                    href={(prospect as any).website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline flex items-center gap-1 flex-1 truncate"
+                  >
+                    <Globe className="h-3 w-3 shrink-0" />
+                    <span className="truncate">{(prospect as any).website}</span>
+                  </a>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6 shrink-0"
+                    onClick={() => {
+                      setEditedWebsite((prospect as any).website || '');
+                      setIsEditingWebsite(true);
+                    }}
+                    title="Edit website"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={() => {
+                    setEditedWebsite('');
+                    setIsEditingWebsite(true);
+                  }}
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  Add Website
                 </Button>
               )}
             </div>

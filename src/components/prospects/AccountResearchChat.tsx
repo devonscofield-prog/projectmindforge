@@ -70,7 +70,7 @@ export function AccountResearchChat({
   useEffect(() => {
     if (open) {
       setCompanyName(prospect?.account_name || prospect?.prospect_name || '');
-      setWebsite(''); // Website requires manual entry - salesforce_link is for SF records
+      setWebsite((prospect as any)?.website || ''); // Use dedicated website field
       setIndustry(prospect?.industry || '');
       
       // Auto-populate stakeholders
