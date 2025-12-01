@@ -30,10 +30,22 @@ export function useProspectActivities({ prospectId }: UseProspectActivitiesOptio
   const loadActivitiesData = useCallback(async () => {
     if (!prospectId) return null;
 
-    const [activitiesData, emailLogsData] = await Promise.all([
+    const results = await Promise.allSettled([
       listActivitiesForProspect(prospectId),
       listEmailLogsForProspect(prospectId),
     ]);
+
+    // Extract results, using empty arrays for failed requests
+    const activitiesData = results[0].status === 'fulfilled' ? results[0].value : [];
+    const emailLogsData = results[1].status === 'fulfilled' ? results[1].value : [];
+
+    // Log any failures for debugging
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        const names = ['activities', 'emailLogs'];
+        log.warn(`Failed to load ${names[index]}`, { error: result.reason });
+      }
+    });
 
     setActivities(activitiesData);
     setEmailLogs(emailLogsData);
@@ -79,8 +91,12 @@ export function useProspectActivities({ prospectId }: UseProspectActivitiesOptio
 
   const refreshEmailLogs = useCallback(async () => {
     if (!prospectId) return;
-    const emailLogsData = await listEmailLogsForProspect(prospectId);
-    setEmailLogs(emailLogsData);
+    try {
+      const emailLogsData = await listEmailLogsForProspect(prospectId);
+      setEmailLogs(emailLogsData);
+    } catch (error) {
+      log.warn('Failed to refresh email logs', { error });
+    }
   }, [prospectId]);
 
   return {

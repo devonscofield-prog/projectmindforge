@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { createLogger } from '@/lib/logger';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -79,29 +79,59 @@ export function useProspectData(prospectId: string | undefined): UseProspectData
     onAnalysisComplete: insights.handleRefreshAll,
   });
 
-  // Combined load function
+  // Use refs to store the latest load functions to avoid dependency cycles
+  const loadCoreDataRef = useRef(core.loadCoreData);
+  const loadFollowUpsDataRef = useRef(followUps.loadFollowUpsData);
+  const loadActivitiesDataRef = useRef(activities.loadActivitiesData);
+  const setIsLoadingRef = useRef(core.setIsLoading);
+
+  // Keep refs updated without triggering re-renders
+  useEffect(() => {
+    loadCoreDataRef.current = core.loadCoreData;
+    loadFollowUpsDataRef.current = followUps.loadFollowUpsData;
+    loadActivitiesDataRef.current = activities.loadActivitiesData;
+    setIsLoadingRef.current = core.setIsLoading;
+  });
+
+  // Combined load function - now with stable dependencies
   const loadProspectData = useCallback(async () => {
     if (!prospectId) return;
     
-    core.setIsLoading(true);
+    setIsLoadingRef.current(true);
     try {
-      const [coreResult, followUpsResult, activitiesResult] = await Promise.all([
-        core.loadCoreData(),
-        followUps.loadFollowUpsData(),
-        activities.loadActivitiesData(),
+      const results = await Promise.allSettled([
+        loadCoreDataRef.current(),
+        loadFollowUpsDataRef.current(),
+        loadActivitiesDataRef.current(),
       ]);
 
-      if (!coreResult) {
+      // Check if core data failed (critical - can't display page without it)
+      if (results[0].status === 'rejected') {
+        log.error('Failed to load core prospect data', { error: results[0].reason });
+        toast({ title: 'Failed to load account', variant: 'destructive' });
+        return;
+      }
+
+      // Core data loaded but prospect not found
+      if (!results[0].value) {
         // Navigation already handled in loadCoreData
         return;
       }
+
+      // Log non-critical failures
+      if (results[1].status === 'rejected') {
+        log.warn('Failed to load follow-ups', { error: results[1].reason });
+      }
+      if (results[2].status === 'rejected') {
+        log.warn('Failed to load activities', { error: results[2].reason });
+      }
     } catch (error) {
-      log.error('Failed to load prospect', { error });
+      log.error('Unexpected error loading prospect', { error });
       toast({ title: 'Failed to load account', variant: 'destructive' });
     } finally {
-      core.setIsLoading(false);
+      setIsLoadingRef.current(false);
     }
-  }, [prospectId, core, followUps, activities, toast]);
+  }, [prospectId, toast]);
 
   // Initial load
   useEffect(() => {
