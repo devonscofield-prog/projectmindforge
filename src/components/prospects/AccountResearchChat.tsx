@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { RateLimitCountdown } from '@/components/ui/rate-limit-countdown';
-import { Search, Loader2, Copy, Check, ChevronDown, Plus, X, Building2 } from 'lucide-react';
+import { Search, Loader2, Copy, Check, ChevronDown, Plus, X, Building2, Save } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
 import { streamAccountResearch, type AccountResearchRequest } from '@/api/accountResearch';
@@ -32,6 +32,7 @@ interface AccountResearchChatProps {
   onOpenChange: (open: boolean) => void;
   prospect?: Prospect | null;
   stakeholders?: Stakeholder[];
+  onSaveResearch?: (research: string) => Promise<boolean>;
 }
 
 interface StakeholderInput {
@@ -45,6 +46,7 @@ export function AccountResearchChat({
   onOpenChange,
   prospect,
   stakeholders = [],
+  onSaveResearch,
 }: AccountResearchChatProps) {
   // Form state
   const [companyName, setCompanyName] = useState('');
@@ -61,6 +63,8 @@ export function AccountResearchChat({
   const [researchResult, setResearchResult] = useState('');
   const [copied, setCopied] = useState(false);
   const [showForm, setShowForm] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   
   // Rate limiting
@@ -182,6 +186,26 @@ export function AccountResearchChat({
   const handleNewResearch = () => {
     setResearchResult('');
     setShowForm(true);
+    setSaved(false);
+  };
+
+  const handleSaveToAccount = async () => {
+    if (!onSaveResearch || !researchResult) return;
+    
+    setIsSaving(true);
+    try {
+      const success = await onSaveResearch(researchResult);
+      if (success) {
+        setSaved(true);
+        toast.success('Research saved to account');
+      } else {
+        toast.error('Failed to save research');
+      }
+    } catch (err) {
+      toast.error('Failed to save research');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -421,6 +445,29 @@ export function AccountResearchChat({
                   </>
                 )}
               </Button>
+              {onSaveResearch && prospect && (
+                <Button
+                  onClick={handleSaveToAccount}
+                  disabled={!researchResult || isResearching || isSaving || saved}
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : saved ? (
+                    <>
+                      <Check className="h-4 w-4 mr-2" />
+                      Saved
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Save to Account
+                    </>
+                  )}
+                </Button>
+              )}
             </>
           )}
         </div>
