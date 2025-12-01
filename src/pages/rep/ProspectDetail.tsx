@@ -235,6 +235,16 @@ function ProspectDetail() {
         onOpenChange={setIsResearchOpen}
         prospect={prospect}
         stakeholders={stakeholders}
+        onSaveResearch={async (research) => {
+          const currentInfo = (prospect.ai_extracted_info || {}) as Record<string, unknown>;
+          return handleUpdateProspect({
+            ai_extracted_info: {
+              ...currentInfo,
+              account_research: research,
+              account_research_date: new Date().toISOString(),
+            } as any,
+          });
+        }}
       />
     </AppLayout>
   );
