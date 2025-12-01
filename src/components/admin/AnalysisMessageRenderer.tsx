@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,6 +10,7 @@ import {
 import {
   ChevronDown,
   ChevronRight,
+  ChevronsUpDown,
   Copy,
   Check,
   BarChart3,
@@ -132,8 +133,13 @@ function parseContentIntoSections(content: string): { sections: ParsedSection[];
   return { sections, plainContent: beforeFirstHeader };
 }
 
-function CollapsibleSection({ section, defaultOpen = true }: { section: ParsedSection; defaultOpen?: boolean }) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
+interface CollapsibleSectionProps {
+  section: ParsedSection;
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+function CollapsibleSection({ section, isOpen, onOpenChange }: CollapsibleSectionProps) {
   const [copied, setCopied] = useState(false);
   const styles = TYPE_STYLES[section.type] || TYPE_STYLES.document;
   
@@ -144,7 +150,7 @@ function CollapsibleSection({ section, defaultOpen = true }: { section: ParsedSe
   };
   
   return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+    <Collapsible open={isOpen} onOpenChange={onOpenChange}>
       <div className={cn('rounded-lg border', styles.bg, styles.border)}>
         <CollapsibleTrigger asChild>
           <button className="flex items-center justify-between w-full p-3 text-left hover:bg-muted/30 transition-colors rounded-t-lg">
@@ -270,6 +276,38 @@ const markdownComponents = {
 export function AnalysisMessageRenderer({ content, onSaveInsight, isStreaming }: AnalysisMessageRendererProps) {
   const { sections, plainContent } = useMemo(() => parseContentIntoSections(content), [content]);
   
+  // Track open state for each section (default to all collapsed)
+  const [openSections, setOpenSections] = useState<Record<number, boolean>>({});
+  
+  // Reset open sections when content changes significantly (new sections)
+  useEffect(() => {
+    setOpenSections({});
+  }, [sections.length]);
+  
+  const allExpanded = sections.length > 0 && sections.every((_, index) => openSections[index]);
+  const someExpanded = sections.some((_, index) => openSections[index]);
+  
+  const toggleAll = () => {
+    if (allExpanded || someExpanded) {
+      // Collapse all
+      setOpenSections({});
+    } else {
+      // Expand all
+      const allOpen: Record<number, boolean> = {};
+      sections.forEach((_, index) => {
+        allOpen[index] = true;
+      });
+      setOpenSections(allOpen);
+    }
+  };
+  
+  const handleSectionOpenChange = (index: number, open: boolean) => {
+    setOpenSections(prev => ({
+      ...prev,
+      [index]: open,
+    }));
+  };
+  
   // If streaming or no sections detected, render as plain markdown
   if (isStreaming || sections.length === 0) {
     return (
@@ -292,12 +330,28 @@ export function AnalysisMessageRenderer({ content, onSaveInsight, isStreaming }:
         </div>
       )}
       
+      {/* Expand/Collapse All Button */}
+      {sections.length > 1 && (
+        <div className="flex justify-end">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={toggleAll}
+            className="h-7 text-xs gap-1.5 text-muted-foreground hover:text-foreground"
+          >
+            <ChevronsUpDown className="h-3.5 w-3.5" />
+            {allExpanded || someExpanded ? 'Collapse All' : 'Expand All'}
+          </Button>
+        </div>
+      )}
+      
       {/* Collapsible sections */}
       {sections.map((section, index) => (
         <CollapsibleSection 
           key={index} 
           section={section} 
-          defaultOpen={index < 3} // First 3 sections open by default
+          isOpen={openSections[index] || false}
+          onOpenChange={(open) => handleSectionOpenChange(index, open)}
         />
       ))}
     </div>
