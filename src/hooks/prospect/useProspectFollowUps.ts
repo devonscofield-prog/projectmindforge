@@ -28,11 +28,24 @@ export function useProspectFollowUps({ prospectId }: UseProspectFollowUpsOptions
   const loadFollowUpsData = useCallback(async () => {
     if (!prospectId) return null;
 
-    const [pendingFollowUps, completedFollowUpsData, dismissedFollowUpsData] = await Promise.all([
+    const results = await Promise.allSettled([
       listFollowUpsForProspect(prospectId, 'pending'),
       listFollowUpsForProspect(prospectId, 'completed'),
       listFollowUpsForProspect(prospectId, 'dismissed'),
     ]);
+
+    // Extract results, using empty arrays for failed requests
+    const pendingFollowUps = results[0].status === 'fulfilled' ? results[0].value : [];
+    const completedFollowUpsData = results[1].status === 'fulfilled' ? results[1].value : [];
+    const dismissedFollowUpsData = results[2].status === 'fulfilled' ? results[2].value : [];
+
+    // Log any failures for debugging
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        const types = ['pending', 'completed', 'dismissed'];
+        log.warn(`Failed to load ${types[index]} follow-ups`, { error: result.reason });
+      }
+    });
 
     setFollowUps(pendingFollowUps);
     setCompletedFollowUps(completedFollowUpsData);
