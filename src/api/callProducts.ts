@@ -108,3 +108,104 @@ export async function deleteCallProduct(productId: string): Promise<void> {
 
   if (error) throw error;
 }
+
+export interface ProspectProductSummary {
+  product_id: string;
+  product_name: string;
+  product_slug: string;
+  total_revenue: number;
+  call_count: number;
+  total_quantity: number;
+  avg_unit_price: number;
+  most_recent_call_date: string;
+  calls: {
+    call_id: string;
+    call_date: string;
+    unit_price: number;
+    quantity: number;
+    promotion_notes: string | null;
+  }[];
+}
+
+export async function getProspectProductsSummary(
+  prospectId: string
+): Promise<ProspectProductSummary[]> {
+  // First, get all call products for this prospect with call info
+  const { data: callProducts, error } = await supabase
+    .from('call_products')
+    .select(`
+      id,
+      product_id,
+      unit_price,
+      quantity,
+      promotion_notes,
+      products:product_id (
+        id,
+        name,
+        slug
+      ),
+      call_transcripts!inner (
+        id,
+        call_date,
+        prospect_id
+      )
+    `)
+    .eq('call_transcripts.prospect_id', prospectId)
+    .order('call_transcripts(call_date)', { ascending: false });
+
+  if (error) throw error;
+  if (!callProducts || callProducts.length === 0) return [];
+
+  // Group by product
+  const productMap = new Map<string, ProspectProductSummary>();
+
+  callProducts.forEach((cp: any) => {
+    const productId = cp.product_id;
+    const productName = cp.products?.name || 'Unknown Product';
+    const productSlug = cp.products?.slug || '';
+    const callDate = cp.call_transcripts?.call_date || '';
+    const callId = cp.call_transcripts?.id || '';
+
+    if (!productMap.has(productId)) {
+      productMap.set(productId, {
+        product_id: productId,
+        product_name: productName,
+        product_slug: productSlug,
+        total_revenue: 0,
+        call_count: 0,
+        total_quantity: 0,
+        avg_unit_price: 0,
+        most_recent_call_date: callDate,
+        calls: [],
+      });
+    }
+
+    const summary = productMap.get(productId)!;
+    summary.total_revenue += cp.unit_price * cp.quantity;
+    summary.total_quantity += cp.quantity;
+    summary.call_count += 1;
+    summary.calls.push({
+      call_id: callId,
+      call_date: callDate,
+      unit_price: cp.unit_price,
+      quantity: cp.quantity,
+      promotion_notes: cp.promotion_notes,
+    });
+
+    // Update most recent call date
+    if (callDate > summary.most_recent_call_date) {
+      summary.most_recent_call_date = callDate;
+    }
+  });
+
+  // Calculate averages and return as array
+  const summaries = Array.from(productMap.values()).map(summary => {
+    summary.avg_unit_price = summary.total_revenue / summary.total_quantity;
+    return summary;
+  });
+
+  // Sort by total revenue descending
+  summaries.sort((a, b) => b.total_revenue - a.total_revenue);
+
+  return summaries;
+}

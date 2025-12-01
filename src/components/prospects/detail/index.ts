@@ -8,3 +8,4 @@ export { ProspectEmailLogSection } from './ProspectEmailLogSection';
 export { ProspectActivityLog } from './ProspectActivityLog';
 export { ProspectQuickInfo } from './ProspectQuickInfo';
 export { ProspectStakeholdersSection } from './ProspectStakeholdersSection';
+export { ProspectProductsBreakdown } from './ProspectProductsBreakdown';

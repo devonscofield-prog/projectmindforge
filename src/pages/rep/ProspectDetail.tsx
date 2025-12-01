@@ -19,6 +19,7 @@ import {
   ProspectActivityLog,
   ProspectQuickInfo,
   ProspectStakeholdersSection,
+  ProspectProductsBreakdown,
 } from '@/components/prospects/detail';
 
 // Existing dialog/sheet components
@@ -164,6 +165,9 @@ function ProspectDetail() {
 
             {/* Call History */}
             <ProspectCallHistory calls={calls} />
+
+            {/* Products Breakdown */}
+            <ProspectProductsBreakdown prospectId={prospect.id} />
 
             {/* Email Log */}
             <ProspectEmailLogSection
