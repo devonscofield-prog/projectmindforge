@@ -2,6 +2,7 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { UserRole } from '@/types/database';
 import { getDashboardUrl } from '@/lib/routes';
+import { MFAGate } from '@/components/auth';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -30,5 +31,5 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     return <Navigate to={getDashboardUrl(role)} replace />;
   }
 
-  return <>{children}</>;
+  return <MFAGate>{children}</MFAGate>;
 }
