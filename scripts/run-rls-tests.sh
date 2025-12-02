@@ -9,11 +9,11 @@ export VITE_SUPABASE_PUBLISHABLE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc
 
 # Test user credentials (demo/seeded users)
 export TEST_USER_EMAIL="rep.east.1@example.com"
-export TEST_USER_PASSWORD="password123"
+export TEST_USER_PASSWORD="TestPassword123!"
 export MANAGER_A_EMAIL="manager.east@example.com"
-export MANAGER_A_PASSWORD="password123"
+export MANAGER_A_PASSWORD="TestPassword123!"
 export ADMIN_EMAIL="admin@example.com"
-export ADMIN_PASSWORD="password123"
+export ADMIN_PASSWORD="TestPassword123!"
 
 # Service role key - IMPORTANT: Replace with your actual service role key
 # You can find this in Lovable Cloud backend settings

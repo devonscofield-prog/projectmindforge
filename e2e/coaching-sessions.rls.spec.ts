@@ -16,7 +16,7 @@ import { test, expect } from './fixtures/test-fixtures';
 // Rep A: Enterprise East team - can only VIEW own sessions
 const REP_A = {
   email: 'rep.east.1@example.com',
-  password: 'password123',
+  password: 'TestPassword123!',
   id: '760a1855-0294-4b4c-971c-2d40cc0e8327',
   coachingSessionId: '5049505a-7867-4a49-9a12-033d5bdfbdfb',
   teamId: 'c4ce8e62-5135-4579-bfac-fb64ee9888c4',
@@ -33,7 +33,7 @@ const REP_B = {
 // Manager East: Manages Rep A
 const MANAGER_EAST = {
   email: 'manager.east@example.com',
-  password: 'password123',
+  password: 'TestPassword123!',
   id: 'cfc74e11-0660-4bc5-aec7-e355615ce48e',
   teamId: 'c4ce8e62-5135-4579-bfac-fb64ee9888c4',
 };
@@ -48,7 +48,7 @@ const MANAGER_WEST = {
 // Admin: Full access
 const ADMIN = {
   email: 'admin@example.com',
-  password: 'password123',
+  password: 'TestPassword123!',
 };
 
 test.describe('Rep RLS Security Tests - coaching_sessions', () => {

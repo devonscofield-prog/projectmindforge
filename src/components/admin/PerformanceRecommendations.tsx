@@ -26,6 +26,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { markRecommendationImplemented } from '@/api/implementedRecommendations';
 import { toast } from 'sonner';
+import { createLogger } from '@/lib/logger';
 
 interface Recommendation {
   title: string;
@@ -80,11 +81,13 @@ function getHealthLabel(score: number): string {
   return 'Needs Attention';
 }
 
+const logger = createLogger('PerformanceRecommendations');
+
 async function fetchRecommendations(): Promise<AnalysisResult> {
   const { data, error } = await supabase.functions.invoke('analyze-performance');
 
   if (error) {
-    console.error('Error fetching recommendations:', error);
+    logger.error('Error fetching recommendations', { error });
     throw error;
   }
 
