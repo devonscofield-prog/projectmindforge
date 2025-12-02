@@ -73,6 +73,9 @@ export function MFAChallenge({ onSuccess, onCancel }: MFAChallengeProps) {
 
       if (verifyError) throw verifyError;
 
+      // Force session refresh to propagate new AAL2 session to AuthContext
+      await supabase.auth.refreshSession();
+
       // If trust device is checked, save to database
       if (trustDevice) {
         const { data: { user } } = await supabase.auth.getUser();

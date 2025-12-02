@@ -69,6 +69,9 @@ export function MFAEnrollment({ onComplete, onCancel }: MFAEnrollmentProps) {
 
       if (verifyError) throw verifyError;
 
+      // Force session refresh to propagate new AAL2 session to AuthContext
+      await supabase.auth.refreshSession();
+
       // Update MFA enrollment status in database
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
