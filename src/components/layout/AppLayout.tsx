@@ -60,6 +60,7 @@ function SidebarNav() {
         { href: '/admin/coaching', label: 'Coaching', icon: TrendingUp },
         { href: '/admin/transcripts', label: 'Transcripts', icon: FileText },
         { href: '/admin/performance', label: 'Performance', icon: Activity },
+        { href: '/admin/audit-log', label: 'Audit Log', icon: History },
       ]
     : role === 'manager'
     ? [
