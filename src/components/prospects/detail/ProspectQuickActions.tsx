@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -20,6 +21,7 @@ import {
 import { Phone, Mail, Search, UserPlus, MessageSquare, FileText, ClipboardList, Plus } from 'lucide-react';
 import { activityTypeLabels } from './constants';
 import type { ProspectActivityType } from '@/api/prospects';
+import { fetchActivityTemplates } from '@/api/activityTemplates';
 
 interface ProspectQuickActionsProps {
   onLogCall?: () => void;
@@ -88,6 +90,18 @@ export function ProspectQuickActions({
     description: '',
     date: new Date().toISOString().split('T')[0],
   });
+
+  const { data: customTemplates = [] } = useQuery({
+    queryKey: ['activityTemplates', newActivity.type],
+    queryFn: () => fetchActivityTemplates(newActivity.type),
+    enabled: isLogActivityOpen,
+  });
+
+  // Combine built-in and custom templates
+  const allTemplates = [
+    ...activityTemplates[newActivity.type],
+    ...customTemplates.map((t) => t.template_text),
+  ];
 
   const handleSubmit = async () => {
     if (!onLogActivity) return;
@@ -159,11 +173,11 @@ export function ProspectQuickActions({
                         onChange={(e) => setNewActivity({ ...newActivity, date: e.target.value })}
                       />
                     </div>
-                    {activityTemplates[newActivity.type].length > 0 && (
+                    {allTemplates.length > 0 && (
                       <div className="space-y-2">
                         <label className="text-sm font-medium">Quick Templates</label>
                         <div className="flex flex-wrap gap-2">
-                          {activityTemplates[newActivity.type].map((template) => (
+                          {allTemplates.map((template) => (
                             <Button
                               key={template}
                               type="button"
