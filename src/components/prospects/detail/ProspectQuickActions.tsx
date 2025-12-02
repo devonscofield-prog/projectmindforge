@@ -39,6 +39,39 @@ const allowedActivityTypes: { value: ProspectActivityType; label: string }[] = [
   { value: 'meeting', label: 'Other' },
 ];
 
+// Activity templates by type
+const activityTemplates: Record<ProspectActivityType, string[]> = {
+  call: [
+    'Left voicemail',
+    'No answer',
+    'Connected - positive conversation',
+    'Connected - need follow-up',
+    'Gatekeeper - left message',
+  ],
+  linkedin: [
+    'Sent connection request',
+    'Sent InMail',
+    'Engaged with post',
+    'Shared content',
+    'Accepted connection',
+  ],
+  note: [
+    'Pricing discussion',
+    'Competitor mentioned',
+    'Decision timeline discussed',
+    'Budget approved',
+    'Technical requirements reviewed',
+  ],
+  meeting: [
+    'Email sent',
+    'Referral received',
+    'Internal discussion',
+    'Contract sent',
+  ],
+  email: [],
+  demo: [],
+};
+
 export function ProspectQuickActions({
   onLogCall,
   onAddEmail,
@@ -104,7 +137,7 @@ export function ProspectQuickActions({
                       <label className="text-sm font-medium">Activity Type</label>
                       <Select
                         value={newActivity.type}
-                        onValueChange={(v) => setNewActivity({ ...newActivity, type: v as ProspectActivityType })}
+                        onValueChange={(v) => setNewActivity({ ...newActivity, type: v as ProspectActivityType, description: '' })}
                       >
                         <SelectTrigger>
                           <SelectValue />
@@ -126,6 +159,25 @@ export function ProspectQuickActions({
                         onChange={(e) => setNewActivity({ ...newActivity, date: e.target.value })}
                       />
                     </div>
+                    {activityTemplates[newActivity.type].length > 0 && (
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Quick Templates</label>
+                        <div className="flex flex-wrap gap-2">
+                          {activityTemplates[newActivity.type].map((template) => (
+                            <Button
+                              key={template}
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setNewActivity({ ...newActivity, description: template })}
+                              className={newActivity.description === template ? 'bg-accent' : ''}
+                            >
+                              {template}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Notes (optional)</label>
                       <Textarea
