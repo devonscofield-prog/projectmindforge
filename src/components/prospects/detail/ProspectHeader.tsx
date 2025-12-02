@@ -23,56 +23,55 @@ export function ProspectHeader({ prospect, primaryStakeholder, onStatusChange }:
   const navigate = useNavigate();
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-      <div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="mb-2 -ml-2"
-          onClick={() => navigate('/rep/prospects')}
-        >
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          Back
-        </Button>
-        <div className="flex items-center gap-3">
+    <div className="space-y-3">
+      <Button
+        variant="ghost"
+        size="sm"
+        className="-ml-2"
+        onClick={() => navigate('/rep/prospects')}
+      >
+        <ArrowLeft className="h-4 w-4 mr-1" />
+        Back
+      </Button>
+      
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
           <div className="p-2 rounded-lg bg-primary/10 shrink-0">
-            <Building2 className="h-5 w-5 md:h-6 md:w-6 text-primary" />
+            <Building2 className="h-5 w-5 text-primary" />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-xl md:text-3xl font-bold tracking-tight truncate">
+              <h1 className="text-2xl font-bold tracking-tight truncate">
                 {prospect.account_name || prospect.prospect_name}
               </h1>
               {prospect.industry && (
-                <Badge variant="secondary" className="text-xs md:text-sm shrink-0">
+                <Badge variant="secondary" className="text-xs shrink-0">
                   {industryOptions.find(i => i.value === prospect.industry)?.label ?? prospect.industry}
                 </Badge>
               )}
+              <Select value={prospect.status} onValueChange={(v) => onStatusChange(v as ProspectStatus)}>
+                <SelectTrigger className="w-[110px] h-7 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(statusLabels).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             {primaryStakeholder && (
-              <p className="text-sm text-muted-foreground truncate">
+              <p className="text-sm text-muted-foreground truncate mt-1">
                 Primary: {primaryStakeholder.name}
                 {primaryStakeholder.job_title && ` • ${primaryStakeholder.job_title}`}
               </p>
             )}
           </div>
         </div>
-      </div>
-      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-        <Select value={prospect.status} onValueChange={(v) => onStatusChange(v as ProspectStatus)}>
-          <SelectTrigger className="w-[120px] sm:w-[140px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(statusLabels).map(([value, label]) => (
-              <SelectItem key={value} value={value}>
-                {label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
         {prospect.salesforce_link && (
-          <Button variant="outline" size="sm" asChild className="hidden sm:flex">
+          <Button variant="outline" size="sm" asChild className="shrink-0">
             <a href={prospect.salesforce_link} target="_blank" rel="noopener noreferrer">
               <ExternalLink className="h-4 w-4 mr-2" />
               Salesforce

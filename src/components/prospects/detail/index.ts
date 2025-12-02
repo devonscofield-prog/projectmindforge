@@ -10,3 +10,5 @@ export { ProspectQuickInfo } from './ProspectQuickInfo';
 export { ProspectStakeholdersSection } from './ProspectStakeholdersSection';
 export { ProspectProductsBreakdown } from './ProspectProductsBreakdown';
 export { ProspectOpportunityDetails } from './ProspectOpportunityDetails';
+export { ProspectDetailTabs } from './ProspectDetailTabs';
+export { ProspectQuickActions } from './ProspectQuickActions';
