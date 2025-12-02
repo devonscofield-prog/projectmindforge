@@ -96,12 +96,18 @@ export function CallAnalysisResultsView({ call, analysis, isOwner, isManager }: 
   // Convert markdown to HTML for rich text clipboard (Outlook compatibility)
   const convertMarkdownToHtml = (markdown: string): string => {
     return markdown
+      // Convert markdown headers to HTML (must come before newline conversion)
+      .replace(/^### (.+)$/gm, '<h3><strong>$1</strong></h3>')
+      .replace(/^## (.+)$/gm, '<h2><strong>$1</strong></h2>')
+      .replace(/^# (.+)$/gm, '<h1><strong>$1</strong></h1>')
       // Convert markdown links [text](url) to HTML <a> tags
       .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
       // Convert bold **text** to <strong>
       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
       // Convert italic *text* to <em> (after bold to avoid conflicts)
       .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+      // Convert bullet lists
+      .replace(/^- (.+)$/gm, '• $1')
       // Convert newlines to <br> for proper line breaks in email
       .replace(/\n/g, '<br>');
   };
@@ -248,7 +254,25 @@ export function CallAnalysisResultsView({ call, analysis, isOwner, isManager }: 
                 </CardTitle>
                 <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform duration-200 ${notesOpen ? 'rotate-180' : ''}`} />
               </CollapsibleTrigger>
-              <Button variant="outline" size="sm" onClick={() => handleCopy(analysis.call_notes!, 'Call notes')}>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={async () => {
+                  try {
+                    const html = convertMarkdownToHtml(analysis.call_notes!);
+                    const clipboardItem = new ClipboardItem({
+                      'text/html': new Blob([html], { type: 'text/html' }),
+                      'text/plain': new Blob([analysis.call_notes!], { type: 'text/plain' }),
+                    });
+                    await navigator.clipboard.write([clipboardItem]);
+                    toast({ title: 'Copied', description: 'Call notes copied to clipboard.' });
+                  } catch {
+                    // Fallback to plain text if HTML copy fails
+                    await navigator.clipboard.writeText(analysis.call_notes!);
+                    toast({ title: 'Copied', description: 'Call notes copied as plain text.' });
+                  }
+                }}
+              >
                 <Copy className="h-4 w-4 mr-2" />
                 Copy
               </Button>
