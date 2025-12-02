@@ -9,11 +9,14 @@ This directory contains end-to-end tests using Playwright, including visual regr
    npx playwright install
    ```
 
-2. Set up test environment variables (optional):
+2. Set up test environment variables:
    ```bash
    export TEST_USER_EMAIL="your-test-user@example.com"
    export TEST_USER_PASSWORD="your-test-password"
+   export VITE_SUPABASE_URL="your-supabase-url"
+   export SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
    ```
+   Note: Service role key is required for database validation tests
 
 ## Running Tests
 
@@ -74,11 +77,15 @@ npx playwright test --update-snapshots
 ## Test Structure
 
 - `fixtures/test-fixtures.ts` - Page objects and test utilities
+- `fixtures/database-fixtures.ts` - Database helpers and assertions
 - `auth.spec.ts` - Authentication flow tests
 - `call-submission.spec.ts` - Call transcript submission tests
+- `database-validation.spec.ts` - Database integrity and validation tests
 - `navigation.spec.ts` - Navigation and routing tests
 
 ## Writing New Tests
+
+### Basic UI Tests
 
 1. Import fixtures:
    ```typescript
@@ -93,6 +100,66 @@ npx playwright test --update-snapshots
      await dashboardPage.fillTranscript('...');
    });
    ```
+
+### Database Validation Tests
+
+Use database fixtures to validate backend state:
+
+```typescript
+import { test, expect } from './fixtures/test-fixtures';
+
+test('validate prospect creation', async ({ page, db, dbAssert }) => {
+  // Get user from database
+  const user = await db.getUserByEmail('test@example.com');
+  
+  // Perform UI actions
+  await page.goto('/rep');
+  // ... interact with UI
+  
+  // Validate database state
+  const prospect = await dbAssert.expectProspectExists(user.id, 'Company Name');
+  expect(prospect.status).toBe('active');
+  
+  // Cleanup test data
+  await db.cleanupTestData(user.id, 'Test');
+});
+```
+
+### Database Helper Methods
+
+**User & Profile:**
+- `getUserByEmail(email)` - Get user profile
+- `getUserRole(userId)` - Get user's role
+
+**Prospects:**
+- `getProspectByName(repId, name)` - Find prospect
+- `getProspectById(prospectId)` - Get prospect by ID
+- `countProspects(repId)` - Count prospects
+
+**Call Transcripts:**
+- `getCallTranscriptById(callId)` - Get call
+- `getCallTranscriptsByProspect(prospectId)` - Get all prospect calls
+- `waitForAnalysisComplete(callId)` - Wait for AI analysis
+
+**Follow-Ups & Activities:**
+- `getFollowUps(prospectId)` - Get follow-ups
+- `countPendingFollowUps(repId)` - Count pending
+- `getStakeholders(prospectId)` - Get stakeholders
+- `getActivities(prospectId)` - Get activities
+
+**Cleanup:**
+- `cleanupTestProspects(repId, pattern)` - Remove test prospects
+- `cleanupTestCalls(repId, pattern)` - Remove test calls
+- `cleanupTestData(repId, pattern)` - Remove all test data
+
+### Database Assertions
+
+- `expectProspectExists(repId, name)` - Assert prospect exists
+- `expectCallTranscriptExists(callId)` - Assert call exists
+- `expectAnalysisCompleted(callId)` - Assert analysis done
+- `expectFollowUpsGenerated(prospectId)` - Assert follow-ups created
+- `expectStakeholderExists(prospectId, name)` - Assert stakeholder exists
+- `expectUserHasRole(userId, role)` - Assert user role
 
 ## CI Integration
 
