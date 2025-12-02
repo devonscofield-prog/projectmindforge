@@ -27,6 +27,14 @@ interface ProspectActivityLogProps {
   onAddActivity: (activity: { type: ProspectActivityType; description: string; date: string }) => Promise<unknown>;
 }
 
+// Limited activity types for logging
+const allowedActivityTypes: { value: ProspectActivityType; label: string }[] = [
+  { value: 'note', label: 'Note' },
+  { value: 'call', label: 'Phone Call' },
+  { value: 'linkedin', label: 'LinkedIn' },
+  { value: 'meeting', label: 'Other' },
+];
+
 export function ProspectActivityLog({ activities, onAddActivity }: ProspectActivityLogProps) {
   const [isAddActivityOpen, setIsAddActivityOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -76,7 +84,7 @@ export function ProspectActivityLog({ activities, onAddActivity }: ProspectActiv
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {Object.entries(activityTypeLabels).map(([value, label]) => (
+                    {allowedActivityTypes.map(({ value, label }) => (
                       <SelectItem key={value} value={value}>
                         {label}
                       </SelectItem>
