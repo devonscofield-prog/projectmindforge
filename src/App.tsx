@@ -44,6 +44,7 @@ const AdminAuditLog = lazy(() => import("./pages/admin/AdminAuditLog"));
 
 // Lazy load - Shared pages
 const CallDetailPage = lazy(() => import("./pages/calls/CallDetailPage"));
+const UserSettings = lazy(() => import("./pages/UserSettings"));
 
 // Lazy load - Marketing pages (public)
 const ROICalculatorPage = lazy(() => import("./pages/marketing/ROICalculatorPage"));
@@ -122,6 +123,13 @@ const App = () => (
                 <Route path="/calls/:id" element={
                   <ProtectedRoute allowedRoles={['rep', 'manager', 'admin']}>
                     <CallDetailPage />
+                  </ProtectedRoute>
+                } />
+
+                {/* User Settings Route (All Roles) */}
+                <Route path="/settings" element={
+                  <ProtectedRoute allowedRoles={['rep', 'manager', 'admin']}>
+                    <UserSettings />
                   </ProtectedRoute>
                 } />
 

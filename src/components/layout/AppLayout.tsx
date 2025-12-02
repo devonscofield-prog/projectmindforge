@@ -17,6 +17,7 @@ import {
   FileText,
   TrendingUp,
   Activity,
+  Settings,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -138,15 +139,31 @@ function SidebarNav() {
           </div>
           <ThemeToggle />
         </div>
-        <Button 
-          variant="ghost" 
-          className="w-full justify-start h-11 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          onClick={handleSignOut}
-          aria-label="Sign out of your account"
-        >
-          <LogOut className="h-4 w-4 mr-2" aria-hidden="true" />
-          Sign Out
-        </Button>
+        <div className="space-y-1">
+          <Button 
+            variant="ghost" 
+            className="w-full justify-start h-11 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            onClick={() => {
+              navigate('/settings');
+              if (isMobile) {
+                setOpenMobile(false);
+              }
+            }}
+            aria-label="Open settings"
+          >
+            <Settings className="h-4 w-4 mr-2" aria-hidden="true" />
+            Settings
+          </Button>
+          <Button 
+            variant="ghost" 
+            className="w-full justify-start h-11 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            onClick={handleSignOut}
+            aria-label="Sign out of your account"
+          >
+            <LogOut className="h-4 w-4 mr-2" aria-hidden="true" />
+            Sign Out
+          </Button>
+        </div>
       </SidebarFooter>
     </>
   );
