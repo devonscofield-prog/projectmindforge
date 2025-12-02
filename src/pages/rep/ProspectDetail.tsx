@@ -107,6 +107,7 @@ function ProspectDetail() {
           prospect={prospect}
           stakeholderCount={stakeholders.length}
           callCount={calls.length}
+          onUpdateProspect={handleUpdateProspect}
         />
 
         {/* Quick Actions Bar */}
