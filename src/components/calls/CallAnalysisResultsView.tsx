@@ -112,6 +112,23 @@ export function CallAnalysisResultsView({ call, analysis, isOwner, isManager }: 
       .replace(/\n/g, '<br>');
   };
 
+  // Convert markdown to clean plain text (no ## headers, use • bullets)
+  const convertMarkdownToPlainText = (markdown: string): string => {
+    return markdown
+      // Remove markdown headers but keep the text
+      .replace(/^### (.+)$/gm, '$1')
+      .replace(/^## (.+)$/gm, '$1')
+      .replace(/^# (.+)$/gm, '$1')
+      // Convert markdown links [text](url) to just text
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      // Remove bold markers
+      .replace(/\*\*([^*]+)\*\*/g, '$1')
+      // Remove italic markers
+      .replace(/\*([^*]+)\*/g, '$1')
+      // Convert bullet dashes to bullet points
+      .replace(/^- /gm, '• ');
+  };
+
   const handleCopy = async (text: string, label: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -260,15 +277,16 @@ export function CallAnalysisResultsView({ call, analysis, isOwner, isManager }: 
                 onClick={async () => {
                   try {
                     const html = convertMarkdownToHtml(analysis.call_notes!);
+                    const plainText = convertMarkdownToPlainText(analysis.call_notes!);
                     const clipboardItem = new ClipboardItem({
                       'text/html': new Blob([html], { type: 'text/html' }),
-                      'text/plain': new Blob([analysis.call_notes!], { type: 'text/plain' }),
+                      'text/plain': new Blob([plainText], { type: 'text/plain' }),
                     });
                     await navigator.clipboard.write([clipboardItem]);
                     toast({ title: 'Copied', description: 'Call notes copied to clipboard.' });
                   } catch {
                     // Fallback to plain text if HTML copy fails
-                    await navigator.clipboard.writeText(analysis.call_notes!);
+                    await navigator.clipboard.writeText(convertMarkdownToPlainText(analysis.call_notes!));
                     toast({ title: 'Copied', description: 'Call notes copied as plain text.' });
                   }
                 }}
