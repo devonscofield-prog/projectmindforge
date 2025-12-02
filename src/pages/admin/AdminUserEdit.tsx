@@ -110,6 +110,25 @@ function AdminUserEdit() {
 
     setSaving(true);
     try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) {
+        toast.error('You must be logged in');
+        return;
+      }
+
+      // Track changes for audit log
+      const changes: Record<string, { old: unknown; new: unknown }> = {};
+      const metadata: Record<string, unknown> = {
+        target_user_id: userId,
+        target_user_name: user.name,
+        target_user_email: user.email,
+      };
+
+      if (formData.name !== user.name) changes.name = { old: user.name, new: formData.name };
+      if (formData.team_id !== (user.team_id || '')) changes.team_id = { old: user.team_id, new: formData.team_id };
+      if (formData.is_active !== user.is_active) changes.is_active = { old: user.is_active, new: formData.is_active };
+      if (formData.hire_date !== (user.hire_date || '')) changes.hire_date = { old: user.hire_date, new: formData.hire_date };
+
       // Update profile
       const { error: profileError } = await supabase
         .from('profiles')
@@ -124,6 +143,24 @@ function AdminUserEdit() {
 
       if (profileError) throw profileError;
 
+      // Log profile update if there were changes
+      if (Object.keys(changes).length > 0) {
+        await supabase.from('user_activity_logs').insert([{
+          user_id: currentUser.id,
+          activity_type: 'user_profile_updated' as const,
+          metadata: { ...metadata, changes } as never,
+        }]);
+      }
+
+      // Log deactivation/reactivation
+      if (formData.is_active !== user.is_active) {
+        await supabase.from('user_activity_logs').insert([{
+          user_id: currentUser.id,
+          activity_type: formData.is_active ? 'user_reactivated' as const : 'user_deactivated' as const,
+          metadata: metadata as never,
+        }]);
+      }
+
       // Update role if changed
       if (formData.role !== user.role) {
         const { error: roleError } = await supabase
@@ -132,6 +169,17 @@ function AdminUserEdit() {
           .eq('user_id', userId);
 
         if (roleError) throw roleError;
+
+        // Log role change
+        await supabase.from('user_activity_logs').insert([{
+          user_id: currentUser.id,
+          activity_type: 'user_role_changed' as const,
+          metadata: {
+            ...metadata,
+            old_role: user.role,
+            new_role: formData.role,
+          } as never,
+        }]);
       }
 
       toast.success('User updated successfully');

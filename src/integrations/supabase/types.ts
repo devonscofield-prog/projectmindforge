@@ -1660,7 +1660,16 @@ export type Database = {
         | "heavy_influencer"
         | "secondary_dm"
         | "final_dm"
-      user_activity_type: "login" | "logout" | "session_refresh"
+      user_activity_type:
+        | "login"
+        | "logout"
+        | "session_refresh"
+        | "user_invited"
+        | "user_profile_updated"
+        | "user_role_changed"
+        | "password_reset_requested"
+        | "user_deactivated"
+        | "user_reactivated"
       user_role: "rep" | "manager" | "admin"
     }
     CompositeTypes: {
@@ -1816,7 +1825,17 @@ export const Constants = {
         "secondary_dm",
         "final_dm",
       ],
-      user_activity_type: ["login", "logout", "session_refresh"],
+      user_activity_type: [
+        "login",
+        "logout",
+        "session_refresh",
+        "user_invited",
+        "user_profile_updated",
+        "user_role_changed",
+        "password_reset_requested",
+        "user_deactivated",
+        "user_reactivated",
+      ],
       user_role: ["rep", "manager", "admin"],
     },
   },

@@ -13,18 +13,36 @@ const activityIcons: Record<UserActivityType, typeof LogIn> = {
   login: LogIn,
   logout: LogOut,
   session_refresh: RefreshCw,
+  user_invited: Activity,
+  user_profile_updated: Activity,
+  user_role_changed: Activity,
+  password_reset_requested: Activity,
+  user_deactivated: Activity,
+  user_reactivated: Activity,
 };
 
 const activityColors: Record<UserActivityType, string> = {
   login: 'text-green-500',
   logout: 'text-red-500',
   session_refresh: 'text-blue-500',
+  user_invited: 'text-purple-500',
+  user_profile_updated: 'text-blue-500',
+  user_role_changed: 'text-orange-500',
+  password_reset_requested: 'text-yellow-500',
+  user_deactivated: 'text-red-500',
+  user_reactivated: 'text-green-500',
 };
 
 const activityLabels: Record<UserActivityType, string> = {
   login: 'logged in',
   logout: 'logged out',
   session_refresh: 'session refreshed',
+  user_invited: 'invited user',
+  user_profile_updated: 'updated profile',
+  user_role_changed: 'changed role',
+  password_reset_requested: 'reset password',
+  user_deactivated: 'deactivated user',
+  user_reactivated: 'reactivated user',
 };
 
 export function GlobalActivityFeed() {

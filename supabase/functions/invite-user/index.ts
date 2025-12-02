@@ -186,6 +186,19 @@ Deno.serve(async (req) => {
 
     console.log(`✓ Invitation complete for ${email}`);
 
+    // Log admin action
+    await supabaseAdmin.from('user_activity_logs').insert({
+      user_id: user.id,
+      activity_type: 'user_invited',
+      metadata: {
+        target_user_id: newUser.user.id,
+        target_user_name: name,
+        target_user_email: email,
+        role: role,
+        team_id: teamId,
+      },
+    });
+
     return new Response(
       JSON.stringify({
         success: true,

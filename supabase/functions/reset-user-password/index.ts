@@ -116,6 +116,23 @@ Deno.serve(async (req) => {
 
     console.log(`✓ Password reset link generated for ${userData.user.email}`);
 
+    // Log admin action
+    const { data: targetProfile } = await supabaseAdmin
+      .from('profiles')
+      .select('name, email')
+      .eq('id', userId)
+      .single();
+
+    await supabaseAdmin.from('user_activity_logs').insert({
+      user_id: user.id,
+      activity_type: 'password_reset_requested',
+      metadata: {
+        target_user_id: userId,
+        target_user_name: targetProfile?.name || 'Unknown',
+        target_user_email: targetProfile?.email || userData.user.email,
+      },
+    });
+
     return new Response(
       JSON.stringify({
         success: true,
