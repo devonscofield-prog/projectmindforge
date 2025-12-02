@@ -12,15 +12,9 @@ import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 import {
   ProspectHeader,
   ProspectQuickStats,
-  ProspectAIInsights,
   ProspectFollowUps,
-  ProspectCallHistory,
-  ProspectEmailLogSection,
-  ProspectActivityLog,
-  ProspectQuickInfo,
-  ProspectStakeholdersSection,
-  ProspectProductsBreakdown,
-  ProspectOpportunityDetails,
+  ProspectDetailTabs,
+  ProspectQuickActions,
 } from '@/components/prospects/detail';
 
 // Existing dialog/sheet components
@@ -108,101 +102,59 @@ function ProspectDetail() {
           onStatusChange={handleStatusChange}
         />
 
-        {/* Quick Stats Grid */}
+        {/* Quick Stats Bar */}
         <ProspectQuickStats
           prospect={prospect}
           stakeholderCount={stakeholders.length}
           callCount={calls.length}
         />
 
-        <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Opportunity Details */}
-            <ProspectOpportunityDetails
-              prospect={prospect}
-              onUpdate={(updated) => {
-                // Reload prospect data to reflect changes
-                loadProspectData();
-              }}
-            />
+        {/* Quick Actions Bar */}
+        <ProspectQuickActions
+          onAddEmail={() => setIsAddEmailOpen(true)}
+          onResearchAccount={() => setIsResearchOpen(true)}
+          onAddStakeholder={() => setIsAddStakeholderOpen(true)}
+        />
 
-            {/* Stakeholders Section */}
-            <ProspectStakeholdersSection
-              stakeholders={stakeholders}
-              onAddStakeholder={() => setIsAddStakeholderOpen(true)}
-              onStakeholderClick={handleStakeholderClick}
-              onStakeholderChanged={loadProspectData}
-            />
+        {/* Priority Action Zone - Follow-Ups */}
+        <ProspectFollowUps
+          prospect={prospect}
+          followUps={followUps}
+          completedFollowUps={completedFollowUps}
+          dismissedFollowUps={dismissedFollowUps}
+          calls={calls}
+          emailLogs={emailLogs}
+          isRefreshing={isRefreshing}
+          onComplete={handleCompleteFollowUp}
+          onDismiss={handleDismissFollowUp}
+          onReopen={handleReopenFollowUp}
+          onRestore={handleRestoreFollowUp}
+          onRefresh={handleRefreshFollowUps}
+        />
 
-            {/* Relationship Map */}
-            {user?.id && (
-              <StakeholderRelationshipMap
-                stakeholders={stakeholders}
-                relationships={relationships}
-                prospectId={prospect.id}
-                repId={user.id}
-                onRelationshipsChanged={loadProspectData}
-                onStakeholderClick={handleStakeholderClick}
-              />
-            )}
-
-            {/* AI Insights */}
-            <ProspectAIInsights
-              prospect={prospect}
-              calls={calls}
-              emailLogs={emailLogs}
-              isRefreshingInsights={isRefreshingInsights}
-              onRefreshInsights={handleRefreshInsightsOnly}
-              onResearchAccount={() => setIsResearchOpen(true)}
-            />
-
-            {/* Suggested Follow-Up Steps */}
-            <ProspectFollowUps
-              prospect={prospect}
-              followUps={followUps}
-              completedFollowUps={completedFollowUps}
-              dismissedFollowUps={dismissedFollowUps}
-              calls={calls}
-              emailLogs={emailLogs}
-              isRefreshing={isRefreshing}
-              onComplete={handleCompleteFollowUp}
-              onDismiss={handleDismissFollowUp}
-              onReopen={handleReopenFollowUp}
-              onRestore={handleRestoreFollowUp}
-              onRefresh={handleRefreshFollowUps}
-            />
-
-            {/* Call History */}
-            <ProspectCallHistory calls={calls} />
-
-            {/* Products Breakdown */}
-            <ProspectProductsBreakdown prospectId={prospect.id} />
-
-            {/* Email Log */}
-            <ProspectEmailLogSection
-              emailLogs={emailLogs}
-              stakeholders={stakeholders}
-              onAddEmail={() => setIsAddEmailOpen(true)}
-              onDeleteEmail={handleDeleteEmailLog}
-            />
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Activity Timeline */}
-            <ProspectActivityLog
-              activities={activities}
-              onAddActivity={handleAddActivity}
-            />
-
-            {/* Quick Info */}
-            <ProspectQuickInfo
-              prospect={prospect}
-              onUpdateProspect={handleUpdateProspect}
-            />
-          </div>
-        </div>
+        {/* Tabbed Content */}
+        <ProspectDetailTabs
+          prospect={prospect}
+          stakeholders={stakeholders}
+          relationships={relationships}
+          calls={calls}
+          activities={activities}
+          emailLogs={emailLogs}
+          userId={user?.id}
+          isRefreshingInsights={isRefreshingInsights}
+          onProspectUpdate={(updated) => loadProspectData()}
+          onUpdateProspect={handleUpdateProspect}
+          onStakeholderClick={handleStakeholderClick}
+          onAddStakeholder={() => setIsAddStakeholderOpen(true)}
+          onStakeholderChanged={loadProspectData}
+          onAddRelationship={() => {}}
+          onRelationshipsChanged={loadProspectData}
+          onRefreshInsights={handleRefreshInsightsOnly}
+          onResearchAccount={() => setIsResearchOpen(true)}
+          onAddEmail={() => setIsAddEmailOpen(true)}
+          onDeleteEmail={handleDeleteEmailLog}
+          onAddActivity={handleAddActivity}
+        />
       </div>
 
       {/* Add Stakeholder Dialog */}

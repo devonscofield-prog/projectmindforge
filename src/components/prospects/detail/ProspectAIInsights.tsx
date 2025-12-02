@@ -1,7 +1,9 @@
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Flame, RefreshCw, Loader2, AlertCircle, CheckCircle2, Search } from 'lucide-react';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
+import { Flame, RefreshCw, Loader2, AlertCircle, CheckCircle2, Search, ChevronDown, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import { format } from 'date-fns';
 import type { Prospect } from '@/api/prospects';
 import type { CallRecord } from '@/hooks/useProspectData';
@@ -47,6 +49,22 @@ export function ProspectAIInsights({
     (latestEmailDate && latestEmailDate > lastAnalyzedAt)
   );
 
+  const [allExpanded, setAllExpanded] = useState(false);
+
+  const toggleAll = () => {
+    setAllExpanded(!allExpanded);
+  };
+
+  const sections = [
+    { key: 'business_context', title: 'Business Context', data: aiInfo?.business_context },
+    { key: 'pain_points', title: 'Pain Points', data: aiInfo?.pain_points },
+    { key: 'communication_summary', title: 'Communication Summary', data: aiInfo?.communication_summary },
+    { key: 'key_opportunities', title: 'Key Opportunities', data: aiInfo?.key_opportunities },
+    { key: 'decision_process', title: 'Decision Process', data: aiInfo?.decision_process },
+    { key: 'relationship_health', title: 'Relationship Health', data: aiInfo?.relationship_health },
+    { key: 'competitors_mentioned', title: 'Competitors Mentioned', data: aiInfo?.competitors_mentioned },
+  ].filter(s => s.data);
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
@@ -68,6 +86,19 @@ export function ProspectAIInsights({
           </CardDescription>
         </div>
         <div className="flex items-center gap-2">
+          {aiInfo && sections.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleAll}
+            >
+              {allExpanded ? (
+                <><ChevronsUpDown className="h-4 w-4 mr-1" /> Collapse All</>
+              ) : (
+                <><ChevronsDownUp className="h-4 w-4 mr-1" /> Expand All</>
+              )}
+            </Button>
+          )}
           {onResearchAccount && (
             <Button
               variant="outline"
@@ -117,16 +148,20 @@ export function ProspectAIInsights({
             </Button>
           </div>
         ) : (
-          <>
+          <div className="space-y-3">
             {aiInfo.business_context && (
-              <div>
-                <h4 className="font-medium mb-1">Business Context</h4>
+              <CollapsibleInsightSection
+                title="Business Context"
+                open={allExpanded}
+              >
                 <p className="text-sm text-muted-foreground">{aiInfo.business_context}</p>
-              </div>
+              </CollapsibleInsightSection>
             )}
             {aiInfo.pain_points && aiInfo.pain_points.length > 0 && (
-              <div>
-                <h4 className="font-medium mb-2">Pain Points</h4>
+              <CollapsibleInsightSection
+                title="Pain Points"
+                open={allExpanded}
+              >
                 <ul className="space-y-1">
                   {aiInfo.pain_points.map((point, i) => (
                     <li key={i} className="flex items-start gap-2 text-sm">
@@ -135,17 +170,21 @@ export function ProspectAIInsights({
                     </li>
                   ))}
                 </ul>
-              </div>
+              </CollapsibleInsightSection>
             )}
             {aiInfo.communication_summary && (
-              <div>
-                <h4 className="font-medium mb-1">Communication Summary</h4>
+              <CollapsibleInsightSection
+                title="Communication Summary"
+                open={allExpanded}
+              >
                 <p className="text-sm text-muted-foreground">{aiInfo.communication_summary}</p>
-              </div>
+              </CollapsibleInsightSection>
             )}
             {aiInfo.key_opportunities && aiInfo.key_opportunities.length > 0 && (
-              <div>
-                <h4 className="font-medium mb-2">Key Opportunities</h4>
+              <CollapsibleInsightSection
+                title="Key Opportunities"
+                open={allExpanded}
+              >
                 <ul className="space-y-1">
                   {aiInfo.key_opportunities.map((opp, i) => (
                     <li key={i} className="flex items-start gap-2 text-sm">
@@ -154,11 +193,13 @@ export function ProspectAIInsights({
                     </li>
                   ))}
                 </ul>
-              </div>
+              </CollapsibleInsightSection>
             )}
             {aiInfo.decision_process && (
-              <div>
-                <h4 className="font-medium mb-2">Decision Process</h4>
+              <CollapsibleInsightSection
+                title="Decision Process"
+                open={allExpanded}
+              >
                 <div className="text-sm space-y-1">
                   {aiInfo.decision_process.timeline && (
                     <p><span className="text-muted-foreground">Timeline:</span> {aiInfo.decision_process.timeline}</p>
@@ -167,27 +208,62 @@ export function ProspectAIInsights({
                     <p><span className="text-muted-foreground">Budget:</span> {aiInfo.decision_process.budget_signals}</p>
                   )}
                 </div>
-              </div>
+              </CollapsibleInsightSection>
             )}
             {aiInfo.relationship_health && (
-              <div>
-                <h4 className="font-medium mb-1">Relationship Health</h4>
+              <CollapsibleInsightSection
+                title="Relationship Health"
+                open={allExpanded}
+              >
                 <p className="text-sm text-muted-foreground">{aiInfo.relationship_health}</p>
-              </div>
+              </CollapsibleInsightSection>
             )}
             {aiInfo.competitors_mentioned && aiInfo.competitors_mentioned.length > 0 && (
-              <div>
-                <h4 className="font-medium mb-1">Competitors Mentioned</h4>
+              <CollapsibleInsightSection
+                title="Competitors Mentioned"
+                open={allExpanded}
+              >
                 <div className="flex flex-wrap gap-2">
                   {aiInfo.competitors_mentioned.map((comp, i) => (
                     <Badge key={i} variant="outline">{comp}</Badge>
                   ))}
                 </div>
-              </div>
+              </CollapsibleInsightSection>
             )}
-          </>
+          </div>
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function CollapsibleInsightSection({ 
+  title, 
+  children, 
+  open = false 
+}: { 
+  title: string; 
+  children: React.ReactNode; 
+  open?: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(open);
+
+  // Sync with parent's expand/collapse all
+  useEffect(() => {
+    setIsOpen(open);
+  }, [open]);
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <div className="border rounded-lg">
+        <CollapsibleTrigger className="flex items-center justify-between w-full p-3 hover:bg-muted/50 transition-colors">
+          <h4 className="font-medium text-sm">{title}</h4>
+          <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="px-3 pb-3">
+          {children}
+        </CollapsibleContent>
+      </div>
+    </Collapsible>
   );
 }
