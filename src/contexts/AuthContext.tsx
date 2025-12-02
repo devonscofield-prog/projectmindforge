@@ -236,13 +236,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
   const signOut = async () => {
     // Log logout activity before signing out
     if (user) {
-      await logUserActivity({
-        user_id: user.id,
-        activity_type: 'logout',
-      });
+      try {
+        await logUserActivity({
+          user_id: user.id,
+          activity_type: 'logout',
+        });
+      } catch (e) {
+        // Ignore logging errors during sign out
+      }
     }
+    
     hasLoggedLogin.current = false;
-    await supabase.auth.signOut();
+    
+    // Clear local state first - this ensures UI updates even if server call fails
+    setUser(null);
+    setSession(null);
+    setProfile(null);
+    setRole(null);
+    
+    // Then attempt server-side signout (may fail if session already invalid after MFA)
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      log.info('Sign out API call failed (session may already be invalid)', { error });
+      // This is fine - local state is already cleared
+    }
   };
 
   const resetPassword = async (email: string) => {
