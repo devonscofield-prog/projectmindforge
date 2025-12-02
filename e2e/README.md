@@ -40,6 +40,11 @@ npx playwright test --headed
 npx playwright test e2e/auth.spec.ts
 ```
 
+### Run RLS security tests
+```bash
+npx playwright test e2e/rep.rls.spec.ts e2e/call-transcripts.rls.spec.ts
+```
+
 ### Run tests in UI mode (recommended for development)
 ```bash
 npx playwright test --ui
@@ -76,12 +81,23 @@ npx playwright test --update-snapshots
 
 ## Test Structure
 
+### Core Test Files
 - `fixtures/test-fixtures.ts` - Page objects and test utilities
 - `fixtures/database-fixtures.ts` - Database helpers and assertions
 - `auth.spec.ts` - Authentication flow tests
 - `call-submission.spec.ts` - Call transcript submission tests
 - `database-validation.spec.ts` - Database integrity and validation tests
 - `navigation.spec.ts` - Navigation and routing tests
+
+### RLS Security Tests
+- `rep.rls.spec.ts` - Row-Level Security tests for prospects table
+- `call-transcripts.rls.spec.ts` - Row-Level Security tests for call_transcripts table
+
+These tests validate that:
+- Users can only access their own data
+- Direct URL manipulation cannot bypass security
+- Database-level RLS policies are correctly enforced
+- Edge cases (back button, query params, rapid attempts) are handled securely
 
 ## Writing New Tests
 
