@@ -160,6 +160,7 @@ test.describe('Manager RLS Security Tests', () => {
 
   test.describe('Database-Level RLS Verification', () => {
     test('Verify manager can query own team prospects', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
       // Get Manager A's user info
       const managerA = await db.getUserByEmail(MANAGER_A_CREDENTIALS.email);
       expect(managerA).toBeTruthy();
@@ -176,6 +177,7 @@ test.describe('Manager RLS Security Tests', () => {
     });
 
     test('Verify manager can query own team calls', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
       // Get Manager A's call
       const call = await db.getCallTranscriptById(MANAGER_A_TEAM_CALL_ID);
       expect(call).toBeTruthy();
@@ -191,6 +193,7 @@ test.describe('Manager RLS Security Tests', () => {
     });
 
     test('Verify team member belongs to correct team', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
       // Get rep profile
       const rep = await db.getUserByEmail('rep.east.1@example.com');
       expect(rep).toBeTruthy();
@@ -202,6 +205,7 @@ test.describe('Manager RLS Security Tests', () => {
     });
 
     test('Verify is_manager_of_user function works correctly', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
       // This test verifies the database function that powers manager RLS
       // The function should be defined in migrations as: is_manager_of_user(manager_id, rep_id)
       
@@ -349,6 +353,7 @@ test.describe('Manager RLS Security Tests - Edge Cases', () => {
   });
 
   test('Manager cannot modify team assignment to access other team data', async ({ page, db }) => {
+    test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
     // Verify manager's current team
     const manager = await db.getUserByEmail(MANAGER_A_CREDENTIALS.email);
     expect(manager).toBeTruthy();
@@ -395,6 +400,7 @@ test.describe('Manager RLS Cross-Team Verification', () => {
   });
 
   test('Manager dashboard shows only own team metrics', async ({ page, db }) => {
+    test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
     // Navigate to manager dashboard
     await page.goto('/manager');
     await page.waitForLoadState('networkidle');

@@ -218,6 +218,7 @@ test.describe('Admin RLS Security Tests', () => {
 
   test.describe('Database-Level RLS Verification', () => {
     test('Verify admin can query data from Team A', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
       // Get Admin user info
       const admin = await db.getUserByEmail(ADMIN_CREDENTIALS.email);
       expect(admin).toBeTruthy();
@@ -233,6 +234,7 @@ test.describe('Admin RLS Security Tests', () => {
     });
 
     test('Verify admin can query data from Team B', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
       // Get Team B's call
       const call = await db.getCallTranscriptById(TEAM_B_CALL_ID);
       expect(call).toBeTruthy();
@@ -240,6 +242,7 @@ test.describe('Admin RLS Security Tests', () => {
     });
 
     test('Verify admin can query data from external rep', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
       // Get external rep's prospect
       const prospect = await db.getProspectById(EXTERNAL_REP_PROSPECT_ID);
       expect(prospect).toBeTruthy();
@@ -250,6 +253,7 @@ test.describe('Admin RLS Security Tests', () => {
     });
 
     test('Verify admin can query all prospects across teams', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
       // Get prospects from Team A rep
       const teamACount = await db.countProspects(TEAM_A_REP_ID);
       expect(teamACount).toBeGreaterThanOrEqual(0);
@@ -263,6 +267,7 @@ test.describe('Admin RLS Security Tests', () => {
     });
 
     test('Verify admin can query all call transcripts across teams', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
       // Get calls from Team A rep
       const teamACalls = await db.countCallTranscripts(TEAM_A_REP_ID);
       expect(teamACalls).toBeGreaterThanOrEqual(0);
