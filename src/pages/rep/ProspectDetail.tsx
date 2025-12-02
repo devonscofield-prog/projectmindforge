@@ -15,6 +15,7 @@ import {
   ProspectFollowUps,
   ProspectDetailTabs,
   ProspectQuickActions,
+  ProspectQuickInfoBar,
 } from '@/components/prospects/detail';
 
 // Existing dialog/sheet components
@@ -107,6 +108,12 @@ function ProspectDetail() {
           prospect={prospect}
           stakeholderCount={stakeholders.length}
           callCount={calls.length}
+          onUpdateProspect={handleUpdateProspect}
+        />
+
+        {/* Quick Info Bar */}
+        <ProspectQuickInfoBar
+          prospect={prospect}
           onUpdateProspect={handleUpdateProspect}
         />
 

@@ -1,7 +1,6 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LayoutGrid, Users, History, Brain } from 'lucide-react';
 import { ProspectOpportunityDetails } from './ProspectOpportunityDetails';
-import { ProspectQuickInfo } from './ProspectQuickInfo';
 import { ProspectStakeholdersSection } from './ProspectStakeholdersSection';
 import { StakeholderRelationshipMap } from '@/components/prospects/StakeholderRelationshipMap';
 import { ProspectCallHistory } from './ProspectCallHistory';
@@ -62,8 +61,12 @@ export function ProspectDetailTabs({
   onAddActivity,
 }: ProspectDetailTabsProps) {
   return (
-    <Tabs defaultValue="overview" className="w-full">
+    <Tabs defaultValue="intelligence" className="w-full">
       <TabsList className="w-full justify-start border-b rounded-none h-auto p-0 bg-transparent">
+        <TabsTrigger value="intelligence" className="gap-2 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">
+          <Brain className="h-4 w-4" />
+          Intelligence
+        </TabsTrigger>
         <TabsTrigger value="overview" className="gap-2 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">
           <LayoutGrid className="h-4 w-4" />
           Overview
@@ -76,23 +79,25 @@ export function ProspectDetailTabs({
           <History className="h-4 w-4" />
           History
         </TabsTrigger>
-        <TabsTrigger value="intelligence" className="gap-2 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">
-          <Brain className="h-4 w-4" />
-          Intelligence
-        </TabsTrigger>
       </TabsList>
 
+      <TabsContent value="intelligence" className="space-y-6 mt-6">
+        <ProspectAIInsights
+          prospect={prospect}
+          calls={calls}
+          emailLogs={emailLogs}
+          isRefreshingInsights={isRefreshingInsights}
+          onRefreshInsights={onRefreshInsights}
+          onResearchAccount={onResearchAccount}
+        />
+        <ProspectProductsBreakdown prospectId={prospect.id} />
+      </TabsContent>
+
       <TabsContent value="overview" className="space-y-6 mt-6">
-        <div className="grid gap-6 md:grid-cols-2">
-          <ProspectOpportunityDetails
-            prospect={prospect}
-            onUpdate={onProspectUpdate}
-          />
-          <ProspectQuickInfo 
-            prospect={prospect} 
-            onUpdateProspect={onUpdateProspect}
-          />
-        </div>
+        <ProspectOpportunityDetails
+          prospect={prospect}
+          onUpdate={onProspectUpdate}
+        />
       </TabsContent>
 
       <TabsContent value="people" className="space-y-6 mt-6">
@@ -126,18 +131,6 @@ export function ProspectDetailTabs({
           activities={activities}
           onAddActivity={onAddActivity}
         />
-      </TabsContent>
-
-      <TabsContent value="intelligence" className="space-y-6 mt-6">
-        <ProspectAIInsights
-          prospect={prospect}
-          calls={calls}
-          emailLogs={emailLogs}
-          isRefreshingInsights={isRefreshingInsights}
-          onRefreshInsights={onRefreshInsights}
-          onResearchAccount={onResearchAccount}
-        />
-        <ProspectProductsBreakdown prospectId={prospect.id} />
       </TabsContent>
     </Tabs>
   );
