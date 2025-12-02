@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
-import { ArrowLeft, Save, KeyRound, Copy, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
+import { ArrowLeft, Save, KeyRound, Copy, CheckCircle2, AlertTriangle, Loader2, ShieldOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { UserRole } from '@/types/database';
 
@@ -39,6 +39,7 @@ function AdminUserEdit() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
+  const [resettingMFA, setResettingMFA] = useState(false);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -228,6 +229,31 @@ function AdminUserEdit() {
       toast.error(errorMessage);
     } finally {
       setResettingPassword(false);
+    }
+  };
+
+  const handleResetMFA = async () => {
+    if (!userId) return;
+
+    setResettingMFA(true);
+    try {
+      const response = await supabase.functions.invoke('admin-reset-mfa', {
+        body: { targetUserId: userId },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      toast.success('MFA has been reset', {
+        description: 'User will need to set up MFA again on next login.'
+      });
+    } catch (error) {
+      log.error('Failed to reset MFA', { error });
+      const errorMessage = error instanceof Error ? error.message : 'Failed to reset MFA';
+      toast.error(errorMessage);
+    } finally {
+      setResettingMFA(false);
     }
   };
 
@@ -489,6 +515,32 @@ function AdminUserEdit() {
 
             <Card>
               <CardHeader>
+                <CardTitle className="text-lg">MFA Reset</CardTitle>
+                <CardDescription>
+                  Reset two-factor authentication for this user
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription className="text-xs">
+                    This will remove all MFA factors and trusted devices. The user will need to set up MFA again.
+                  </AlertDescription>
+                </Alert>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleResetMFA}
+                  disabled={resettingMFA}
+                >
+                  <ShieldOff className="h-4 w-4 mr-2" />
+                  {resettingMFA ? 'Resetting...' : 'Reset MFA'}
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
                 <CardTitle className="text-lg">User ID</CardTitle>
                 <CardDescription>Internal identifier</CardDescription>
               </CardHeader>
@@ -505,4 +557,4 @@ function AdminUserEdit() {
   );
 }
 
-export default withPageErrorBoundary(AdminUserEdit, 'Edit User');
+export default withPageErrorBoundary(AdminUserEdit);

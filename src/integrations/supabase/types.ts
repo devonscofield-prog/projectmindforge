@@ -953,6 +953,36 @@ export type Database = {
         }
         Relationships: []
       }
+      mfa_enrollment_status: {
+        Row: {
+          created_at: string | null
+          enrolled_at: string | null
+          is_enrolled: boolean | null
+          reset_at: string | null
+          reset_by: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          enrolled_at?: string | null
+          is_enrolled?: boolean | null
+          reset_at?: string | null
+          reset_by?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          enrolled_at?: string | null
+          is_enrolled?: boolean | null
+          reset_at?: string | null
+          reset_by?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       performance_alert_config: {
         Row: {
           alert_on_critical: boolean | null
@@ -1537,6 +1567,45 @@ export type Database = {
         }
         Relationships: []
       }
+      user_trusted_devices: {
+        Row: {
+          created_at: string | null
+          device_id: string
+          device_name: string | null
+          expires_at: string | null
+          id: string
+          ip_address: string | null
+          last_used_at: string | null
+          trusted_at: string | null
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          device_id: string
+          device_name?: string | null
+          expires_at?: string | null
+          id?: string
+          ip_address?: string | null
+          last_used_at?: string | null
+          trusted_at?: string | null
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          device_id?: string
+          device_name?: string | null
+          expires_at?: string | null
+          id?: string
+          ip_address?: string | null
+          last_used_at?: string | null
+          trusted_at?: string | null
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       data_access_logs_with_user: {
@@ -1584,7 +1653,12 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: boolean
       }
+      check_device_trusted: {
+        Args: { p_device_id: string; p_user_id: string }
+        Returns: boolean
+      }
       cleanup_expired_cache: { Args: never; Returns: number }
+      cleanup_expired_devices: { Args: never; Returns: number }
       cleanup_old_metrics: { Args: never; Returns: number }
       get_cached_admin_stats: { Args: never; Returns: Json }
       get_cached_prospect_stats: { Args: never; Returns: Json }
