@@ -215,6 +215,40 @@ export class DatabaseHelpers {
     return data || [];
   }
 
+  // ============= Coaching Session Helpers =============
+
+  async getCoachingSessionById(sessionId: string) {
+    const { data, error } = await this.supabase
+      .from('coaching_sessions')
+      .select('*')
+      .eq('id', sessionId)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data;
+  }
+
+  async getCoachingSessionsForRep(repId: string) {
+    const { data, error } = await this.supabase
+      .from('coaching_sessions')
+      .select('*')
+      .eq('rep_id', repId)
+      .order('session_date', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  }
+
+  async countCoachingSessions(managerId: string) {
+    const { count, error } = await this.supabase
+      .from('coaching_sessions')
+      .select('*', { count: 'exact', head: true })
+      .eq('manager_id', managerId);
+
+    if (error) throw error;
+    return count || 0;
+  }
+
   // ============= Cleanup Helpers =============
 
   async cleanupTestProspects(repId: string, namePattern: string) {
