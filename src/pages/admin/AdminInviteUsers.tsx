@@ -23,6 +23,8 @@ interface InviteResult {
   name: string;
   role: string;
   inviteLink?: string;
+  emailSent?: boolean;
+  emailError?: string;
 }
 
 function AdminInviteUsers() {
@@ -86,9 +88,13 @@ function AdminInviteUsers() {
         name: formData.name,
         role: formData.role,
         inviteLink: result.inviteLink,
+        emailSent: result.emailSent,
+        emailError: result.emailError,
       });
 
-      toast.success(`Invitation sent to ${formData.email}`);
+      toast.success(result.emailSent 
+        ? `Invitation email sent to ${formData.email}` 
+        : `User created - share the invite link with ${formData.email}`);
       
       // Reset form
       setFormData({
@@ -262,9 +268,13 @@ function AdminInviteUsers() {
 
                   {inviteResult.inviteLink && (
                     <>
-                      <Alert>
+                      <Alert className={inviteResult.emailSent ? '' : 'border-amber-500/50 bg-amber-500/10'}>
                         <AlertDescription className="text-sm">
-                          An email invitation has been sent. Alternatively, you can share the link below with the user.
+                          {inviteResult.emailSent 
+                            ? 'An email invitation has been sent. Alternatively, you can share the link below with the user.'
+                            : inviteResult.emailError 
+                              ? `Email could not be sent (${inviteResult.emailError}). Please share the link below with the user manually.`
+                              : 'Please share the link below with the user to complete their setup.'}
                         </AlertDescription>
                       </Alert>
 
