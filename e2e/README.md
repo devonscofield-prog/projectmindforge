@@ -42,7 +42,7 @@ npx playwright test e2e/auth.spec.ts
 
 ### Run RLS security tests
 ```bash
-npx playwright test e2e/rep.rls.spec.ts e2e/call-transcripts.rls.spec.ts
+npx playwright test e2e/rep.rls.spec.ts e2e/call-transcripts.rls.spec.ts e2e/stakeholders.rls.spec.ts
 ```
 
 ### Run tests in UI mode (recommended for development)
@@ -90,14 +90,32 @@ npx playwright test --update-snapshots
 - `navigation.spec.ts` - Navigation and routing tests
 
 ### RLS Security Tests
+
+Row-Level Security (RLS) tests are critical for validating data isolation between users:
+
 - `rep.rls.spec.ts` - Row-Level Security tests for prospects table
 - `call-transcripts.rls.spec.ts` - Row-Level Security tests for call_transcripts table
+- `stakeholders.rls.spec.ts` - Row-Level Security tests for stakeholders table
 
-These tests validate that:
-- Users can only access their own data
+**What These Tests Validate:**
+- Users can only access their own data (positive access tests)
+- Users cannot access data from other users' records (negative access tests)
 - Direct URL manipulation cannot bypass security
 - Database-level RLS policies are correctly enforced
-- Edge cases (back button, query params, rapid attempts) are handled securely
+- Edge cases are handled securely:
+  - Browser back button after redirect
+  - Query parameters and bypass attempts
+  - Rapid switching between authorized/unauthorized resources
+  - Multiple tabs or windows
+  - Session persistence
+- API responses do not leak unauthorized data
+
+**Why RLS Tests Matter:**
+- Prevent privilege escalation attacks
+- Ensure data privacy and compliance
+- Validate that database policies match application logic
+- Catch security regressions before production
+- Test security at both UI and database layers
 
 ## Writing New Tests
 
