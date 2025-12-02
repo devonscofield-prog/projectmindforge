@@ -49,7 +49,7 @@ export function ProspectAIInsights({
     (latestEmailDate && latestEmailDate > lastAnalyzedAt)
   );
 
-  const [allExpanded, setAllExpanded] = useState(false);
+  const [allExpanded, setAllExpanded] = useState(true);
 
   const toggleAll = () => {
     setAllExpanded(!allExpanded);
