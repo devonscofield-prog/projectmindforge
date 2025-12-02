@@ -54,7 +54,7 @@ test.describe('Admin RLS Security Tests', () => {
       await expect(page).toHaveURL(`/admin/accounts/${TEAM_A_PROSPECT_ID}`);
       
       // Verify the prospect detail page loaded successfully
-      const heading = page.locator('h1');
+      const heading = page.locator('h1').first();
       await expect(heading).toBeVisible({ timeout: 10000 });
       
       // Verify we don't see error messages
@@ -84,7 +84,7 @@ test.describe('Admin RLS Security Tests', () => {
       
       // Verify page loaded successfully
       await expect(page).toHaveURL(`/admin/accounts/${TEAM_A_PROSPECT_ID}`);
-      await expect(page.locator('h1')).toBeVisible();
+      await expect(page.locator('h1').first()).toBeVisible();
     });
   });
 
@@ -126,7 +126,7 @@ test.describe('Admin RLS Security Tests', () => {
       await expect(page).toHaveURL(`/admin/accounts/${EXTERNAL_REP_PROSPECT_ID}`);
       
       // Verify the prospect detail page loaded successfully
-      await expect(page.locator('h1')).toBeVisible({ timeout: 10000 });
+      await expect(page.locator('h1').first()).toBeVisible({ timeout: 10000 });
     });
   });
 
@@ -280,11 +280,11 @@ test.describe('Admin RLS Security Tests', () => {
 
   test.describe('Cross-Team Access Verification', () => {
     test('Admin can switch between teams without restriction', async ({ page }) => {
-      // Access Team A data
-      await page.goto(`/admin/accounts/${TEAM_A_PROSPECT_ID}`);
-      await page.waitForLoadState('networkidle');
-      await expect(page).toHaveURL(`/admin/accounts/${TEAM_A_PROSPECT_ID}`);
-      await expect(page.locator('h1')).toBeVisible();
+    // Access Team A data
+    await page.goto(`/admin/accounts/${TEAM_A_PROSPECT_ID}`);
+    await page.waitForLoadState('networkidle');
+    await expect(page).toHaveURL(`/admin/accounts/${TEAM_A_PROSPECT_ID}`);
+    await expect(page.locator('h1').first()).toBeVisible();
       
       // Access Team B data
       await page.goto(`/calls/${TEAM_B_CALL_ID}`);
@@ -292,11 +292,11 @@ test.describe('Admin RLS Security Tests', () => {
       await expect(page).toHaveURL(`/calls/${TEAM_B_CALL_ID}`);
       await expect(page.locator('h1, h2').first()).toBeVisible();
       
-      // Access external rep data
-      await page.goto(`/admin/accounts/${EXTERNAL_REP_PROSPECT_ID}`);
-      await page.waitForLoadState('networkidle');
-      await expect(page).toHaveURL(`/admin/accounts/${EXTERNAL_REP_PROSPECT_ID}`);
-      await expect(page.locator('h1')).toBeVisible();
+    // Access external rep data
+    await page.goto(`/admin/accounts/${EXTERNAL_REP_PROSPECT_ID}`);
+    await page.waitForLoadState('networkidle');
+    await expect(page).toHaveURL(`/admin/accounts/${EXTERNAL_REP_PROSPECT_ID}`);
+    await expect(page.locator('h1').first()).toBeVisible();
     });
 
     test('Admin can access multiple prospects from different teams in sequence', async ({ page }) => {
@@ -309,9 +309,9 @@ test.describe('Admin RLS Security Tests', () => {
         await page.goto(`/admin/accounts/${prospectId}`);
         await page.waitForLoadState('networkidle');
         
-        // Should successfully access each prospect
-        await expect(page).toHaveURL(`/admin/accounts/${prospectId}`);
-        await expect(page.locator('h1')).toBeVisible();
+      // Should successfully access each prospect
+      await expect(page).toHaveURL(`/admin/accounts/${prospectId}`);
+      await expect(page.locator('h1').first()).toBeVisible();
       }
     });
 
@@ -387,7 +387,7 @@ test.describe('Admin RLS Security Tests - Edge Cases', () => {
       
       // Should still have access
       await expect(page).toHaveURL(new RegExp(TEAM_A_PROSPECT_ID));
-      await expect(page.locator('h1')).toBeVisible();
+      await expect(page.locator('h1').first()).toBeVisible();
     }
   });
 

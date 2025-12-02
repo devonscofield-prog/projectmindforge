@@ -99,7 +99,7 @@ test.describe('Stakeholders RLS Security Tests', () => {
       await page.waitForLoadState('networkidle');
       
       // Page should load successfully with stakeholder data
-      await expect(page.locator('h1')).toBeVisible();
+      await expect(page.locator('h1').first()).toBeVisible();
     });
   });
 

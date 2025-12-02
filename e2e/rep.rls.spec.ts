@@ -45,7 +45,7 @@ test.describe('Rep RLS Security Tests', () => {
       
       // Verify the prospect detail page loaded successfully
       // The h1 heading contains the prospect/account name
-      const heading = page.locator('h1');
+      const heading = page.locator('h1').first();
       await expect(heading).toBeVisible({ timeout: 10000 });
       
       // Verify key UI elements are present (indicates successful data load)
@@ -60,7 +60,7 @@ test.describe('Rep RLS Security Tests', () => {
       await page.waitForLoadState('networkidle');
       
       // Verify multiple detail elements are present
-      await expect(page.locator('h1')).toBeVisible();
+      await expect(page.locator('h1').first()).toBeVisible();
       
       // Verify quick actions bar is present (indicates full page loaded)
       await expect(page.getByRole('button', { name: /log email/i })).toBeVisible();
@@ -179,7 +179,7 @@ test.describe('Rep RLS Security Tests - Edge Cases', () => {
   test('Direct URL manipulation cannot bypass RLS', async ({ page }) => {
     // First verify we can access our own prospect
     await page.goto(`/rep/prospects/${REP_A_PROSPECT_ID}`);
-    await expect(page.locator('h1')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('h1').first()).toBeVisible({ timeout: 10000 });
     await expect(page).toHaveURL(`/rep/prospects/${REP_A_PROSPECT_ID}`);
     
     // Now try to access another rep's prospect via URL manipulation
@@ -225,7 +225,7 @@ test.describe('Rep RLS Security Tests - Edge Cases', () => {
     // Access authorized prospect (should succeed)
     await page.goto(`/rep/prospects/${REP_A_PROSPECT_ID}`);
     await expect(page).toHaveURL(`/rep/prospects/${REP_A_PROSPECT_ID}`);
-    await expect(page.locator('h1')).toBeVisible();
+    await expect(page.locator('h1').first()).toBeVisible();
     
     // Try to access unauthorized prospect (should fail)
     await page.goto(`/rep/prospects/${REP_B_PROSPECT_ID}`);
@@ -235,7 +235,7 @@ test.describe('Rep RLS Security Tests - Edge Cases', () => {
     // Access authorized prospect again (should still succeed)
     await page.goto(`/rep/prospects/${REP_A_PROSPECT_ID}`);
     await expect(page).toHaveURL(`/rep/prospects/${REP_A_PROSPECT_ID}`);
-    await expect(page.locator('h1')).toBeVisible();
+    await expect(page.locator('h1').first()).toBeVisible();
   });
 
   test('Query parameters cannot bypass RLS', async ({ page }) => {
