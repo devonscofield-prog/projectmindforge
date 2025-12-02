@@ -56,6 +56,12 @@ Deno.serve(async (req) => {
 
     // Step 1: Delete all data in correct foreign key order
     const tables = [
+      // MFA tables first (reference auth.users)
+      'user_trusted_devices',
+      'mfa_enrollment_status',
+      // Performance snapshots
+      'rep_performance_snapshots',
+      // Original tables
       'call_stakeholder_mentions',
       'call_products',
       'ai_call_analysis',
