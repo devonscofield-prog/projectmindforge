@@ -70,6 +70,7 @@ function AdminInviteUsers() {
           role: formData.role,
           teamId: formData.teamId || null,
           sendEmail: true,
+          redirectTo: window.location.origin,
         },
       });
 
