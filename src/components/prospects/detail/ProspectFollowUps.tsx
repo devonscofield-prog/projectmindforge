@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Target, RefreshCw, Loader2, Eye } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Target, RefreshCw, Loader2, Eye, ChevronDown } from 'lucide-react';
 import { format } from 'date-fns';
 import { FollowUpItem } from '@/components/prospects/FollowUpItem';
 import { CompletedFollowUpsDialog } from '@/components/prospects/CompletedFollowUpsDialog';
@@ -43,6 +44,7 @@ export function ProspectFollowUps({
 }: ProspectFollowUpsProps) {
   const [isCompletedDialogOpen, setIsCompletedDialogOpen] = useState(false);
   const [isDismissedDialogOpen, setIsDismissedDialogOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const lastGeneratedAt = prospect.follow_ups_last_generated_at ? new Date(prospect.follow_ups_last_generated_at) : null;
   const latestCallDate = calls.length > 0 ? new Date(calls[0].call_date) : null;
@@ -55,60 +57,64 @@ export function ProspectFollowUps({
 
   return (
     <>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Target className="h-5 w-5 text-primary" />
-              Suggested Follow-Up Steps
-              {hasNewDataForFollowUps && (
-                <Badge variant="secondary" className="ml-2 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 text-xs">
-                  New data available
-                </Badge>
+      <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <CollapsibleTrigger asChild>
+              <button className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+                <Target className="h-5 w-5 text-primary" />
+                <CardTitle className="flex items-center gap-2">
+                  Suggested Follow-Up Steps
+                  {hasNewDataForFollowUps && (
+                    <Badge variant="secondary" className="ml-2 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 text-xs">
+                      New data available
+                    </Badge>
+                  )}
+                  {followUps.length > 0 && (
+                    <Badge variant="outline" className="ml-2 text-xs">
+                      {followUps.length}
+                    </Badge>
+                  )}
+                </CardTitle>
+                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+              </button>
+            </CollapsibleTrigger>
+            <div className="flex items-center gap-2">
+              {dismissedFollowUps.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsDismissedDialogOpen(true)}
+                >
+                  Dismissed ({dismissedFollowUps.length})
+                </Button>
               )}
-            </CardTitle>
-            <CardDescription>
-              {prospect.follow_ups_last_generated_at
-                ? `Last generated ${format(new Date(prospect.follow_ups_last_generated_at), 'MMM d, yyyy h:mm a')}`
-                : 'AI-recommended actions based on all account data'
-              }
-            </CardDescription>
-          </div>
-          <div className="flex items-center gap-2">
-            {dismissedFollowUps.length > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsDismissedDialogOpen(true)}
-              >
-                Dismissed ({dismissedFollowUps.length})
-              </Button>
-            )}
-            {completedFollowUps.length > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsCompletedDialogOpen(true)}
-              >
-                <Eye className="h-4 w-4 mr-1" />
-                Completed ({completedFollowUps.length})
-              </Button>
-            )}
-            <Button
-              variant={hasNewDataForFollowUps ? "default" : "outline"}
-              size="sm"
-              onClick={onRefresh}
-              disabled={isRefreshing}
-            >
-              {isRefreshing ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
+              {completedFollowUps.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsCompletedDialogOpen(true)}
+                >
+                  <Eye className="h-4 w-4 mr-1" />
+                  Completed ({completedFollowUps.length})
+                </Button>
               )}
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
+              <Button
+                variant={hasNewDataForFollowUps ? "default" : "outline"}
+                size="sm"
+                onClick={onRefresh}
+                disabled={isRefreshing}
+              >
+                {isRefreshing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+          </CardHeader>
+          <CollapsibleContent>
+            <CardContent>
           {followUps.length === 0 ? (
             <div className="text-center py-8">
               <Target className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
@@ -144,8 +150,10 @@ export function ProspectFollowUps({
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
 
       <CompletedFollowUpsDialog
         open={isCompletedDialogOpen}
