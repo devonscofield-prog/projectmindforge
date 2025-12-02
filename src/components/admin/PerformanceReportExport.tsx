@@ -26,10 +26,13 @@ import {
   getMetricsTimeline,
 } from '@/api/performanceMetrics';
 import { getAlertHistory } from '@/api/performanceAlerts';
+import { createLogger } from '@/lib/logger';
 
 interface PerformanceReportExportProps {
   className?: string;
 }
+
+const logger = createLogger('PerformanceReportExport');
 
 export function PerformanceReportExport({ className }: PerformanceReportExportProps) {
   const [open, setOpen] = useState(false);
@@ -88,7 +91,7 @@ export function PerformanceReportExport({ className }: PerformanceReportExportPr
       toast.success('Report exported successfully');
       setOpen(false);
     } catch (error) {
-      console.error('Error generating PDF:', error);
+      logger.error('Error generating PDF', { error });
       toast.error('Failed to generate report');
     } finally {
       setIsGenerating(false);

@@ -14,7 +14,7 @@ import { test, expect } from './fixtures/test-fixtures';
 // Rep A: rep.east.1@example.com (the authenticated test user)
 const REP_A_CREDENTIALS = {
   email: process.env.TEST_USER_EMAIL || 'rep.east.1@example.com',
-  password: process.env.TEST_USER_PASSWORD || 'password123',
+  password: process.env.TEST_USER_PASSWORD || 'TestPassword123!',
 };
 
 // Rep A's prospect and stakeholder

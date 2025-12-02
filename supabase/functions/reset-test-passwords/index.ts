@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
       }
     });
 
-    const { password = 'password123' }: ResetPasswordRequest = await req.json();
+    const { password = 'TestPassword123!' }: ResetPasswordRequest = await req.json();
 
     console.log('Resetting passwords for test users...');
 

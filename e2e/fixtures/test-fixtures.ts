@@ -8,7 +8,7 @@ import {
 // Test user credentials (use test accounts)
 export const TEST_USER = {
   email: process.env.TEST_USER_EMAIL || 'test@example.com',
-  password: process.env.TEST_USER_PASSWORD || 'testpassword123',
+  password: process.env.TEST_USER_PASSWORD || 'TestPassword123!',
 };
 
 // Page object helpers

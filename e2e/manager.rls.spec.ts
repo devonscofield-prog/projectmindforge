@@ -13,7 +13,7 @@ import { test, expect } from './fixtures/test-fixtures';
 // Manager A: Enterprise East team
 const MANAGER_A_CREDENTIALS = {
   email: process.env.MANAGER_A_EMAIL || 'manager.east@example.com',
-  password: process.env.MANAGER_A_PASSWORD || 'password123',
+  password: process.env.MANAGER_A_PASSWORD || 'TestPassword123!',
 };
 
 // Manager A's team data (Enterprise East)

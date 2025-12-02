@@ -11,6 +11,7 @@ import { updateProspect } from '@/api/prospects';
 import type { Prospect, OpportunityDetails } from '@/api/prospects';
 import { Edit, Save, X, Bot, Users, TrendingUp, AlertCircle } from 'lucide-react';
 import { formatCurrency } from './constants';
+import { createLogger } from '@/lib/logger';
 
 const opportunityDetailsSchema = z.object({
   potential_revenue: z.number().min(0, 'Potential revenue cannot be negative').optional().or(z.literal(undefined)),
@@ -26,6 +27,8 @@ interface ProspectOpportunityDetailsProps {
   prospect: Prospect;
   onUpdate: (updatedProspect: Prospect) => void;
 }
+
+const logger = createLogger('ProspectOpportunityDetails');
 
 export function ProspectOpportunityDetails({ prospect, onUpdate }: ProspectOpportunityDetailsProps) {
   const { toast } = useToast();
@@ -78,7 +81,7 @@ export function ProspectOpportunityDetails({ prospect, onUpdate }: ProspectOppor
         description: 'Changes saved successfully',
       });
     } catch (error) {
-      console.error('Failed to update opportunity details', error);
+      logger.error('Failed to update opportunity details', { error, prospectId: prospect.id });
       toast({
         title: 'Failed to save',
         description: error instanceof Error ? error.message : 'Unknown error',
