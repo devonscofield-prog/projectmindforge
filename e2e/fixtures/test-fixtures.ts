@@ -1,4 +1,9 @@
 import { test as base, Page } from '@playwright/test';
+import {
+  createSupabaseAdmin,
+  DatabaseHelpers,
+  DatabaseAssertions,
+} from './database-fixtures';
 
 // Test user credentials (use test accounts)
 export const TEST_USER = {
@@ -92,12 +97,23 @@ export class DashboardPage {
 export const test = base.extend<{
   authPage: AuthPage;
   dashboardPage: DashboardPage;
+  db: DatabaseHelpers;
+  dbAssert: DatabaseAssertions;
 }>({
   authPage: async ({ page }, use) => {
     await use(new AuthPage(page));
   },
   dashboardPage: async ({ page }, use) => {
     await use(new DashboardPage(page));
+  },
+  db: async ({}, use) => {
+    const supabase = createSupabaseAdmin();
+    const db = new DatabaseHelpers(supabase);
+    await use(db);
+  },
+  dbAssert: async ({ db }, use) => {
+    const dbAssert = new DatabaseAssertions(db);
+    await use(dbAssert);
   },
 });
 
