@@ -68,10 +68,6 @@ export function ProspectDetailTabs({
           <Brain className="h-4 w-4" />
           Intelligence
         </TabsTrigger>
-        <TabsTrigger value="overview" className="gap-2 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">
-          <LayoutGrid className="h-4 w-4" />
-          Overview
-        </TabsTrigger>
         <TabsTrigger value="people" className="gap-2 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">
           <Users className="h-4 w-4" />
           People
@@ -79,6 +75,10 @@ export function ProspectDetailTabs({
         <TabsTrigger value="history" className="gap-2 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">
           <History className="h-4 w-4" />
           History
+        </TabsTrigger>
+        <TabsTrigger value="overview" className="gap-2 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">
+          <LayoutGrid className="h-4 w-4" />
+          Potential
         </TabsTrigger>
       </TabsList>
 
