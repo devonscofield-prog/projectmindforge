@@ -103,6 +103,48 @@ export type Database = {
         }
         Relationships: []
       }
+      activity_templates: {
+        Row: {
+          activity_type: string
+          created_at: string | null
+          id: string
+          template_text: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          activity_type: string
+          created_at?: string | null
+          id?: string
+          template_text: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          activity_type?: string
+          created_at?: string | null
+          id?: string
+          template_text?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_templates_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_templates_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_with_role"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       admin_chat_insights: {
         Row: {
           admin_id: string

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,10 +18,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus } from 'lucide-react';
+import { Plus, Settings } from 'lucide-react';
 import { format } from 'date-fns';
 import { activityTypeLabels, activityIcons } from './constants';
 import type { ProspectActivity, ProspectActivityType } from '@/api/prospects';
+import { fetchActivityTemplates } from '@/api/activityTemplates';
+import { ManageActivityTemplatesDialog } from '@/components/prospects/ManageActivityTemplatesDialog';
 
 interface ProspectActivityLogProps {
   activities: ProspectActivity[];
@@ -70,12 +73,25 @@ const activityTemplates: Record<ProspectActivityType, string[]> = {
 
 export function ProspectActivityLog({ activities, onAddActivity }: ProspectActivityLogProps) {
   const [isAddActivityOpen, setIsAddActivityOpen] = useState(false);
+  const [isManageTemplatesOpen, setIsManageTemplatesOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newActivity, setNewActivity] = useState({
     type: 'note' as ProspectActivityType,
     description: '',
     date: new Date().toISOString().split('T')[0],
   });
+
+  const { data: customTemplates = [] } = useQuery({
+    queryKey: ['activityTemplates', newActivity.type],
+    queryFn: () => fetchActivityTemplates(newActivity.type),
+    enabled: isAddActivityOpen,
+  });
+
+  // Combine built-in and custom templates
+  const allTemplates = [
+    ...activityTemplates[newActivity.type],
+    ...customTemplates.map((t) => t.template_text),
+  ];
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
@@ -95,13 +111,21 @@ export function ProspectActivityLog({ activities, onAddActivity }: ProspectActiv
           <CardTitle className="text-base">Activity Log</CardTitle>
           <CardDescription>Track your interactions</CardDescription>
         </div>
-        <Dialog open={isAddActivityOpen} onOpenChange={setIsAddActivityOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm">
-              <Plus className="h-4 w-4 mr-1" />
-              Add
-            </Button>
-          </DialogTrigger>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsManageTemplatesOpen(true)}
+          >
+            <Settings className="h-4 w-4" />
+          </Button>
+          <Dialog open={isAddActivityOpen} onOpenChange={setIsAddActivityOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm">
+                <Plus className="h-4 w-4 mr-1" />
+                Add
+              </Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Log Activity</DialogTitle>
@@ -133,11 +157,11 @@ export function ProspectActivityLog({ activities, onAddActivity }: ProspectActiv
                   onChange={(e) => setNewActivity({ ...newActivity, date: e.target.value })}
                 />
               </div>
-              {activityTemplates[newActivity.type].length > 0 && (
+              {allTemplates.length > 0 && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Quick Templates</label>
                   <div className="flex flex-wrap gap-2">
-                    {activityTemplates[newActivity.type].map((template) => (
+                    {allTemplates.map((template) => (
                       <Button
                         key={template}
                         type="button"
@@ -169,7 +193,8 @@ export function ProspectActivityLog({ activities, onAddActivity }: ProspectActiv
               </Button>
             </div>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </CardHeader>
       <CardContent>
         {activities.length === 0 ? (
@@ -204,6 +229,11 @@ export function ProspectActivityLog({ activities, onAddActivity }: ProspectActiv
           </div>
         )}
       </CardContent>
+
+      <ManageActivityTemplatesDialog
+        open={isManageTemplatesOpen}
+        onOpenChange={setIsManageTemplatesOpen}
+      />
     </Card>
   );
 }
