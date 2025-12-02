@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { createLogger } from '@/lib/logger';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
@@ -40,10 +41,10 @@ import { Pencil, History, Users, RefreshCw, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useOnlineUsers } from '@/hooks/usePresence';
 import { UserActivityLogSheet } from '@/components/admin/UserActivityLogSheet';
-import { Link } from 'react-router-dom';
 
 function AdminUsers() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const onlineUsers = useOnlineUsers();
   
   // Fetch data using React Query
@@ -102,13 +103,7 @@ function AdminUsers() {
   };
 
   const handleEditClick = (user: UserWithDetails) => {
-    setEditingUser(user);
-    setEditForm({
-      role: user.role || 'rep',
-      team_id: user.team_id || '',
-      is_active: user.is_active,
-    });
-    setEditDialogOpen(true);
+    navigate(`/admin/users/${user.id}/edit`);
   };
 
   const handleActivityClick = (user: UserWithDetails) => {

@@ -47,3 +47,6 @@ verify_jwt = true
 
 [functions.invite-user]
 verify_jwt = true
+
+[functions.reset-user-password]
+verify_jwt = true

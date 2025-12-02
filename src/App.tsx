@@ -34,6 +34,7 @@ const RepDetail = lazy(() => import("./pages/manager/RepDetail"));
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
 const AdminTeams = lazy(() => import("./pages/admin/AdminTeams"));
 const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
+const AdminUserEdit = lazy(() => import("./pages/admin/AdminUserEdit"));
 const AdminInviteUsers = lazy(() => import("./pages/admin/AdminInviteUsers"));
 const AdminAccounts = lazy(() => import("./pages/admin/AdminAccounts"));
 const AdminCoachingTrends = lazy(() => import("./pages/admin/AdminCoachingTrends"));
@@ -174,6 +175,11 @@ const App = () => (
                 <Route path="/admin/users" element={
                   <ProtectedRoute allowedRoles={['admin']}>
                     <AdminUsers />
+                  </ProtectedRoute>
+                } />
+                <Route path="/admin/users/:userId/edit" element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <AdminUserEdit />
                   </ProtectedRoute>
                 } />
                 <Route path="/admin/users/invite" element={
