@@ -60,6 +60,8 @@ test.describe('Rep RLS Security Tests - coaching_sessions', () => {
 
   test.describe('Positive Access Tests - View Own Sessions', () => {
     test('Rep CAN view own coaching sessions in database', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
+      
       // Verify rep can query their own coaching sessions
       const sessions = await db.getCoachingSessionsForRep(REP_A.id);
       expect(sessions).toBeTruthy();
@@ -84,6 +86,8 @@ test.describe('Rep RLS Security Tests - coaching_sessions', () => {
 
   test.describe('Negative Access Tests - Blocked Operations', () => {
     test('Rep CANNOT query another rep\'s coaching sessions', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
+      
       // Try to get Rep B's sessions (should be blocked by RLS)
       const sessions = await db.getCoachingSessionsForRep(REP_B.id);
       
@@ -93,6 +97,8 @@ test.describe('Rep RLS Security Tests - coaching_sessions', () => {
     });
 
     test('Rep CANNOT access specific coaching session from another rep', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
+      
       // Try to access Rep B's coaching session
       const session = await db.getCoachingSessionById(REP_B.coachingSessionId).catch(() => null);
       
@@ -114,6 +120,8 @@ test.describe('Rep RLS Security Tests - coaching_sessions', () => {
 
   test.describe('Database-Level RLS Verification', () => {
     test('Verify both rep sessions exist (proves RLS, not missing data)', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
+      
       // Use admin client to verify both sessions exist
       const repASession = await db.getCoachingSessionById(REP_A.coachingSessionId);
       expect(repASession).toBeTruthy();
@@ -128,6 +136,8 @@ test.describe('Rep RLS Security Tests - coaching_sessions', () => {
     });
 
     test('Verify rep role is correctly set', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
+      
       const role = await db.getUserRole(REP_A.id);
       expect(role).toBe('rep');
     });
@@ -143,6 +153,8 @@ test.describe('Manager RLS Security Tests - coaching_sessions', () => {
 
   test.describe('Positive Access Tests - Team Coaching Sessions', () => {
     test('Manager CAN view team member coaching sessions', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
+      
       // Get Rep A's sessions (Manager East's team member)
       const sessions = await db.getCoachingSessionsForRep(REP_A.id);
       expect(sessions).toBeTruthy();
@@ -173,6 +185,8 @@ test.describe('Manager RLS Security Tests - coaching_sessions', () => {
     });
 
     test('Manager CAN query own coaching sessions', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
+      
       // Manager should be able to see sessions they created
       const count = await db.countCoachingSessions(MANAGER_EAST.id);
       expect(count).toBeGreaterThanOrEqual(0);
@@ -181,6 +195,8 @@ test.describe('Manager RLS Security Tests - coaching_sessions', () => {
 
   test.describe('Negative Access Tests - Team Isolation', () => {
     test('Manager CANNOT view other team\'s coaching sessions', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
+      
       // Try to get Rep B's sessions (different team)
       const sessions = await db.getCoachingSessionsForRep(REP_B.id);
       
@@ -189,6 +205,8 @@ test.describe('Manager RLS Security Tests - coaching_sessions', () => {
     });
 
     test('Manager CANNOT access specific session from other team', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
+      
       // Try to access Rep B's coaching session (different team)
       const session = await db.getCoachingSessionById(REP_B.coachingSessionId).catch(() => null);
       
@@ -245,6 +263,8 @@ test.describe('Manager RLS Security Tests - coaching_sessions', () => {
 
   test.describe('Database-Level RLS Verification', () => {
     test('Verify is_manager_of_user function enforces team boundaries', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
+      
       // Manager East should manage Rep A
       const managerEast = await db.getUserByEmail(MANAGER_EAST.email);
       expect(managerEast).toBeTruthy();
@@ -258,11 +278,15 @@ test.describe('Manager RLS Security Tests - coaching_sessions', () => {
     });
 
     test('Verify manager role is correctly set', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
+      
       const role = await db.getUserRole(MANAGER_EAST.id);
       expect(role).toBe('manager');
     });
 
     test('Verify both team sessions exist (proves RLS isolation)', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
+      
       // Use admin client to verify both team's sessions exist
       const eastSession = await db.getCoachingSessionById(REP_A.coachingSessionId);
       expect(eastSession).toBeTruthy();
@@ -286,6 +310,8 @@ test.describe('Admin RLS Security Tests - coaching_sessions', () => {
 
   test.describe('Positive Access Tests - Full Access', () => {
     test('Admin CAN view all coaching sessions from all teams', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
+      
       // Admin should see sessions from both teams
       const eastSessions = await db.getCoachingSessionsForRep(REP_A.id);
       expect(eastSessions.length).toBeGreaterThanOrEqual(0);
@@ -295,6 +321,8 @@ test.describe('Admin RLS Security Tests - coaching_sessions', () => {
     });
 
     test('Admin CAN access Team East coaching sessions', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
+      
       const session = await db.getCoachingSessionById(REP_A.coachingSessionId);
       expect(session).toBeTruthy();
       expect(session.rep_id).toBe(REP_A.id);
@@ -302,6 +330,8 @@ test.describe('Admin RLS Security Tests - coaching_sessions', () => {
     });
 
     test('Admin CAN access Team West coaching sessions', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
+      
       const session = await db.getCoachingSessionById(REP_B.coachingSessionId);
       expect(session).toBeTruthy();
       expect(session.rep_id).toBe(REP_B.id);
@@ -332,6 +362,8 @@ test.describe('Admin RLS Security Tests - coaching_sessions', () => {
 
   test.describe('Database-Level RLS Verification', () => {
     test('Admin can query coaching sessions regardless of team', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
+      
       // Count sessions for both managers
       const eastCount = await db.countCoachingSessions(MANAGER_EAST.id);
       expect(eastCount).toBeGreaterThanOrEqual(0);
@@ -341,6 +373,8 @@ test.describe('Admin RLS Security Tests - coaching_sessions', () => {
     });
 
     test('Verify admin role is correctly set', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
+      
       const admin = await db.getUserByEmail(ADMIN.email);
       expect(admin).toBeTruthy();
       

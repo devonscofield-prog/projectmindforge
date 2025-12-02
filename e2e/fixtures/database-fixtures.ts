@@ -2,15 +2,22 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { expect } from '@playwright/test';
 import type { Database } from '@/integrations/supabase/types';
 
+// Check if service role key is available
+export function isServiceRoleAvailable(): boolean {
+  return !!(process.env.VITE_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+}
+
 // Initialize Supabase admin client for tests
-export function createSupabaseAdmin(): SupabaseClient<Database> {
+// Returns null if service role key is not available (graceful degradation)
+export function createSupabaseAdmin(): SupabaseClient<Database> | null {
   const supabaseUrl = process.env.VITE_SUPABASE_URL;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error(
-      'Missing Supabase credentials. Set VITE_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY'
+    console.warn(
+      '⚠️  SUPABASE_SERVICE_ROLE_KEY not available - database-level tests will be skipped'
     );
+    return null;
   }
 
   return createClient<Database>(supabaseUrl, supabaseServiceKey, {
@@ -25,12 +32,26 @@ export function createSupabaseAdmin(): SupabaseClient<Database> {
  * Database helpers for E2E tests
  */
 export class DatabaseHelpers {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  constructor(private supabase: SupabaseClient<Database> | null) {}
+
+  // Check if database operations are available
+  isAvailable(): boolean {
+    return this.supabase !== null;
+  }
+
+  // Throw helpful error if operations are attempted without service key
+  private ensureAvailable(): SupabaseClient<Database> {
+    if (!this.supabase) {
+      throw new Error('Database operations require SUPABASE_SERVICE_ROLE_KEY');
+    }
+    return this.supabase;
+  }
 
   // ============= User & Profile Helpers =============
 
   async getUserByEmail(email: string) {
-    const { data, error } = await this.supabase
+    const supabase = this.ensureAvailable();
+    const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('email', email)
@@ -41,7 +62,8 @@ export class DatabaseHelpers {
   }
 
   async getUserRole(userId: string) {
-    const { data, error } = await this.supabase
+    const supabase = this.ensureAvailable();
+    const { data, error } = await supabase
       .from('user_roles')
       .select('role')
       .eq('user_id', userId)
@@ -54,7 +76,8 @@ export class DatabaseHelpers {
   // ============= Prospect Helpers =============
 
   async getProspectByName(repId: string, prospectName: string) {
-    const { data, error } = await this.supabase
+    const supabase = this.ensureAvailable();
+    const { data, error } = await supabase
       .from('prospects')
       .select('*')
       .eq('rep_id', repId)
@@ -67,7 +90,8 @@ export class DatabaseHelpers {
   }
 
   async getProspectById(prospectId: string) {
-    const { data, error } = await this.supabase
+    const supabase = this.ensureAvailable();
+    const { data, error } = await supabase
       .from('prospects')
       .select('*')
       .eq('id', prospectId)
@@ -79,7 +103,8 @@ export class DatabaseHelpers {
   }
 
   async countProspects(repId: string) {
-    const { count, error } = await this.supabase
+    const supabase = this.ensureAvailable();
+    const { count, error } = await supabase
       .from('prospects')
       .select('*', { count: 'exact', head: true })
       .eq('rep_id', repId)
@@ -92,7 +117,8 @@ export class DatabaseHelpers {
   // ============= Call Transcript Helpers =============
 
   async getCallTranscriptById(callId: string) {
-    const { data, error } = await this.supabase
+    const supabase = this.ensureAvailable();
+    const { data, error } = await supabase
       .from('call_transcripts')
       .select('*')
       .eq('id', callId)
@@ -104,7 +130,8 @@ export class DatabaseHelpers {
   }
 
   async getCallTranscriptsByProspect(prospectId: string) {
-    const { data, error } = await this.supabase
+    const supabase = this.ensureAvailable();
+    const { data, error } = await supabase
       .from('call_transcripts')
       .select('*')
       .eq('prospect_id', prospectId)
@@ -116,7 +143,8 @@ export class DatabaseHelpers {
   }
 
   async countCallTranscripts(repId: string) {
-    const { count, error } = await this.supabase
+    const supabase = this.ensureAvailable();
+    const { count, error } = await supabase
       .from('call_transcripts')
       .select('*', { count: 'exact', head: true })
       .eq('rep_id', repId)
@@ -129,7 +157,8 @@ export class DatabaseHelpers {
   // ============= AI Analysis Helpers =============
 
   async getCallAnalysis(callId: string) {
-    const { data, error } = await this.supabase
+    const supabase = this.ensureAvailable();
+    const { data, error } = await supabase
       .from('ai_call_analysis')
       .select('*')
       .eq('call_id', callId)
@@ -141,10 +170,11 @@ export class DatabaseHelpers {
   }
 
   async waitForAnalysisComplete(callId: string, timeoutMs = 30000) {
+    const supabase = this.ensureAvailable();
     const startTime = Date.now();
     
     while (Date.now() - startTime < timeoutMs) {
-      const { data, error } = await this.supabase
+      const { data, error } = await supabase
         .from('call_transcripts')
         .select('analysis_status')
         .eq('id', callId)
@@ -168,7 +198,8 @@ export class DatabaseHelpers {
   // ============= Follow-Up Helpers =============
 
   async getFollowUps(prospectId: string) {
-    const { data, error } = await this.supabase
+    const supabase = this.ensureAvailable();
+    const { data, error } = await supabase
       .from('account_follow_ups')
       .select('*')
       .eq('prospect_id', prospectId)
@@ -179,7 +210,8 @@ export class DatabaseHelpers {
   }
 
   async countPendingFollowUps(repId: string) {
-    const { count, error } = await this.supabase
+    const supabase = this.ensureAvailable();
+    const { count, error } = await supabase
       .from('account_follow_ups')
       .select('*', { count: 'exact', head: true })
       .eq('rep_id', repId)
@@ -192,7 +224,8 @@ export class DatabaseHelpers {
   // ============= Stakeholder Helpers =============
 
   async getStakeholders(prospectId: string) {
-    const { data, error } = await this.supabase
+    const supabase = this.ensureAvailable();
+    const { data, error } = await supabase
       .from('stakeholders')
       .select('*')
       .eq('prospect_id', prospectId)
@@ -205,7 +238,8 @@ export class DatabaseHelpers {
   // ============= Activity Helpers =============
 
   async getActivities(prospectId: string) {
-    const { data, error } = await this.supabase
+    const supabase = this.ensureAvailable();
+    const { data, error } = await supabase
       .from('prospect_activities')
       .select('*')
       .eq('prospect_id', prospectId)
@@ -218,7 +252,8 @@ export class DatabaseHelpers {
   // ============= Coaching Session Helpers =============
 
   async getCoachingSessionById(sessionId: string) {
-    const { data, error } = await this.supabase
+    const supabase = this.ensureAvailable();
+    const { data, error } = await supabase
       .from('coaching_sessions')
       .select('*')
       .eq('id', sessionId)
@@ -229,7 +264,8 @@ export class DatabaseHelpers {
   }
 
   async getCoachingSessionsForRep(repId: string) {
-    const { data, error } = await this.supabase
+    const supabase = this.ensureAvailable();
+    const { data, error } = await supabase
       .from('coaching_sessions')
       .select('*')
       .eq('rep_id', repId)
@@ -240,7 +276,8 @@ export class DatabaseHelpers {
   }
 
   async countCoachingSessions(managerId: string) {
-    const { count, error } = await this.supabase
+    const supabase = this.ensureAvailable();
+    const { count, error } = await supabase
       .from('coaching_sessions')
       .select('*', { count: 'exact', head: true })
       .eq('manager_id', managerId);
@@ -252,7 +289,8 @@ export class DatabaseHelpers {
   // ============= Cleanup Helpers =============
 
   async cleanupTestProspects(repId: string, namePattern: string) {
-    const { data: prospects, error: fetchError } = await this.supabase
+    const supabase = this.ensureAvailable();
+    const { data: prospects, error: fetchError } = await supabase
       .from('prospects')
       .select('id')
       .eq('rep_id', repId)
@@ -264,7 +302,7 @@ export class DatabaseHelpers {
       const prospectIds = prospects.map(p => p.id);
       
       // Soft delete prospects
-      const { error: deleteError } = await this.supabase
+      const { error: deleteError } = await supabase
         .from('prospects')
         .update({ deleted_at: new Date().toISOString(), deleted_by: repId })
         .in('id', prospectIds);
@@ -276,7 +314,8 @@ export class DatabaseHelpers {
   }
 
   async cleanupTestCalls(repId: string, accountNamePattern: string) {
-    const { data: calls, error: fetchError } = await this.supabase
+    const supabase = this.ensureAvailable();
+    const { data: calls, error: fetchError } = await supabase
       .from('call_transcripts')
       .select('id')
       .eq('rep_id', repId)
@@ -288,7 +327,7 @@ export class DatabaseHelpers {
       const callIds = calls.map(c => c.id);
       
       // Soft delete calls
-      const { error: deleteError } = await this.supabase
+      const { error: deleteError } = await supabase
         .from('call_transcripts')
         .update({ deleted_at: new Date().toISOString(), deleted_by: repId })
         .in('id', callIds);
