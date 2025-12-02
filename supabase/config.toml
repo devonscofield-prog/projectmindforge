@@ -3,6 +3,9 @@ project_id = "wuquclmippzuejqbcksl"
 [functions.seed-demo-data]
 verify_jwt = false
 
+[functions.reset-database]
+verify_jwt = false
+
 [functions.analyze-call]
 verify_jwt = true
 
