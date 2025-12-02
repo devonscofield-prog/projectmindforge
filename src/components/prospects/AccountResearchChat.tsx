@@ -393,7 +393,7 @@ export function AccountResearchChat({
                       className="w-full"
                     >
                       <Plus className="h-4 w-4 mr-2" />
-                      Add Person
+                      Add Stakeholder
                     </Button>
                   </CollapsibleContent>
                 </Collapsible>

@@ -36,7 +36,7 @@ export function ProspectQuickActions({
             </Button>
             <Button variant="outline" size="sm" onClick={onAddStakeholder} className="gap-2">
               <UserPlus className="h-4 w-4" />
-              <span className="hidden sm:inline">Add Person</span>
+              <span className="hidden sm:inline">Add Stakeholder</span>
             </Button>
           </div>
           <div className="flex items-center gap-2">
