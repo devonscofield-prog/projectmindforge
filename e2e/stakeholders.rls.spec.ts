@@ -89,6 +89,7 @@ test.describe('Stakeholders RLS Security Tests', () => {
     });
 
     test('Rep can interact with stakeholder data in their prospect', async ({ page, db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
       // Verify stakeholder exists in database
       const stakeholders = await db.getStakeholders(REP_A_PROSPECT_ID);
       expect(stakeholders.length).toBeGreaterThan(0);
@@ -143,6 +144,7 @@ test.describe('Stakeholders RLS Security Tests', () => {
 
   test.describe('Database-Level RLS Verification', () => {
     test('Verify stakeholders exist for both reps (using admin client)', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
       // Verify Rep A's stakeholder exists
       const repAStakeholders = await db.getStakeholders(REP_A_PROSPECT_ID);
       expect(repAStakeholders.length).toBeGreaterThan(0);
@@ -161,6 +163,7 @@ test.describe('Stakeholders RLS Security Tests', () => {
     });
 
     test('Verify stakeholders belong to different prospects with different reps', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
       // Get both prospects to verify they have different rep_ids
       const repAProspect = await db.getProspectById(REP_A_PROSPECT_ID);
       const repBProspect = await db.getProspectById(REP_B_PROSPECT_ID);
@@ -178,6 +181,7 @@ test.describe('Stakeholders RLS Security Tests', () => {
     });
 
     test('Verify stakeholder data integrity and relationships', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
       const repAStakeholders = await db.getStakeholders(REP_A_PROSPECT_ID);
       
       expect(repAStakeholders.length).toBeGreaterThan(0);
@@ -192,6 +196,7 @@ test.describe('Stakeholders RLS Security Tests', () => {
     });
 
     test('Verify RLS policy structure via database query patterns', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
       // Get Rep A's user info
       const repA = await db.getUserByEmail(REP_A_CREDENTIALS.email);
       expect(repA).toBeTruthy();

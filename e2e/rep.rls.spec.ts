@@ -125,6 +125,7 @@ test.describe('Rep RLS Security Tests', () => {
 
   test.describe('Database-Level RLS Verification', () => {
     test('Verify RLS blocks direct database query for unauthorized prospect', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
       // This test uses the admin client to verify RLS behavior
       // The admin client bypasses RLS, so we verify the policy logic separately
       
@@ -143,6 +144,7 @@ test.describe('Rep RLS Security Tests', () => {
     });
 
     test('Verify prospects count is limited to own prospects via RLS', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
       // Get Rep A's user info
       const repA = await db.getUserByEmail(REP_A_CREDENTIALS.email);
       expect(repA).toBeTruthy();
@@ -155,6 +157,7 @@ test.describe('Rep RLS Security Tests', () => {
     });
 
     test('Verify user role is correctly set', async ({ db }) => {
+      test.skip(!db.isAvailable(), 'Database operations require SUPABASE_SERVICE_ROLE_KEY');
       // Get Rep A's user info
       const repA = await db.getUserByEmail(REP_A_CREDENTIALS.email);
       expect(repA).toBeTruthy();
