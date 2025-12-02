@@ -70,6 +70,7 @@ const activityTemplates: Record<ProspectActivityType, string[]> = {
   ],
   email: [],
   demo: [],
+  note: [], // Legacy - kept for backward compatibility
 };
 
 export function ProspectActivityLog({ activities, onAddActivity }: ProspectActivityLogProps) {

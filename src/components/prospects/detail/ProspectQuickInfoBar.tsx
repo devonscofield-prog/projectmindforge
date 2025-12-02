@@ -57,7 +57,7 @@ export function ProspectQuickInfoBar({ prospect, onUpdateProspect }: ProspectQui
   const handleSaveWebsite = async () => {
     setIsSavingWebsite(true);
     try {
-      const success = await onUpdateProspect({ website: editedWebsite || null } as any);
+      const success = await onUpdateProspect({ website: editedWebsite || null });
       if (success) {
         setIsEditingWebsite(false);
         toast({ title: 'Website updated' });
@@ -190,7 +190,7 @@ export function ProspectQuickInfoBar({ prospect, onUpdateProspect }: ProspectQui
                 <Input
                   type="url"
                   placeholder="https://company.com"
-                  value={editedWebsite}
+                  value={editedWebsite ?? ''}
                   onChange={(e) => setEditedWebsite(e.target.value)}
                   className="h-7 w-[160px] text-xs"
                   disabled={isSavingWebsite}
@@ -214,7 +214,7 @@ export function ProspectQuickInfoBar({ prospect, onUpdateProspect }: ProspectQui
                   className="h-6 w-6"
                   onClick={() => {
                     setIsEditingWebsite(false);
-                    setEditedWebsite((prospect as any).website || '');
+                    setEditedWebsite(prospect.website || '');
                   }}
                   disabled={isSavingWebsite}
                 >
@@ -223,15 +223,15 @@ export function ProspectQuickInfoBar({ prospect, onUpdateProspect }: ProspectQui
               </div>
             ) : (
               <div className="flex items-center gap-1">
-                {(prospect as any).website ? (
+                {prospect.website ? (
                   <a
-                    href={(prospect as any).website}
+                    href={prospect.website}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-primary hover:underline flex items-center gap-1 text-xs max-w-[120px] truncate"
                   >
                     <Globe className="h-3 w-3 shrink-0" />
-                    <span className="truncate">{(prospect as any).website}</span>
+                    <span className="truncate">{prospect.website}</span>
                   </a>
                 ) : (
                   <span className="text-muted-foreground">—</span>
@@ -241,7 +241,7 @@ export function ProspectQuickInfoBar({ prospect, onUpdateProspect }: ProspectQui
                   variant="ghost"
                   className="h-5 w-5 opacity-60 hover:opacity-100"
                   onClick={() => {
-                    setEditedWebsite((prospect as any).website || '');
+                    setEditedWebsite(prospect.website || '');
                     setIsEditingWebsite(true);
                   }}
                   title="Edit website"
