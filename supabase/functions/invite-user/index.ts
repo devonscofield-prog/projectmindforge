@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.86.0';
+import { Resend } from 'https://esm.sh/resend@2.0.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -23,6 +24,7 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const resendApiKey = Deno.env.get('RESEND_API_KEY');
     
     // Create admin client with service role key
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
@@ -188,7 +190,89 @@ Deno.serve(async (req) => {
 
     const inviteLink = resetData?.properties?.action_link || null;
 
-    console.log(`✓ Invitation complete for ${email}`);
+    // Send invitation email via Resend
+    let emailSent = false;
+    let emailError: string | null = null;
+
+    if (sendEmail && inviteLink && resendApiKey) {
+      try {
+        const resend = new Resend(resendApiKey);
+        
+        const roleDisplayName = {
+          rep: 'Sales Rep',
+          manager: 'Manager',
+          admin: 'Administrator'
+        }[role];
+
+        const { error: sendError } = await resend.emails.send({
+          from: 'Stormwind Studios <onboarding@resend.dev>',
+          to: [email],
+          subject: `You've been invited to join Stormwind Studios`,
+          html: `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            </head>
+            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+                <h1 style="color: white; margin: 0; font-size: 28px;">Welcome to the Team!</h1>
+              </div>
+              
+              <div style="background: #ffffff; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 10px 10px;">
+                <p style="font-size: 18px; margin-top: 0;">Hi <strong>${name}</strong>,</p>
+                
+                <p>You've been invited to join Stormwind Studios as a <strong>${roleDisplayName}</strong>.</p>
+                
+                <p>Click the button below to set up your account and get started:</p>
+                
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="${inviteLink}" style="display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
+                    Accept Invitation
+                  </a>
+                </div>
+                
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                  <p style="margin: 0; font-size: 14px; color: #666;">
+                    <strong>What's next?</strong><br>
+                    After clicking the link, you'll be asked to set up two-factor authentication (2FA) for security. Have an authenticator app ready (like Google Authenticator or Authy).
+                  </p>
+                </div>
+                
+                <p style="color: #666; font-size: 13px; margin-bottom: 0;">
+                  If the button doesn't work, copy and paste this link into your browser:<br>
+                  <a href="${inviteLink}" style="color: #667eea; word-break: break-all;">${inviteLink}</a>
+                </p>
+                
+                <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 25px 0;">
+                
+                <p style="color: #999; font-size: 12px; margin-bottom: 0;">
+                  This invitation link will expire in 24 hours. If you didn't expect this invitation, you can safely ignore this email.
+                </p>
+              </div>
+            </body>
+            </html>
+          `,
+        });
+
+        if (sendError) {
+          console.error('Failed to send invitation email:', sendError);
+          emailError = sendError.message;
+        } else {
+          emailSent = true;
+          console.log(`✓ Invitation email sent to ${email}`);
+        }
+      } catch (err) {
+        console.error('Error sending invitation email:', err);
+        emailError = err instanceof Error ? err.message : 'Unknown email error';
+      }
+    } else if (sendEmail && !resendApiKey) {
+      console.warn('RESEND_API_KEY not configured - skipping email send');
+      emailError = 'Email service not configured';
+    }
+
+    console.log(`✓ Invitation complete for ${email} (email sent: ${emailSent})`);
 
     // Log admin action
     await supabaseAdmin.from('user_activity_logs').insert({
@@ -200,6 +284,7 @@ Deno.serve(async (req) => {
         target_user_email: email,
         role: role,
         team_id: teamId,
+        email_sent: emailSent,
       },
     });
 
@@ -215,9 +300,13 @@ Deno.serve(async (req) => {
           teamId,
         },
         inviteLink: inviteLink,
-        instructions: sendEmail 
+        emailSent: emailSent,
+        emailError: emailError,
+        instructions: emailSent 
           ? 'An email invitation has been sent to the user'
-          : 'Share the invite link with the user to set their password',
+          : inviteLink 
+            ? 'Share the invite link with the user to set their password'
+            : 'User created but no invite link generated',
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
