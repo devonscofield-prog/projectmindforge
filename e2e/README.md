@@ -11,8 +11,15 @@ This directory contains end-to-end tests using Playwright, including visual regr
 
 2. Set up test environment variables:
    ```bash
+   # Rep user credentials
    export TEST_USER_EMAIL="your-test-user@example.com"
    export TEST_USER_PASSWORD="your-test-password"
+   
+   # Manager user credentials (for manager RLS tests)
+   export MANAGER_A_EMAIL="manager.east@example.com"
+   export MANAGER_A_PASSWORD="your-manager-password"
+   
+   # Supabase credentials
    export VITE_SUPABASE_URL="your-supabase-url"
    export SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
    ```
@@ -42,7 +49,12 @@ npx playwright test e2e/auth.spec.ts
 
 ### Run RLS security tests
 ```bash
+# Run all RLS tests
+npx playwright test e2e/*rls.spec.ts
+
+# Run specific role tests
 npx playwright test e2e/rep.rls.spec.ts e2e/call-transcripts.rls.spec.ts e2e/stakeholders.rls.spec.ts
+npx playwright test e2e/manager.rls.spec.ts
 ```
 
 ### Run tests in UI mode (recommended for development)
@@ -93,14 +105,29 @@ npx playwright test --update-snapshots
 
 Row-Level Security (RLS) tests are critical for validating data isolation between users:
 
+**Rep Role Tests:**
 - `rep.rls.spec.ts` - Row-Level Security tests for prospects table
 - `call-transcripts.rls.spec.ts` - Row-Level Security tests for call_transcripts table
 - `stakeholders.rls.spec.ts` - Row-Level Security tests for stakeholders table
 
+**Manager Role Tests:**
+- `manager.rls.spec.ts` - Row-Level Security tests for team-based access control
+- `manager.rls.spec.ts` - Row-Level Security tests for team-based access control
+
 **What These Tests Validate:**
-- Users can only access their own data (positive access tests)
-- Users cannot access data from other users' records (negative access tests)
+
+*For Rep Role:*
+- Reps can only access their own prospects, calls, and stakeholders
+- Reps cannot access data from other reps
 - Direct URL manipulation cannot bypass security
+
+*For Manager Role:*
+- Managers can access their team members' data
+- Managers cannot access data from other teams
+- Team isolation is enforced across all resource types
+- Managers cannot escalate to admin privileges
+
+*Common Security Checks:*
 - Database-level RLS policies are correctly enforced
 - Edge cases are handled securely:
   - Browser back button after redirect
@@ -112,10 +139,11 @@ Row-Level Security (RLS) tests are critical for validating data isolation betwee
 
 **Why RLS Tests Matter:**
 - Prevent privilege escalation attacks
-- Ensure data privacy and compliance
+- Ensure data privacy and compliance (team-based isolation)
 - Validate that database policies match application logic
 - Catch security regressions before production
 - Test security at both UI and database layers
+- Verify role-based access control works correctly
 
 ## Writing New Tests
 
