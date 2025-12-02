@@ -19,6 +19,10 @@ This directory contains end-to-end tests using Playwright, including visual regr
    export MANAGER_A_EMAIL="manager.east@example.com"
    export MANAGER_A_PASSWORD="your-manager-password"
    
+   # Admin user credentials (for admin RLS tests)
+   export ADMIN_EMAIL="admin@example.com"
+   export ADMIN_PASSWORD="your-admin-password"
+   
    # Supabase credentials
    export VITE_SUPABASE_URL="your-supabase-url"
    export SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
@@ -55,6 +59,7 @@ npx playwright test e2e/*rls.spec.ts
 # Run specific role tests
 npx playwright test e2e/rep.rls.spec.ts e2e/call-transcripts.rls.spec.ts e2e/stakeholders.rls.spec.ts
 npx playwright test e2e/manager.rls.spec.ts
+npx playwright test e2e/admin.rls.spec.ts
 ```
 
 ### Run tests in UI mode (recommended for development)
@@ -112,6 +117,9 @@ Row-Level Security (RLS) tests are critical for validating data isolation betwee
 
 **Manager Role Tests:**
 - `manager.rls.spec.ts` - Row-Level Security tests for team-based access control
+
+**Admin Role Tests:**
+- `admin.rls.spec.ts` - Row-Level Security tests for full cross-team access
 - `manager.rls.spec.ts` - Row-Level Security tests for team-based access control
 
 **What These Tests Validate:**
@@ -126,6 +134,12 @@ Row-Level Security (RLS) tests are critical for validating data isolation betwee
 - Managers cannot access data from other teams
 - Team isolation is enforced across all resource types
 - Managers cannot escalate to admin privileges
+
+*For Admin Role:*
+- Admins can access all data across all teams
+- Admins can access data from all users (reps and managers)
+- Admin access cannot be restricted by team-based or user-based RLS
+- Admins have full visibility across the entire organization
 
 *Common Security Checks:*
 - Database-level RLS policies are correctly enforced
@@ -144,6 +158,14 @@ Row-Level Security (RLS) tests are critical for validating data isolation betwee
 - Catch security regressions before production
 - Test security at both UI and database layers
 - Verify role-based access control works correctly
+
+**Complete RLS Test Coverage:**
+This test suite provides comprehensive security validation across all user roles:
+- **Rep Tests**: Validate individual user isolation (my data only)
+- **Manager Tests**: Validate team-based isolation (my team's data only)
+- **Admin Tests**: Validate full system access (all data across all teams)
+- **Cross-Role Tests**: Verify privilege escalation is prevented
+- **Edge Cases**: Browser navigation, query parameters, session persistence, multiple tabs
 
 ## Writing New Tests
 
