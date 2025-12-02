@@ -35,8 +35,8 @@ interface ProspectQuickActionsProps {
 
 // Limited activity types for logging
 const allowedActivityTypes: { value: ProspectActivityType; label: string }[] = [
-  { value: 'note', label: 'Note' },
   { value: 'call', label: 'Phone Call' },
+  { value: 'text_message', label: 'Text Message' },
   { value: 'linkedin', label: 'LinkedIn' },
   { value: 'meeting', label: 'Other' },
 ];
@@ -57,12 +57,13 @@ const activityTemplates: Record<ProspectActivityType, string[]> = {
     'Shared content',
     'Accepted connection',
   ],
-  note: [
-    'Pricing discussion',
-    'Competitor mentioned',
-    'Decision timeline discussed',
-    'Budget approved',
-    'Technical requirements reviewed',
+  text_message: [
+    'Sent intro text',
+    'Received response',
+    'Shared meeting link',
+    'Confirmed appointment',
+    'Sent follow-up',
+    'Sent resource/link',
   ],
   meeting: [
     'Email sent',
@@ -86,7 +87,7 @@ export function ProspectQuickActions({
   const [isLogActivityOpen, setIsLogActivityOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newActivity, setNewActivity] = useState({
-    type: 'note' as ProspectActivityType,
+    type: 'call' as ProspectActivityType,
     description: '',
     date: new Date().toISOString().split('T')[0],
   });
@@ -109,7 +110,7 @@ export function ProspectQuickActions({
     try {
       await onLogActivity(newActivity);
       setIsLogActivityOpen(false);
-      setNewActivity({ type: 'note', description: '', date: new Date().toISOString().split('T')[0] });
+      setNewActivity({ type: 'call', description: '', date: new Date().toISOString().split('T')[0] });
     } finally {
       setIsSubmitting(false);
     }

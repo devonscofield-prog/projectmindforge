@@ -1653,6 +1653,7 @@ export type Database = {
         | "note"
         | "linkedin"
         | "demo"
+        | "text_message"
       prospect_status: "active" | "won" | "lost" | "dormant"
       stakeholder_influence_level:
         | "light_influencer"
@@ -1806,6 +1807,7 @@ export const Constants = {
         "note",
         "linkedin",
         "demo",
+        "text_message",
       ],
       prospect_status: ["active", "won", "lost", "dormant"],
       stakeholder_influence_level: [
