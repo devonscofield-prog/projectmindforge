@@ -162,9 +162,19 @@ export function AccountResearchChat({
     setSaved(false);
     setViewMode('result');
 
+    // Helper to ensure website has a protocol for URL validation
+    const normalizeWebsite = (url: string): string | undefined => {
+      const trimmed = url.trim();
+      if (!trimmed) return undefined;
+      // If it already has a protocol, return as-is
+      if (/^https?:\/\//i.test(trimmed)) return trimmed;
+      // Otherwise, add https://
+      return `https://${trimmed}`;
+    };
+
     const request: AccountResearchRequest = {
       companyName: companyName.trim(),
-      website: website.trim() || undefined,
+      website: normalizeWebsite(website),
       industry: industry || undefined,
       stakeholders: stakeholderInputs
         .filter(s => s.name.trim())
