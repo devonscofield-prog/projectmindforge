@@ -1,6 +1,25 @@
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Phone, Mail, Search, UserPlus, MessageSquare, FileText } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Phone, Mail, Search, UserPlus, MessageSquare, FileText, ClipboardList, Plus } from 'lucide-react';
+import { activityTypeLabels } from './constants';
+import type { ProspectActivityType } from '@/api/prospects';
 
 interface ProspectQuickActionsProps {
   onLogCall?: () => void;
@@ -9,6 +28,7 @@ interface ProspectQuickActionsProps {
   onAddStakeholder: () => void;
   onOpenSalesCoach?: () => void;
   onOpenAccountResearch?: () => void;
+  onLogActivity?: (activity: { type: ProspectActivityType; description: string; date: string }) => Promise<unknown>;
 }
 
 export function ProspectQuickActions({
@@ -18,7 +38,28 @@ export function ProspectQuickActions({
   onAddStakeholder,
   onOpenSalesCoach,
   onOpenAccountResearch,
+  onLogActivity,
 }: ProspectQuickActionsProps) {
+  const [isLogActivityOpen, setIsLogActivityOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [newActivity, setNewActivity] = useState({
+    type: 'note' as ProspectActivityType,
+    description: '',
+    date: new Date().toISOString().split('T')[0],
+  });
+
+  const handleSubmit = async () => {
+    if (!onLogActivity) return;
+    setIsSubmitting(true);
+    try {
+      await onLogActivity(newActivity);
+      setIsLogActivityOpen(false);
+      setNewActivity({ type: 'note', description: '', date: new Date().toISOString().split('T')[0] });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <Card className="sticky top-4 z-10 shadow-md">
       <CardContent className="p-3">
@@ -38,6 +79,64 @@ export function ProspectQuickActions({
               <UserPlus className="h-4 w-4" />
               <span className="hidden sm:inline">Add Stakeholder</span>
             </Button>
+            {onLogActivity && (
+              <Dialog open={isLogActivityOpen} onOpenChange={setIsLogActivityOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <ClipboardList className="h-4 w-4" />
+                    <span className="hidden sm:inline">Log Activity</span>
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Log Activity</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Activity Type</label>
+                      <Select
+                        value={newActivity.type}
+                        onValueChange={(v) => setNewActivity({ ...newActivity, type: v as ProspectActivityType })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(activityTypeLabels).map(([value, label]) => (
+                            <SelectItem key={value} value={value}>
+                              {label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Date</label>
+                      <Input
+                        type="date"
+                        value={newActivity.date}
+                        onChange={(e) => setNewActivity({ ...newActivity, date: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Notes (optional)</label>
+                      <Textarea
+                        placeholder="Add any notes about this activity..."
+                        value={newActivity.description}
+                        onChange={(e) => setNewActivity({ ...newActivity, description: e.target.value })}
+                      />
+                    </div>
+                    <Button
+                      onClick={handleSubmit}
+                      disabled={isSubmitting}
+                      className="w-full"
+                    >
+                      {isSubmitting ? 'Logging...' : 'Log Activity'}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {onResearchAccount && (

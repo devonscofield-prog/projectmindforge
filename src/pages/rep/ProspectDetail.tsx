@@ -122,6 +122,7 @@ function ProspectDetail() {
           onAddEmail={() => setIsAddEmailOpen(true)}
           onResearchAccount={() => setIsResearchOpen(true)}
           onAddStakeholder={() => setIsAddStakeholderOpen(true)}
+          onLogActivity={handleAddActivity}
         />
 
         {/* Priority Action Zone - Follow-Ups */}
