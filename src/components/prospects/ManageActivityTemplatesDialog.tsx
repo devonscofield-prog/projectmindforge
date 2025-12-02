@@ -34,8 +34,8 @@ interface ManageActivityTemplatesDialogProps {
 }
 
 const activityTypeOptions: { value: ProspectActivityType; label: string }[] = [
-  { value: 'note', label: 'Note' },
   { value: 'call', label: 'Phone Call' },
+  { value: 'text_message', label: 'Text Message' },
   { value: 'linkedin', label: 'LinkedIn' },
   { value: 'meeting', label: 'Other' },
 ];
@@ -46,7 +46,7 @@ export function ManageActivityTemplatesDialog({
 }: ManageActivityTemplatesDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [newTemplateType, setNewTemplateType] = useState<ProspectActivityType>('note');
+  const [newTemplateType, setNewTemplateType] = useState<ProspectActivityType>('call');
   const [newTemplateText, setNewTemplateText] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');

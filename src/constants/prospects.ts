@@ -34,7 +34,7 @@ export const activityTypeLabels: Record<ProspectActivityType, string> = {
   call: 'Call',
   email: 'Email',
   meeting: 'Meeting',
-  note: 'Note',
+  text_message: 'Text Message',
   linkedin: 'LinkedIn',
   demo: 'Demo',
 };
@@ -43,7 +43,7 @@ export const activityIcons: Record<ProspectActivityType, React.ElementType> = {
   call: Phone,
   email: Mail,
   meeting: Users,
-  note: MessageSquare,
+  text_message: MessageSquare,
   linkedin: Linkedin,
   demo: Presentation,
 };

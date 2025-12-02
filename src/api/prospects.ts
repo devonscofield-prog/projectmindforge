@@ -26,7 +26,7 @@ export interface ProspectWithRep {
   created_at: string;
   updated_at: string;
 }
-export type ProspectActivityType = 'call' | 'email' | 'meeting' | 'note' | 'linkedin' | 'demo';
+export type ProspectActivityType = 'call' | 'email' | 'meeting' | 'text_message' | 'linkedin' | 'demo';
 
 export interface Prospect {
   id: string;
