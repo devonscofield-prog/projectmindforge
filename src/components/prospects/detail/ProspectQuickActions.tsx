@@ -19,7 +19,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Phone, Mail, Search, UserPlus, MessageSquare, FileText, ClipboardList, Plus } from 'lucide-react';
-import { activityTypeLabels } from './constants';
 import type { ProspectActivityType } from '@/api/prospects';
 import { fetchActivityTemplates } from '@/api/activityTemplates';
 
@@ -73,6 +72,7 @@ const activityTemplates: Record<ProspectActivityType, string[]> = {
   ],
   email: [],
   demo: [],
+  note: [], // Legacy - kept for backward compatibility
 };
 
 export function ProspectQuickActions({

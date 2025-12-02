@@ -1,4 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('activityTemplates');
 import type { ProspectActivityType } from './prospects';
 
 export interface ActivityTemplate {
@@ -23,7 +26,7 @@ export async function fetchActivityTemplates(activityType?: ProspectActivityType
   const { data, error } = await query;
 
   if (error) {
-    console.error('Error fetching activity templates:', error);
+    log.error('Failed to fetch activity templates', { error });
     throw error;
   }
 
@@ -49,7 +52,7 @@ export async function createActivityTemplate(
     .single();
 
   if (error) {
-    console.error('Error creating activity template:', error);
+    log.error('Failed to create activity template', { error });
     throw error;
   }
 
@@ -73,7 +76,7 @@ export async function updateActivityTemplate(
     .single();
 
   if (error) {
-    console.error('Error updating activity template:', error);
+    log.error('Failed to update activity template', { error });
     throw error;
   }
 
@@ -92,7 +95,7 @@ export async function deleteActivityTemplate(id: string): Promise<void> {
     .eq('id', id);
 
   if (error) {
-    console.error('Error deleting activity template:', error);
+    log.error('Failed to delete activity template', { error });
     throw error;
   }
 }

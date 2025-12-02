@@ -26,7 +26,7 @@ export interface ProspectWithRep {
   created_at: string;
   updated_at: string;
 }
-export type ProspectActivityType = 'call' | 'email' | 'meeting' | 'text_message' | 'linkedin' | 'demo';
+export type ProspectActivityType = 'call' | 'email' | 'meeting' | 'text_message' | 'linkedin' | 'demo' | 'note';
 
 export interface Prospect {
   id: string;
@@ -38,6 +38,7 @@ export interface Prospect {
   active_revenue: number | null;
   status: ProspectStatus;
   industry: string | null;
+  website: string | null;
   ai_extracted_info: ProspectIntel | null;
   opportunity_details: OpportunityDetails | null;
   suggested_follow_ups: string[] | null;
@@ -313,8 +314,10 @@ export async function updateProspect(
   updates: {
     status?: ProspectStatus;
     potential_revenue?: number;
+    active_revenue?: number;
     salesforce_link?: string | null;
     industry?: string | null;
+    website?: string | null;
     ai_extracted_info?: ProspectIntel;
     opportunity_details?: OpportunityDetails;
     suggested_follow_ups?: string[];

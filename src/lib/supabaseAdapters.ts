@@ -103,6 +103,7 @@ export function toProspect(row: ProspectRow): Prospect {
     active_revenue: row.active_revenue ?? null,
     status: row.status as ProspectStatus,
     industry: row.industry,
+    website: row.website,
     ai_extracted_info: parseJsonField<ProspectIntel>(row.ai_extracted_info, isProspectIntel),
     opportunity_details: parseJsonField<OpportunityDetails>(row.opportunity_details, isOpportunityDetails),
     suggested_follow_ups: row.suggested_follow_ups as string[] | null,
