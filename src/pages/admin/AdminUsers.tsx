@@ -36,10 +36,11 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
 import { UserRole } from '@/types/database';
 import { format, formatDistanceToNow } from 'date-fns';
-import { Pencil, History, Users, RefreshCw } from 'lucide-react';
+import { Pencil, History, Users, RefreshCw, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useOnlineUsers } from '@/hooks/usePresence';
 import { UserActivityLogSheet } from '@/components/admin/UserActivityLogSheet';
+import { Link } from 'react-router-dom';
 
 function AdminUsers() {
   const queryClient = useQueryClient();
@@ -191,10 +192,18 @@ function AdminUsers() {
         <div>
           <div className="flex items-center justify-between">
             <h1 className="text-3xl font-bold">Users</h1>
-            <Button onClick={handleRefresh} variant="outline" size="sm">
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button onClick={handleRefresh} variant="outline" size="sm">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
+              <Button asChild>
+                <Link to="/admin/users/invite">
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Invite User
+                </Link>
+              </Button>
+            </div>
           </div>
           <p className="text-muted-foreground mt-1">View and manage all users in the system</p>
         </div>
