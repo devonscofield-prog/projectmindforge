@@ -11,6 +11,7 @@ interface InviteRequest {
   role: 'rep' | 'manager' | 'admin';
   teamId?: string;
   sendEmail?: boolean;
+  redirectTo?: string;
 }
 
 Deno.serve(async (req) => {
@@ -73,7 +74,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { email, name, role, teamId, sendEmail = true }: InviteRequest = await req.json();
+    const { email, name, role, teamId, sendEmail = true, redirectTo }: InviteRequest = await req.json();
 
     // Validate input
     if (!email || !name || !role) {
@@ -176,6 +177,9 @@ Deno.serve(async (req) => {
     const { data: resetData, error: resetError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'magiclink',
       email,
+      options: {
+        redirectTo: redirectTo || undefined
+      }
     });
 
     if (resetError) {

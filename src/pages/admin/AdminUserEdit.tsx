@@ -211,6 +211,7 @@ function AdminUserEdit() {
         body: {
           userId,
           sendEmail: true,
+          redirectTo: window.location.origin,
         },
       });
 

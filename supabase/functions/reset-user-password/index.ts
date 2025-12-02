@@ -8,6 +8,7 @@ const corsHeaders = {
 interface ResetPasswordRequest {
   userId: string;
   sendEmail?: boolean;
+  redirectTo?: string;
 }
 
 Deno.serve(async (req) => {
@@ -70,7 +71,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { userId, sendEmail = true }: ResetPasswordRequest = await req.json();
+    const { userId, sendEmail = true, redirectTo }: ResetPasswordRequest = await req.json();
 
     if (!userId) {
       return new Response(
@@ -101,6 +102,9 @@ Deno.serve(async (req) => {
     const { data: resetData, error: resetError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'magiclink',
       email: userData.user.email!,
+      options: {
+        redirectTo: redirectTo || undefined
+      }
     });
 
     if (resetError) {
