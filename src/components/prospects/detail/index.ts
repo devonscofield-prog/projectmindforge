@@ -2,6 +2,7 @@ export * from './constants';
 export { ProspectHeader } from './ProspectHeader';
 export { ProspectQuickStats } from './ProspectQuickStats';
 export { ProspectAIInsights } from './ProspectAIInsights';
+export { ProspectAccountResearch } from './ProspectAccountResearch';
 export { ProspectFollowUps } from './ProspectFollowUps';
 export { ProspectCallHistory } from './ProspectCallHistory';
 export { ProspectEmailLogSection } from './ProspectEmailLogSection';

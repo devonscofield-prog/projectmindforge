@@ -7,6 +7,7 @@ import { ProspectCallHistory } from './ProspectCallHistory';
 import { ProspectEmailLogSection } from './ProspectEmailLogSection';
 import { ProspectActivityLog } from './ProspectActivityLog';
 import { ProspectAIInsights } from './ProspectAIInsights';
+import { ProspectAccountResearch } from './ProspectAccountResearch';
 import { ProspectProductsBreakdown } from './ProspectProductsBreakdown';
 import type { Prospect } from '@/api/prospects';
 import type { Stakeholder } from '@/api/stakeholders';
@@ -88,6 +89,9 @@ export function ProspectDetailTabs({
           emailLogs={emailLogs}
           isRefreshingInsights={isRefreshingInsights}
           onRefreshInsights={onRefreshInsights}
+        />
+        <ProspectAccountResearch
+          prospect={prospect}
           onResearchAccount={onResearchAccount}
         />
         <ProspectProductsBreakdown prospectId={prospect.id} />
