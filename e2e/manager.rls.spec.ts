@@ -47,7 +47,7 @@ test.describe('Manager RLS Security Tests', () => {
       await expect(page).toHaveURL(`/manager/accounts/${MANAGER_A_TEAM_PROSPECT_ID}`);
       
       // Verify the prospect detail page loaded successfully
-      const heading = page.locator('h1');
+      const heading = page.locator('h1').first();
       await expect(heading).toBeVisible({ timeout: 10000 });
       
       // Verify we don't see error messages
