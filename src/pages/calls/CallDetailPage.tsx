@@ -156,7 +156,7 @@ function CallDetailPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate(getBackPath())}>
+            <Button variant="ghost" size="icon" onClick={() => navigate(getBackPath())} aria-label="Back">
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
