@@ -60,6 +60,9 @@ npx playwright test e2e/*rls.spec.ts
 npx playwright test e2e/rep.rls.spec.ts e2e/call-transcripts.rls.spec.ts e2e/stakeholders.rls.spec.ts
 npx playwright test e2e/manager.rls.spec.ts
 npx playwright test e2e/admin.rls.spec.ts
+
+# Run coaching sessions RLS tests (all roles)
+npx playwright test e2e/coaching-sessions.rls.spec.ts
 ```
 
 ### Run tests in UI mode (recommended for development)
@@ -120,7 +123,9 @@ Row-Level Security (RLS) tests are critical for validating data isolation betwee
 
 **Admin Role Tests:**
 - `admin.rls.spec.ts` - Row-Level Security tests for full cross-team access
-- `manager.rls.spec.ts` - Row-Level Security tests for team-based access control
+
+**Multi-Role Table Tests:**
+- `coaching-sessions.rls.spec.ts` - Row-Level Security tests for coaching_sessions table across all roles (Rep, Manager, Admin)
 
 **What These Tests Validate:**
 
@@ -230,6 +235,11 @@ test('validate prospect creation', async ({ page, db, dbAssert }) => {
 - `countPendingFollowUps(repId)` - Count pending
 - `getStakeholders(prospectId)` - Get stakeholders
 - `getActivities(prospectId)` - Get activities
+
+**Coaching Sessions:**
+- `getCoachingSessionById(sessionId)` - Get coaching session by ID
+- `getCoachingSessionsForRep(repId)` - Get all sessions for a rep
+- `countCoachingSessions(managerId)` - Count sessions created by manager
 
 **Cleanup:**
 - `cleanupTestProspects(repId, pattern)` - Remove test prospects
