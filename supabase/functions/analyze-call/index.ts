@@ -135,12 +135,6 @@ PART 3 — COACHING FIELDS
 Also include:
 - call_summary: 2-3 sentence summary of the call
 - confidence: Your confidence in the analysis from 0.0 to 1.0
-- discovery_score: Score 0-100 for how well the rep uncovered customer needs, pain points, and context
-- objection_handling_score: Score 0-100 for how effectively the rep addressed concerns and objections
-- rapport_communication_score: Score 0-100 for quality of rapport building, active listening, and communication style
-- product_knowledge_score: Score 0-100 for accuracy and depth of product/service knowledge demonstrated
-- deal_advancement_score: Score 0-100 for how well the rep moved the deal forward toward next steps
-- call_effectiveness_score: Score 0-100 for overall call effectiveness and value delivered
 - trend_indicators: Object with trend directions (e.g., {"discovery": "improving", "objections": "stable"})
 - deal_gaps: Object with "critical_missing_info" (array of strings) and "unresolved_objections" (array of strings)
 - strengths: Array of objects with "area" and "example" fields showing what went well
@@ -149,12 +143,40 @@ Also include:
 - deal_tags: Array of deal-related tags (e.g., "no_confirmed_timeline", "single_threaded")
 - meta_tags: Array of metadata tags (e.g., "short_transcript", "first_call")
 
-### StormWind AI Call Coach — Concise Edition (v7)
+### StormWind AI Call Coach — Concise Edition (v8)
 In addition to all existing outputs, act as the StormWind AI Call Coach. Populate the \`coach_output\` field with:
 - Call Type (Discovery, Demo, Negotiation)
 - Duration in minutes (estimate based on transcript length if not explicit)
-- Framework scores (BANT, Gap Selling, Active Listening), each 0–100 with 1-sentence summary
-- 1–2 improvement points per framework
+- Framework scores (MEDDPICC, Gap Selling, Active Listening)
+
+#### MEDDPICC Framework (Most Important)
+For MEDDPICC, provide a SCORE (0-100) and JUSTIFICATION for EACH of the 8 elements:
+• Metrics (M): Did the rep uncover quantifiable business outcomes the prospect wants to achieve?
+• Economic Buyer (E): Was the person with final budget authority and sign-off power identified?
+• Decision Criteria (D1): Were the formal evaluation criteria and requirements established?
+• Decision Process (D2): Was the buying process, approval chain, and timeline mapped out?
+• Paper Process (P): Was procurement, legal review, or contract process discussed?
+• Identify Pain (I): Were business pains, their root causes, and business impact thoroughly uncovered?
+• Champion (C): Is there an internal advocate who is actively selling on your behalf?
+• Competition (C2): Were alternatives, competitors, or "do nothing" options understood?
+
+For each element, provide:
+- score: 0-100 based on evidence from the transcript
+- justification: 1-2 sentences with specific examples from the call explaining the score
+
+Also provide:
+- overall_score: Weighted average of all 8 elements (0-100)
+- summary: 2-3 sentence assessment of MEDDPICC qualification status
+
+#### Gap Selling Framework
+- Score 0-100 with 1-sentence summary
+- 1-2 improvement points
+
+#### Active Listening Framework
+- Score 0-100 with 1-sentence summary
+- 1-2 improvement points
+
+#### Additional Coaching Output
 - 3–5 critical missing pieces needed to close the deal, each with a specific example of when during the call the rep missed an opportunity to ask for this information (referencing what the prospect said or the moment in the conversation)
 - 3–5 recommended follow-up questions, each with a specific example of when during the call it would have been best to ask (referencing what the prospect said or the moment in the conversation)
 - Heat Signature (1–10) with explanation of deal temperature/likelihood to close
@@ -201,15 +223,35 @@ interface TranscriptRow {
   source: string;
 }
 
+// MEDDPICC element with score and justification
+interface MEDDPICCElement {
+  score: number;
+  justification: string;
+}
+
+// Full MEDDPICC scores structure
+interface MEDDPICCScores {
+  metrics: MEDDPICCElement;
+  economic_buyer: MEDDPICCElement;
+  decision_criteria: MEDDPICCElement;
+  decision_process: MEDDPICCElement;
+  paper_process: MEDDPICCElement;
+  identify_pain: MEDDPICCElement;
+  champion: MEDDPICCElement;
+  competition: MEDDPICCElement;
+  overall_score: number;
+  summary: string;
+}
+
 interface CoachOutput {
   call_type: string;
   duration_minutes: number;
   framework_scores: {
-    bant: { score: number; summary: string };
+    meddpicc: MEDDPICCScores;
     gap_selling: { score: number; summary: string };
     active_listening: { score: number; summary: string };
   };
-  bant_improvements: string[];
+  meddpicc_improvements: string[];
   gap_selling_improvements: string[];
   active_listening_improvements: string[];
   critical_info_missing: Array<{
@@ -233,6 +275,7 @@ interface AnalysisResult {
   prompt_version: string;
   confidence: number;
   call_summary: string;
+  // Individual scores kept for backward compatibility but set to 0 for new analyses
   discovery_score: number;
   objection_handling_score: number;
   rapport_communication_score: number;
@@ -325,30 +368,6 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
             type: "number",
             description: "Confidence in the analysis from 0.0 to 1.0"
           },
-          discovery_score: {
-            type: "number",
-            description: "Score 0-100 for discovery skills"
-          },
-          objection_handling_score: {
-            type: "number",
-            description: "Score 0-100 for objection handling"
-          },
-          rapport_communication_score: {
-            type: "number",
-            description: "Score 0-100 for rapport and communication"
-          },
-          product_knowledge_score: {
-            type: "number",
-            description: "Score 0-100 for product knowledge"
-          },
-          deal_advancement_score: {
-            type: "number",
-            description: "Score 0-100 for deal advancement"
-          },
-          call_effectiveness_score: {
-            type: "number",
-            description: "Score 0-100 for overall call effectiveness"
-          },
           trend_indicators: {
             type: "object",
             description: "Object with trend directions for each area (e.g., 'improving', 'stable', 'declining')",
@@ -419,20 +438,85 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
           },
           coach_output: {
             type: "object",
-            description: "Coaching output based on BANT, Gap Selling, and Active Listening frameworks.",
+            description: "Coaching output based on MEDDPICC, Gap Selling, and Active Listening frameworks.",
             properties: {
               call_type: { type: "string", description: "Type of call: Discovery, Demo, or Negotiation" },
               duration_minutes: { type: "number", description: "Estimated duration of the call in minutes" },
               framework_scores: {
                 type: "object",
                 properties: {
-                  bant: {
+                  meddpicc: {
                     type: "object",
+                    description: "MEDDPICC qualification framework with per-element scoring",
                     properties: {
-                      score: { type: "number", description: "Score 0-100 for BANT qualification" },
-                      summary: { type: "string", description: "1-sentence summary of BANT performance" }
+                      metrics: {
+                        type: "object",
+                        properties: {
+                          score: { type: "number", description: "Score 0-100 for Metrics qualification" },
+                          justification: { type: "string", description: "1-2 sentences explaining the score with specific examples from the call" }
+                        },
+                        required: ["score", "justification"]
+                      },
+                      economic_buyer: {
+                        type: "object",
+                        properties: {
+                          score: { type: "number", description: "Score 0-100 for Economic Buyer identification" },
+                          justification: { type: "string", description: "1-2 sentences explaining the score with specific examples from the call" }
+                        },
+                        required: ["score", "justification"]
+                      },
+                      decision_criteria: {
+                        type: "object",
+                        properties: {
+                          score: { type: "number", description: "Score 0-100 for Decision Criteria establishment" },
+                          justification: { type: "string", description: "1-2 sentences explaining the score with specific examples from the call" }
+                        },
+                        required: ["score", "justification"]
+                      },
+                      decision_process: {
+                        type: "object",
+                        properties: {
+                          score: { type: "number", description: "Score 0-100 for Decision Process mapping" },
+                          justification: { type: "string", description: "1-2 sentences explaining the score with specific examples from the call" }
+                        },
+                        required: ["score", "justification"]
+                      },
+                      paper_process: {
+                        type: "object",
+                        properties: {
+                          score: { type: "number", description: "Score 0-100 for Paper Process understanding" },
+                          justification: { type: "string", description: "1-2 sentences explaining the score with specific examples from the call" }
+                        },
+                        required: ["score", "justification"]
+                      },
+                      identify_pain: {
+                        type: "object",
+                        properties: {
+                          score: { type: "number", description: "Score 0-100 for Identify Pain depth" },
+                          justification: { type: "string", description: "1-2 sentences explaining the score with specific examples from the call" }
+                        },
+                        required: ["score", "justification"]
+                      },
+                      champion: {
+                        type: "object",
+                        properties: {
+                          score: { type: "number", description: "Score 0-100 for Champion identification" },
+                          justification: { type: "string", description: "1-2 sentences explaining the score with specific examples from the call" }
+                        },
+                        required: ["score", "justification"]
+                      },
+                      competition: {
+                        type: "object",
+                        properties: {
+                          score: { type: "number", description: "Score 0-100 for Competition understanding" },
+                          justification: { type: "string", description: "1-2 sentences explaining the score with specific examples from the call" }
+                        },
+                        required: ["score", "justification"]
+                      },
+                      overall_score: { type: "number", description: "Weighted average score 0-100 across all MEDDPICC elements" },
+                      summary: { type: "string", description: "2-3 sentence assessment of overall MEDDPICC qualification status" }
                     },
-                    required: ["score", "summary"]
+                    required: ["metrics", "economic_buyer", "decision_criteria", "decision_process", "paper_process", "identify_pain", "champion", "competition", "overall_score", "summary"]
                   },
                   gap_selling: {
                     type: "object",
@@ -451,9 +535,9 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
                     required: ["score", "summary"]
                   }
                 },
-                required: ["bant", "gap_selling", "active_listening"]
+                required: ["meddpicc", "gap_selling", "active_listening"]
               },
-              bant_improvements: { type: "array", items: { type: "string" }, description: "1-2 specific improvements for BANT qualification" },
+              meddpicc_improvements: { type: "array", items: { type: "string" }, description: "1-2 specific improvements for MEDDPICC qualification" },
               gap_selling_improvements: { type: "array", items: { type: "string" }, description: "1-2 specific improvements for Gap Selling" },
               active_listening_improvements: { type: "array", items: { type: "string" }, description: "1-2 specific improvements for Active Listening" },
               critical_info_missing: { 
@@ -493,7 +577,7 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
               "call_type",
               "duration_minutes",
               "framework_scores",
-              "bant_improvements",
+              "meddpicc_improvements",
               "gap_selling_improvements",
               "active_listening_improvements",
               "critical_info_missing",
@@ -555,12 +639,6 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
         required: [
           "call_summary",
           "confidence",
-          "discovery_score",
-          "objection_handling_score",
-          "rapport_communication_score",
-          "product_knowledge_score",
-          "deal_advancement_score",
-          "call_effectiveness_score",
           "trend_indicators",
           "deal_gaps",
           "strengths",
@@ -628,11 +706,9 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
     throw new Error('Failed to parse AI analysis response');
   }
 
-  // Validate all required fields including new rep-facing fields
+  // Validate all required fields (individual scores no longer required - using MEDDPICC instead)
   const requiredFields = [
-    'call_summary', 'confidence', 'discovery_score', 'objection_handling_score',
-    'rapport_communication_score', 'product_knowledge_score', 'deal_advancement_score',
-    'call_effectiveness_score', 'trend_indicators', 'deal_gaps', 'strengths',
+    'call_summary', 'confidence', 'trend_indicators', 'deal_gaps', 'strengths',
     'opportunities', 'skill_tags', 'deal_tags', 'meta_tags', 'call_notes', 'recap_email_draft',
     'coach_output'
   ];
@@ -682,15 +758,16 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
     call_id: transcript.id,
     rep_id: transcript.rep_id,
     model_name: 'google/gemini-2.5-flash',
-    prompt_version: 'v3-coach',
+    prompt_version: 'v4-meddpicc',
     confidence: Number(analysisData.confidence) || 0.5,
     call_summary: String(analysisData.call_summary),
-    discovery_score: Number(analysisData.discovery_score),
-    objection_handling_score: Number(analysisData.objection_handling_score),
-    rapport_communication_score: Number(analysisData.rapport_communication_score),
-    product_knowledge_score: Number(analysisData.product_knowledge_score),
-    deal_advancement_score: Number(analysisData.deal_advancement_score),
-    call_effectiveness_score: Number(analysisData.call_effectiveness_score),
+    // Individual scores set to 0 for backward compatibility - no longer generated
+    discovery_score: 0,
+    objection_handling_score: 0,
+    rapport_communication_score: 0,
+    product_knowledge_score: 0,
+    deal_advancement_score: 0,
+    call_effectiveness_score: 0,
     trend_indicators: analysisData.trend_indicators as Record<string, string>,
     deal_gaps: analysisData.deal_gaps as { critical_missing_info: string[]; unresolved_objections: string[] },
     strengths: analysisData.strengths as Array<{ area: string; example: string }>,
