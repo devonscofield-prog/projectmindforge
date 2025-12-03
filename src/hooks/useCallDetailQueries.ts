@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getCallWithAnalysis, getAnalysisForCall } from '@/api/aiCallAnalysis';
+import { useNavigate } from 'react-router-dom';
+import { getCallWithAnalysis, getAnalysisForCall, retryCallAnalysis, deleteFailedTranscript } from '@/api/aiCallAnalysis';
 import { 
   getCallProducts, 
   updateCallProduct, 
@@ -9,6 +10,8 @@ import {
 } from '@/api/callProducts';
 import { useToast } from '@/hooks/use-toast';
 import { createLogger } from '@/lib/logger';
+import { getCallHistoryUrl } from '@/lib/routes';
+import type { UserRole } from '@/types/database';
 
 const log = createLogger('useCallDetailQueries');
 
@@ -224,6 +227,84 @@ export function useAddCallProduct(callId: string, prospectId: string | null) {
       toast({
         title: 'Error',
         description: 'Failed to add product.',
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
+/**
+ * Hook to retry analysis for a failed call
+ */
+export function useRetryAnalysis(callId: string) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async () => {
+      const result = await retryCallAnalysis(callId);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to retry analysis');
+      }
+      return result;
+    },
+    onSuccess: async () => {
+      // Invalidate call queries to trigger refetch
+      await queryClient.invalidateQueries({ queryKey: callDetailKeys.call(callId) });
+      await queryClient.invalidateQueries({ queryKey: callDetailKeys.analysis(callId) });
+
+      toast({
+        title: 'Analysis restarted',
+        description: 'Your call is being re-analyzed. This usually takes 30-60 seconds.',
+      });
+    },
+    onError: (error) => {
+      log.error('Error retrying analysis', { callId, error });
+      const isRateLimited = error.message?.toLowerCase().includes('rate limit');
+      toast({
+        title: isRateLimited ? 'Rate Limited' : 'Retry Failed',
+        description: isRateLimited 
+          ? 'Too many requests. Please wait a moment before trying again.'
+          : error.message || 'Failed to retry analysis.',
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
+/**
+ * Hook to delete a failed transcript
+ */
+export function useDeleteFailedCall(callId: string, role: UserRole | null) {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async () => {
+      const result = await deleteFailedTranscript(callId);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete transcript');
+      }
+      return result;
+    },
+    onSuccess: async () => {
+      // Invalidate call history queries
+      await queryClient.invalidateQueries({ queryKey: ['call-transcripts'] });
+
+      toast({
+        title: 'Call deleted',
+        description: 'The failed call has been deleted. You can now resubmit.',
+      });
+
+      // Navigate back to call history
+      navigate(getCallHistoryUrl(role));
+    },
+    onError: (error) => {
+      log.error('Error deleting failed call', { callId, error });
+      toast({
+        title: 'Delete Failed',
+        description: error.message || 'Failed to delete the call.',
         variant: 'destructive',
       });
     },
