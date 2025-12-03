@@ -10,6 +10,9 @@ function getQueryKeyString(queryKey: unknown): string {
   return JSON.stringify(queryKey);
 }
 
+// Maximum duration to track - anything longer is likely browser throttling/network issues, not DB performance
+const MAX_REASONABLE_QUERY_MS = 60000; // 60 seconds
+
 /**
  * Create a QueryClient with performance monitoring and logging
  */
