@@ -24,7 +24,7 @@ import {
   FileText,
   Check,
 } from 'lucide-react';
-import { CoachingTrendAnalysis } from '@/api/aiCallAnalysis';
+import { CoachingTrendAnalysis, getPrimaryFrameworkTrend, getPrimaryFrameworkLabel } from '@/api/aiCallAnalysis';
 
 interface ExportShareDialogProps {
   open: boolean;
@@ -79,10 +79,14 @@ export function ExportShareDialog({
 
         <h2 style="color: #0f172a; font-size: 18px; margin: 24px 0 16px 0;">Framework Trends</h2>
         
-        ${['bant', 'gapSelling', 'activeListening'].map(key => {
-          const framework = analysis.trendAnalysis[key as keyof typeof analysis.trendAnalysis];
-          const label = key === 'bant' ? 'BANT' : key === 'gapSelling' ? 'Gap Selling' : 'Active Listening';
-          return `
+        ${(() => {
+          const primaryLabel = getPrimaryFrameworkLabel(analysis.trendAnalysis);
+          const frameworks = [
+            { key: 'primary', label: primaryLabel, data: getPrimaryFrameworkTrend(analysis.trendAnalysis) },
+            { key: 'gapSelling', label: 'Gap Selling', data: analysis.trendAnalysis.gapSelling },
+            { key: 'activeListening', label: 'Active Listening', data: analysis.trendAnalysis.activeListening }
+          ];
+          return frameworks.map(({ label, data: framework }) => `
             <div style="background: #f8fafc; border-radius: 8px; padding: 16px; margin-bottom: 12px;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                 <h3 style="margin: 0; font-size: 16px;">${label}</h3>
@@ -95,8 +99,8 @@ export function ExportShareDialog({
                 Score: ${framework.startingAvg?.toFixed(1) || 'N/A'} → ${framework.endingAvg?.toFixed(1) || 'N/A'}
               </p>
             </div>
-          `;
-        }).join('')}
+          `).join('');
+        })()}
 
         <h2 style="color: #0f172a; font-size: 18px; margin: 24px 0 16px 0;">Top Priorities</h2>
         ${analysis.topPriorities.map((priority, index) => `
