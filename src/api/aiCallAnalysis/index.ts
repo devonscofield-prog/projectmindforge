@@ -51,7 +51,9 @@ export {
   getCallWithAnalysis,
   retryCallAnalysis,
   deleteFailedTranscript,
+  updateCallTranscript,
 } from './transcripts';
+export type { UpdateCallTranscriptParams } from './transcripts';
 
 // Re-export analysis functions
 export {

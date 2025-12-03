@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
@@ -15,13 +15,14 @@ import { CallAnalysisPageSkeleton } from '@/components/ui/skeletons';
 import { CallAnalysis, CallTranscript } from '@/api/aiCallAnalysis';
 import { CallAnalysisResultsView } from '@/components/calls/CallAnalysisResultsView';
 import { CallProductsSummary } from '@/components/calls/CallProductsSummary';
+import { EditCallDetailsDialog } from '@/components/calls/EditCallDetailsDialog';
 import { CallType, callTypeLabels } from '@/constants/callTypes';
 import { format } from 'date-fns';
 import { getDashboardUrl, getCallHistoryUrl } from '@/lib/routes';
 import { getCallDetailBreadcrumbs } from '@/lib/breadcrumbConfig';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 import { formatCurrency } from '@/lib/formatters';
-import { useCallWithAnalysis, useAnalysisPolling, callDetailKeys, useRetryAnalysis, useDeleteFailedCall } from '@/hooks/useCallDetailQueries';
+import { useCallWithAnalysis, useAnalysisPolling, callDetailKeys, useRetryAnalysis, useDeleteFailedCall, useUpdateCallTranscript } from '@/hooks/useCallDetailQueries';
 import { 
   ArrowLeft, 
   Calendar, 
@@ -32,7 +33,8 @@ import {
   ExternalLink,
   DollarSign,
   Building,
-  User
+  User,
+  Pencil
 } from 'lucide-react';
 
 function CallDetailPage() {
@@ -67,9 +69,13 @@ function CallDetailPage() {
   const isOwner = transcript?.rep_id === user?.id;
   const isManager = role === 'manager' || role === 'admin';
 
-  // Retry and delete mutations
+  // Retry, delete, and update mutations
   const retryMutation = useRetryAnalysis(id || '');
   const deleteMutation = useDeleteFailedCall(id || '', role);
+  const updateMutation = useUpdateCallTranscript(id || '');
+
+  // Edit dialog state
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   const getBackPath = () => getCallHistoryUrl(role);
 
@@ -182,11 +188,21 @@ function CallDetailPage() {
 
         {/* Call Metadata */}
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
               Call Information
             </CardTitle>
+            {(isOwner || isManager) && (
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => setIsEditDialogOpen(true)}
+                aria-label="Edit call details"
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+            )}
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -292,6 +308,19 @@ function CallDetailPage() {
           onDeleteCall={() => deleteMutation.mutate()}
           isRetrying={retryMutation.isPending}
           isDeleting={deleteMutation.isPending}
+        />
+
+        {/* Edit Call Details Dialog */}
+        <EditCallDetailsDialog
+          open={isEditDialogOpen}
+          onOpenChange={setIsEditDialogOpen}
+          transcript={transcript}
+          onSave={(updates) => {
+            updateMutation.mutate(updates, {
+              onSuccess: () => setIsEditDialogOpen(false),
+            });
+          }}
+          isSaving={updateMutation.isPending}
         />
       </div>
     </AppLayout>
