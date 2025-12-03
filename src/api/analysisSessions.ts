@@ -1,6 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
 import { toAnalysisSession } from '@/lib/supabaseAdapters';
-import { getCurrentUserId } from '@/lib/supabaseUtils';
 import type { ChatMessage } from './adminTranscriptChat';
 import type { Json } from '@/integrations/supabase/types';
 
@@ -14,6 +13,18 @@ export interface AnalysisSession {
   title: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// Lightweight session type for list views (excludes large messages array)
+export interface AnalysisSessionListItem {
+  id: string;
+  user_id: string;
+  transcript_ids: string[];
+  analysis_mode: string | null;
+  title: string | null;
+  created_at: string;
+  updated_at: string;
+  message_count: number;
 }
 
 export async function saveAnalysisSession(
@@ -72,6 +83,45 @@ export async function saveAnalysisSession(
   }
 }
 
+/**
+ * Fetch recent sessions for list view - excludes large messages array
+ * Uses compound index on (user_id, updated_at DESC) for optimal performance
+ */
+export async function fetchRecentSessionsForList(
+  userId: string, 
+  limit: number = 20
+): Promise<AnalysisSessionListItem[]> {
+  if (!userId) return [];
+  
+  const { data, error } = await supabase
+    .from('analysis_sessions')
+    .select('id, user_id, transcript_ids, analysis_mode, title, created_at, updated_at, messages')
+    .eq('user_id', userId)
+    .order('updated_at', { ascending: false })
+    .limit(limit);
+  
+  if (error) {
+    console.error('Failed to fetch sessions:', error);
+    return [];
+  }
+  
+  // Transform to list items with message count instead of full messages
+  return (data || []).map(session => ({
+    id: session.id,
+    user_id: session.user_id,
+    transcript_ids: session.transcript_ids,
+    analysis_mode: session.analysis_mode,
+    title: session.title,
+    created_at: session.created_at,
+    updated_at: session.updated_at,
+    message_count: Array.isArray(session.messages) ? session.messages.length : 0,
+  }));
+}
+
+/**
+ * @deprecated Use fetchRecentSessionsForList for list views
+ * Kept for backward compatibility when full messages are needed
+ */
 export async function fetchRecentSessions(userId: string, limit: number = 10): Promise<AnalysisSession[]> {
   if (!userId) return [];
   
@@ -90,20 +140,49 @@ export async function fetchRecentSessions(userId: string, limit: number = 10): P
   return (data || []).map(toAnalysisSession);
 }
 
-export async function fetchSessionByTranscripts(userId: string, transcriptIds: string[]): Promise<AnalysisSession | null> {
-  if (!userId) return null;
-  
-  const sortedIds = [...transcriptIds].sort();
+/**
+ * Fetch a single session by ID with full messages
+ * Use this when viewing session details
+ */
+export async function fetchSessionById(sessionId: string, userId: string): Promise<AnalysisSession | null> {
+  if (!sessionId || !userId) return null;
   
   const { data, error } = await supabase
     .from('analysis_sessions')
     .select('*')
+    .eq('id', sessionId)
     .eq('user_id', userId)
+    .maybeSingle();
+  
+  if (error || !data) {
+    console.error('Failed to fetch session:', error);
+    return null;
+  }
+  
+  return toAnalysisSession(data);
+}
+
+/**
+ * Find existing session by transcript IDs using database-level filtering
+ * Uses Postgres array containment operator for efficient matching
+ */
+export async function fetchSessionByTranscripts(userId: string, transcriptIds: string[]): Promise<AnalysisSession | null> {
+  if (!userId || !transcriptIds.length) return null;
+  
+  const sortedIds = [...transcriptIds].sort();
+  
+  // Use database-level array containment instead of client-side filtering
+  const { data, error } = await supabase
+    .from('analysis_sessions')
+    .select('*')
+    .eq('user_id', userId)
+    .contains('transcript_ids', sortedIds)
     .order('updated_at', { ascending: false })
-    .limit(20);
+    .limit(5);
   
   if (error || !data) return null;
   
+  // Find exact match (same length and same elements)
   const matchingSession = data.find(session => {
     const sessionIds = [...session.transcript_ids].sort();
     return sessionIds.length === sortedIds.length && 

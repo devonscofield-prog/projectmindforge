@@ -5,7 +5,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { createLogger } from '@/lib/logger';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { fetchRecentSessions, deleteAnalysisSession, type AnalysisSession } from '@/api/analysisSessions';
+import { 
+  fetchRecentSessionsForList, 
+  fetchSessionById,
+  deleteAnalysisSession, 
+  type AnalysisSession,
+  type AnalysisSessionListItem 
+} from '@/api/analysisSessions';
 
 const log = createLogger('SavedInsightsSheet');
 import {
@@ -52,16 +58,21 @@ import {
   FileText,
 } from 'lucide-react';
 
-interface SavedInsight {
+// Lightweight insight type for list views (excludes large content/chat_context)
+interface SavedInsightListItem {
   id: string;
   title: string;
-  content: string;
   tags: string[] | null;
   share_token: string | null;
   is_shared: boolean;
   created_at: string;
   admin_id: string;
   selection_id: string | null;
+}
+
+// Full insight type with content for detail view
+interface SavedInsight extends SavedInsightListItem {
+  content: string;
 }
 
 interface SavedInsightsSheetProps {
@@ -78,32 +89,67 @@ export function SavedInsightsSheet({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleteSessionId, setDeleteSessionId] = useState<string | null>(null);
-  const [viewInsight, setViewInsight] = useState<SavedInsight | null>(null);
-  const [viewSession, setViewSession] = useState<AnalysisSession | null>(null);
+  const [viewInsightId, setViewInsightId] = useState<string | null>(null);
+  const [viewSessionId, setViewSessionId] = useState<string | null>(null);
 
+  // Fetch insights list - lightweight query excluding content
   const { data: insights, isLoading: isLoadingInsights } = useQuery({
     queryKey: ['admin-saved-insights', user?.id],
     queryFn: async () => {
       if (!user) return [];
       
+      // Selective column fetch - exclude large content and chat_context columns
       const { data, error } = await supabase
         .from('admin_chat_insights')
-        .select('*')
+        .select('id, title, tags, share_token, is_shared, created_at, admin_id, selection_id')
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      return data as SavedInsight[];
+      return data as SavedInsightListItem[];
     },
     enabled: open && !!user,
+    staleTime: 2 * 60 * 1000, // 2 minutes
   });
 
+  // Fetch sessions list - lightweight query
   const { data: sessions, isLoading: isLoadingSessions } = useQuery({
-    queryKey: ['analysis-sessions', user?.id],
+    queryKey: ['analysis-sessions-list', user?.id],
     queryFn: () => {
       if (!user?.id) return [];
-      return fetchRecentSessions(user.id, 20);
+      return fetchRecentSessionsForList(user.id, 20);
     },
     enabled: open && !!user,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  });
+
+  // Fetch full insight when viewing details
+  const { data: viewInsight, isLoading: isLoadingInsightDetail } = useQuery({
+    queryKey: ['admin-insight-detail', viewInsightId],
+    queryFn: async () => {
+      if (!viewInsightId) return null;
+      
+      const { data, error } = await supabase
+        .from('admin_chat_insights')
+        .select('*')
+        .eq('id', viewInsightId)
+        .maybeSingle();
+      
+      if (error) throw error;
+      return data as SavedInsight | null;
+    },
+    enabled: !!viewInsightId,
+    staleTime: 5 * 60 * 1000, // 5 minutes - individual items rarely change
+  });
+
+  // Fetch full session when viewing details
+  const { data: viewSession, isLoading: isLoadingSessionDetail } = useQuery({
+    queryKey: ['analysis-session-detail', viewSessionId],
+    queryFn: () => {
+      if (!viewSessionId || !user?.id) return null;
+      return fetchSessionById(viewSessionId, user.id);
+    },
+    enabled: !!viewSessionId && !!user?.id,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
   const deleteMutation = useMutation({
@@ -129,7 +175,7 @@ export function SavedInsightsSheet({
   const deleteSessionMutation = useMutation({
     mutationFn: deleteAnalysisSession,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['analysis-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['analysis-sessions-list'] });
       toast.success('Session deleted');
       setDeleteSessionId(null);
     },
@@ -138,7 +184,7 @@ export function SavedInsightsSheet({
     },
   });
 
-  const copyShareUrl = (insight: SavedInsight) => {
+  const copyShareUrl = (insight: SavedInsightListItem) => {
     if (!insight.share_token) return;
     
     const url = `${window.location.origin}/admin/transcripts?insight=${insight.share_token}`;
@@ -205,7 +251,7 @@ export function SavedInsightsSheet({
                               insight={insight}
                               isOwn={true}
                               copiedId={copiedId}
-                              onView={() => setViewInsight(insight)}
+                              onView={() => setViewInsightId(insight.id)}
                               onCopy={() => copyShareUrl(insight)}
                               onDelete={() => setDeleteId(insight.id)}
                             />
@@ -228,7 +274,7 @@ export function SavedInsightsSheet({
                               insight={insight}
                               isOwn={false}
                               copiedId={copiedId}
-                              onView={() => setViewInsight(insight)}
+                              onView={() => setViewInsightId(insight.id)}
                               onCopy={() => copyShareUrl(insight)}
                               onDelete={() => {}}
                             />
@@ -259,7 +305,7 @@ export function SavedInsightsSheet({
                       <SessionCard
                         key={session.id}
                         session={session}
-                        onView={() => setViewSession(session)}
+                        onView={() => setViewSessionId(session.id)}
                         onDelete={() => setDeleteSessionId(session.id)}
                       />
                     ))}
@@ -314,78 +360,94 @@ export function SavedInsightsSheet({
       </AlertDialog>
 
       {/* View Insight Dialog */}
-      <Dialog open={!!viewInsight} onOpenChange={() => setViewInsight(null)}>
+      <Dialog open={!!viewInsightId} onOpenChange={() => setViewInsightId(null)}>
         <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{viewInsight?.title}</DialogTitle>
+            <DialogTitle>{viewInsight?.title || 'Loading...'}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            {viewInsight?.tags && viewInsight.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {viewInsight.tags.map(tag => (
-                  <Badge key={tag} variant="secondary" className="text-xs">
-                    <Tag className="h-3 w-3 mr-1" />
-                    {tag}
-                  </Badge>
-                ))}
-              </div>
-            )}
-            <div className="prose prose-sm dark:prose-invert max-w-none analysis-markdown">
-              <ReactMarkdown>{viewInsight?.content || ''}</ReactMarkdown>
+          {isLoadingInsightDetail ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
-            <p className="text-xs text-muted-foreground">
-              Saved on {viewInsight && format(new Date(viewInsight.created_at), 'MMMM d, yyyy')}
-            </p>
-          </div>
+          ) : viewInsight ? (
+            <div className="space-y-4">
+              {viewInsight.tags && viewInsight.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {viewInsight.tags.map(tag => (
+                    <Badge key={tag} variant="secondary" className="text-xs">
+                      <Tag className="h-3 w-3 mr-1" />
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              <div className="prose prose-sm dark:prose-invert max-w-none analysis-markdown">
+                <ReactMarkdown>{viewInsight.content || ''}</ReactMarkdown>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Saved on {format(new Date(viewInsight.created_at), 'MMMM d, yyyy')}
+              </p>
+            </div>
+          ) : (
+            <p className="text-muted-foreground">Insight not found</p>
+          )}
         </DialogContent>
       </Dialog>
 
       {/* View Session Dialog */}
-      <Dialog open={!!viewSession} onOpenChange={() => setViewSession(null)}>
+      <Dialog open={!!viewSessionId} onOpenChange={() => setViewSessionId(null)}>
         <DialogContent className="sm:max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <History className="h-5 w-5" />
-              {viewSession?.title || 'Analysis Session'}
+              {viewSession?.title || 'Loading...'}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="flex items-center gap-3 text-sm text-muted-foreground">
-              <Badge variant="outline" className="gap-1">
-                <FileText className="h-3 w-3" />
-                {viewSession?.transcript_ids.length} transcripts
-              </Badge>
-              <Badge variant="outline" className="gap-1">
-                <MessageSquare className="h-3 w-3" />
-                {viewSession?.messages.length} messages
-              </Badge>
-              <span className="flex items-center gap-1">
-                <Calendar className="h-3 w-3" />
-                {viewSession && format(new Date(viewSession.updated_at), 'MMM d, yyyy h:mm a')}
-              </span>
+          {isLoadingSessionDetail ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
-            <ScrollArea className="h-[50vh]">
-              <div className="space-y-4 pr-4">
-                {viewSession?.messages.map((message, i) => (
-                  <div
-                    key={i}
-                    className={`p-3 rounded-lg ${
-                      message.role === 'user' 
-                        ? 'bg-primary/10 ml-8' 
-                        : 'bg-muted mr-8'
-                    }`}
-                  >
-                    <p className="text-xs font-medium text-muted-foreground mb-1 uppercase">
-                      {message.role}
-                    </p>
-                    <div className="prose prose-sm dark:prose-invert max-w-none analysis-markdown">
-                      <ReactMarkdown>{message.content}</ReactMarkdown>
-                    </div>
-                  </div>
-                ))}
+          ) : viewSession ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                <Badge variant="outline" className="gap-1">
+                  <FileText className="h-3 w-3" />
+                  {viewSession.transcript_ids.length} transcripts
+                </Badge>
+                <Badge variant="outline" className="gap-1">
+                  <MessageSquare className="h-3 w-3" />
+                  {viewSession.messages.length} messages
+                </Badge>
+                <span className="flex items-center gap-1">
+                  <Calendar className="h-3 w-3" />
+                  {format(new Date(viewSession.updated_at), 'MMM d, yyyy h:mm a')}
+                </span>
               </div>
-            </ScrollArea>
-          </div>
+              <ScrollArea className="h-[50vh]">
+                <div className="space-y-4 pr-4">
+                  {viewSession.messages.map((message, i) => (
+                    <div
+                      key={i}
+                      className={`p-3 rounded-lg ${
+                        message.role === 'user' 
+                          ? 'bg-primary/10 ml-8' 
+                          : 'bg-muted mr-8'
+                      }`}
+                    >
+                      <p className="text-xs font-medium text-muted-foreground mb-1 uppercase">
+                        {message.role}
+                      </p>
+                      <div className="prose prose-sm dark:prose-invert max-w-none analysis-markdown">
+                        <ReactMarkdown>{message.content}</ReactMarkdown>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
+          ) : (
+            <p className="text-muted-foreground">Session not found</p>
+          )}
         </DialogContent>
       </Dialog>
     </>
@@ -393,7 +455,7 @@ export function SavedInsightsSheet({
 }
 
 interface InsightCardProps {
-  insight: SavedInsight;
+  insight: SavedInsightListItem;
   isOwn: boolean;
   copiedId: string | null;
   onView: () => void;
@@ -422,9 +484,6 @@ function InsightCard({
               </Badge>
             )}
           </div>
-          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-            {insight.content.substring(0, 150)}...
-          </p>
           <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
             {insight.tags && insight.tags.length > 0 && (
               <span className="flex items-center gap-1">
@@ -465,15 +524,12 @@ function InsightCard({
 }
 
 interface SessionCardProps {
-  session: AnalysisSession;
+  session: AnalysisSessionListItem;
   onView: () => void;
   onDelete: () => void;
 }
 
 function SessionCard({ session, onView, onDelete }: SessionCardProps) {
-  const messageCount = session.messages.length;
-  const userMessages = session.messages.filter(m => m.role === 'user').length;
-  
   return (
     <div className="rounded-lg border p-3 hover:bg-muted/50 transition-colors">
       <div className="flex items-start justify-between gap-2">
@@ -482,21 +538,22 @@ function SessionCard({ session, onView, onDelete }: SessionCardProps) {
             {session.title || 'Untitled Session'}
           </h4>
           <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1">
+            <Badge variant="outline" className="gap-1">
               <FileText className="h-3 w-3" />
-              {session.transcript_ids.length} transcripts
-            </span>
-            <span className="flex items-center gap-1">
+              {session.transcript_ids.length}
+            </Badge>
+            <Badge variant="outline" className="gap-1">
               <MessageSquare className="h-3 w-3" />
-              {messageCount} messages ({userMessages} questions)
+              {session.message_count}
+            </Badge>
+            <span className="flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              {format(new Date(session.updated_at), 'MMM d')}
             </span>
           </div>
-          <p className="text-xs text-muted-foreground mt-1.5">
-            {format(new Date(session.updated_at), 'MMM d, yyyy h:mm a')}
-          </p>
         </div>
       </div>
-      
+
       <div className="flex items-center gap-2 mt-3">
         <Button size="sm" onClick={onView} className="flex-1">
           <Eye className="h-4 w-4 mr-1" />
