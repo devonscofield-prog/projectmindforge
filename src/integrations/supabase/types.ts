@@ -1744,6 +1744,7 @@ export type Database = {
         | "password_reset_requested"
         | "user_deactivated"
         | "user_reactivated"
+        | "user_deleted"
       user_role: "rep" | "manager" | "admin"
     }
     CompositeTypes: {
@@ -1909,6 +1910,7 @@ export const Constants = {
         "password_reset_requested",
         "user_deactivated",
         "user_reactivated",
+        "user_deleted",
       ],
       user_role: ["rep", "manager", "admin"],
     },

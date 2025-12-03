@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { LogIn, LogOut, RefreshCw, Activity } from 'lucide-react';
+import { LogIn, LogOut, RefreshCw, Activity, UserMinus } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { createLogger } from '@/lib/logger';
 import { fetchAllRecentActivityLogs, UserActivityLogWithProfile, UserActivityType } from '@/api/userActivityLogs';
@@ -19,6 +19,7 @@ const activityIcons: Record<UserActivityType, typeof LogIn> = {
   password_reset_requested: Activity,
   user_deactivated: Activity,
   user_reactivated: Activity,
+  user_deleted: UserMinus,
 };
 
 const activityColors: Record<UserActivityType, string> = {
@@ -31,6 +32,7 @@ const activityColors: Record<UserActivityType, string> = {
   password_reset_requested: 'text-yellow-500',
   user_deactivated: 'text-red-500',
   user_reactivated: 'text-green-500',
+  user_deleted: 'text-red-600',
 };
 
 const activityLabels: Record<UserActivityType, string> = {
@@ -43,6 +45,7 @@ const activityLabels: Record<UserActivityType, string> = {
   password_reset_requested: 'reset password',
   user_deactivated: 'deactivated user',
   user_reactivated: 'reactivated user',
+  user_deleted: 'deleted user',
 };
 
 export function GlobalActivityFeed() {

@@ -14,9 +14,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
-import { ArrowLeft, Save, KeyRound, Copy, CheckCircle2, AlertTriangle, Loader2, ShieldOff } from 'lucide-react';
+import { ArrowLeft, Save, KeyRound, Copy, CheckCircle2, AlertTriangle, Loader2, ShieldOff, Trash2 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { UserRole } from '@/types/database';
+import { useAuth } from '@/contexts/AuthContext';
 
 const log = createLogger('AdminUserEdit');
 
@@ -35,11 +47,13 @@ function AdminUserEdit() {
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
   const { data: teams = [] } = useTeams();
+  const { user: currentUser } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
   const [resettingMFA, setResettingMFA] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -52,6 +66,8 @@ function AdminUserEdit() {
   });
   const [resetLink, setResetLink] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [deleteConfirmEmail, setDeleteConfirmEmail] = useState('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
     if (userId) {
@@ -113,8 +129,8 @@ function AdminUserEdit() {
 
     setSaving(true);
     try {
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      if (!currentUser) {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) {
         toast.error('You must be logged in');
         return;
       }
@@ -149,7 +165,7 @@ function AdminUserEdit() {
       // Log profile update if there were changes
       if (Object.keys(changes).length > 0) {
         await supabase.from('user_activity_logs').insert([{
-          user_id: currentUser.id,
+          user_id: authUser.id,
           activity_type: 'user_profile_updated' as const,
           metadata: { ...metadata, changes } as never,
         }]);
@@ -158,7 +174,7 @@ function AdminUserEdit() {
       // Log deactivation/reactivation
       if (formData.is_active !== user.is_active) {
         await supabase.from('user_activity_logs').insert([{
-          user_id: currentUser.id,
+          user_id: authUser.id,
           activity_type: formData.is_active ? 'user_reactivated' as const : 'user_deactivated' as const,
           metadata: metadata as never,
         }]);
@@ -175,7 +191,7 @@ function AdminUserEdit() {
 
         // Log role change
         await supabase.from('user_activity_logs').insert([{
-          user_id: currentUser.id,
+          user_id: authUser.id,
           activity_type: 'user_role_changed' as const,
           metadata: {
             ...metadata,
@@ -259,6 +275,47 @@ function AdminUserEdit() {
     }
   };
 
+  const handleDeleteUser = async () => {
+    if (!userId || !user) return;
+    
+    // Verify email matches
+    if (deleteConfirmEmail.toLowerCase() !== user.email.toLowerCase()) {
+      toast.error('Email does not match');
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      const response = await supabase.functions.invoke('delete-user', {
+        body: { targetUserId: userId },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      const result = response.data;
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      toast.success('User deleted successfully', {
+        description: result.message
+      });
+      
+      // Navigate back to users list
+      navigate('/admin/users');
+    } catch (error) {
+      log.error('Failed to delete user', { error });
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete user';
+      toast.error(errorMessage);
+    } finally {
+      setDeleting(false);
+      setDeleteDialogOpen(false);
+      setDeleteConfirmEmail('');
+    }
+  };
+
   const handleCopyResetLink = async () => {
     if (resetLink) {
       await navigator.clipboard.writeText(resetLink);
@@ -267,6 +324,8 @@ function AdminUserEdit() {
       setTimeout(() => setCopiedLink(false), 2000);
     }
   };
+
+  const isOwnAccount = currentUser?.id === userId;
 
   const breadcrumbItems = [
     { label: 'Admin', href: '/admin' },
@@ -463,6 +522,101 @@ function AdminUserEdit() {
                 Cancel
               </Button>
             </div>
+
+            {/* Danger Zone */}
+            <Card className="border-destructive/50">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-destructive">
+                  <AlertTriangle className="h-5 w-5" />
+                  Danger Zone
+                </CardTitle>
+                <CardDescription>
+                  Irreversible and destructive actions
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <p className="font-medium">Delete this user</p>
+                    <p className="text-sm text-muted-foreground">
+                      Permanently remove this user and all their data including calls, prospects, analysis, and activity history.
+                    </p>
+                  </div>
+                  <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                    <AlertDialogTrigger asChild>
+                      <Button 
+                        variant="destructive" 
+                        disabled={isOwnAccount}
+                        title={isOwnAccount ? "You cannot delete your own account" : undefined}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete User
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle className="flex items-center gap-2">
+                          <AlertTriangle className="h-5 w-5 text-destructive" />
+                          Delete User Permanently?
+                        </AlertDialogTitle>
+                        <AlertDialogDescription asChild>
+                          <div className="space-y-4">
+                            <p>This will permanently delete:</p>
+                            <ul className="list-disc list-inside text-sm space-y-1">
+                              <li>All call transcripts & AI analysis</li>
+                              <li>All prospects & stakeholders</li>
+                              <li>All coaching data & follow-ups</li>
+                              <li>Activity history & settings</li>
+                            </ul>
+                            <p className="font-medium text-destructive">
+                              This action CANNOT be undone.
+                            </p>
+                            <div className="space-y-2 pt-2">
+                              <Label htmlFor="confirm-email">
+                                Type <span className="font-mono font-medium">{user.email}</span> to confirm:
+                              </Label>
+                              <Input
+                                id="confirm-email"
+                                value={deleteConfirmEmail}
+                                onChange={(e) => setDeleteConfirmEmail(e.target.value)}
+                                placeholder="Enter email to confirm"
+                              />
+                            </div>
+                          </div>
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setDeleteConfirmEmail('')}>
+                          Cancel
+                        </AlertDialogCancel>
+                        <Button
+                          variant="destructive"
+                          onClick={handleDeleteUser}
+                          disabled={deleting || deleteConfirmEmail.toLowerCase() !== user.email.toLowerCase()}
+                        >
+                          {deleting ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Deleting...
+                            </>
+                          ) : (
+                            'Delete Permanently'
+                          )}
+                        </Button>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+                {isOwnAccount && (
+                  <Alert>
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription className="text-xs">
+                      You cannot delete your own account. Ask another admin to delete it if needed.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </CardContent>
+            </Card>
           </div>
 
           {/* Sidebar */}
