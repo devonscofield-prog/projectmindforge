@@ -14,7 +14,8 @@ export type UserActivityType =
   | 'user_role_changed'
   | 'password_reset_requested'
   | 'user_deactivated'
-  | 'user_reactivated';
+  | 'user_reactivated'
+  | 'user_deleted';
 
 interface ActivityLogEntry {
   user_id: string;
