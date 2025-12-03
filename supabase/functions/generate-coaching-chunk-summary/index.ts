@@ -39,7 +39,8 @@ function checkRateLimit(userId: string): { allowed: boolean; retryAfter?: number
 
 // Zod validation schemas
 const frameworkScoresSchema = z.object({
-  bant: z.object({ score: z.number().min(0).max(100), summary: z.string() }),
+  meddpicc: z.object({ overall_score: z.number().min(0).max(100), summary: z.string() }).optional(), // New
+  bant: z.object({ score: z.number().min(0).max(100), summary: z.string() }).optional(), // Legacy
   gap_selling: z.object({ score: z.number().min(0).max(100), summary: z.string() }),
   active_listening: z.object({ score: z.number().min(0).max(100), summary: z.string() })
 }).nullable();
@@ -47,7 +48,8 @@ const frameworkScoresSchema = z.object({
 const callDataSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   framework_scores: frameworkScoresSchema,
-  bant_improvements: z.array(z.string()),
+  meddpicc_improvements: z.array(z.string()).optional(), // New
+  bant_improvements: z.array(z.string()).optional(), // Legacy
   gap_selling_improvements: z.array(z.string()),
   active_listening_improvements: z.array(z.string()),
   critical_info_missing: z.array(z.union([z.string(), z.object({ info: z.string(), missed_opportunity: z.string() })])),
@@ -145,19 +147,25 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
-    // Calculate quick stats for the prompt
-    const bantScores = calls.filter(c => c.framework_scores?.bant?.score != null).map(c => c.framework_scores!.bant.score);
+    // Calculate quick stats for the prompt - MEDDPICC first, fall back to BANT
+    const meddpiccScores = calls.filter(c => c.framework_scores?.meddpicc?.overall_score != null).map(c => c.framework_scores!.meddpicc!.overall_score);
+    const bantScores = calls.filter(c => c.framework_scores?.bant?.score != null).map(c => c.framework_scores!.bant!.score);
     const gapScores = calls.filter(c => c.framework_scores?.gap_selling?.score != null).map(c => c.framework_scores!.gap_selling.score);
     const activeScores = calls.filter(c => c.framework_scores?.active_listening?.score != null).map(c => c.framework_scores!.active_listening.score);
     const heatScores = calls.filter(c => c.heat_score != null).map(c => c.heat_score!);
 
-    const avgBant = bantScores.length > 0 ? bantScores.reduce((a, b) => a + b, 0) / bantScores.length : null;
+    // Use MEDDPICC if available, otherwise fall back to BANT
+    const primaryScores = meddpiccScores.length > 0 ? meddpiccScores : bantScores;
+    const primaryLabel = meddpiccScores.length > 0 ? 'MEDDPICC' : 'BANT';
+    const avgPrimary = primaryScores.length > 0 ? primaryScores.reduce((a, b) => a + b, 0) / primaryScores.length : null;
     const avgGap = gapScores.length > 0 ? gapScores.reduce((a, b) => a + b, 0) / gapScores.length : null;
     const avgActive = activeScores.length > 0 ? activeScores.reduce((a, b) => a + b, 0) / activeScores.length : null;
     const avgHeat = heatScores.length > 0 ? heatScores.reduce((a, b) => a + b, 0) / heatScores.length : null;
 
-    // Collect all improvement areas and missing info
-    const allBantImprovements = calls.flatMap(c => c.bant_improvements);
+    // Collect all improvement areas and missing info - MEDDPICC first, fall back to BANT
+    const allMeddpiccImprovements = calls.flatMap(c => c.meddpicc_improvements || []);
+    const allBantImprovements = calls.flatMap(c => c.bant_improvements || []);
+    const allPrimaryImprovements = allMeddpiccImprovements.length > 0 ? allMeddpiccImprovements : allBantImprovements;
     const allGapImprovements = calls.flatMap(c => c.gap_selling_improvements);
     const allActiveImprovements = calls.flatMap(c => c.active_listening_improvements);
     const allMissingInfo = calls.flatMap(c => 
@@ -167,12 +175,12 @@ serve(async (req) => {
     const userPrompt = `Analyze this batch of ${calls.length} calls from ${dateRange.from} to ${dateRange.to}:
 
 Quick Stats:
-- Average BANT Score: ${avgBant?.toFixed(1) ?? 'N/A'}
+- Average ${primaryLabel} Score: ${avgPrimary?.toFixed(1) ?? 'N/A'}
 - Average Gap Selling Score: ${avgGap?.toFixed(1) ?? 'N/A'}
 - Average Active Listening Score: ${avgActive?.toFixed(1) ?? 'N/A'}
 - Average Heat Score: ${avgHeat?.toFixed(1) ?? 'N/A'}
 
-BANT Improvements Mentioned: ${allBantImprovements.join('; ') || 'None'}
+${primaryLabel} Improvements Mentioned: ${allPrimaryImprovements.join('; ') || 'None'}
 Gap Selling Improvements Mentioned: ${allGapImprovements.join('; ') || 'None'}
 Active Listening Improvements Mentioned: ${allActiveImprovements.join('; ') || 'None'}
 Critical Info Missing: ${allMissingInfo.join('; ') || 'None'}
@@ -203,21 +211,21 @@ Provide a condensed summary of this chunk's patterns and trends.`;
                   avgScores: {
                     type: 'object',
                     properties: {
-                      bant: { type: 'number', nullable: true },
+                      meddpicc: { type: 'number', nullable: true },
                       gapSelling: { type: 'number', nullable: true },
                       activeListening: { type: 'number', nullable: true },
                       heat: { type: 'number', nullable: true }
                     },
-                    required: ['bant', 'gapSelling', 'activeListening', 'heat']
+                    required: ['meddpicc', 'gapSelling', 'activeListening', 'heat']
                   },
                   dominantTrends: {
                     type: 'object',
                     properties: {
-                      bant: { type: 'string', enum: ['improving', 'stable', 'declining'] },
+                      meddpicc: { type: 'string', enum: ['improving', 'stable', 'declining'] },
                       gapSelling: { type: 'string', enum: ['improving', 'stable', 'declining'] },
                       activeListening: { type: 'string', enum: ['improving', 'stable', 'declining'] }
                     },
-                    required: ['bant', 'gapSelling', 'activeListening']
+                    required: ['meddpicc', 'gapSelling', 'activeListening']
                   },
                   topMissingInfo: {
                     type: 'array',

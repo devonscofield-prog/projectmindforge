@@ -61,7 +61,7 @@ Your task is to analyze ALL call data for an account and generate 3-7 specific, 
 GUIDELINES FOR GREAT FOLLOW-UP STEPS:
 1. Be SPECIFIC - not "follow up with stakeholder" but "Schedule 30-min call with IT Director John to address security concerns raised in last call"
 2. Be ACTIONABLE - concrete actions, not vague suggestions
-3. Address GAPS - fill in missing BANT info, address unresolved objections, expand stakeholder coverage
+3. Address GAPS - fill in missing MEDDPICC qualification info, address unresolved objections, expand stakeholder coverage
 4. Consider TIMING - prioritize based on deal stage and urgency signals
 5. Think MULTI-THREADING - always look for ways to engage more stakeholders
 

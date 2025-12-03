@@ -130,7 +130,8 @@ export interface CoachOutput {
     score: number;
   };
   framework_scores?: {
-    bant?: { score: number; summary: string };
+    meddpicc?: { overall_score: number; summary: string; elements?: Record<string, { score: number; justification?: string }> }; // New
+    bant?: { score: number; summary: string }; // Legacy
     gap_selling?: { score: number; summary: string };
     active_listening?: { score: number; summary: string };
   };
@@ -245,13 +246,15 @@ export interface ChunkSummary {
   dateRange: { from: string; to: string };
   callCount: number;
   avgScores: {
-    bant: number | null;
+    meddpicc?: number | null; // New
+    bant?: number | null; // Legacy
     gapSelling: number | null;
     activeListening: number | null;
     heat: number | null;
   };
   dominantTrends: {
-    bant: 'improving' | 'stable' | 'declining';
+    meddpicc?: 'improving' | 'stable' | 'declining'; // New
+    bant?: 'improving' | 'stable' | 'declining'; // Legacy
     gapSelling: 'improving' | 'stable' | 'declining';
     activeListening: 'improving' | 'stable' | 'declining';
   };

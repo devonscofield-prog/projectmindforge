@@ -564,7 +564,7 @@ export function CallAnalysisResultsView({
               <CollapsibleTrigger className="flex items-center gap-2 hover:opacity-80 transition-opacity w-full">
                 <CardTitle className="flex items-center gap-2">
                   <Flame className="h-5 w-5 text-orange-500" />
-                  AI Call Coach (BANT / Gap Selling / Active Listening)
+                  AI Call Coach (MEDDPICC / Gap Selling / Active Listening)
                 </CardTitle>
                 <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform duration-200 ${coachOpen ? 'rotate-180' : ''}`} />
               </CollapsibleTrigger>
@@ -587,24 +587,61 @@ export function CallAnalysisResultsView({
               <CardContent className="space-y-6">
             {/* Framework Scores */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* BANT */}
-              <div className="p-4 border rounded-lg space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium flex items-center gap-2">
-                    <Target className="h-4 w-4 text-blue-500" />
-                    BANT
-                  </span>
-                  <Badge variant={
-                    (analysis.coach_output.framework_scores?.bant?.score ?? 0) >= 70 ? 'default' :
-                    (analysis.coach_output.framework_scores?.bant?.score ?? 0) >= 50 ? 'secondary' : 'destructive'
-                  }>
-                    {analysis.coach_output.framework_scores?.bant?.score ?? '-'}
-                  </Badge>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  {analysis.coach_output.framework_scores?.bant?.summary || 'No summary available'}
-                </p>
-              </div>
+              {/* MEDDPICC (with BANT fallback for legacy) */}
+              {(() => {
+                const meddpicc = analysis.coach_output.framework_scores?.meddpicc;
+                const bant = analysis.coach_output.framework_scores?.bant;
+                const hasMeddpicc = meddpicc && typeof meddpicc === 'object';
+                const score = hasMeddpicc ? meddpicc.overall_score : bant?.score;
+                const summary = hasMeddpicc ? meddpicc.summary : bant?.summary;
+                const label = hasMeddpicc ? 'MEDDPICC' : 'BANT';
+                
+                return (
+                  <div className="p-4 border rounded-lg space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium flex items-center gap-2">
+                        <Target className="h-4 w-4 text-blue-500" />
+                        {label}
+                      </span>
+                      <Badge variant={
+                        (score ?? 0) >= 70 ? 'default' :
+                        (score ?? 0) >= 50 ? 'secondary' : 'destructive'
+                      }>
+                        {score ?? '-'}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {summary || 'No summary available'}
+                    </p>
+                    {/* MEDDPICC Element Breakdown */}
+                    {hasMeddpicc && (
+                      <Collapsible>
+                        <CollapsibleTrigger className="text-xs text-primary hover:underline flex items-center gap-1">
+                          View element breakdown
+                          <ChevronDown className="h-3 w-3" />
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="mt-2 space-y-2">
+                          {(['metrics', 'economic_buyer', 'decision_criteria', 'decision_process', 'paper_process', 'identify_pain', 'champion', 'competition'] as const).map((key) => {
+                            const element = meddpicc[key];
+                            if (!element || typeof element !== 'object') return null;
+                            return (
+                              <div key={key} className="text-xs border-l-2 border-blue-200 pl-2">
+                                <div className="flex justify-between">
+                                  <span className="font-medium capitalize">{key.replace(/_/g, ' ')}</span>
+                                  <Badge variant="outline" className="text-xs h-5">{element.score}/10</Badge>
+                                </div>
+                                {element.justification && (
+                                  <p className="text-muted-foreground mt-0.5">{element.justification}</p>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </CollapsibleContent>
+                      </Collapsible>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Gap Selling */}
               <div className="p-4 border rounded-lg space-y-2">
@@ -647,23 +684,32 @@ export function CallAnalysisResultsView({
 
             {/* Improvements Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* BANT Improvements */}
-              {analysis.coach_output.bant_improvements && analysis.coach_output.bant_improvements.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="font-medium text-sm flex items-center gap-2">
-                    <Target className="h-4 w-4 text-blue-500" />
-                    BANT Improvements
-                  </h4>
-                  <ul className="text-sm text-muted-foreground space-y-1">
-                    {analysis.coach_output.bant_improvements.map((item, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <span className="text-blue-500">•</span>
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+              {/* MEDDPICC/BANT Improvements */}
+              {(() => {
+                const meddpiccImprovements = analysis.coach_output.meddpicc_improvements;
+                const bantImprovements = analysis.coach_output.bant_improvements;
+                const improvements = meddpiccImprovements?.length ? meddpiccImprovements : bantImprovements;
+                const label = meddpiccImprovements?.length ? 'MEDDPICC Improvements' : 'BANT Improvements';
+                
+                if (!improvements?.length) return null;
+                
+                return (
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-sm flex items-center gap-2">
+                      <Target className="h-4 w-4 text-blue-500" />
+                      {label}
+                    </h4>
+                    <ul className="text-sm text-muted-foreground space-y-1">
+                      {improvements.map((item, i) => (
+                        <li key={i} className="flex items-start gap-2">
+                          <span className="text-blue-500">•</span>
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })()}
 
               {/* Gap Selling Improvements */}
               {analysis.coach_output.gap_selling_improvements && analysis.coach_output.gap_selling_improvements.length > 0 && (

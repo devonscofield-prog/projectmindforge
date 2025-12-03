@@ -339,9 +339,9 @@ export function CoachingSummaryComparison({
             period2Label={period2Label}
           />
           <PatternComparison
-            title="BANT Improvements"
-            period1Items={period1.recurringPatterns.bantImprovements ?? []}
-            period2Items={period2.recurringPatterns.bantImprovements ?? []}
+            title={period2.recurringPatterns.meddpiccImprovements?.length ? "MEDDPICC Improvements" : "BANT Improvements"}
+            period1Items={period1.recurringPatterns.meddpiccImprovements ?? period1.recurringPatterns.bantImprovements ?? []}
+            period2Items={period2.recurringPatterns.meddpiccImprovements ?? period2.recurringPatterns.bantImprovements ?? []}
             period1Label={period1Label}
             period2Label={period2Label}
           />

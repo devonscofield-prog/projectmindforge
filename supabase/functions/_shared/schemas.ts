@@ -119,10 +119,16 @@ export type ChunkTranscriptsRequest = z.infer<typeof chunkTranscriptsSchema>;
 // ==================== Coaching Trends ====================
 
 const frameworkScoresSchema = z.object({
+  // MEDDPICC (new primary framework)
+  meddpicc: z.object({
+    overall_score: z.number().min(0).max(100),
+    summary: z.string()
+  }).optional(),
+  // BANT (legacy - kept for backward compatibility)
   bant: z.object({
     score: z.number().min(0).max(100),
     summary: z.string()
-  }),
+  }).optional(),
   gap_selling: z.object({
     score: z.number().min(0).max(100),
     summary: z.string()
@@ -152,7 +158,8 @@ const followUpQuestionSchema = z.union([
 export const callDataSchema = z.object({
   date: dateStringSchema,
   framework_scores: frameworkScoresSchema,
-  bant_improvements: z.array(z.string()),
+  meddpicc_improvements: z.array(z.string()).optional(), // New
+  bant_improvements: z.array(z.string()).optional(), // Legacy
   gap_selling_improvements: z.array(z.string()),
   active_listening_improvements: z.array(z.string()),
   critical_info_missing: z.array(criticalInfoItemSchema),
@@ -168,13 +175,15 @@ export const chunkSummarySchema = z.object({
   }),
   callCount: z.number().int().positive(),
   avgScores: z.object({
-    bant: z.number().min(0).max(100).nullable(),
+    meddpicc: z.number().min(0).max(100).nullable().optional(), // New
+    bant: z.number().min(0).max(100).nullable().optional(), // Legacy
     gapSelling: z.number().min(0).max(100).nullable(),
     activeListening: z.number().min(0).max(100).nullable(),
     heat: z.number().min(1).max(10).nullable()
   }),
   dominantTrends: z.object({
-    bant: z.enum(['improving', 'stable', 'declining']),
+    meddpicc: z.enum(['improving', 'stable', 'declining']).optional(), // New
+    bant: z.enum(['improving', 'stable', 'declining']).optional(), // Legacy
     gapSelling: z.enum(['improving', 'stable', 'declining']),
     activeListening: z.enum(['improving', 'stable', 'declining'])
   }),
