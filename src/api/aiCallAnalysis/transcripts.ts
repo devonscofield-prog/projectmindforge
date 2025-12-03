@@ -442,3 +442,40 @@ export async function deleteFailedTranscript(callId: string): Promise<{ success:
   log.info('Transcript soft deleted successfully', { callId });
   return { success: true };
 }
+
+/**
+ * Updates editable fields on a call transcript.
+ * @param callId - The call transcript ID
+ * @param updates - The fields to update
+ * @returns Success status and any error message
+ */
+export interface UpdateCallTranscriptParams {
+  call_date?: string;
+  call_type?: string;
+  call_type_other?: string | null;
+  primary_stakeholder_name?: string | null;
+  account_name?: string | null;
+  salesforce_demo_link?: string | null;
+  potential_revenue?: number | null;
+  notes?: string | null;
+}
+
+export async function updateCallTranscript(
+  callId: string, 
+  updates: UpdateCallTranscriptParams
+): Promise<{ success: boolean; error?: string }> {
+  log.info('Updating call transcript', { callId, updates });
+
+  const { error: updateError } = await supabase
+    .from('call_transcripts')
+    .update(updates)
+    .eq('id', callId);
+
+  if (updateError) {
+    log.error('Failed to update transcript', { callId, error: updateError });
+    return { success: false, error: updateError.message };
+  }
+
+  log.info('Transcript updated successfully', { callId });
+  return { success: true };
+}

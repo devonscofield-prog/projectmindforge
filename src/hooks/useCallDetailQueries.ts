@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { getCallWithAnalysis, getAnalysisForCall, retryCallAnalysis, deleteFailedTranscript } from '@/api/aiCallAnalysis';
+import { getCallWithAnalysis, getAnalysisForCall, retryCallAnalysis, deleteFailedTranscript, updateCallTranscript, type UpdateCallTranscriptParams } from '@/api/aiCallAnalysis';
 import { 
   getCallProducts, 
   updateCallProduct, 
@@ -305,6 +305,42 @@ export function useDeleteFailedCall(callId: string, role: UserRole | null) {
       toast({
         title: 'Delete Failed',
         description: error.message || 'Failed to delete the call.',
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
+/**
+ * Hook to update call transcript details
+ */
+export function useUpdateCallTranscript(callId: string) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (updates: UpdateCallTranscriptParams) => {
+      const result = await updateCallTranscript(callId, updates);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update call');
+      }
+      return result;
+    },
+    onSuccess: async () => {
+      // Invalidate call queries to refetch updated data
+      await queryClient.invalidateQueries({ queryKey: callDetailKeys.call(callId) });
+      await queryClient.invalidateQueries({ queryKey: ['call-transcripts'] });
+
+      toast({
+        title: 'Call updated',
+        description: 'Call details have been updated successfully.',
+      });
+    },
+    onError: (error) => {
+      log.error('Error updating call', { callId, error });
+      toast({
+        title: 'Update Failed',
+        description: error.message || 'Failed to update call details.',
         variant: 'destructive',
       });
     },
