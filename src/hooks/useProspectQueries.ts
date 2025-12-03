@@ -103,7 +103,7 @@ export function useAdminProspects(
           status,
           industry,
           heat_score,
-          potential_revenue,
+          active_revenue,
           last_contact_date,
           rep_id
         `, { count: 'exact' });
@@ -222,10 +222,10 @@ export function useAdminProspectStats(enabled = true) {
         supabase.from('prospects').select('*', { count: 'exact', head: true }),
         supabase.from('prospects').select('*', { count: 'exact', head: true }).eq('status', 'active'),
         supabase.from('prospects').select('heat_score').gte('heat_score', 8),
-        supabase.from('prospects').select('potential_revenue').eq('status', 'active')
+        supabase.from('prospects').select('active_revenue').eq('status', 'active')
       ]);
 
-      const pipelineValue = (pipelineData || []).reduce((sum, p) => sum + (p.potential_revenue ?? 0), 0);
+      const pipelineValue = (pipelineData || []).reduce((sum, p) => sum + (p.active_revenue ?? 0), 0);
 
       return {
         total: totalCount || 0,
