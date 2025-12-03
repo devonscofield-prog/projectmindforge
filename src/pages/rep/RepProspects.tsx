@@ -90,7 +90,7 @@ function RepProspects() {
     hot: prospects.filter(p => (p.heat_score ?? 0) >= 8).length,
     pipelineValue: prospects
       .filter(p => p.status === 'active')
-      .reduce((sum, p) => sum + (p.potential_revenue ?? 0), 0),
+      .reduce((sum, p) => sum + (p.active_revenue ?? 0), 0),
   }), [prospects]);
 
   return (
@@ -161,7 +161,7 @@ function RepProspects() {
                     {formatCurrency(
                       prospects
                         .filter(p => p.status === 'active')
-                        .reduce((sum, p) => sum + (p.potential_revenue ?? 0), 0)
+                        .reduce((sum, p) => sum + (p.active_revenue ?? 0), 0)
                     )}
                   </p>
                 </div>
@@ -203,7 +203,7 @@ function RepProspects() {
                   <SelectItem value="last_contact_date">Last Contact</SelectItem>
                   <SelectItem value="account_name">Account Name</SelectItem>
                   <SelectItem value="heat_score">Heat Score</SelectItem>
-                  <SelectItem value="potential_revenue">Revenue</SelectItem>
+                  <SelectItem value="active_revenue">Revenue</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -309,7 +309,7 @@ function RepProspects() {
                             <HeatScoreBadge score={prospect.heat_score} />
                           </TableCell>
                           <TableCell>
-                            {formatCurrency(prospect.potential_revenue)}
+                            {formatCurrency(prospect.active_revenue)}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1 text-muted-foreground">

@@ -102,7 +102,7 @@ export interface ProspectFilters {
   statuses?: ProspectStatus[];
   heatScoreMin?: number;
   heatScoreMax?: number;
-  sortBy?: 'prospect_name' | 'account_name' | 'last_contact_date' | 'heat_score' | 'potential_revenue';
+  sortBy?: 'prospect_name' | 'account_name' | 'last_contact_date' | 'heat_score' | 'potential_revenue' | 'active_revenue';
   sortOrder?: 'asc' | 'desc';
   page?: number;
   pageSize?: number;
