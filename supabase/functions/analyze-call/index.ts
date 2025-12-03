@@ -114,7 +114,8 @@ PART 2 — RECAP EMAIL DRAFT (field: recap_email_draft)
 
   <Next steps (ONLY if actually discussed)>
 
-- At the bottom, you MUST include these lines exactly:
+**CRITICAL REQUIREMENT - REQUIRED LINKS:**
+- You MUST ALWAYS include these EXACT lines at the bottom of EVERY recap email, word-for-word:
 
   You can learn more here:
   [StormWind Website](https://info.stormwind.com/)
@@ -126,9 +127,12 @@ PART 2 — RECAP EMAIL DRAFT (field: recap_email_draft)
   {{RepFirstName}}
   {{RepCompanyName}}
 
+- FAILURE TO INCLUDE THESE EXACT LINKS WILL CAUSE THE ANALYSIS TO FAIL.
+- Copy these links character-for-character. Do not paraphrase or modify them.
+
 - Do NOT:
   - Invent commitments, dates, or prices.
-  - Remove or modify the two links.
+  - Remove, modify, or paraphrase the two required links above.
   - Remove placeholders like {{ProspectFirstName}}.
 
 PART 3 — COACHING FIELDS
@@ -481,7 +485,7 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
           },
           recap_email_draft: {
             type: "string",
-            description: "Customer-facing recap email starting with 'Subject: <subject>', then 'Hi {{ProspectFirstName}},' followed by thank you, summary bullets, value paragraph, next steps, and MUST end with the exact links: '[StormWind Website](https://info.stormwind.com/)' and '[View Sample Courses](https://info.stormwind.com/training-samples)' followed by 'Best, {{RepFirstName}} {{RepCompanyName}}'"
+            description: "Customer-facing recap email starting with 'Subject: <subject>', then 'Hi {{ProspectFirstName}},' followed by thank you, summary bullets, value paragraph, next steps. CRITICAL: Email MUST end with EXACTLY these two links (copy verbatim): '[StormWind Website](https://info.stormwind.com/)' and '[View Sample Courses](https://info.stormwind.com/training-samples)' followed by 'Best, {{RepFirstName}} {{RepCompanyName}}'. These links are REQUIRED - do not omit or modify them."
           },
           coach_output: {
             type: "object",
