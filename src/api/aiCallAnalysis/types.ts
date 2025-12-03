@@ -236,8 +236,8 @@ export interface CoachingTrendAnalysis {
     meddpicc: FrameworkTrend;
     gapSelling: FrameworkTrend;
     activeListening: FrameworkTrend;
-    // BANT kept required for backward compatibility - UI will migrate in Phase 4
-    bant: FrameworkTrend;
+    // Legacy BANT field - optional for new MEDDPICC-based analyses
+    bant?: FrameworkTrend;
   };
   patternAnalysis: {
     criticalInfoMissing: {
@@ -320,8 +320,8 @@ export interface RepContributionData {
     meddpicc: number | null;
     gapSelling: number | null;
     activeListening: number | null;
-    // BANT kept required for backward compatibility
-    bant: number | null;
+    // Legacy BANT field - optional for new MEDDPICC-based analyses
+    bant?: number | null;
   };
 }
 

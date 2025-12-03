@@ -409,13 +409,13 @@ export function TeamComparisonView({ dateRange, onClose }: TeamComparisonViewPro
                 Framework Performance Comparison
               </h3>
               
-              {/* BANT */}
+              {/* MEDDPICC */}
               <ComparisonRow
-                label="BANT Qualification"
+                label="MEDDPICC Qualification"
                 icon={<Target className="h-4 w-4 text-blue-500" />}
                 results={resultsArray}
-                getScore={(a) => a?.trendAnalysis.bant.endingAvg}
-                getTrend={(a) => a?.trendAnalysis.bant.trend}
+                getScore={(a) => a?.trendAnalysis.meddpicc?.endingAvg ?? a?.trendAnalysis.bant?.endingAvg}
+                getTrend={(a) => a?.trendAnalysis.meddpicc?.trend ?? a?.trendAnalysis.bant?.trend}
                 getTrendIcon={getTrendIcon}
                 getTrendColor={getTrendColor}
               />
