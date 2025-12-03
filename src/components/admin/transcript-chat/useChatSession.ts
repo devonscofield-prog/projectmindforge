@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { saveAnalysisSession, fetchSessionByTranscripts, AnalysisSession } from '@/api/analysisSessions';
 import { ChatMessage } from '@/api/adminTranscriptChat';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface UseChatSessionOptions {
   selectedTranscriptIds: string[];
@@ -10,6 +11,7 @@ interface UseChatSessionOptions {
 }
 
 export function useChatSession({ selectedTranscriptIds, messages, selectedModeId, useRag }: UseChatSessionOptions) {
+  const { user } = useAuth();
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [existingSession, setExistingSession] = useState<AnalysisSession | null>(null);
   const [showResumePrompt, setShowResumePrompt] = useState(false);
@@ -18,9 +20,9 @@ export function useChatSession({ selectedTranscriptIds, messages, selectedModeId
   // Check for existing session on mount
   useEffect(() => {
     const checkExistingSession = async () => {
-      if (selectedTranscriptIds.length === 0) return;
+      if (selectedTranscriptIds.length === 0 || !user?.id) return;
       
-      const session = await fetchSessionByTranscripts(selectedTranscriptIds);
+      const session = await fetchSessionByTranscripts(user.id, selectedTranscriptIds);
       if (session && session.messages.length > 0) {
         setExistingSession(session);
         setShowResumePrompt(true);
@@ -28,14 +30,15 @@ export function useChatSession({ selectedTranscriptIds, messages, selectedModeId
     };
     
     checkExistingSession();
-  }, [selectedTranscriptIds]);
+  }, [selectedTranscriptIds, user?.id]);
 
   // Auto-save session when messages change (debounced)
   useEffect(() => {
-    if (messages.length === 0) return;
+    if (messages.length === 0 || !user?.id) return;
     
     const saveTimeout = setTimeout(async () => {
       const newSessionId = await saveAnalysisSession(
+        user.id,
         selectedTranscriptIds,
         messages,
         selectedModeId,
@@ -52,7 +55,7 @@ export function useChatSession({ selectedTranscriptIds, messages, selectedModeId
     }, 1000);
     
     return () => clearTimeout(saveTimeout);
-  }, [messages, selectedModeId, useRag, selectedTranscriptIds, sessionId]);
+  }, [messages, selectedModeId, useRag, selectedTranscriptIds, sessionId, user?.id]);
 
   const resumeSession = (onResume: (messages: ChatMessage[], mode: string) => void) => {
     if (existingSession) {

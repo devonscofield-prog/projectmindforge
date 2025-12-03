@@ -30,9 +30,6 @@ export interface ImplementedRecommendation {
   updated_at: string;
 }
 
-/**
- * Get current performance metrics as a baseline
- */
 export async function captureCurrentMetrics(): Promise<BaselineMetrics> {
   const summary = await getPerformanceSummary(24);
 
@@ -65,10 +62,8 @@ export async function captureCurrentMetrics(): Promise<BaselineMetrics> {
   };
 }
 
-/**
- * Mark a recommendation as implemented
- */
 export async function markRecommendationImplemented(
+  userId: string,
   recommendation: {
     title: string;
     category: string;
@@ -78,17 +73,14 @@ export async function markRecommendationImplemented(
   },
   notes?: string
 ): Promise<ImplementedRecommendation> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
+  if (!userId) throw new Error('Not authenticated');
 
   const baselineMetrics = await captureCurrentMetrics();
 
   const { data, error } = await supabase
     .from('implemented_recommendations')
     .insert({
-      user_id: user.id,
+      user_id: userId,
       recommendation_title: recommendation.title,
       recommendation_category: recommendation.category,
       recommendation_priority: recommendation.priority,
@@ -111,15 +103,11 @@ export async function markRecommendationImplemented(
   };
 }
 
-/**
- * Measure the impact of an implemented recommendation
- */
 export async function measureRecommendationImpact(
   recommendationId: string
 ): Promise<ImplementedRecommendation> {
   const postMetrics = await captureCurrentMetrics();
 
-  // Get the existing recommendation
   const { data: existing, error: fetchError } = await supabase
     .from('implemented_recommendations')
     .select('*')
@@ -131,7 +119,6 @@ export async function measureRecommendationImpact(
   const existingAdapted = toImplementedRecommendation(existing);
   const baseline = existingAdapted.baseline_metrics;
 
-  // Calculate improvement percentage (positive = improvement)
   const queryImprovement =
     baseline.avgQueryTime > 0
       ? ((baseline.avgQueryTime - postMetrics.avgQueryTime) / baseline.avgQueryTime) * 100
@@ -147,7 +134,6 @@ export async function measureRecommendationImpact(
       ? ((baseline.errorRate - postMetrics.errorRate) / baseline.errorRate) * 100
       : 0;
 
-  // Average improvement across metrics
   const avgImprovement = (queryImprovement + edgeImprovement + errorImprovement) / 3;
 
   const { data, error } = await supabase
@@ -172,9 +158,6 @@ export async function measureRecommendationImpact(
   };
 }
 
-/**
- * Get all implemented recommendations
- */
 export async function getImplementedRecommendations(): Promise<ImplementedRecommendation[]> {
   const { data, error } = await supabase
     .from('implemented_recommendations')
@@ -193,9 +176,6 @@ export async function getImplementedRecommendations(): Promise<ImplementedRecomm
   });
 }
 
-/**
- * Delete an implemented recommendation
- */
 export async function deleteImplementedRecommendation(id: string): Promise<void> {
   const { error } = await supabase.from('implemented_recommendations').delete().eq('id', id);
 

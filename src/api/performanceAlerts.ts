@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { getCurrentUserId } from "@/lib/supabaseUtils";
 
 export interface AlertConfig {
   id: string;
@@ -23,14 +24,13 @@ export interface AlertHistory {
   email_sent_to: string;
 }
 
-export async function getAlertConfig(): Promise<AlertConfig | null> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+export async function getAlertConfig(userId: string): Promise<AlertConfig | null> {
+  if (!userId) return null;
 
   const { data, error } = await supabase
     .from("performance_alert_config")
     .select("*")
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .maybeSingle();
 
   if (error) {
@@ -41,20 +41,22 @@ export async function getAlertConfig(): Promise<AlertConfig | null> {
   return data as AlertConfig | null;
 }
 
-export async function createAlertConfig(config: {
-  email: string;
-  alert_on_warning?: boolean;
-  alert_on_critical?: boolean;
-  cooldown_hours?: number;
-  enabled?: boolean;
-}): Promise<AlertConfig> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
+export async function createAlertConfig(
+  userId: string,
+  config: {
+    email: string;
+    alert_on_warning?: boolean;
+    alert_on_critical?: boolean;
+    cooldown_hours?: number;
+    enabled?: boolean;
+  }
+): Promise<AlertConfig> {
+  if (!userId) throw new Error("Not authenticated");
 
   const { data, error } = await supabase
     .from("performance_alert_config")
     .insert({
-      user_id: user.id,
+      user_id: userId,
       email: config.email,
       alert_on_warning: config.alert_on_warning ?? false,
       alert_on_critical: config.alert_on_critical ?? true,
@@ -109,9 +111,8 @@ export async function deleteAlertConfig(id: string): Promise<void> {
   }
 }
 
-export async function getAlertHistory(limit = 50): Promise<AlertHistory[]> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return [];
+export async function getAlertHistory(userId: string, limit = 50): Promise<AlertHistory[]> {
+  if (!userId) return [];
 
   const { data, error } = await supabase
     .from("performance_alert_history")
@@ -119,6 +120,7 @@ export async function getAlertHistory(limit = 50): Promise<AlertHistory[]> {
       *,
       performance_alert_config!inner(user_id)
     `)
+    .eq("performance_alert_config.user_id", userId)
     .order("sent_at", { ascending: false })
     .limit(limit);
 
@@ -140,7 +142,10 @@ export async function getAlertHistory(limit = 50): Promise<AlertHistory[]> {
 }
 
 export async function sendTestAlert(): Promise<void> {
-  const config = await getAlertConfig();
+  const userId = await getCurrentUserId();
+  if (!userId) throw new Error("Not authenticated");
+  
+  const config = await getAlertConfig(userId);
   if (!config) {
     throw new Error("No alert configuration found. Please configure alerts first.");
   }

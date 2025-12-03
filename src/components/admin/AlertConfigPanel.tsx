@@ -23,7 +23,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 
 export function AlertConfigPanel() {
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const queryClient = useQueryClient();
   
   const [email, setEmail] = useState("");
@@ -33,13 +33,21 @@ export function AlertConfigPanel() {
   const [enabled, setEnabled] = useState(true);
 
   const { data: config, isLoading: configLoading } = useQuery({
-    queryKey: ["alertConfig"],
-    queryFn: getAlertConfig,
+    queryKey: ["alertConfig", user?.id],
+    queryFn: () => {
+      if (!user?.id) return null;
+      return getAlertConfig(user.id);
+    },
+    enabled: !!user?.id,
   });
 
   const { data: history, isLoading: historyLoading } = useQuery({
-    queryKey: ["alertHistory"],
-    queryFn: () => getAlertHistory(20),
+    queryKey: ["alertHistory", user?.id],
+    queryFn: () => {
+      if (!user?.id) return [];
+      return getAlertHistory(user.id, 20);
+    },
+    enabled: !!user?.id,
   });
 
   useEffect(() => {
@@ -56,6 +64,8 @@ export function AlertConfigPanel() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      if (!user?.id) throw new Error("Not authenticated");
+      
       if (config) {
         return updateAlertConfig(config.id, {
           email,
@@ -65,7 +75,7 @@ export function AlertConfigPanel() {
           enabled,
         });
       } else {
-        return createAlertConfig({
+        return createAlertConfig(user.id, {
           email,
           alert_on_warning: alertOnWarning,
           alert_on_critical: alertOnCritical,

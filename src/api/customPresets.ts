@@ -40,17 +40,15 @@ export async function fetchCustomPresets(): Promise<CustomPreset[]> {
   return (data || []) as CustomPreset[];
 }
 
-export async function createCustomPreset(params: CreateCustomPresetParams): Promise<CustomPreset> {
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) {
+export async function createCustomPreset(userId: string, params: CreateCustomPresetParams): Promise<CustomPreset> {
+  if (!userId) {
     throw new Error('You must be logged in to create presets');
   }
 
   const { data, error } = await supabase
     .from('admin_custom_presets')
     .insert({
-      admin_id: user.id,
+      admin_id: userId,
       name: params.name,
       description: params.description || null,
       mode_ids: params.mode_ids,
