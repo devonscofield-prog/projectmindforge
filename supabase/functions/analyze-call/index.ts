@@ -1249,6 +1249,33 @@ serve(async (req) => {
       // Don't fail the request
     }
 
+    // Step 10: Trigger transcript chunking in background for RAG pre-indexing
+    try {
+      console.log(`[analyze-call] Triggering transcript chunking for call_id: ${callId}`);
+      
+      EdgeRuntime.waitUntil(
+        fetch(`${supabaseUrl}/functions/v1/chunk-transcripts`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ transcript_ids: [callId] })
+        }).then(res => {
+          if (!res.ok) {
+            console.error('[analyze-call] Transcript chunking failed:', res.status);
+          } else {
+            console.log('[analyze-call] Transcript chunking triggered successfully');
+          }
+        }).catch(err => {
+          console.error('[analyze-call] Transcript chunking error:', err);
+        })
+      );
+    } catch (chunkErr) {
+      console.error('[analyze-call] Error triggering transcript chunking:', chunkErr);
+      // Don't fail the request - chunking is non-critical
+    }
+
     // Return success response
     return new Response(
       JSON.stringify({
