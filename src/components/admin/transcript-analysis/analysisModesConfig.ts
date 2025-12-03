@@ -521,12 +521,12 @@ export const MODE_PRESETS: ModePreset[] = [
     id: 'full_deal_review',
     label: 'Full Deal Review',
     icon: ClipboardCheck,
-    description: 'MEDDIC scoring + Champion health + Forecast validation',
+    description: 'MEDDPICC scoring + Champion health + Forecast validation',
     modeIds: ['deal_scoring', 'customer_voice', 'forecast_validation'],
     starterPrompt: `Perform a comprehensive deal review combining these analyses:
 
-**PART 1: MEDDIC QUALIFICATION**
-Score each deal using MEDDIC criteria (1-5 per criterion). Show a table with scores and evidence for each deal.
+**PART 1: MEDDPICC QUALIFICATION**
+Score each deal using MEDDPICC criteria (1-5 per criterion, 8 elements). Show a table with scores and evidence for each deal.
 
 **PART 2: CHAMPION ASSESSMENT** 
 For each deal, assess champion strength: Are they selling internally? Access to power? Sharing buying process info? Score 1-5.
@@ -586,7 +586,7 @@ What should sales enablement prioritize? What messaging needs refinement? What n
     starterPrompt: `Conduct a rigorous pipeline health audit:
 
 **PART 1: DEAL QUALIFICATION STATUS**
-Score every deal on MEDDIC. Create a ranked table showing qualification scores and the biggest gaps for each deal.
+Score every deal on MEDDPICC. Create a ranked table showing qualification scores and the biggest gaps for each deal.
 
 **PART 2: FORECAST ACCURACY CHECK**
 For each deal: What evidence supports the expected close date? What evidence contradicts it? Categorize as Commit/Best Case/Pipeline/Remove.
