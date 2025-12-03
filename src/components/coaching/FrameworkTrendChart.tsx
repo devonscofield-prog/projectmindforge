@@ -6,21 +6,29 @@ import { TrendingUp } from 'lucide-react';
 interface FrameworkTrendChartProps {
   data: Array<{
     date: string;
-    bant: number | null;
+    meddpicc?: number | null; // New MEDDPICC
+    bant?: number | null; // Legacy BANT
     gap_selling: number | null;
     active_listening: number | null;
-    effectiveness: number | null;
   }>;
 }
 
 export function FrameworkTrendChart({ data }: FrameworkTrendChartProps) {
-  const chartData = data.map(d => ({
-    date: format(new Date(d.date), 'MMM d'),
-    BANT: d.bant,
-    'Gap Selling': d.gap_selling,
-    'Active Listening': d.active_listening,
-    Effectiveness: d.effectiveness,
-  }));
+  // Transform data, using MEDDPICC if available, falling back to BANT for legacy
+  const chartData = data.map(d => {
+    const primaryScore = d.meddpicc ?? d.bant ?? null;
+    return {
+      date: format(new Date(d.date), 'MMM d'),
+      'MEDDPICC': d.meddpicc ?? null,
+      'BANT (Legacy)': d.meddpicc == null ? d.bant : null, // Only show BANT if no MEDDPICC
+      'Gap Selling': d.gap_selling,
+      'Active Listening': d.active_listening,
+    };
+  });
+
+  // Determine if we have any MEDDPICC data or only legacy BANT
+  const hasMeddpicc = data.some(d => d.meddpicc != null);
+  const hasLegacyBant = data.some(d => d.meddpicc == null && d.bant != null);
 
   if (chartData.length === 0) {
     return (
@@ -72,14 +80,27 @@ export function FrameworkTrendChart({ data }: FrameworkTrendChartProps) {
                 labelStyle={{ color: 'hsl(var(--foreground))' }}
               />
               <Legend />
-              <Line
-                type="monotone"
-                dataKey="BANT"
-                stroke="hsl(var(--chart-1))"
-                strokeWidth={2}
-                dot={{ r: 4 }}
-                connectNulls
-              />
+              {hasMeddpicc && (
+                <Line
+                  type="monotone"
+                  dataKey="MEDDPICC"
+                  stroke="hsl(var(--chart-1))"
+                  strokeWidth={2}
+                  dot={{ r: 4 }}
+                  connectNulls
+                />
+              )}
+              {hasLegacyBant && (
+                <Line
+                  type="monotone"
+                  dataKey="BANT (Legacy)"
+                  stroke="hsl(var(--chart-1))"
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                  dot={{ r: 4 }}
+                  connectNulls
+                />
+              )}
               <Line
                 type="monotone"
                 dataKey="Gap Selling"
@@ -92,14 +113,6 @@ export function FrameworkTrendChart({ data }: FrameworkTrendChartProps) {
                 type="monotone"
                 dataKey="Active Listening"
                 stroke="hsl(var(--chart-3))"
-                strokeWidth={2}
-                dot={{ r: 4 }}
-                connectNulls
-              />
-              <Line
-                type="monotone"
-                dataKey="Effectiveness"
-                stroke="hsl(var(--chart-4))"
                 strokeWidth={2}
                 dot={{ r: 4 }}
                 connectNulls

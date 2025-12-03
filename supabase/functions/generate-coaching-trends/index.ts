@@ -39,11 +39,13 @@ function checkRateLimit(userId: string): { allowed: boolean; retryAfter?: number
 interface CallData {
   date: string;
   framework_scores: {
-    bant: { score: number; summary: string };
+    meddpicc?: { overall_score: number; summary: string }; // New MEDDPICC
+    bant?: { score: number; summary: string }; // Legacy BANT
     gap_selling: { score: number; summary: string };
     active_listening: { score: number; summary: string };
   } | null;
-  bant_improvements: string[];
+  meddpicc_improvements?: string[]; // New MEDDPICC
+  bant_improvements?: string[]; // Legacy BANT
   gap_selling_improvements: string[];
   active_listening_improvements: string[];
   critical_info_missing: Array<{ info: string; missed_opportunity: string }> | string[];
@@ -56,13 +58,15 @@ interface ChunkSummary {
   dateRange: { from: string; to: string };
   callCount: number;
   avgScores: {
-    bant: number | null;
+    meddpicc: number | null; // New MEDDPICC
+    bant?: number | null; // Legacy BANT
     gapSelling: number | null;
     activeListening: number | null;
     heat: number | null;
   };
   dominantTrends: {
-    bant: 'improving' | 'stable' | 'declining';
+    meddpicc: 'improving' | 'stable' | 'declining'; // New MEDDPICC
+    bant?: 'improving' | 'stable' | 'declining'; // Legacy BANT
     gapSelling: 'improving' | 'stable' | 'declining';
     activeListening: 'improving' | 'stable' | 'declining';
   };
@@ -89,7 +93,7 @@ type TrendAnalysisRequest = DirectAnalysisRequest | HierarchicalAnalysisRequest;
 const TREND_ANALYSIS_SYSTEM_PROMPT = `You are an expert sales coaching analyst. Your job is to analyze a collection of call analyses from a sales rep and identify TRENDS in their performance over time.
 
 Focus your analysis on these specific areas:
-1. **BANT Framework** - Are they getting better at qualifying budget, authority, need, and timeline?
+1. **MEDDPICC Framework** - Are they getting better at qualifying Metrics, Economic Buyer, Decision Criteria, Decision Process, Paper Process, Identify Pain, Champion, and Competition?
 2. **Gap Selling** - Are they improving at identifying current state vs future state gaps and quantifying business impact?
 3. **Active Listening** - Are they asking better follow-up questions and acknowledging prospect concerns?
 4. **Critical Information Gathering** - What types of information are they consistently missing? Is this improving or getting worse?
@@ -112,7 +116,7 @@ You are receiving pre-analyzed summaries of call batches, organized chronologica
 
 Focus on the big picture while noting specific evidence from the chunk summaries.`;
 
-// Tool schema for structured output
+// Tool schema for structured output - MEDDPICC replaces BANT
 const TREND_ANALYSIS_TOOL = {
   type: 'function',
   function: {
@@ -137,7 +141,7 @@ const TREND_ANALYSIS_TOOL = {
         trendAnalysis: {
           type: 'object',
           properties: {
-            bant: {
+            meddpicc: {
               type: 'object',
               properties: {
                 trend: { type: 'string', enum: ['improving', 'stable', 'declining'] },
@@ -174,7 +178,7 @@ const TREND_ANALYSIS_TOOL = {
               required: ['trend', 'startingAvg', 'endingAvg', 'keyInsight', 'evidence', 'recommendation']
             }
           },
-          required: ['bant', 'gapSelling', 'activeListening']
+          required: ['meddpicc', 'gapSelling', 'activeListening']
         },
         patternAnalysis: {
           type: 'object',
@@ -238,7 +242,12 @@ function formatCallsForPrompt(calls: CallData[]): string {
     
     if (call.framework_scores) {
       summary += `Framework Scores:\n`;
-      summary += `- BANT: ${call.framework_scores.bant?.score ?? 'N/A'}/100 - ${call.framework_scores.bant?.summary || 'No summary'}\n`;
+      // Prefer MEDDPICC, fall back to BANT for legacy data
+      if (call.framework_scores.meddpicc) {
+        summary += `- MEDDPICC: ${call.framework_scores.meddpicc.overall_score ?? 'N/A'}/100 - ${call.framework_scores.meddpicc.summary || 'No summary'}\n`;
+      } else if (call.framework_scores.bant) {
+        summary += `- BANT (legacy): ${call.framework_scores.bant.score ?? 'N/A'}/100 - ${call.framework_scores.bant.summary || 'No summary'}\n`;
+      }
       summary += `- Gap Selling: ${call.framework_scores.gap_selling?.score ?? 'N/A'}/100 - ${call.framework_scores.gap_selling?.summary || 'No summary'}\n`;
       summary += `- Active Listening: ${call.framework_scores.active_listening?.score ?? 'N/A'}/100 - ${call.framework_scores.active_listening?.summary || 'No summary'}\n`;
     }
@@ -247,8 +256,11 @@ function formatCallsForPrompt(calls: CallData[]): string {
       summary += `Heat Score: ${call.heat_score}/10\n`;
     }
 
-    if (call.bant_improvements?.length) {
-      summary += `BANT Improvements Needed: ${call.bant_improvements.join('; ')}\n`;
+    // Prefer MEDDPICC improvements, fall back to BANT for legacy
+    if (call.meddpicc_improvements?.length) {
+      summary += `MEDDPICC Improvements Needed: ${call.meddpicc_improvements.join('; ')}\n`;
+    } else if (call.bant_improvements?.length) {
+      summary += `BANT Improvements Needed (legacy): ${call.bant_improvements.join('; ')}\n`;
     }
     if (call.gap_selling_improvements?.length) {
       summary += `Gap Selling Improvements Needed: ${call.gap_selling_improvements.join('; ')}\n`;
@@ -280,13 +292,23 @@ function formatChunkSummariesForPrompt(chunks: ChunkSummary[]): string {
     let summary = `\n### Period ${idx + 1}: ${chunk.dateRange.from} to ${chunk.dateRange.to} (${chunk.callCount} calls)\n`;
     
     summary += `Average Scores:\n`;
-    summary += `- BANT: ${chunk.avgScores.bant?.toFixed(1) ?? 'N/A'}/100\n`;
+    // Prefer MEDDPICC, fall back to BANT for legacy data
+    if (chunk.avgScores.meddpicc != null) {
+      summary += `- MEDDPICC: ${chunk.avgScores.meddpicc.toFixed(1)}/100\n`;
+    } else if (chunk.avgScores.bant != null) {
+      summary += `- BANT (legacy): ${chunk.avgScores.bant.toFixed(1)}/100\n`;
+    }
     summary += `- Gap Selling: ${chunk.avgScores.gapSelling?.toFixed(1) ?? 'N/A'}/100\n`;
     summary += `- Active Listening: ${chunk.avgScores.activeListening?.toFixed(1) ?? 'N/A'}/100\n`;
     summary += `- Heat: ${chunk.avgScores.heat?.toFixed(1) ?? 'N/A'}/10\n`;
     
     summary += `\nTrends in this period:\n`;
-    summary += `- BANT: ${chunk.dominantTrends.bant}\n`;
+    // Prefer MEDDPICC trends, fall back to BANT for legacy
+    if (chunk.dominantTrends.meddpicc) {
+      summary += `- MEDDPICC: ${chunk.dominantTrends.meddpicc}\n`;
+    } else if (chunk.dominantTrends.bant) {
+      summary += `- BANT (legacy): ${chunk.dominantTrends.bant}\n`;
+    }
     summary += `- Gap Selling: ${chunk.dominantTrends.gapSelling}\n`;
     summary += `- Active Listening: ${chunk.dominantTrends.activeListening}\n`;
     
@@ -439,21 +461,34 @@ Provide a comprehensive trend analysis with specific evidence and actionable rec
     }
 
     const aiData = await aiResponse.json();
-    console.log('[generate-coaching-trends] AI response received');
+    console.log('[generate-coaching-trends] AI response received, processing...');
 
+    // Extract the function call result
     const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall || toolCall.function.name !== 'provide_trend_analysis') {
-      console.error('[generate-coaching-trends] Unexpected AI response:', JSON.stringify(aiData));
-      throw new Error('AI did not return expected structured output');
+    if (!toolCall || toolCall.function?.name !== 'provide_trend_analysis') {
+      console.error('[generate-coaching-trends] Unexpected AI response format:', JSON.stringify(aiData));
+      throw new Error('Unexpected AI response format');
     }
 
-    const trendAnalysis = JSON.parse(toolCall.function.arguments);
-    
-    // Ensure totalCalls is set correctly
-    if (trendAnalysis.periodAnalysis) {
-      trendAnalysis.periodAnalysis.totalCalls = totalCalls;
+    let trendAnalysis;
+    try {
+      trendAnalysis = JSON.parse(toolCall.function.arguments);
+    } catch (parseError) {
+      console.error('[generate-coaching-trends] Failed to parse AI response:', parseError);
+      throw new Error('Failed to parse AI analysis');
     }
-    
+
+    // Ensure required fields exist with defaults
+    if (!trendAnalysis.periodAnalysis) {
+      trendAnalysis.periodAnalysis = {
+        totalCalls: totalCalls,
+        averageHeatScore: 0,
+        heatScoreTrend: 'stable'
+      };
+    }
+
+    console.log(`[generate-coaching-trends] Successfully generated trend analysis for ${totalCalls} calls`);
+
     return new Response(
       JSON.stringify(trendAnalysis),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -461,8 +496,9 @@ Provide a comprehensive trend analysis with specific evidence and actionable rec
 
   } catch (error) {
     console.error('[generate-coaching-trends] Error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
