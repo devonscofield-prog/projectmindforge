@@ -13,7 +13,14 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { CallAnalysis, CallTranscript, editRecapEmail } from '@/api/aiCallAnalysis';
-import { 
+import {
+  CoachingHeroCard,
+  MEDDPICCBreakdownPanel,
+  PrioritizedActionsPanel,
+  CriticalInfoPanel,
+  FollowUpQuestionsPanel,
+} from './coaching';
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -33,9 +40,7 @@ import {
   BarChart3,
   AlertTriangle,
   Flame,
-  Ear,
   Clock,
-  HelpCircle,
   RefreshCw,
   Undo2,
   Loader2,
@@ -78,10 +83,10 @@ export function CallAnalysisResultsView({
   const [isRefining, setIsRefining] = useState(false);
   const [showEmailPreview, setShowEmailPreview] = useState(false);
   
-  // Collapsible state for Call Notes, Recap Email, and AI Coach (collapsed by default)
+  // Collapsible state: Notes/Recap collapsed, Coach expanded by default
   const [notesOpen, setNotesOpen] = useState(false);
   const [recapOpen, setRecapOpen] = useState(false);
-  const [coachOpen, setCoachOpen] = useState(false);
+  const [coachOpen, setCoachOpen] = useState(true);
 
   // Computed state and toggle functions for expand/collapse all
   const allExpanded = notesOpen && recapOpen && coachOpen;
@@ -556,281 +561,73 @@ export function CallAnalysisResultsView({
         </Collapsible>
       )}
 
-      {/* AI Call Coach Section - Collapsible */}
+      {/* AI Call Coach Section */}
       {analysis.coach_output ? (
-        <Collapsible open={coachOpen} onOpenChange={setCoachOpen}>
-          <Card>
-            <CardHeader>
-              <CollapsibleTrigger className="flex items-center gap-2 hover:opacity-80 transition-opacity w-full">
-                <CardTitle className="flex items-center gap-2">
-                  <Flame className="h-5 w-5 text-orange-500" />
-                  AI Call Coach (MEDDPICC / Gap Selling / Active Listening)
-                </CardTitle>
-                <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform duration-200 ${coachOpen ? 'rotate-180' : ''}`} />
-              </CollapsibleTrigger>
-              <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <Target className="h-4 w-4" />
-                  {analysis.coach_output.call_type || 'Unknown'}
-                </span>
-                <span className="flex items-center gap-1">
-                  <Clock className="h-4 w-4" />
-                  {analysis.coach_output.duration_minutes ?? '-'} min
-                </span>
-                <span className="flex items-center gap-1">
-                  <Flame className="h-4 w-4 text-orange-500" />
-                  Heat Score: {analysis.coach_output.heat_signature?.score ?? '-'}/10
-                </span>
-              </div>
-            </CardHeader>
-            <CollapsibleContent>
-              <CardContent className="space-y-6">
-            {/* Framework Scores */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* MEDDPICC (with BANT fallback for legacy) */}
-              {(() => {
-                const meddpicc = analysis.coach_output.framework_scores?.meddpicc;
-                const bant = analysis.coach_output.framework_scores?.bant;
-                const hasMeddpicc = meddpicc && typeof meddpicc === 'object';
-                const score = hasMeddpicc ? meddpicc.overall_score : bant?.score;
-                const summary = hasMeddpicc ? meddpicc.summary : bant?.summary;
-                const label = hasMeddpicc ? 'MEDDPICC' : 'BANT';
-                
-                return (
-                  <div className="p-4 border rounded-lg space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium flex items-center gap-2">
-                        <Target className="h-4 w-4 text-blue-500" />
-                        {label}
-                      </span>
-                      <Badge variant={
-                        (score ?? 0) >= 70 ? 'default' :
-                        (score ?? 0) >= 50 ? 'secondary' : 'destructive'
-                      }>
-                        {score ?? '-'}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {summary || 'No summary available'}
-                    </p>
-                    {/* MEDDPICC Element Breakdown */}
-                    {hasMeddpicc && (
-                      <Collapsible>
-                        <CollapsibleTrigger className="text-xs text-primary hover:underline flex items-center gap-1">
-                          View element breakdown
-                          <ChevronDown className="h-3 w-3" />
-                        </CollapsibleTrigger>
-                        <CollapsibleContent className="mt-2 space-y-2">
-                          {(['metrics', 'economic_buyer', 'decision_criteria', 'decision_process', 'paper_process', 'identify_pain', 'champion', 'competition'] as const).map((key) => {
-                            const element = meddpicc[key];
-                            if (!element || typeof element !== 'object') return null;
-                            return (
-                              <div key={key} className="text-xs border-l-2 border-blue-200 pl-2">
-                                <div className="flex justify-between">
-                                  <span className="font-medium capitalize">{key.replace(/_/g, ' ')}</span>
-                                  <Badge variant="outline" className="text-xs h-5">{element.score}/10</Badge>
-                                </div>
-                                {element.justification && (
-                                  <p className="text-muted-foreground mt-0.5">{element.justification}</p>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </CollapsibleContent>
-                      </Collapsible>
-                    )}
-                  </div>
-                );
-              })()}
+        <div className="space-y-6">
+          {/* Hero Card with Quick Insights */}
+          <CoachingHeroCard coachOutput={analysis.coach_output} />
 
-              {/* Gap Selling */}
-              <div className="p-4 border rounded-lg space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4 text-green-500" />
-                    Gap Selling
+          {/* Collapsible Details Section */}
+          <Collapsible open={coachOpen} onOpenChange={setCoachOpen}>
+            <Card>
+              <CardHeader className="pb-2">
+                <CollapsibleTrigger className="flex items-center gap-2 hover:opacity-80 transition-opacity w-full">
+                  <CardTitle className="flex items-center gap-2">
+                    <Flame className="h-5 w-5 text-orange-500" />
+                    AI Call Coach Details
+                  </CardTitle>
+                  <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform duration-200 ml-auto ${coachOpen ? 'rotate-180' : ''}`} />
+                </CollapsibleTrigger>
+                <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <Target className="h-4 w-4" />
+                    {analysis.coach_output.call_type || 'Unknown'}
                   </span>
-                  <Badge variant={
-                    (analysis.coach_output.framework_scores?.gap_selling?.score ?? 0) >= 70 ? 'default' :
-                    (analysis.coach_output.framework_scores?.gap_selling?.score ?? 0) >= 50 ? 'secondary' : 'destructive'
-                  }>
-                    {analysis.coach_output.framework_scores?.gap_selling?.score ?? '-'}
-                  </Badge>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  {analysis.coach_output.framework_scores?.gap_selling?.summary || 'No summary available'}
-                </p>
-              </div>
-
-              {/* Active Listening */}
-              <div className="p-4 border rounded-lg space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium flex items-center gap-2">
-                    <Ear className="h-4 w-4 text-purple-500" />
-                    Active Listening
+                  <span className="flex items-center gap-1">
+                    <Clock className="h-4 w-4" />
+                    {analysis.coach_output.duration_minutes ?? '-'} min
                   </span>
-                  <Badge variant={
-                    (analysis.coach_output.framework_scores?.active_listening?.score ?? 0) >= 70 ? 'default' :
-                    (analysis.coach_output.framework_scores?.active_listening?.score ?? 0) >= 50 ? 'secondary' : 'destructive'
-                  }>
-                    {analysis.coach_output.framework_scores?.active_listening?.score ?? '-'}
-                  </Badge>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  {analysis.coach_output.framework_scores?.active_listening?.summary || 'No summary available'}
-                </p>
-              </div>
-            </div>
+              </CardHeader>
+              <CollapsibleContent>
+                <CardContent className="pt-4 space-y-6">
+                  {/* MEDDPICC Breakdown - Always visible when available */}
+                  {(() => {
+                    const meddpicc = analysis.coach_output.framework_scores?.meddpicc;
+                    if (meddpicc && typeof meddpicc === 'object') {
+                      return <MEDDPICCBreakdownPanel meddpicc={meddpicc} />;
+                    }
+                    return null;
+                  })()}
 
-            {/* Improvements Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* MEDDPICC/BANT Improvements */}
-              {(() => {
-                const meddpiccImprovements = analysis.coach_output.meddpicc_improvements;
-                const bantImprovements = analysis.coach_output.bant_improvements;
-                const improvements = meddpiccImprovements?.length ? meddpiccImprovements : bantImprovements;
-                const label = meddpiccImprovements?.length ? 'MEDDPICC Improvements' : 'BANT Improvements';
-                
-                if (!improvements?.length) return null;
-                
-                return (
-                  <div className="space-y-2">
-                    <h4 className="font-medium text-sm flex items-center gap-2">
-                      <Target className="h-4 w-4 text-blue-500" />
-                      {label}
-                    </h4>
-                    <ul className="text-sm text-muted-foreground space-y-1">
-                      {improvements.map((item, i) => (
-                        <li key={i} className="flex items-start gap-2">
-                          <span className="text-blue-500">•</span>
-                          {item}
-                        </li>
-                      ))}
-                    </ul>
+                  {/* Critical Info & Follow-up Questions Side by Side */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <CriticalInfoPanel items={analysis.coach_output.critical_info_missing || []} />
+                    <FollowUpQuestionsPanel questions={analysis.coach_output.recommended_follow_up_questions || []} />
                   </div>
-                );
-              })()}
 
-              {/* Gap Selling Improvements */}
-              {analysis.coach_output.gap_selling_improvements && analysis.coach_output.gap_selling_improvements.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="font-medium text-sm flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4 text-green-500" />
-                    Gap Selling Improvements
-                  </h4>
-                  <ul className="text-sm text-muted-foreground space-y-1">
-                    {analysis.coach_output.gap_selling_improvements.map((item, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <span className="text-green-500">•</span>
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+                  {/* Prioritized Actions */}
+                  <PrioritizedActionsPanel coachOutput={analysis.coach_output} />
 
-              {/* Active Listening Improvements */}
-              {analysis.coach_output.active_listening_improvements && analysis.coach_output.active_listening_improvements.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="font-medium text-sm flex items-center gap-2">
-                    <Ear className="h-4 w-4 text-purple-500" />
-                    Listening Improvements
-                  </h4>
-                  <ul className="text-sm text-muted-foreground space-y-1">
-                    {analysis.coach_output.active_listening_improvements.map((item, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <span className="text-purple-500">•</span>
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-
-            {/* Critical Info & Follow-up Questions */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Critical Info Missing */}
-              {analysis.coach_output.critical_info_missing && analysis.coach_output.critical_info_missing.length > 0 && (
-                <div className="p-4 border border-destructive/30 bg-destructive/5 rounded-lg space-y-3">
-                  <h4 className="font-medium text-sm flex items-center gap-2 text-destructive">
-                    <AlertTriangle className="h-4 w-4" />
-                    Critical Info Missing
-                  </h4>
-                  <ul className="space-y-3">
-                    {analysis.coach_output.critical_info_missing.map((item, i) => {
-                      // Handle both old (string) and new (object) formats
-                      const isObject = typeof item === 'object' && item !== null;
-                      const info = isObject ? item.info : item;
-                      const missedOpportunity = isObject ? item.missed_opportunity : null;
-                      
-                      return (
-                        <li key={i} className="space-y-1">
-                          <div className="flex items-start gap-2 text-sm font-medium">
-                            <span className="text-destructive">•</span>
-                            {info}
-                          </div>
-                          {missedOpportunity && (
-                            <p className="text-xs text-muted-foreground ml-4 pl-2 border-l-2 border-destructive/20 italic">
-                              ⚠️ Missed opportunity: {missedOpportunity}
-                            </p>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              )}
-
-              {/* Follow-up Questions */}
-              {analysis.coach_output.recommended_follow_up_questions && analysis.coach_output.recommended_follow_up_questions.length > 0 && (
-                <div className="p-4 border border-primary/30 bg-primary/5 rounded-lg space-y-3">
-                  <h4 className="font-medium text-sm flex items-center gap-2 text-primary">
-                    <HelpCircle className="h-4 w-4" />
-                    Recommended Follow-up Questions
-                  </h4>
-                  <ul className="space-y-3">
-                    {analysis.coach_output.recommended_follow_up_questions.map((item, i) => {
-                      // Handle both old (string) and new (object) formats
-                      const isObject = typeof item === 'object' && item !== null;
-                      const question = isObject ? item.question : item;
-                      const timingExample = isObject ? item.timing_example : null;
-                      
-                      return (
-                        <li key={i} className="space-y-1">
-                          <div className="flex items-start gap-2 text-sm font-medium">
-                            <span className="text-primary">•</span>
-                            {question}
-                          </div>
-                          {timingExample && (
-                            <p className="text-xs text-muted-foreground ml-4 pl-2 border-l-2 border-primary/20 italic">
-                              💡 Best moment: {timingExample}
-                            </p>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              )}
-            </div>
-
-            {/* Heat Signature Explanation */}
-            {analysis.coach_output.heat_signature?.explanation && (
-              <div className="p-4 border border-orange-500/30 bg-orange-500/5 rounded-lg">
-                <h4 className="font-medium text-sm flex items-center gap-2 text-orange-600 dark:text-orange-400 mb-2">
-                  <Flame className="h-4 w-4" />
-                  Heat Signature Analysis
-                </h4>
-                <p className="text-sm text-muted-foreground">
-                  {analysis.coach_output.heat_signature.explanation}
-                </p>
-              </div>
-            )}
-              </CardContent>
-            </CollapsibleContent>
-          </Card>
-        </Collapsible>
+                  {/* Heat Signature Explanation */}
+                  {analysis.coach_output.heat_signature?.explanation && (
+                    <Card className="border-orange-500/30 bg-orange-500/5">
+                      <CardContent className="pt-4">
+                        <h4 className="font-medium text-sm flex items-center gap-2 text-orange-600 dark:text-orange-400 mb-2">
+                          <Flame className="h-4 w-4" />
+                          Heat Signature Analysis
+                        </h4>
+                        <p className="text-sm text-muted-foreground">
+                          {analysis.coach_output.heat_signature.explanation}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  )}
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+        </div>
       ) : (
         <Card>
           <CardContent className="py-6 text-center">
