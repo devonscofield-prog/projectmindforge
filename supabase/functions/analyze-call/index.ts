@@ -326,18 +326,65 @@ interface StakeholderIntel {
   ai_notes?: string;
 }
 
-
 // Required links that must appear in recap_email_draft
 const REQUIRED_RECAP_LINKS = [
   '[StormWind Website](https://info.stormwind.com/)',
   '[View Sample Courses](https://info.stormwind.com/training-samples)'
 ];
 
+// Required section headers in call_notes
+const REQUIRED_CALL_NOTES_SECTIONS = [
+  '## Call Overview',
+  '## Participants',
+  '## Business Context & Pain',
+  '## Current State / Environment',
+  '## Solution Topics Discussed',
+  '## Decision Process & Stakeholders',
+  '## Timeline & Urgency',
+  '## Budget / Commercials',
+  '## Next Steps & Commitments',
+  '## Risks & Open Questions',
+  '## Competitors Mentioned'
+];
+
+// Minimum length for complete call_notes (characters)
+const MIN_CALL_NOTES_LENGTH = 1500;
+
 /**
  * Validate that recap_email_draft contains required links
  */
 function validateRecapEmailLinks(recapEmail: string): boolean {
   return REQUIRED_RECAP_LINKS.every(link => recapEmail.includes(link));
+}
+
+/**
+ * Validate call_notes for completeness and detect truncation
+ */
+function validateCallNotes(callNotes: string): { valid: boolean; issues: string[] } {
+  const issues: string[] = [];
+  
+  // Check minimum length
+  if (callNotes.length < MIN_CALL_NOTES_LENGTH) {
+    issues.push(`Call notes too short (${callNotes.length} chars, minimum ${MIN_CALL_NOTES_LENGTH})`);
+  }
+  
+  // Check for required sections
+  const missingSections = REQUIRED_CALL_NOTES_SECTIONS.filter(
+    section => !callNotes.includes(section)
+  );
+  if (missingSections.length > 0) {
+    issues.push(`Missing sections: ${missingSections.join(', ')}`);
+  }
+  
+  // Check for truncation indicators (ends mid-sentence without punctuation)
+  const trimmed = callNotes.trim();
+  const lastChar = trimmed.charAt(trimmed.length - 1);
+  const validEndChars = ['.', ')', ']', '"', "'", '!', '?', '-', '*'];
+  if (!validEndChars.includes(lastChar)) {
+    issues.push(`Possible truncation detected (ends with: "${lastChar}")`);
+  }
+  
+  return { valid: issues.length === 0, issues };
 }
 
 /**
@@ -663,6 +710,7 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
     },
     body: JSON.stringify({
       model: 'google/gemini-2.5-flash',
+      max_tokens: 16384, // Ensure sufficient output for complete structured analysis
       messages: [
         { role: 'system', content: ANALYSIS_SYSTEM_PROMPT },
         { 
@@ -720,11 +768,19 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
     }
   }
 
-  // Validate call_notes is a non-empty string
+  // Validate call_notes is a non-empty string with all required sections
   const callNotes = analysisData.call_notes;
   if (typeof callNotes !== 'string' || callNotes.trim().length === 0) {
     console.error('[analyze-call] call_notes is not a valid string');
     throw new Error('AI analysis call_notes must be a non-empty string');
+  }
+  
+  // Validate call_notes completeness
+  const callNotesValidation = validateCallNotes(callNotes);
+  if (!callNotesValidation.valid) {
+    console.error('[analyze-call] call_notes validation failed:', callNotesValidation.issues);
+    // Log warning but don't throw - allow partial notes to be saved with warning
+    console.warn('[analyze-call] WARNING: Call notes may be truncated or incomplete');
   }
 
   // Validate recap_email_draft is a non-empty string with required links
