@@ -55,20 +55,20 @@ export function MEDDPICCBreakdownPanel({ meddpicc }: MEDDPICCBreakdownPanelProps
     .sort((a, b) => (a.element?.score ?? 0) - (b.element?.score ?? 0));
 
   const getScoreColor = (score: number) => {
-    if (score >= 7) return 'bg-green-500';
-    if (score >= 4) return 'bg-yellow-500';
+    if (score >= 70) return 'bg-green-500';
+    if (score >= 40) return 'bg-yellow-500';
     return 'bg-red-500';
   };
 
   const getScoreTextColor = (score: number) => {
-    if (score >= 7) return 'text-green-600 dark:text-green-400';
-    if (score >= 4) return 'text-yellow-600 dark:text-yellow-400';
+    if (score >= 70) return 'text-green-600 dark:text-green-400';
+    if (score >= 40) return 'text-yellow-600 dark:text-yellow-400';
     return 'text-red-600 dark:text-red-400';
   };
 
   const getStatusIcon = (score: number) => {
-    if (score >= 7) return <CheckCircle className="h-4 w-4 text-green-500" />;
-    if (score >= 4) return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
+    if (score >= 70) return <CheckCircle className="h-4 w-4 text-green-500" />;
+    if (score >= 40) return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
     return <AlertCircle className="h-4 w-4 text-red-500" />;
   };
 
@@ -157,10 +157,10 @@ export function MEDDPICCBreakdownPanel({ meddpicc }: MEDDPICCBreakdownPanelProps
                           <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
                             <div 
                               className={cn('h-full transition-all duration-500', getScoreColor(score))}
-                              style={{ width: `${score * 10}%` }}
+                              style={{ width: `${score}%` }}
                             />
                           </div>
-                          <span className={cn('text-sm font-bold w-8 text-right', getScoreTextColor(score))}>
+                          <span className={cn('text-sm font-bold w-12 text-right', getScoreTextColor(score))}>
                             {score}
                           </span>
                         </div>
