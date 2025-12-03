@@ -98,7 +98,7 @@ serve(async (req) => {
 
     console.log(`[chunk-transcripts] Processing ${transcript_ids.length} transcripts`);
 
-    // Verify admin role
+    // Verify authentication
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(
@@ -111,7 +111,7 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Verify user is admin
+    // Verify user
     const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
@@ -139,16 +139,97 @@ serve(async (req) => {
       );
     }
 
+    // Get user role
     const { data: roleData } = await supabase
       .from('user_roles')
       .select('role')
       .eq('user_id', user.id)
       .single();
 
-    if (roleData?.role !== 'admin') {
+    const userRole = roleData?.role;
+    const isAdmin = userRole === 'admin';
+    const isManager = userRole === 'manager';
+    const isRep = userRole === 'rep';
+
+    if (!isAdmin && !isManager && !isRep) {
       return new Response(
-        JSON.stringify({ error: 'Admin access required' }),
+        JSON.stringify({ error: 'Authentication required' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Authorization check based on role
+    let authorizedTranscriptIds: string[] = [];
+
+    if (isAdmin) {
+      // Admins can chunk any transcript
+      authorizedTranscriptIds = transcript_ids;
+      console.log(`[chunk-transcripts] Admin ${user.id} authorized for all ${transcript_ids.length} transcripts`);
+    } else if (isManager) {
+      // Managers can chunk their team's transcripts
+      const { data: managerTeam } = await supabase
+        .from('teams')
+        .select('id')
+        .eq('manager_id', user.id)
+        .maybeSingle();
+
+      if (!managerTeam) {
+        return new Response(
+          JSON.stringify({ error: 'No team assigned. Please contact an administrator.' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Get team rep IDs
+      const { data: teamReps } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('team_id', managerTeam.id);
+
+      const teamRepIds = new Set((teamReps || []).map((r: { id: string }) => r.id));
+
+      // Get transcripts and filter to team only
+      const { data: transcripts } = await supabase
+        .from('call_transcripts')
+        .select('id, rep_id')
+        .in('id', transcript_ids);
+
+      authorizedTranscriptIds = (transcripts || [])
+        .filter((t: { id: string; rep_id: string }) => teamRepIds.has(t.rep_id))
+        .map((t: { id: string }) => t.id);
+
+      const unauthorizedCount = transcript_ids.length - authorizedTranscriptIds.length;
+      if (unauthorizedCount > 0) {
+        console.log(`[chunk-transcripts] Manager ${user.id}: ${unauthorizedCount} transcripts outside team filtered out`);
+      }
+      console.log(`[chunk-transcripts] Manager ${user.id} authorized for ${authorizedTranscriptIds.length} team transcripts`);
+    } else if (isRep) {
+      // Reps can only chunk their own transcripts
+      const { data: transcripts } = await supabase
+        .from('call_transcripts')
+        .select('id, rep_id')
+        .in('id', transcript_ids);
+
+      authorizedTranscriptIds = (transcripts || [])
+        .filter((t: { id: string; rep_id: string }) => t.rep_id === user.id)
+        .map((t: { id: string }) => t.id);
+
+      const unauthorizedCount = transcript_ids.length - authorizedTranscriptIds.length;
+      if (unauthorizedCount > 0) {
+        console.log(`[chunk-transcripts] Rep ${user.id}: ${unauthorizedCount} transcripts not owned filtered out`);
+      }
+      console.log(`[chunk-transcripts] Rep ${user.id} authorized for ${authorizedTranscriptIds.length} own transcripts`);
+    }
+
+    if (authorizedTranscriptIds.length === 0) {
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: 'No transcripts to process (none authorized)',
+          chunked: 0,
+          new_chunks: 0 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -156,10 +237,10 @@ serve(async (req) => {
     const { data: existingChunks } = await supabase
       .from('transcript_chunks')
       .select('transcript_id')
-      .in('transcript_id', transcript_ids);
+      .in('transcript_id', authorizedTranscriptIds);
 
     const chunkedIds = new Set((existingChunks || []).map(c => c.transcript_id));
-    const idsToChunk = transcript_ids.filter((id: string) => !chunkedIds.has(id));
+    const idsToChunk = authorizedTranscriptIds.filter((id: string) => !chunkedIds.has(id));
 
     console.log(`[chunk-transcripts] ${chunkedIds.size} already chunked, ${idsToChunk.length} to process`);
 
@@ -167,8 +248,8 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: true, 
-          message: 'All transcripts already chunked',
-          chunked: transcript_ids.length,
+          message: 'All transcripts already indexed',
+          chunked: authorizedTranscriptIds.length,
           new_chunks: 0 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -202,11 +283,11 @@ serve(async (req) => {
       const chunks = chunkText(transcript.raw_text || '', CHUNK_SIZE, CHUNK_OVERLAP);
       const repName = repMap.get(transcript.rep_id) || 'Unknown';
       
-      chunks.forEach((chunkText, index) => {
+      chunks.forEach((chunkTextContent, index) => {
         allChunks.push({
           transcript_id: transcript.id,
           chunk_index: index,
-          chunk_text: chunkText,
+          chunk_text: chunkTextContent,
           metadata: {
             account_name: transcript.account_name || 'Unknown',
             call_date: transcript.call_date,
@@ -222,6 +303,8 @@ serve(async (req) => {
 
     // Insert chunks in batches
     const BATCH_SIZE = 100;
+    let insertedCount = 0;
+    
     for (let i = 0; i < allChunks.length; i += BATCH_SIZE) {
       const batch = allChunks.slice(i, i + BATCH_SIZE);
       const { error: insertError } = await supabase
@@ -230,16 +313,18 @@ serve(async (req) => {
 
       if (insertError) {
         console.error('[chunk-transcripts] Error inserting chunks:', insertError);
-        throw new Error('Failed to insert chunks');
+        throw new Error(`Failed to insert chunks: ${insertError.message}`);
       }
+      
+      insertedCount += batch.length;
     }
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: `Chunked ${transcripts?.length || 0} transcripts`,
-        chunked: transcript_ids.length,
-        new_chunks: allChunks.length 
+        message: `Indexed ${transcripts?.length || 0} transcripts`,
+        chunked: authorizedTranscriptIds.length,
+        new_chunks: insertedCount 
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
