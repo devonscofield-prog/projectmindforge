@@ -179,7 +179,7 @@ function ManagerAccounts() {
                     {formatCurrency(
                       prospects
                         .filter(p => p.status === 'active')
-                        .reduce((sum, p) => sum + (p.potential_revenue ?? 0), 0)
+                        .reduce((sum, p) => sum + (p.active_revenue ?? 0), 0)
                     )}
                   </p>
                 </div>
@@ -322,7 +322,7 @@ function ManagerAccounts() {
                         <HeatScoreBadge score={prospect.heat_score} />
                       </TableCell>
                       <TableCell>
-                        {formatCurrency(prospect.potential_revenue)}
+                        {formatCurrency(prospect.active_revenue)}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1 text-muted-foreground">

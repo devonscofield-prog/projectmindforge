@@ -325,7 +325,7 @@ export default function AdminAccounts() {
                         <TableCell>
                           <HeatScoreBadge score={prospect.heat_score} />
                         </TableCell>
-                        <TableCell>{formatCurrency(prospect.potential_revenue)}</TableCell>
+                        <TableCell>{formatCurrency(prospect.active_revenue)}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
                             <Users className="h-4 w-4 text-muted-foreground" />
