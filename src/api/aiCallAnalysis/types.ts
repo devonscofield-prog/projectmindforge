@@ -93,18 +93,41 @@ export interface AnalyzeCallResponse {
   isRateLimited?: boolean;
 }
 
+// ============= MEDDPICC TYPES =============
+export interface MEDDPICCElement {
+  score: number;
+  justification: string;
+}
+
+export interface MEDDPICCScores {
+  metrics: MEDDPICCElement;
+  economic_buyer: MEDDPICCElement;
+  decision_criteria: MEDDPICCElement;
+  decision_process: MEDDPICCElement;
+  paper_process: MEDDPICCElement;
+  identify_pain: MEDDPICCElement;
+  champion: MEDDPICCElement;
+  competition: MEDDPICCElement;
+  overall_score: number;
+  summary: string;
+}
+
 // ============= COACH OUTPUT TYPES =============
 export interface CoachOutput {
   call_type: string | null;
   duration_minutes: number | null;
   framework_scores: {
-    bant: { score: number; summary: string };
+    meddpicc: MEDDPICCScores;
     gap_selling: { score: number; summary: string };
     active_listening: { score: number; summary: string };
+    // Legacy BANT field for backward compatibility with old analyses
+    bant?: { score: number; summary: string };
   };
-  bant_improvements: string[];
+  meddpicc_improvements: string[];
   gap_selling_improvements: string[];
   active_listening_improvements: string[];
+  // Legacy BANT improvements for backward compatibility
+  bant_improvements?: string[];
   critical_info_missing: Array<{ info: string; missed_opportunity: string }> | string[];
   recommended_follow_up_questions: Array<{ question: string; timing_example: string }> | string[];
   heat_signature: {
@@ -155,17 +178,21 @@ export interface CoachingSummary {
   dateRange: { from: string; to: string };
   frameworkTrends: Array<{
     date: string;
-    bant: number | null;
+    meddpicc: number | null;
     gap_selling: number | null;
     active_listening: number | null;
     effectiveness: number | null;
+    // Legacy BANT field for backward compatibility
+    bant?: number | null;
   }>;
   recurringPatterns: {
     criticalInfoMissing: Array<{ item: string; count: number }>;
     followUpQuestions: Array<{ item: string; count: number }>;
-    bantImprovements: Array<{ item: string; count: number }>;
+    meddpiccImprovements: Array<{ item: string; count: number }>;
     gapSellingImprovements: Array<{ item: string; count: number }>;
     activeListeningImprovements: Array<{ item: string; count: number }>;
+    // Legacy BANT improvements for backward compatibility
+    bantImprovements?: Array<{ item: string; count: number }>;
   };
   aggregatedTags: {
     skillTags: Array<{ tag: string; count: number }>;
@@ -206,9 +233,11 @@ export interface CoachingTrendAnalysis {
     heatScoreTrend: 'improving' | 'stable' | 'declining';
   };
   trendAnalysis: {
-    bant: FrameworkTrend;
+    meddpicc: FrameworkTrend;
     gapSelling: FrameworkTrend;
     activeListening: FrameworkTrend;
+    // BANT kept required for backward compatibility - UI will migrate in Phase 4
+    bant: FrameworkTrend;
   };
   patternAnalysis: {
     criticalInfoMissing: {
@@ -241,15 +270,19 @@ export interface ChunkSummary {
   dateRange: { from: string; to: string };
   callCount: number;
   avgScores: {
-    bant: number | null;
+    meddpicc: number | null;
     gapSelling: number | null;
     activeListening: number | null;
     heat: number | null;
+    // Legacy BANT field for backward compatibility
+    bant?: number | null;
   };
   dominantTrends: {
-    bant: 'improving' | 'stable' | 'declining';
+    meddpicc: 'improving' | 'stable' | 'declining';
     gapSelling: 'improving' | 'stable' | 'declining';
     activeListening: 'improving' | 'stable' | 'declining';
+    // Legacy BANT field for backward compatibility
+    bant?: 'improving' | 'stable' | 'declining';
   };
   topMissingInfo: string[];
   topImprovementAreas: string[];
@@ -259,13 +292,17 @@ export interface ChunkSummary {
 export interface FormattedCall {
   date: string;
   framework_scores: {
-    bant: { score: number; summary: string };
+    meddpicc: MEDDPICCScores;
     gap_selling: { score: number; summary: string };
     active_listening: { score: number; summary: string };
+    // Legacy BANT field for backward compatibility
+    bant?: { score: number; summary: string };
   } | null;
-  bant_improvements: string[];
+  meddpicc_improvements: string[];
   gap_selling_improvements: string[];
   active_listening_improvements: string[];
+  // Legacy BANT improvements for backward compatibility
+  bant_improvements?: string[];
   critical_info_missing: Array<{ info: string; missed_opportunity: string }> | string[];
   follow_up_questions: Array<{ question: string; timing_example: string }> | string[];
   heat_score: number | null;
@@ -280,9 +317,11 @@ export interface RepContributionData {
   percentageOfTotal: number;
   averageHeatScore: number | null;
   frameworkScores: {
-    bant: number | null;
+    meddpicc: number | null;
     gapSelling: number | null;
     activeListening: number | null;
+    // BANT kept required for backward compatibility
+    bant: number | null;
   };
 }
 

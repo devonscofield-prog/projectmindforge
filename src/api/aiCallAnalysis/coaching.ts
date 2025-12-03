@@ -48,14 +48,23 @@ export async function getCoachingSummaryForRep(
 
   const analyses = (data || []).map(toCallAnalysis);
   
-  // Build framework trends
-  const frameworkTrends = analyses.map(a => ({
-    date: a.created_at,
-    bant: a.coach_output?.framework_scores?.bant?.score ?? null,
-    gap_selling: a.coach_output?.framework_scores?.gap_selling?.score ?? null,
-    active_listening: a.coach_output?.framework_scores?.active_listening?.score ?? null,
-    effectiveness: a.call_effectiveness_score,
-  }));
+  // Build framework trends - support both new MEDDPICC and legacy BANT
+  const frameworkTrends = analyses.map(a => {
+    const fs = a.coach_output?.framework_scores;
+    // Use MEDDPICC overall score if available, fall back to BANT for legacy data
+    const meddpiccScore = fs?.meddpicc?.overall_score ?? null;
+    const bantScore = fs?.bant?.score ?? null;
+    
+    return {
+      date: a.created_at,
+      meddpicc: meddpiccScore,
+      gap_selling: fs?.gap_selling?.score ?? null,
+      active_listening: fs?.active_listening?.score ?? null,
+      effectiveness: a.call_effectiveness_score,
+      // Keep BANT for backward compatibility with old data
+      bant: bantScore,
+    };
+  });
 
   // Helper to count occurrences
   const countOccurrences = (items: string[]): Array<{ item: string; count: number }> => {
@@ -92,12 +101,17 @@ export async function getCoachingSummaryForRep(
     }
   });
 
-  // Aggregate improvements
+  // Aggregate improvements - support both MEDDPICC and legacy BANT
+  const allMeddpiccImprovements: string[] = [];
   const allBantImprovements: string[] = [];
   const allGapSellingImprovements: string[] = [];
   const allActiveListeningImprovements: string[] = [];
   
   analyses.forEach(a => {
+    if (a.coach_output?.meddpicc_improvements) {
+      allMeddpiccImprovements.push(...a.coach_output.meddpicc_improvements);
+    }
+    // Legacy BANT improvements for backward compatibility
     if (a.coach_output?.bant_improvements) {
       allBantImprovements.push(...a.coach_output.bant_improvements);
     }
@@ -201,9 +215,11 @@ export async function getCoachingSummaryForRep(
     recurringPatterns: {
       criticalInfoMissing: countOccurrences(allCriticalInfo),
       followUpQuestions: countOccurrences(allFollowUps),
-      bantImprovements: countOccurrences(allBantImprovements),
+      meddpiccImprovements: countOccurrences(allMeddpiccImprovements),
       gapSellingImprovements: countOccurrences(allGapSellingImprovements),
       activeListeningImprovements: countOccurrences(allActiveListeningImprovements),
+      // Legacy BANT improvements for backward compatibility
+      bantImprovements: countOccurrences(allBantImprovements),
     },
     aggregatedTags: {
       skillTags: countTags(allSkillTags),
@@ -295,13 +311,15 @@ export async function generateCoachingTrends(
     throw new Error('No analyzed calls found in the selected period');
   }
 
-  // 4. Format calls for AI
+  // 4. Format calls for AI - support both MEDDPICC and legacy BANT
   const formattedCalls: FormattedCall[] = analyses.map(a => ({
     date: a.created_at.split('T')[0],
     framework_scores: a.coach_output?.framework_scores ?? null,
-    bant_improvements: a.coach_output?.bant_improvements ?? [],
+    meddpicc_improvements: a.coach_output?.meddpicc_improvements ?? [],
     gap_selling_improvements: a.coach_output?.gap_selling_improvements ?? [],
     active_listening_improvements: a.coach_output?.active_listening_improvements ?? [],
+    // Legacy BANT improvements for backward compatibility
+    bant_improvements: a.coach_output?.bant_improvements ?? [],
     critical_info_missing: a.coach_output?.critical_info_missing ?? [],
     follow_up_questions: a.coach_output?.recommended_follow_up_questions ?? [],
     heat_score: a.coach_output?.heat_signature?.score ?? null,
@@ -501,13 +519,15 @@ export async function generateAggregateCoachingTrends(
   const tier = determineAnalysisTier(callCount);
   log.info('Aggregate analysis tier', { callCount, tier });
 
-  // Format calls for AI
+  // Format calls for AI - support both MEDDPICC and legacy BANT
   const formattedCalls: FormattedCall[] = analyses.map(a => ({
     date: a.created_at.split('T')[0],
     framework_scores: a.coach_output?.framework_scores ?? null,
-    bant_improvements: a.coach_output?.bant_improvements ?? [],
+    meddpicc_improvements: a.coach_output?.meddpicc_improvements ?? [],
     gap_selling_improvements: a.coach_output?.gap_selling_improvements ?? [],
     active_listening_improvements: a.coach_output?.active_listening_improvements ?? [],
+    // Legacy BANT improvements for backward compatibility
+    bant_improvements: a.coach_output?.bant_improvements ?? [],
     critical_info_missing: a.coach_output?.critical_info_missing ?? [],
     follow_up_questions: a.coach_output?.recommended_follow_up_questions ?? [],
     heat_score: a.coach_output?.heat_signature?.score ?? null,

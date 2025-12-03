@@ -10,6 +10,8 @@ export type {
   HeatRange,
   CallHistoryFilters,
   AnalyzeCallResponse,
+  MEDDPICCElement,
+  MEDDPICCScores,
   CoachOutput,
   CallAnalysis,
   AiScoreStats,
@@ -31,6 +33,15 @@ export { DIRECT_ANALYSIS_MAX, SAMPLING_MAX } from './constants';
 
 // Re-export utility functions
 export { determineAnalysisTier } from './utils';
+
+// Re-export framework helpers
+export { 
+  defaultFrameworkTrend, 
+  getPrimaryFrameworkTrend, 
+  getPrimaryFrameworkLabel,
+  getBantTrend,
+  usesMeddpicc 
+} from './frameworkHelpers';
 
 // Re-export transcript functions
 export {
