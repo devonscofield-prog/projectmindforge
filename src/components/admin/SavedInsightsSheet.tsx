@@ -94,20 +94,23 @@ export function SavedInsightsSheet({
 
   // Fetch insights list - lightweight query excluding content
   const { data: insights, isLoading: isLoadingInsights } = useQuery({
-    queryKey: ['admin-saved-insights', user?.id],
+    queryKey: ['admin-insights-list', user?.id],
     queryFn: async () => {
-      if (!user) return [];
+      if (!user?.id) return [];
       
       // Selective column fetch - exclude large content and chat_context columns
+      // Filter to user's own + shared insights, with pagination limit
       const { data, error } = await supabase
         .from('admin_chat_insights')
         .select('id, title, tags, share_token, is_shared, created_at, admin_id, selection_id')
-        .order('created_at', { ascending: false });
+        .or(`admin_id.eq.${user.id},is_shared.eq.true`)
+        .order('created_at', { ascending: false })
+        .limit(50);
       
       if (error) throw error;
       return data as SavedInsightListItem[];
     },
-    enabled: open && !!user,
+    enabled: open && !!user?.id,
     staleTime: 2 * 60 * 1000, // 2 minutes
   });
 
@@ -173,7 +176,11 @@ export function SavedInsightsSheet({
   });
 
   const deleteSessionMutation = useMutation({
-    mutationFn: deleteAnalysisSession,
+    mutationFn: async (sessionId: string) => {
+      if (!user?.id) throw new Error('Not authenticated');
+      const success = await deleteAnalysisSession(sessionId, user.id);
+      if (!success) throw new Error('Failed to delete session');
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['analysis-sessions-list'] });
       toast.success('Session deleted');

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { saveAnalysisSession, fetchSessionByTranscripts, AnalysisSession } from '@/api/analysisSessions';
 import { ChatMessage } from '@/api/adminTranscriptChat';
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,12 +17,19 @@ export function useChatSession({ selectedTranscriptIds, messages, selectedModeId
   const [showResumePrompt, setShowResumePrompt] = useState(false);
   const [autoSaved, setAutoSaved] = useState(false);
 
+  // Stabilize transcript IDs to prevent unnecessary re-fetches
+  const stableTranscriptIds = useMemo(
+    () => JSON.stringify([...selectedTranscriptIds].sort()),
+    [selectedTranscriptIds]
+  );
+
   // Check for existing session on mount
   useEffect(() => {
     const checkExistingSession = async () => {
-      if (selectedTranscriptIds.length === 0 || !user?.id) return;
+      const ids = JSON.parse(stableTranscriptIds) as string[];
+      if (ids.length === 0 || !user?.id) return;
       
-      const session = await fetchSessionByTranscripts(user.id, selectedTranscriptIds);
+      const session = await fetchSessionByTranscripts(user.id, ids);
       if (session && session.messages.length > 0) {
         setExistingSession(session);
         setShowResumePrompt(true);
@@ -30,7 +37,7 @@ export function useChatSession({ selectedTranscriptIds, messages, selectedModeId
     };
     
     checkExistingSession();
-  }, [selectedTranscriptIds, user?.id]);
+  }, [stableTranscriptIds, user?.id]);
 
   // Auto-save session when messages change (debounced)
   useEffect(() => {
