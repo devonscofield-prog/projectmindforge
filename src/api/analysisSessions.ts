@@ -24,7 +24,6 @@ export interface AnalysisSessionListItem {
   title: string | null;
   created_at: string;
   updated_at: string;
-  message_count: number;
 }
 
 export async function saveAnalysisSession(
@@ -114,7 +113,6 @@ export async function fetchRecentSessionsForList(
     title: session.title,
     created_at: session.created_at,
     updated_at: session.updated_at,
-    message_count: 0, // Not available in list view - fetch full session for count
   }));
 }
 
