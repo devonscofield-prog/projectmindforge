@@ -1,12 +1,26 @@
 import { BarChart3, Target, MessageSquareQuote, Ear } from 'lucide-react';
 import { TrendCard } from '@/components/coaching/TrendCard';
-import { CoachingTrendAnalysis } from '@/api/aiCallAnalysis';
+import { CoachingTrendAnalysis, FrameworkTrend } from '@/api/aiCallAnalysis';
 
 interface FrameworkTrendsSectionProps {
   analysis: CoachingTrendAnalysis;
 }
 
+// Default FrameworkTrend for backward compatibility when data is missing
+const defaultTrend: FrameworkTrend = {
+  trend: 'stable',
+  startingAvg: 0,
+  endingAvg: 0,
+  keyInsight: 'No data available',
+  evidence: [],
+  recommendation: 'Submit more calls to generate insights',
+};
+
 export function FrameworkTrendsSection({ analysis }: FrameworkTrendsSectionProps) {
+  // Use MEDDPICC as primary, fall back to BANT for legacy data, then default
+  const primaryFramework = analysis.trendAnalysis.meddpicc ?? analysis.trendAnalysis.bant ?? defaultTrend;
+  const primaryTitle = analysis.trendAnalysis.meddpicc ? 'MEDDPICC' : 'BANT';
+
   return (
     <div>
       <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -15,14 +29,14 @@ export function FrameworkTrendsSection({ analysis }: FrameworkTrendsSectionProps
       </h2>
       <div className="grid gap-4 md:grid-cols-3">
         <TrendCard
-          title="BANT"
+          title={primaryTitle}
           icon={<Target className="h-4 w-4 text-blue-500" />}
-          trend={analysis.trendAnalysis.bant.trend}
-          startingAvg={analysis.trendAnalysis.bant.startingAvg}
-          endingAvg={analysis.trendAnalysis.bant.endingAvg}
-          keyInsight={analysis.trendAnalysis.bant.keyInsight}
-          evidence={analysis.trendAnalysis.bant.evidence}
-          recommendation={analysis.trendAnalysis.bant.recommendation}
+          trend={primaryFramework.trend}
+          startingAvg={primaryFramework.startingAvg}
+          endingAvg={primaryFramework.endingAvg}
+          keyInsight={primaryFramework.keyInsight}
+          evidence={primaryFramework.evidence}
+          recommendation={primaryFramework.recommendation}
         />
         <TrendCard
           title="Gap Selling"

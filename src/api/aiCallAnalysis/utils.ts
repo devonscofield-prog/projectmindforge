@@ -311,11 +311,15 @@ export function calculateRepContributions(
 
     // Calculate framework scores
     const bantScores: number[] = [];
+    const meddpiccScores: number[] = [];
     const gapScores: number[] = [];
     const listenScores: number[] = [];
 
     repCalls.forEach(a => {
       const fs = a.coach_output?.framework_scores;
+      // New MEDDPICC scores
+      if (fs?.meddpicc?.overall_score !== undefined) meddpiccScores.push(fs.meddpicc.overall_score);
+      // Legacy BANT scores for backward compatibility
       if (fs?.bant?.score !== undefined) bantScores.push(fs.bant.score);
       if (fs?.gap_selling?.score !== undefined) gapScores.push(fs.gap_selling.score);
       if (fs?.active_listening?.score !== undefined) listenScores.push(fs.active_listening.score);
@@ -331,9 +335,11 @@ export function calculateRepContributions(
       percentageOfTotal: (repCalls.length / totalCalls) * 100,
       averageHeatScore: avgHeat,
       frameworkScores: {
-        bant: avg(bantScores),
+        meddpicc: avg(meddpiccScores),
         gapSelling: avg(gapScores),
         activeListening: avg(listenScores),
+        // Legacy BANT for backward compatibility
+        bant: avg(bantScores),
       },
     });
   });

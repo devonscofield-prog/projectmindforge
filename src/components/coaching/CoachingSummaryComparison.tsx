@@ -340,8 +340,8 @@ export function CoachingSummaryComparison({
           />
           <PatternComparison
             title="BANT Improvements"
-            period1Items={period1.recurringPatterns.bantImprovements}
-            period2Items={period2.recurringPatterns.bantImprovements}
+            period1Items={period1.recurringPatterns.bantImprovements ?? []}
+            period2Items={period2.recurringPatterns.bantImprovements ?? []}
             period1Label={period1Label}
             period2Label={period2Label}
           />
