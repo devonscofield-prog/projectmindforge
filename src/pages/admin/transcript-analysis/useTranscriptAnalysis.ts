@@ -132,8 +132,11 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
         .from('teams')
         .select('id, name')
         .eq('manager_id', user.id)
-        .single();
+        .maybeSingle(); // Use maybeSingle to return null instead of error when no team found
       if (error) throw error;
+      if (!data) {
+        log.warn('Manager has no team assigned', { userId: user.id });
+      }
       return data;
     },
     enabled: !!user?.id && isTeamScoped,
