@@ -5,7 +5,8 @@ import { getAdminPageBreadcrumb, getManagerPageBreadcrumb, getRepPageBreadcrumb 
 import { SaveSelectionDialog } from '@/components/admin/SaveSelectionDialog';
 import { SavedSelectionsSheet } from '@/components/admin/SavedSelectionsSheet';
 import { SavedInsightsSheet } from '@/components/admin/SavedInsightsSheet';
-import { FileText } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { FileText, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 import {
@@ -117,46 +118,61 @@ function AdminTranscriptAnalysis() {
           </Badge>
         </div>
 
-        {/* Filters */}
-        <TranscriptFilters
-          dateRange={dateRange}
-          selectedPreset={selectedPreset}
-          selectedTeamId={isTeamScoped ? (managerTeam?.id || 'all') : selectedTeamId}
-          selectedRepId={selectedRepId}
-          accountSearch={accountSearch}
-          selectedCallTypes={selectedCallTypes}
-          teams={teams}
-          reps={reps}
-          onPresetChange={handlePresetChange}
-          onFromDateChange={handleFromDateChange}
-          onToDateChange={handleToDateChange}
-          onTeamChange={(v) => { setSelectedTeamId(v); setSelectedRepId('all'); }}
-          onRepChange={setSelectedRepId}
-          onAccountSearchChange={setAccountSearch}
-          onToggleCallType={toggleCallType}
-          hideTeamFilter={isTeamScoped || isSelfScoped}
-          hideRepFilter={isSelfScoped}
-        />
+        {/* Manager without team warning */}
+        {isTeamScoped && !managerTeam && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>No Team Assigned</AlertTitle>
+            <AlertDescription>
+              You don't have a team assigned yet. Please contact an administrator to assign you to a team before you can view transcripts.
+            </AlertDescription>
+          </Alert>
+        )}
 
-        {/* Selection Info Bar */}
-        <TranscriptSelectionBar
-          transcripts={transcripts}
-          selectedTranscriptIds={selectedTranscriptIds}
-          selectedTranscripts={selectedTranscripts}
-          currentSelectionId={currentSelectionId}
-          estimatedTokens={estimatedTokens}
-          chunkStatus={chunkStatus}
-          isIndexing={isIndexing}
-          analysisMode={analysisMode}
-          chatOpen={chatOpen}
-          onChatOpenChange={setChatOpen}
-          onSelectAll={selectAll}
-          onDeselectAll={deselectAll}
-          onPreIndex={handlePreIndex}
-          onSaveClick={() => setSaveSelectionOpen(true)}
-          onLoadClick={() => setSavedSelectionsOpen(true)}
-          onInsightsClick={() => setSavedInsightsOpen(true)}
-        />
+        {/* Filters - only show if manager has a team or not team-scoped */}
+        {(!isTeamScoped || managerTeam) && (
+          <TranscriptFilters
+            dateRange={dateRange}
+            selectedPreset={selectedPreset}
+            selectedTeamId={isTeamScoped ? (managerTeam?.id || 'all') : selectedTeamId}
+            selectedRepId={selectedRepId}
+            accountSearch={accountSearch}
+            selectedCallTypes={selectedCallTypes}
+            teams={teams}
+            reps={reps}
+            onPresetChange={handlePresetChange}
+            onFromDateChange={handleFromDateChange}
+            onToDateChange={handleToDateChange}
+            onTeamChange={(v) => { setSelectedTeamId(v); setSelectedRepId('all'); }}
+            onRepChange={setSelectedRepId}
+            onAccountSearchChange={setAccountSearch}
+            onToggleCallType={toggleCallType}
+            hideTeamFilter={isTeamScoped || isSelfScoped}
+            hideRepFilter={isSelfScoped}
+          />
+        )}
+
+        {/* Selection Info Bar - only show if manager has a team or not team-scoped */}
+        {(!isTeamScoped || managerTeam) && (
+          <TranscriptSelectionBar
+            transcripts={transcripts}
+            selectedTranscriptIds={selectedTranscriptIds}
+            selectedTranscripts={selectedTranscripts}
+            currentSelectionId={currentSelectionId}
+            estimatedTokens={estimatedTokens}
+            chunkStatus={chunkStatus}
+            isIndexing={isIndexing}
+            analysisMode={analysisMode}
+            chatOpen={chatOpen}
+            onChatOpenChange={setChatOpen}
+            onSelectAll={selectAll}
+            onDeselectAll={deselectAll}
+            onPreIndex={handlePreIndex}
+            onSaveClick={() => setSaveSelectionOpen(true)}
+            onLoadClick={() => setSavedSelectionsOpen(true)}
+            onInsightsClick={() => setSavedInsightsOpen(true)}
+          />
+        )}
 
         {/* Save Selection Dialog */}
         <SaveSelectionDialog
@@ -186,18 +202,20 @@ function AdminTranscriptAnalysis() {
           onOpenChange={setSavedInsightsOpen}
         />
 
-        {/* Transcript Table */}
-        <TranscriptTable
-          transcripts={transcripts}
-          totalCount={totalCount}
-          isLoading={isLoading}
-          selectedTranscriptIds={selectedTranscriptIds}
-          currentPage={currentPage}
-          totalPages={totalPages}
-          pageSize={pageSize}
-          onToggleTranscript={toggleTranscript}
-          onPageChange={setCurrentPage}
-        />
+        {/* Transcript Table - only show if manager has a team or not team-scoped */}
+        {(!isTeamScoped || managerTeam) && (
+          <TranscriptTable
+            transcripts={transcripts}
+            totalCount={totalCount}
+            isLoading={isLoading}
+            selectedTranscriptIds={selectedTranscriptIds}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            onToggleTranscript={toggleTranscript}
+            onPageChange={setCurrentPage}
+          />
+        )}
       </div>
     </AppLayout>
   );
