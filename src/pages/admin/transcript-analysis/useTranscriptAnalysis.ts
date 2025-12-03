@@ -59,6 +59,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
   
   // Pre-indexing state
   const [isIndexing, setIsIndexing] = useState(false);
+  const [isBackfilling, setIsBackfilling] = useState(false);
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -248,7 +249,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
   const totalCount = transcriptsData?.totalCount || 0;
   const totalPages = transcriptsData?.totalPages || 1;
 
-  // Query to check which transcripts are already chunked
+  // Query to check which transcripts are already chunked (for current selection)
   const { data: chunkStatus, refetch: refetchChunkStatus } = useQuery({
     queryKey: ['chunk-status', transcripts?.map(t => t.id).join(',')],
     queryFn: async () => {
@@ -268,7 +269,35 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     enabled: !!transcripts?.length,
   });
 
-  // Pre-index handler
+  // Query for global chunk status (all completed transcripts)
+  const { data: globalChunkStatus, refetch: refetchGlobalChunkStatus } = useQuery({
+    queryKey: ['global-chunk-status'],
+    queryFn: async () => {
+      // Get total count of completed transcripts
+      const { count: totalCount, error: countError } = await supabase
+        .from('call_transcripts')
+        .select('id', { count: 'exact', head: true })
+        .eq('analysis_status', 'completed')
+        .is('deleted_at', null);
+      
+      if (countError) throw countError;
+      
+      // Get count of distinct indexed transcripts
+      const { data: chunkedData, error: chunkedError } = await supabase
+        .from('transcript_chunks')
+        .select('transcript_id');
+      
+      if (chunkedError) throw chunkedError;
+      
+      const uniqueIndexed = new Set((chunkedData || []).map(c => c.transcript_id)).size;
+      
+      return { indexed: uniqueIndexed, total: totalCount || 0 };
+    },
+    enabled: role === 'admin',
+    staleTime: 30000, // 30 seconds
+  });
+
+  // Pre-index handler (for selected transcripts on current page)
   const handlePreIndex = async () => {
     if (!transcripts?.length) return;
     setIsIndexing(true);
@@ -295,13 +324,64 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
       }
       
       const result = await response.json();
-      toast.success(`Indexed ${result.new_chunks || 0} new chunks from ${result.transcripts_chunked || 0} transcripts`);
+      toast.success(`Indexed ${result.new_chunks || 0} new chunks`);
       refetchChunkStatus();
+      refetchGlobalChunkStatus();
     } catch (err) {
       log.error('Pre-index error', { error: err });
       toast.error(err instanceof Error ? err.message : 'Failed to pre-index transcripts');
     } finally {
       setIsIndexing(false);
+    }
+  };
+
+  // Backfill all handler (admin only - indexes ALL unchunked transcripts)
+  const handleBackfillAll = async () => {
+    if (role !== 'admin') {
+      toast.error('Only admins can backfill all transcripts');
+      return;
+    }
+    
+    setIsBackfilling(true);
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Please sign in to backfill transcripts');
+        return;
+      }
+      
+      toast.info('Starting backfill of all unchunked transcripts...');
+      
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chunk-transcripts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ backfill_all: true }),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to backfill transcripts');
+      }
+      
+      const result = await response.json();
+      
+      if (result.new_chunks === 0) {
+        toast.success('All transcripts are already indexed');
+      } else {
+        toast.success(`Backfill complete: ${result.new_chunks} chunks created from ${result.indexed - (globalChunkStatus?.indexed || 0)} transcripts`);
+      }
+      
+      refetchChunkStatus();
+      refetchGlobalChunkStatus();
+    } catch (err) {
+      log.error('Backfill error', { error: err });
+      toast.error(err instanceof Error ? err.message : 'Failed to backfill transcripts');
+    } finally {
+      setIsBackfilling(false);
     }
   };
 
@@ -394,6 +474,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     totalPages,
     isLoading,
     chunkStatus,
+    globalChunkStatus,
     
     // Selection
     selectedTranscriptIds,
@@ -411,6 +492,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     savedInsightsOpen,
     setSavedInsightsOpen,
     isIndexing,
+    isBackfilling,
     
     // Pagination
     currentPage,
@@ -430,6 +512,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     deselectAll,
     toggleCallType,
     handlePreIndex,
+    handleBackfillAll,
     handleLoadSelection,
   };
 }
