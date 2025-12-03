@@ -98,12 +98,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Generate password reset link
+    // Generate password reset link (recovery type, not magiclink)
     const { data: resetData, error: resetError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'magiclink',
+      type: 'recovery',
       email: userData.user.email!,
       options: {
-        redirectTo: redirectTo || undefined
+        redirectTo: redirectTo || `${supabaseUrl.replace('.supabase.co', '.lovableproject.com')}/auth`
       }
     });
 

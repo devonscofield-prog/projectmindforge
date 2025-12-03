@@ -7,6 +7,7 @@ import { FormInput, SubmitButton } from '@/components/ui/form-fields';
 import { useToast } from '@/hooks/use-toast';
 import { z } from 'zod';
 import { CheckCircle } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 const authSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -33,8 +34,11 @@ export default function Auth() {
   const [isLoading, setIsLoading] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   
-  // Recovery mode states
-  const [isRecoveryMode, setIsRecoveryMode] = useState(false);
+  // Recovery mode states - check synchronously on mount to prevent race condition
+  const [isRecoveryMode, setIsRecoveryMode] = useState(() => {
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    return hashParams.get('type') === 'recovery';
+  });
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [recoveryComplete, setRecoveryComplete] = useState(false);
@@ -43,23 +47,24 @@ export default function Auth() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Detect recovery mode from URL hash
+  // Listen for PASSWORD_RECOVERY event from Supabase Auth
   useEffect(() => {
-    const hashParams = new URLSearchParams(window.location.hash.substring(1));
-    const type = hashParams.get('type');
-    
-    if (type === 'recovery') {
-      setIsRecoveryMode(true);
-    }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        console.log('PASSWORD_RECOVERY event detected');
+        setIsRecoveryMode(true);
+      }
+    });
+    return () => subscription.unsubscribe();
   }, []);
 
   // Redirect authenticated users (but not during recovery)
   useEffect(() => {
-    if (user && role && !isRecoveryMode) {
+    if (user && role && !isRecoveryMode && !recoveryComplete) {
       const redirectPath = role === 'admin' ? '/admin' : role === 'manager' ? '/manager' : '/rep';
       navigate(redirectPath, { replace: true });
     }
-  }, [user, role, navigate, isRecoveryMode]);
+  }, [user, role, navigate, isRecoveryMode, recoveryComplete]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
