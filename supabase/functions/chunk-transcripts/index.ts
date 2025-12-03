@@ -70,6 +70,10 @@ serve(async (req) => {
   }
 
   try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
     // Parse and validate request body
     let body: unknown;
     try {
@@ -98,65 +102,76 @@ serve(async (req) => {
 
     console.log(`[chunk-transcripts] Processing ${transcript_ids.length} transcripts`);
 
-    // Verify authentication
+    // Check for internal service call (from analyze-call or other edge functions)
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'Authorization required' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    const token = authHeader?.replace('Bearer ', '');
+    const isInternalServiceCall = token === supabaseServiceKey;
+
+    let userId: string | null = null;
+    let userRole: string | null = null;
+
+    if (isInternalServiceCall) {
+      // Internal service call - skip user auth, allow all transcripts
+      console.log('[chunk-transcripts] Internal service call detected, bypassing user auth');
+      userId = 'service';
+      userRole = 'admin'; // Treat as admin for authorization
+    } else {
+      // User call - verify JWT
+      if (!authHeader) {
+        return new Response(
+          JSON.stringify({ error: 'Authorization required' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token!);
+      
+      if (authError || !user) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid authentication' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      userId = user.id;
+
+      // Check rate limit for user calls only
+      const rateLimitResult = checkRateLimit(user.id);
+      if (!rateLimitResult.allowed) {
+        console.warn(`[chunk-transcripts] Rate limit exceeded for user ${user.id}`);
+        return new Response(
+          JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
+          { 
+            status: 429, 
+            headers: { 
+              ...corsHeaders, 
+              'Content-Type': 'application/json',
+              'Retry-After': String(rateLimitResult.retryAfter || 60)
+            } 
+          }
+        );
+      }
+
+      // Get user role
+      const { data: roleData } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .single();
+
+      userRole = roleData?.role || null;
+
+      if (!userRole) {
+        return new Response(
+          JSON.stringify({ error: 'Authentication required' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    // Verify user
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid authentication' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Check rate limit
-    const rateLimitResult = checkRateLimit(user.id);
-    if (!rateLimitResult.allowed) {
-      console.warn(`[chunk-transcripts] Rate limit exceeded for user ${user.id}`);
-      return new Response(
-        JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
-        { 
-          status: 429, 
-          headers: { 
-            ...corsHeaders, 
-            'Content-Type': 'application/json',
-            'Retry-After': String(rateLimitResult.retryAfter || 60)
-          } 
-        }
-      );
-    }
-
-    // Get user role
-    const { data: roleData } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .single();
-
-    const userRole = roleData?.role;
     const isAdmin = userRole === 'admin';
     const isManager = userRole === 'manager';
     const isRep = userRole === 'rep';
-
-    if (!isAdmin && !isManager && !isRep) {
-      return new Response(
-        JSON.stringify({ error: 'Authentication required' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
 
     // Authorization check based on role
     let authorizedTranscriptIds: string[] = [];
@@ -164,13 +179,13 @@ serve(async (req) => {
     if (isAdmin) {
       // Admins can chunk any transcript
       authorizedTranscriptIds = transcript_ids;
-      console.log(`[chunk-transcripts] Admin ${user.id} authorized for all ${transcript_ids.length} transcripts`);
+      console.log(`[chunk-transcripts] Admin ${userId} authorized for all ${transcript_ids.length} transcripts`);
     } else if (isManager) {
       // Managers can chunk their team's transcripts
       const { data: managerTeam } = await supabase
         .from('teams')
         .select('id')
-        .eq('manager_id', user.id)
+        .eq('manager_id', userId)
         .maybeSingle();
 
       if (!managerTeam) {
@@ -200,9 +215,9 @@ serve(async (req) => {
 
       const unauthorizedCount = transcript_ids.length - authorizedTranscriptIds.length;
       if (unauthorizedCount > 0) {
-        console.log(`[chunk-transcripts] Manager ${user.id}: ${unauthorizedCount} transcripts outside team filtered out`);
+        console.log(`[chunk-transcripts] Manager ${userId}: ${unauthorizedCount} transcripts outside team filtered out`);
       }
-      console.log(`[chunk-transcripts] Manager ${user.id} authorized for ${authorizedTranscriptIds.length} team transcripts`);
+      console.log(`[chunk-transcripts] Manager ${userId} authorized for ${authorizedTranscriptIds.length} team transcripts`);
     } else if (isRep) {
       // Reps can only chunk their own transcripts
       const { data: transcripts } = await supabase
@@ -211,14 +226,14 @@ serve(async (req) => {
         .in('id', transcript_ids);
 
       authorizedTranscriptIds = (transcripts || [])
-        .filter((t: { id: string; rep_id: string }) => t.rep_id === user.id)
+        .filter((t: { id: string; rep_id: string }) => t.rep_id === userId)
         .map((t: { id: string }) => t.id);
 
       const unauthorizedCount = transcript_ids.length - authorizedTranscriptIds.length;
       if (unauthorizedCount > 0) {
-        console.log(`[chunk-transcripts] Rep ${user.id}: ${unauthorizedCount} transcripts not owned filtered out`);
+        console.log(`[chunk-transcripts] Rep ${userId}: ${unauthorizedCount} transcripts not owned filtered out`);
       }
-      console.log(`[chunk-transcripts] Rep ${user.id} authorized for ${authorizedTranscriptIds.length} own transcripts`);
+      console.log(`[chunk-transcripts] Rep ${userId} authorized for ${authorizedTranscriptIds.length} own transcripts`);
     }
 
     if (authorizedTranscriptIds.length === 0) {

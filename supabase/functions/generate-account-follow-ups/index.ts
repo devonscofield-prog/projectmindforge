@@ -118,6 +118,11 @@ serve(async (req) => {
   }
 
   try {
+    // Create Supabase client with service role for backend operations
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
     // Parse and validate request body
     let body: unknown;
     try {
@@ -146,46 +151,47 @@ serve(async (req) => {
 
     console.log(`[generate-account-follow-ups] Starting for prospect: ${prospect_id}`);
 
-    // Get auth token and verify user for rate limiting
+    // Check for internal service call (from analyze-call or other edge functions)
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'Authorization required' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    const token = authHeader?.replace('Bearer ', '');
+    const isInternalServiceCall = token === supabaseServiceKey;
 
-    // Create Supabase client with service role for backend operations
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    if (isInternalServiceCall) {
+      console.log('[generate-account-follow-ups] Internal service call detected, bypassing user auth');
+    } else {
+      // User call - verify JWT
+      if (!authHeader) {
+        return new Response(
+          JSON.stringify({ error: 'Authorization required' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
 
-    // Verify user and check rate limit
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid authentication' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token!);
+      
+      if (authError || !user) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid authentication' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
 
-    // Check rate limit
-    const rateLimit = checkRateLimit(user.id);
-    if (!rateLimit.allowed) {
-      console.log(`[generate-account-follow-ups] Rate limit exceeded for user: ${user.id}`);
-      return new Response(
-        JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
-        { 
-          status: 429, 
-          headers: { 
-            ...corsHeaders, 
-            'Content-Type': 'application/json',
-            'Retry-After': String(rateLimit.retryAfter || 60)
-          } 
-        }
-      );
+      // Check rate limit for user calls only
+      const rateLimit = checkRateLimit(user.id);
+      if (!rateLimit.allowed) {
+        console.log(`[generate-account-follow-ups] Rate limit exceeded for user: ${user.id}`);
+        return new Response(
+          JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
+          { 
+            status: 429, 
+            headers: { 
+              ...corsHeaders, 
+              'Content-Type': 'application/json',
+              'Retry-After': String(rateLimit.retryAfter || 60)
+            } 
+          }
+        );
+      }
     }
 
     // Update prospect status to processing

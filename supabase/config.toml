@@ -13,7 +13,7 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.generate-account-follow-ups]
-verify_jwt = true
+verify_jwt = false
 
 [functions.regenerate-account-insights]
 verify_jwt = true
@@ -31,7 +31,7 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.chunk-transcripts]
-verify_jwt = true
+verify_jwt = false
 
 [functions.send-performance-alert]
 verify_jwt = true
@@ -56,3 +56,6 @@ verify_jwt = true
 
 [functions.delete-user]
 verify_jwt = true
+
+[functions.reset-test-passwords]
+verify_jwt = false
