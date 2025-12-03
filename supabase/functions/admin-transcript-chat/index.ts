@@ -583,11 +583,11 @@ serve(async (req) => {
         .from('teams')
         .select('id')
         .eq('manager_id', user.id)
-        .single();
+        .maybeSingle(); // Use maybeSingle - manager may not have a team assigned yet
 
       if (!managerTeam) {
         return new Response(
-          JSON.stringify({ error: 'No team found for this manager' }),
+          JSON.stringify({ error: 'No team assigned. Please contact an administrator to assign you to a team.' }),
           { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
