@@ -38,10 +38,14 @@ function checkRateLimit(userId: string): { allowed: boolean; retryAfter?: number
   return { allowed: true };
 }
 
-// Zod validation schema
+// Zod validation schema - supports either transcript_ids OR backfill_all mode
 const chunkTranscriptsSchema = z.object({
-  transcript_ids: z.array(z.string().uuid()).min(1, "At least one transcript required").max(100, "Maximum 100 transcripts allowed")
-});
+  transcript_ids: z.array(z.string().uuid()).max(100, "Maximum 100 transcripts allowed").optional(),
+  backfill_all: z.boolean().optional(),
+}).refine(
+  (data) => data.backfill_all === true || (data.transcript_ids && data.transcript_ids.length > 0),
+  { message: "Either transcript_ids or backfill_all=true is required" }
+);
 
 // Type for transcript chunk
 interface TranscriptChunk {
@@ -98,9 +102,9 @@ serve(async (req) => {
       );
     }
 
-    const { transcript_ids } = validation.data;
+    const { transcript_ids, backfill_all } = validation.data;
 
-    console.log(`[chunk-transcripts] Processing ${transcript_ids.length} transcripts`);
+    console.log(`[chunk-transcripts] Request: backfill_all=${backfill_all}, transcript_ids=${transcript_ids?.length || 0}`);
 
     // Check for internal service call (from analyze-call or other edge functions)
     const authHeader = req.headers.get('Authorization');
@@ -173,13 +177,144 @@ serve(async (req) => {
     const isManager = userRole === 'manager';
     const isRep = userRole === 'rep';
 
+    // Handle backfill_all mode (admin only)
+    if (backfill_all) {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ error: 'Only admins can use backfill_all mode' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      console.log(`[chunk-transcripts] Admin ${userId} initiated backfill_all`);
+
+      // Get all completed transcripts that don't have chunks yet
+      const { data: allTranscripts, error: allError } = await supabase
+        .from('call_transcripts')
+        .select('id')
+        .eq('analysis_status', 'completed')
+        .is('deleted_at', null);
+
+      if (allError) {
+        console.error('[chunk-transcripts] Error fetching all transcripts:', allError);
+        throw new Error('Failed to fetch transcripts for backfill');
+      }
+
+      const allIds = (allTranscripts || []).map(t => t.id);
+
+      // Get existing chunks
+      const { data: existingChunks } = await supabase
+        .from('transcript_chunks')
+        .select('transcript_id')
+        .in('transcript_id', allIds.length > 0 ? allIds : ['00000000-0000-0000-0000-000000000000']);
+
+      const chunkedIds = new Set((existingChunks || []).map(c => c.transcript_id));
+      const unchunkedIds = allIds.filter(id => !chunkedIds.has(id));
+
+      console.log(`[chunk-transcripts] Backfill: ${allIds.length} total completed, ${chunkedIds.size} already indexed, ${unchunkedIds.length} to process`);
+
+      if (unchunkedIds.length === 0) {
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            message: 'All transcripts already indexed',
+            total: allIds.length,
+            indexed: chunkedIds.size,
+            new_chunks: 0 
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Process in batches of 50
+      const BACKFILL_BATCH_SIZE = 50;
+      let totalChunksCreated = 0;
+      let transcriptsProcessed = 0;
+
+      for (let i = 0; i < unchunkedIds.length; i += BACKFILL_BATCH_SIZE) {
+        const batchIds = unchunkedIds.slice(i, i + BACKFILL_BATCH_SIZE);
+        
+        // Fetch transcripts
+        const { data: transcripts } = await supabase
+          .from('call_transcripts')
+          .select('id, call_date, account_name, call_type, raw_text, rep_id')
+          .in('id', batchIds);
+
+        if (!transcripts || transcripts.length === 0) continue;
+
+        // Get rep names
+        const repIds = [...new Set(transcripts.map(t => t.rep_id))];
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, name')
+          .in('id', repIds);
+
+        const repMap = new Map((profiles || []).map(p => [p.id, p.name]));
+
+        // Create chunks
+        const allChunks: TranscriptChunk[] = [];
+        for (const transcript of transcripts) {
+          const chunks = chunkText(transcript.raw_text || '', CHUNK_SIZE, CHUNK_OVERLAP);
+          const repName = repMap.get(transcript.rep_id) || 'Unknown';
+          
+          chunks.forEach((chunkTextContent, index) => {
+            allChunks.push({
+              transcript_id: transcript.id,
+              chunk_index: index,
+              chunk_text: chunkTextContent,
+              metadata: {
+                account_name: transcript.account_name || 'Unknown',
+                call_date: transcript.call_date,
+                call_type: transcript.call_type || 'Call',
+                rep_name: repName,
+                rep_id: transcript.rep_id,
+              }
+            });
+          });
+        }
+
+        // Insert chunks in batches
+        const INSERT_BATCH_SIZE = 100;
+        for (let j = 0; j < allChunks.length; j += INSERT_BATCH_SIZE) {
+          const insertBatch = allChunks.slice(j, j + INSERT_BATCH_SIZE);
+          const { error: insertError } = await supabase
+            .from('transcript_chunks')
+            .insert(insertBatch);
+
+          if (insertError) {
+            console.error('[chunk-transcripts] Error inserting chunks:', insertError);
+            // Continue with remaining batches
+          } else {
+            totalChunksCreated += insertBatch.length;
+          }
+        }
+
+        transcriptsProcessed += transcripts.length;
+        console.log(`[chunk-transcripts] Backfill progress: ${transcriptsProcessed}/${unchunkedIds.length} transcripts`);
+      }
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: `Backfilled ${transcriptsProcessed} transcripts`,
+          total: allIds.length,
+          indexed: chunkedIds.size + transcriptsProcessed,
+          new_chunks: totalChunksCreated 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Standard mode: specific transcript_ids
+    const idsToProcess = transcript_ids || [];
+
     // Authorization check based on role
     let authorizedTranscriptIds: string[] = [];
 
     if (isAdmin) {
       // Admins can chunk any transcript
-      authorizedTranscriptIds = transcript_ids;
-      console.log(`[chunk-transcripts] Admin ${userId} authorized for all ${transcript_ids.length} transcripts`);
+      authorizedTranscriptIds = idsToProcess;
+      console.log(`[chunk-transcripts] Admin ${userId} authorized for all ${idsToProcess.length} transcripts`);
     } else if (isManager) {
       // Managers can chunk their team's transcripts
       const { data: managerTeam } = await supabase
@@ -207,13 +342,13 @@ serve(async (req) => {
       const { data: transcripts } = await supabase
         .from('call_transcripts')
         .select('id, rep_id')
-        .in('id', transcript_ids);
+        .in('id', idsToProcess);
 
       authorizedTranscriptIds = (transcripts || [])
         .filter((t: { id: string; rep_id: string }) => teamRepIds.has(t.rep_id))
         .map((t: { id: string }) => t.id);
 
-      const unauthorizedCount = transcript_ids.length - authorizedTranscriptIds.length;
+      const unauthorizedCount = idsToProcess.length - authorizedTranscriptIds.length;
       if (unauthorizedCount > 0) {
         console.log(`[chunk-transcripts] Manager ${userId}: ${unauthorizedCount} transcripts outside team filtered out`);
       }
@@ -223,13 +358,13 @@ serve(async (req) => {
       const { data: transcripts } = await supabase
         .from('call_transcripts')
         .select('id, rep_id')
-        .in('id', transcript_ids);
+        .in('id', idsToProcess);
 
       authorizedTranscriptIds = (transcripts || [])
         .filter((t: { id: string; rep_id: string }) => t.rep_id === userId)
         .map((t: { id: string }) => t.id);
 
-      const unauthorizedCount = transcript_ids.length - authorizedTranscriptIds.length;
+      const unauthorizedCount = idsToProcess.length - authorizedTranscriptIds.length;
       if (unauthorizedCount > 0) {
         console.log(`[chunk-transcripts] Rep ${userId}: ${unauthorizedCount} transcripts not owned filtered out`);
       }

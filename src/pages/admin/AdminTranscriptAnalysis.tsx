@@ -46,6 +46,7 @@ function AdminTranscriptAnalysis() {
     totalPages,
     isLoading,
     chunkStatus,
+    globalChunkStatus,
     
     // Selection
     selectedTranscriptIds,
@@ -63,6 +64,7 @@ function AdminTranscriptAnalysis() {
     savedInsightsOpen,
     setSavedInsightsOpen,
     isIndexing,
+    isBackfilling,
     
     // Pagination
     currentPage,
@@ -82,6 +84,7 @@ function AdminTranscriptAnalysis() {
     deselectAll,
     toggleCallType,
     handlePreIndex,
+    handleBackfillAll,
     handleLoadSelection,
   } = useTranscriptAnalysis();
 
@@ -161,13 +164,17 @@ function AdminTranscriptAnalysis() {
             currentSelectionId={currentSelectionId}
             estimatedTokens={estimatedTokens}
             chunkStatus={chunkStatus}
+            globalChunkStatus={globalChunkStatus}
             isIndexing={isIndexing}
+            isBackfilling={isBackfilling}
             analysisMode={analysisMode}
             chatOpen={chatOpen}
+            isAdmin={isAdmin}
             onChatOpenChange={setChatOpen}
             onSelectAll={selectAll}
             onDeselectAll={deselectAll}
             onPreIndex={handlePreIndex}
+            onBackfillAll={handleBackfillAll}
             onSaveClick={() => setSaveSelectionOpen(true)}
             onLoadClick={() => setSavedSelectionsOpen(true)}
             onInsightsClick={() => setSavedInsightsOpen(true)}

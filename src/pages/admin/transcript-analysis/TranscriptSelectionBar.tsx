@@ -14,6 +14,7 @@ import {
   Loader2,
   Sparkles,
   Info,
+  RefreshCw,
 } from 'lucide-react';
 import { Transcript } from './constants';
 
@@ -24,13 +25,17 @@ interface TranscriptSelectionBarProps {
   currentSelectionId: string | null;
   estimatedTokens: number;
   chunkStatus: { indexed: number; total: number } | undefined;
+  globalChunkStatus?: { indexed: number; total: number };
   isIndexing: boolean;
+  isBackfilling?: boolean;
   analysisMode: { label: string; color: string; useRag: boolean };
   chatOpen: boolean;
+  isAdmin?: boolean;
   onChatOpenChange: (open: boolean) => void;
   onSelectAll: () => void;
   onDeselectAll: () => void;
   onPreIndex: () => void;
+  onBackfillAll?: () => void;
   onSaveClick: () => void;
   onLoadClick: () => void;
   onInsightsClick: () => void;
@@ -43,17 +48,22 @@ export function TranscriptSelectionBar({
   currentSelectionId,
   estimatedTokens,
   chunkStatus,
+  globalChunkStatus,
   isIndexing,
+  isBackfilling,
   analysisMode,
   chatOpen,
+  isAdmin,
   onChatOpenChange,
   onSelectAll,
   onDeselectAll,
   onPreIndex,
+  onBackfillAll,
   onSaveClick,
   onLoadClick,
   onInsightsClick,
 }: TranscriptSelectionBarProps) {
+  const hasUnindexed = globalChunkStatus && globalChunkStatus.indexed < globalChunkStatus.total;
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-muted/50 rounded-lg">
       <div className="flex items-center gap-4">
@@ -77,7 +87,7 @@ export function TranscriptSelectionBar({
           ~{estimatedTokens.toLocaleString()} tokens
         </div>
 
-        {/* Pre-Index Status */}
+        {/* Pre-Index Status for selection */}
         {chunkStatus && chunkStatus.total > 0 && (
           <Badge 
             variant={chunkStatus.indexed === chunkStatus.total ? 'default' : 'secondary'}
@@ -92,6 +102,37 @@ export function TranscriptSelectionBar({
             {chunkStatus.indexed} / {chunkStatus.total} indexed
           </Badge>
         )}
+
+        {/* Global Index Status (Admin only) */}
+        {isAdmin && globalChunkStatus && (
+          <HoverCard>
+            <HoverCardTrigger>
+              <Badge 
+                variant="outline"
+                className={cn(
+                  "text-xs cursor-help",
+                  globalChunkStatus.indexed === globalChunkStatus.total 
+                    ? "border-green-500/30 text-green-600" 
+                    : "border-amber-500/30 text-amber-600"
+                )}
+              >
+                <Database className="h-3 w-3 mr-1" />
+                Global: {globalChunkStatus.indexed} / {globalChunkStatus.total}
+              </Badge>
+            </HoverCardTrigger>
+            <HoverCardContent className="w-64">
+              <div className="space-y-2 text-sm">
+                <p><strong>RAG Index Status</strong></p>
+                <p>{globalChunkStatus.indexed} of {globalChunkStatus.total} completed transcripts are indexed for RAG search.</p>
+                {hasUnindexed && (
+                  <p className="text-amber-600">
+                    {globalChunkStatus.total - globalChunkStatus.indexed} transcripts need indexing for optimal RAG performance.
+                  </p>
+                )}
+              </div>
+            </HoverCardContent>
+          </HoverCard>
+        )}
       </div>
 
       <div className="flex items-center gap-3">
@@ -101,16 +142,35 @@ export function TranscriptSelectionBar({
             variant="outline"
             size="sm"
             onClick={onPreIndex}
-            disabled={!transcripts?.length || isIndexing || (chunkStatus?.indexed === chunkStatus?.total && (chunkStatus?.total ?? 0) > 0)}
-            title="Pre-index transcripts for faster RAG queries"
+            disabled={!transcripts?.length || isIndexing || isBackfilling || (chunkStatus?.indexed === chunkStatus?.total && (chunkStatus?.total ?? 0) > 0)}
+            title="Pre-index selected transcripts for faster RAG queries"
           >
             {isIndexing ? (
               <Loader2 className="h-4 w-4 mr-1 animate-spin" />
             ) : (
               <Database className="h-4 w-4 mr-1" />
             )}
-            {isIndexing ? 'Indexing...' : 'Pre-Index'}
+            {isIndexing ? 'Indexing...' : 'Index Selected'}
           </Button>
+          
+          {/* Backfill All button (Admin only) */}
+          {isAdmin && onBackfillAll && hasUnindexed && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onBackfillAll}
+              disabled={isIndexing || isBackfilling}
+              title={`Index all ${(globalChunkStatus?.total || 0) - (globalChunkStatus?.indexed || 0)} unindexed transcripts`}
+              className="border-amber-500/30 text-amber-600 hover:bg-amber-500/10"
+            >
+              {isBackfilling ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-1" />
+              )}
+              {isBackfilling ? 'Backfilling...' : `Backfill All (${(globalChunkStatus?.total || 0) - (globalChunkStatus?.indexed || 0)})`}
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
