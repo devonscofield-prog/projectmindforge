@@ -790,10 +790,22 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
     throw new Error('AI analysis recap_email_draft must be a non-empty string');
   }
 
+  // Auto-append required links if missing instead of failing
+  let finalRecapEmail = recapEmail;
   if (!validateRecapEmailLinks(recapEmail)) {
-    console.error('[analyze-call] recap_email_draft missing required links');
-    console.error('[analyze-call] Expected links:', REQUIRED_RECAP_LINKS);
-    throw new Error('AI analysis recap_email_draft must include required StormWind links');
+    console.warn('[analyze-call] recap_email_draft missing required links - auto-appending');
+    console.warn('[analyze-call] Missing links from:', REQUIRED_RECAP_LINKS);
+    
+    const linksFooter = `
+
+You can learn more here:
+[StormWind Website](https://info.stormwind.com/)
+
+View sample courses here:
+[View Sample Courses](https://info.stormwind.com/training-samples)`;
+    
+    finalRecapEmail = recapEmail.trim() + linksFooter;
+    console.log('[analyze-call] Links auto-appended to recap_email_draft');
   }
 
   // Validate coach_output structure
@@ -832,7 +844,7 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
     deal_tags: analysisData.deal_tags as string[],
     meta_tags: analysisData.meta_tags as string[],
     call_notes: String(callNotes),
-    recap_email_draft: String(recapEmail),
+    recap_email_draft: String(finalRecapEmail),
     coach_output: coachOutput,
     raw_json: analysisData,
     prospect_intel: prospectIntel,
