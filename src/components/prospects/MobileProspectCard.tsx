@@ -15,7 +15,7 @@ interface MobileProspectCardProps {
     status: ProspectStatus;
     industry?: string | null;
     heat_score?: number | null;
-    potential_revenue?: number | null;
+    active_revenue?: number | null;
     last_contact_date?: string | null;
   };
   stakeholderCount: number;
@@ -53,9 +53,9 @@ export function MobileProspectCard({ prospect, stakeholderCount, callCount, onCl
             <div className="flex items-center gap-4 text-sm">
               <HeatScoreBadge score={prospect.heat_score ?? null} />
               
-              {formatCurrency(prospect.potential_revenue) && (
+              {formatCurrency(prospect.active_revenue) && (
                 <span className="text-green-600 font-medium">
-                  {formatCurrency(prospect.potential_revenue)}
+                  {formatCurrency(prospect.active_revenue)}
                 </span>
               )}
               
