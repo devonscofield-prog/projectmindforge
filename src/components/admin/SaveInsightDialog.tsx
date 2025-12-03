@@ -94,7 +94,7 @@ export function SaveInsightDialog({
       return data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['admin-saved-insights'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-insights-list'] });
       toast.success('Insight saved successfully');
       
       if (data.share_token) {
