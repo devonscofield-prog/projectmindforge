@@ -125,22 +125,23 @@ export function SavedInsightsSheet({
     staleTime: 2 * 60 * 1000, // 2 minutes
   });
 
-  // Fetch full insight when viewing details
+  // Fetch full insight when viewing details - filter to own or shared
   const { data: viewInsight, isLoading: isLoadingInsightDetail } = useQuery({
-    queryKey: ['admin-insight-detail', viewInsightId],
+    queryKey: ['admin-insight-detail', viewInsightId, user?.id],
     queryFn: async () => {
-      if (!viewInsightId) return null;
+      if (!viewInsightId || !user?.id) return null;
       
       const { data, error } = await supabase
         .from('admin_chat_insights')
         .select('*')
         .eq('id', viewInsightId)
+        .or(`admin_id.eq.${user.id},is_shared.eq.true`)
         .maybeSingle();
       
       if (error) throw error;
       return data as SavedInsight | null;
     },
-    enabled: !!viewInsightId,
+    enabled: !!viewInsightId && !!user?.id,
     staleTime: 5 * 60 * 1000, // 5 minutes - individual items rarely change
   });
 
@@ -157,15 +158,18 @@ export function SavedInsightsSheet({
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      if (!user?.id) throw new Error('Not authenticated');
+      
       const { error } = await supabase
         .from('admin_chat_insights')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .eq('admin_id', user.id); // Defense in depth - only delete own insights
       
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-saved-insights'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-insights-list'] });
       toast.success('Insight deleted');
       setDeleteId(null);
     },
@@ -547,11 +551,7 @@ function SessionCard({ session, onView, onDelete }: SessionCardProps) {
           <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
             <Badge variant="outline" className="gap-1">
               <FileText className="h-3 w-3" />
-              {session.transcript_ids.length}
-            </Badge>
-            <Badge variant="outline" className="gap-1">
-              <MessageSquare className="h-3 w-3" />
-              {session.message_count}
+              {session.transcript_ids.length} transcripts
             </Badge>
             <span className="flex items-center gap-1">
               <Calendar className="h-3 w-3" />
