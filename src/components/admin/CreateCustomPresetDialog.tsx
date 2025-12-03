@@ -28,6 +28,7 @@ import {
 import { ANALYSIS_MODES, getAnalysisModeById } from '@/components/admin/transcript-analysis/analysisModesConfig';
 import { createCustomPreset, updateCustomPreset, type CustomPreset } from '@/api/customPresets';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   Layers,
   Target,
@@ -89,6 +90,7 @@ export function CreateCustomPresetDialog({
   const [isShared, setIsShared] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const isEditing = !!editingPreset;
 
@@ -160,7 +162,10 @@ export function CreateCustomPresetDialog({
           description: 'Your custom preset has been updated.',
         });
       } else {
-        await createCustomPreset({
+        if (!user) {
+          throw new Error('You must be logged in to create presets');
+        }
+        await createCustomPreset(user.id, {
           name: name.trim(),
           description: description.trim() || undefined,
           mode_ids: selectedModes,
