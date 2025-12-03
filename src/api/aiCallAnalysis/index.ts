@@ -38,6 +38,8 @@ export {
   listCallTranscriptsForRep,
   listCallTranscriptsForRepWithFilters,
   getCallWithAnalysis,
+  retryCallAnalysis,
+  deleteFailedTranscript,
 } from './transcripts';
 
 // Re-export analysis functions

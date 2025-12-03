@@ -356,3 +356,89 @@ export async function getCallWithAnalysis(callId: string): Promise<{
     analysis: analysis ? toCallAnalysis(analysis) : null,
   };
 }
+
+/**
+ * Retries analysis for a failed call by resetting status and re-invoking analyze-call.
+ * @param callId - The call transcript ID
+ * @returns Success status and any error message
+ */
+export async function retryCallAnalysis(callId: string): Promise<{ success: boolean; error?: string; isRateLimited?: boolean }> {
+  log.info('Retrying analysis', { callId });
+
+  // Reset status to pending and clear error
+  const { error: updateError } = await supabase
+    .from('call_transcripts')
+    .update({
+      analysis_status: 'pending',
+      analysis_error: null,
+    })
+    .eq('id', callId);
+
+  if (updateError) {
+    log.error('Failed to reset transcript status', { callId, error: updateError });
+    return { success: false, error: updateError.message };
+  }
+
+  // Invoke analyze-call edge function
+  const { data: analyzeData, error: analyzeError } = await supabase.functions.invoke('analyze-call', {
+    body: { call_id: callId }
+  });
+
+  if (analyzeError) {
+    log.error('Analyze function error on retry', { callId, error: analyzeError });
+    const isRateLimited = analyzeError.message?.toLowerCase().includes('rate limit') ||
+                          analyzeError.message?.includes('429');
+    return { success: false, error: analyzeError.message, isRateLimited };
+  }
+
+  // Check if the response indicates rate limiting
+  if (analyzeData?.error?.toLowerCase().includes('rate limit')) {
+    return { success: false, error: analyzeData.error, isRateLimited: true };
+  }
+
+  log.info('Analysis retry initiated successfully', { callId });
+  return { success: true };
+}
+
+/**
+ * Soft-deletes a failed transcript so the rep can resubmit.
+ * Only allows deletion of transcripts with error status.
+ * @param callId - The call transcript ID
+ * @returns Success status and any error message
+ */
+export async function deleteFailedTranscript(callId: string): Promise<{ success: boolean; error?: string }> {
+  log.info('Deleting failed transcript', { callId });
+
+  // First verify the transcript has error status
+  const { data: transcript, error: fetchError } = await supabase
+    .from('call_transcripts')
+    .select('analysis_status')
+    .eq('id', callId)
+    .single();
+
+  if (fetchError) {
+    log.error('Failed to fetch transcript for deletion', { callId, error: fetchError });
+    return { success: false, error: fetchError.message };
+  }
+
+  if (transcript.analysis_status !== 'error') {
+    log.warn('Attempted to delete non-error transcript', { callId, status: transcript.analysis_status });
+    return { success: false, error: 'Can only delete transcripts with failed analysis' };
+  }
+
+  // Soft delete the transcript
+  const { error: deleteError } = await supabase
+    .from('call_transcripts')
+    .update({
+      deleted_at: new Date().toISOString(),
+    })
+    .eq('id', callId);
+
+  if (deleteError) {
+    log.error('Failed to soft delete transcript', { callId, error: deleteError });
+    return { success: false, error: deleteError.message };
+  }
+
+  log.info('Transcript soft deleted successfully', { callId });
+  return { success: true };
+}

@@ -21,7 +21,7 @@ import { getDashboardUrl, getCallHistoryUrl } from '@/lib/routes';
 import { getCallDetailBreadcrumbs } from '@/lib/breadcrumbConfig';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 import { formatCurrency } from '@/lib/formatters';
-import { useCallWithAnalysis, useAnalysisPolling, callDetailKeys } from '@/hooks/useCallDetailQueries';
+import { useCallWithAnalysis, useAnalysisPolling, callDetailKeys, useRetryAnalysis, useDeleteFailedCall } from '@/hooks/useCallDetailQueries';
 import { 
   ArrowLeft, 
   Calendar, 
@@ -66,6 +66,10 @@ function CallDetailPage() {
 
   const isOwner = transcript?.rep_id === user?.id;
   const isManager = role === 'manager' || role === 'admin';
+
+  // Retry and delete mutations
+  const retryMutation = useRetryAnalysis(id || '');
+  const deleteMutation = useDeleteFailedCall(id || '', role);
 
   const getBackPath = () => getCallHistoryUrl(role);
 
@@ -284,6 +288,10 @@ function CallDetailPage() {
           analysis={analysis} 
           isOwner={isOwner}
           isManager={isManager && !isOwner}
+          onRetryAnalysis={() => retryMutation.mutate()}
+          onDeleteCall={() => deleteMutation.mutate()}
+          isRetrying={retryMutation.isPending}
+          isDeleting={deleteMutation.isPending}
         />
       </div>
     </AppLayout>
