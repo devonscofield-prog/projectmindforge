@@ -26,6 +26,7 @@ import {
   getMetricsTimeline,
 } from '@/api/performanceMetrics';
 import { getAlertHistory } from '@/api/performanceAlerts';
+import { useAuth } from '@/contexts/AuthContext';
 import { createLogger } from '@/lib/logger';
 
 interface PerformanceReportExportProps {
@@ -35,6 +36,7 @@ interface PerformanceReportExportProps {
 const logger = createLogger('PerformanceReportExport');
 
 export function PerformanceReportExport({ className }: PerformanceReportExportProps) {
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [timeRange, setTimeRange] = useState('24');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -58,9 +60,12 @@ export function PerformanceReportExport({ className }: PerformanceReportExportPr
   });
 
   const { data: alertHistory } = useQuery({
-    queryKey: ['alert-history-report'],
-    queryFn: () => getAlertHistory(10),
-    enabled: open,
+    queryKey: ['alert-history-report', user?.id],
+    queryFn: () => {
+      if (!user?.id) return [];
+      return getAlertHistory(user.id, 10);
+    },
+    enabled: open && !!user?.id,
   });
 
   const generatePDF = async () => {

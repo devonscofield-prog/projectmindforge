@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { toAnalysisSession } from '@/lib/supabaseAdapters';
+import { getCurrentUserId } from '@/lib/supabaseUtils';
 import type { ChatMessage } from './adminTranscriptChat';
 import type { Json } from '@/integrations/supabase/types';
 
@@ -16,26 +17,23 @@ export interface AnalysisSession {
 }
 
 export async function saveAnalysisSession(
+  userId: string,
   transcriptIds: string[],
   messages: ChatMessage[],
   analysisMode: string = 'general',
   useRag: boolean = false,
   sessionId?: string
 ): Promise<string | null> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  if (!userId) return null;
   
-  // Generate a title from the first user message
   const firstUserMessage = messages.find(m => m.role === 'user');
   const title = firstUserMessage 
     ? firstUserMessage.content.slice(0, 100) + (firstUserMessage.content.length > 100 ? '...' : '')
     : 'Analysis Session';
   
-  // Convert messages to Json type (requires intermediate unknown cast for type safety)
   const messagesJson = messages as unknown as Json;
   
   if (sessionId) {
-    // Update existing session
     const { error } = await supabase
       .from('analysis_sessions')
       .update({
@@ -45,7 +43,7 @@ export async function saveAnalysisSession(
         title,
       })
       .eq('id', sessionId)
-      .eq('user_id', user.id);
+      .eq('user_id', userId);
     
     if (error) {
       console.error('Failed to update session:', error);
@@ -53,11 +51,10 @@ export async function saveAnalysisSession(
     }
     return sessionId;
   } else {
-    // Create new session
     const { data, error } = await supabase
       .from('analysis_sessions')
       .insert({
-        user_id: user.id,
+        user_id: userId,
         transcript_ids: transcriptIds,
         messages: messagesJson,
         analysis_mode: analysisMode,
@@ -75,14 +72,13 @@ export async function saveAnalysisSession(
   }
 }
 
-export async function fetchRecentSessions(limit: number = 10): Promise<AnalysisSession[]> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return [];
+export async function fetchRecentSessions(userId: string, limit: number = 10): Promise<AnalysisSession[]> {
+  if (!userId) return [];
   
   const { data, error } = await supabase
     .from('analysis_sessions')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .order('updated_at', { ascending: false })
     .limit(limit);
   
@@ -94,23 +90,20 @@ export async function fetchRecentSessions(limit: number = 10): Promise<AnalysisS
   return (data || []).map(toAnalysisSession);
 }
 
-export async function fetchSessionByTranscripts(transcriptIds: string[]): Promise<AnalysisSession | null> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+export async function fetchSessionByTranscripts(userId: string, transcriptIds: string[]): Promise<AnalysisSession | null> {
+  if (!userId) return null;
   
-  // Sort IDs for consistent comparison
   const sortedIds = [...transcriptIds].sort();
   
   const { data, error } = await supabase
     .from('analysis_sessions')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .order('updated_at', { ascending: false })
     .limit(20);
   
   if (error || !data) return null;
   
-  // Find session with matching transcript IDs
   const matchingSession = data.find(session => {
     const sessionIds = [...session.transcript_ids].sort();
     return sessionIds.length === sortedIds.length && 

@@ -99,7 +99,10 @@ export function SavedInsightsSheet({
 
   const { data: sessions, isLoading: isLoadingSessions } = useQuery({
     queryKey: ['analysis-sessions', user?.id],
-    queryFn: () => fetchRecentSessions(20),
+    queryFn: () => {
+      if (!user?.id) return [];
+      return fetchRecentSessions(user.id, 20);
+    },
     enabled: open && !!user,
   });
 
@@ -485,13 +488,12 @@ function SessionCard({ session, onView, onDelete }: SessionCardProps) {
             </span>
             <span className="flex items-center gap-1">
               <MessageSquare className="h-3 w-3" />
-              {userMessages} questions
-            </span>
-            <span className="flex items-center gap-1">
-              <Calendar className="h-3 w-3" />
-              {format(new Date(session.updated_at), 'MMM d')}
+              {messageCount} messages ({userMessages} questions)
             </span>
           </div>
+          <p className="text-xs text-muted-foreground mt-1.5">
+            {format(new Date(session.updated_at), 'MMM d, yyyy h:mm a')}
+          </p>
         </div>
       </div>
       

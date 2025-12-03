@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { markRecommendationImplemented } from '@/api/implementedRecommendations';
+import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { createLogger } from '@/lib/logger';
 
@@ -95,6 +96,7 @@ async function fetchRecommendations(): Promise<AnalysisResult> {
 }
 
 export function PerformanceRecommendations() {
+  const { user } = useAuth();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const queryClient = useQueryClient();
 
@@ -111,14 +113,16 @@ export function PerformanceRecommendations() {
   });
 
   const implementMutation = useMutation({
-    mutationFn: (rec: Recommendation) =>
-      markRecommendationImplemented({
+    mutationFn: (rec: Recommendation) => {
+      if (!user?.id) throw new Error('Not authenticated');
+      return markRecommendationImplemented(user.id, {
         title: rec.title,
         category: rec.category,
         priority: rec.priority,
         action: rec.action,
         affectedOperations: rec.affectedOperations || [],
-      }),
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['implemented-recommendations'] });
       toast.success('Recommendation marked as implemented. Baseline metrics captured.');
