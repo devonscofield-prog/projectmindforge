@@ -437,7 +437,6 @@ const DIRECT_INJECTION_MAX = 20;
 const RAG_CHUNK_LIMIT = 50;
 
 // Performance logging helper
-// Note: Using type assertion because performance_metrics table type is not in generated types yet
 async function logPerformanceMetric(
   supabaseClient: ReturnType<typeof createClient>,
   functionName: string,
@@ -525,10 +524,6 @@ serve(async (req) => {
       );
     }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
     // Verify user is admin
     const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
@@ -587,7 +582,7 @@ serve(async (req) => {
         .from('teams')
         .select('id')
         .eq('manager_id', user.id)
-        .maybeSingle(); // Use maybeSingle - manager may not have a team assigned yet
+        .maybeSingle();
 
       if (!managerTeam) {
         return new Response(
@@ -648,18 +643,41 @@ serve(async (req) => {
     }
 
     let transcriptContext: string;
+    let usedDirectFallback = false;
 
     if (shouldUseRag) {
       // RAG mode: Use chunked search
-      transcriptContext = await buildRagContext(
-        supabase, 
-        validatedTranscriptIds, 
-        validatedMessages, 
-        LOVABLE_API_KEY
-      );
+      try {
+        transcriptContext = await buildRagContext(
+          supabase, 
+          validatedTranscriptIds, 
+          validatedMessages, 
+          LOVABLE_API_KEY
+        );
+      } catch (ragError) {
+        // If RAG fails and we have 20 or fewer transcripts, fall back to direct mode
+        if (validatedTranscriptIds.length <= DIRECT_INJECTION_MAX) {
+          console.log(`[admin-transcript-chat] RAG failed, falling back to direct mode for ${validatedTranscriptIds.length} transcripts`);
+          transcriptContext = await buildDirectContext(supabase, validatedTranscriptIds);
+          usedDirectFallback = true;
+        } else {
+          // Too many transcripts for direct fallback
+          console.error(`[admin-transcript-chat] RAG failed and selection too large for direct fallback:`, ragError);
+          return new Response(
+            JSON.stringify({ 
+              error: 'Unable to process transcripts. Try selecting 20 or fewer calls, or use the Pre-Index button to prepare transcripts for analysis.' 
+            }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
     } else {
       // Direct injection mode: Fetch full transcripts
       transcriptContext = await buildDirectContext(supabase, validatedTranscriptIds);
+    }
+
+    if (usedDirectFallback) {
+      console.log(`[admin-transcript-chat] Using direct fallback mode`);
     }
 
     const systemPrompt = ADMIN_TRANSCRIPT_ANALYSIS_PROMPT;
@@ -784,7 +802,15 @@ async function buildRagContext(
   // If there are unchunked transcripts, chunk them inline
   if (unchunkedIds.length > 0) {
     console.log(`[admin-transcript-chat] Chunking ${unchunkedIds.length} transcripts inline`);
-    await chunkTranscriptsInline(supabase, unchunkedIds);
+    const chunkingResult = await chunkTranscriptsInline(supabase, unchunkedIds);
+    
+    if (!chunkingResult.success) {
+      console.error(`[admin-transcript-chat] Inline chunking failed: ${chunkingResult.error}`);
+      // Throw error to trigger fallback to direct mode
+      throw new Error(`Failed to index transcripts: ${chunkingResult.error}`);
+    }
+    
+    console.log(`[admin-transcript-chat] Successfully chunked ${chunkingResult.chunksCreated} chunks`);
   }
 
   // Extract search terms from the query using AI
@@ -900,7 +926,8 @@ async function buildFallbackContext(
     .limit(RAG_CHUNK_LIMIT);
 
   if (!chunks || chunks.length === 0) {
-    throw new Error('No chunks available. Please try with fewer transcripts.');
+    // No chunks exist - throw error to trigger direct mode fallback
+    throw new Error('No indexed content available for these transcripts');
   }
 
   let context = `Note: Showing first sections from ${transcriptIds.length} transcripts.\n\n`;
@@ -931,58 +958,115 @@ async function buildFallbackContext(
   return context;
 }
 
+interface ChunkingResult {
+  success: boolean;
+  chunksCreated: number;
+  error?: string;
+}
+
 async function chunkTranscriptsInline(
   supabase: any,
   transcriptIds: string[]
-): Promise<void> {
+): Promise<ChunkingResult> {
   const CHUNK_SIZE = 2000;
   const CHUNK_OVERLAP = 200;
 
-  const { data: transcripts } = await supabase
-    .from('call_transcripts')
-    .select('id, call_date, account_name, call_type, raw_text, rep_id')
-    .in('id', transcriptIds);
+  try {
+    const { data: transcripts, error: fetchError } = await supabase
+      .from('call_transcripts')
+      .select('id, call_date, account_name, call_type, raw_text, rep_id')
+      .in('id', transcriptIds);
 
-  if (!transcripts || transcripts.length === 0) return;
-
-  const repIds = [...new Set(transcripts.map((t: any) => t.rep_id))];
-  const { data: profiles } = await supabase
-    .from('profiles')
-    .select('id, name')
-    .in('id', repIds);
-
-  const repMap = new Map((profiles || []).map((p: any) => [p.id, p.name]));
-
-  const allChunks: any[] = [];
-  
-  for (const transcript of transcripts) {
-    const chunks = chunkText(transcript.raw_text || '', CHUNK_SIZE, CHUNK_OVERLAP);
-    const repName = repMap.get(transcript.rep_id) || 'Unknown';
-    
-    chunks.forEach((chunkText, index) => {
-      allChunks.push({
-        transcript_id: transcript.id,
-        chunk_index: index,
-        chunk_text: chunkText,
-        metadata: {
-          account_name: transcript.account_name || 'Unknown',
-          call_date: transcript.call_date,
-          call_type: transcript.call_type || 'Call',
-          rep_name: repName,
-          rep_id: transcript.rep_id,
-        }
-      });
-    });
-  }
-
-  if (allChunks.length > 0) {
-    const { error } = await supabase
-      .from('transcript_chunks')
-      .insert(allChunks);
-    
-    if (error) {
-      console.error('[admin-transcript-chat] Error inserting chunks:', error);
+    if (fetchError) {
+      console.error('[admin-transcript-chat] Error fetching transcripts for chunking:', fetchError);
+      return { success: false, chunksCreated: 0, error: 'Failed to fetch transcripts' };
     }
+
+    if (!transcripts || transcripts.length === 0) {
+      return { success: true, chunksCreated: 0 };
+    }
+
+    const repIds = [...new Set(transcripts.map((t: any) => t.rep_id))];
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, name')
+      .in('id', repIds);
+
+    const repMap = new Map((profiles || []).map((p: any) => [p.id, p.name]));
+
+    const allChunks: any[] = [];
+    
+    for (const transcript of transcripts) {
+      const chunks = chunkText(transcript.raw_text || '', CHUNK_SIZE, CHUNK_OVERLAP);
+      const repName = repMap.get(transcript.rep_id) || 'Unknown';
+      
+      chunks.forEach((chunkTextContent, index) => {
+        allChunks.push({
+          transcript_id: transcript.id,
+          chunk_index: index,
+          chunk_text: chunkTextContent,
+          metadata: {
+            account_name: transcript.account_name || 'Unknown',
+            call_date: transcript.call_date,
+            call_type: transcript.call_type || 'Call',
+            rep_name: repName,
+            rep_id: transcript.rep_id,
+          }
+        });
+      });
+    }
+
+    if (allChunks.length === 0) {
+      return { success: true, chunksCreated: 0 };
+    }
+
+    // Insert in batches with retry logic
+    const BATCH_SIZE = 50;
+    let totalInserted = 0;
+    
+    for (let i = 0; i < allChunks.length; i += BATCH_SIZE) {
+      const batch = allChunks.slice(i, i + BATCH_SIZE);
+      
+      // Try up to 2 times
+      let insertError: any = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const { error } = await supabase
+          .from('transcript_chunks')
+          .insert(batch);
+        
+        if (!error) {
+          totalInserted += batch.length;
+          insertError = null;
+          break;
+        }
+        
+        insertError = error;
+        console.warn(`[admin-transcript-chat] Chunk insert attempt ${attempt + 1} failed:`, error.message);
+        
+        // Wait before retry
+        if (attempt < 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+      
+      if (insertError) {
+        console.error('[admin-transcript-chat] Failed to insert chunks after retries:', insertError);
+        return { 
+          success: false, 
+          chunksCreated: totalInserted, 
+          error: `Database error: ${insertError.message}` 
+        };
+      }
+    }
+
+    return { success: true, chunksCreated: totalInserted };
+  } catch (error) {
+    console.error('[admin-transcript-chat] Unexpected error in chunking:', error);
+    return { 
+      success: false, 
+      chunksCreated: 0, 
+      error: error instanceof Error ? error.message : 'Unexpected error' 
+    };
   }
 }
 
@@ -1000,6 +1084,32 @@ function chunkText(text: string, chunkSize: number, overlap: number): string[] {
       currentChunk = overlapText + '\n\n' + paragraph;
     } else {
       currentChunk += (currentChunk ? '\n\n' : '') + paragraph;
+    }
+  }
+
+  if (currentChunk.trim()) {
+    chunks.push(currentChunk.trim());
+  }
+
+  if (chunks.length === 1 && chunks[0].length > chunkSize * 1.5) {
+    return chunkBySentence(text, chunkSize, overlap);
+  }
+
+  return chunks;
+}
+
+function chunkBySentence(text: string, chunkSize: number, overlap: number): string[] {
+  const chunks: string[] = [];
+  const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
+  let currentChunk = '';
+
+  for (const sentence of sentences) {
+    if (currentChunk.length + sentence.length > chunkSize && currentChunk.length > 0) {
+      chunks.push(currentChunk.trim());
+      const overlapText = currentChunk.slice(-overlap);
+      currentChunk = overlapText + ' ' + sentence;
+    } else {
+      currentChunk += sentence;
     }
   }
 

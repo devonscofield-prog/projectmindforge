@@ -48,25 +48,38 @@ export async function streamAdminTranscriptChat({
     });
 
     if (!response.ok) {
+      // Try to get detailed error from response body
+      let errorMessage = '';
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || '';
+      } catch {
+        // If we can't parse JSON, use status-based messages
+      }
+      
       if (response.status === 429) {
-        onError('Rate limit exceeded. Please wait a moment and try again.');
+        onError(errorMessage || 'Rate limit exceeded. Please wait a moment and try again.');
         return;
       }
       if (response.status === 402) {
-        onError('Usage limit reached. Please add credits to continue.');
+        onError(errorMessage || 'Usage limit reached. Please add credits to continue.');
         return;
       }
       if (response.status === 403) {
-        onError('Admin access required for transcript analysis.');
+        onError(errorMessage || 'You don\'t have permission to analyze these transcripts.');
         return;
       }
-      const errorData = await response.json().catch(() => ({}));
-      onError(errorData.error || 'Failed to get analysis response');
+      if (response.status === 401) {
+        onError(errorMessage || 'Your session has expired. Please sign in again.');
+        return;
+      }
+      
+      onError(errorMessage || `Request failed (${response.status}). Please try again.`);
       return;
     }
 
     if (!response.body) {
-      onError('No response body');
+      onError('No response from server');
       return;
     }
 
@@ -127,6 +140,10 @@ export async function streamAdminTranscriptChat({
 
     onDone();
   } catch (error) {
-    onError(error instanceof Error ? error.message : 'Connection error');
+    if (error instanceof Error && error.name === 'AbortError') {
+      onError('Request was cancelled');
+    } else {
+      onError(error instanceof Error ? error.message : 'Connection error. Please check your internet and try again.');
+    }
   }
 }

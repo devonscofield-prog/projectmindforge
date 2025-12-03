@@ -9,6 +9,66 @@ interface UseTranscriptChatOptions {
   selectedModeId: string;
 }
 
+// Parse specific error types for better user messaging
+function parseErrorMessage(error: string): { message: string; isRetryable: boolean } {
+  const lowerError = error.toLowerCase();
+  
+  if (lowerError.includes('rate limit')) {
+    return { 
+      message: 'Too many requests. Please wait a moment before trying again.', 
+      isRetryable: false 
+    };
+  }
+  
+  if (lowerError.includes('unable to process') || lowerError.includes('failed to index')) {
+    return { 
+      message: 'Unable to process these transcripts. Try selecting 20 or fewer calls, or click "Pre-Index" first to prepare them for analysis.', 
+      isRetryable: true 
+    };
+  }
+  
+  if (lowerError.includes('only analyze your own')) {
+    return { 
+      message: 'You can only analyze your own call transcripts.', 
+      isRetryable: false 
+    };
+  }
+  
+  if (lowerError.includes('only analyze transcripts from your team')) {
+    return { 
+      message: 'You can only analyze transcripts from reps on your team.', 
+      isRetryable: false 
+    };
+  }
+  
+  if (lowerError.includes('no team assigned')) {
+    return { 
+      message: 'No team assigned to your account. Please contact an administrator.', 
+      isRetryable: false 
+    };
+  }
+  
+  if (lowerError.includes('usage limit') || lowerError.includes('add credits')) {
+    return { 
+      message: 'Usage limit reached. Please contact support to continue.', 
+      isRetryable: false 
+    };
+  }
+  
+  if (lowerError.includes('admin access required')) {
+    return { 
+      message: 'You don\'t have permission to access this feature.', 
+      isRetryable: false 
+    };
+  }
+  
+  // Default error
+  return { 
+    message: error || 'Something went wrong. Please try again.', 
+    isRetryable: true 
+  };
+}
+
 export function useTranscriptChat({ selectedTranscriptIds, useRag, selectedModeId }: UseTranscriptChatOptions) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -54,23 +114,34 @@ export function useTranscriptChat({ selectedTranscriptIds, useRag, selectedModeI
           setIsStreaming(false);
         },
         onError: (err) => {
-          setError(err);
+          const { message, isRetryable } = parseErrorMessage(err);
+          setError(message);
           setIsLoading(false);
           setIsStreaming(false);
+          
           if (err.toLowerCase().includes('rate limit')) {
             startCountdown(60);
-            toast({
-              title: 'Too many requests',
-              description: 'Please wait before sending another message.',
-              variant: 'destructive',
-            });
           }
+          
+          toast({
+            title: isRetryable ? 'Analysis failed' : 'Access denied',
+            description: message,
+            variant: 'destructive',
+          });
         },
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to get response');
+      const errorMsg = err instanceof Error ? err.message : 'Failed to get response';
+      const { message } = parseErrorMessage(errorMsg);
+      setError(message);
       setIsLoading(false);
       setIsStreaming(false);
+      
+      toast({
+        title: 'Analysis failed',
+        description: message,
+        variant: 'destructive',
+      });
     }
   }, [messages, isLoading, isRateLimited, selectedTranscriptIds, useRag, selectedModeId, toast, startCountdown]);
 
