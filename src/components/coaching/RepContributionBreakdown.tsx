@@ -25,9 +25,11 @@ export interface RepContribution {
   percentageOfTotal: number;
   averageHeatScore: number | null;
   frameworkScores: {
-    bant: number | null;
+    meddpicc?: number | null;
     gapSelling: number | null;
     activeListening: number | null;
+    // Legacy BANT field - optional for new MEDDPICC-based analyses
+    bant?: number | null;
   };
 }
 
@@ -194,12 +196,19 @@ export function RepContributionBreakdown({
                 </div>
 
                 {/* Framework Scores - Collapsed Mini View */}
-                {(rep.frameworkScores.bant !== null || 
+                {(rep.frameworkScores.meddpicc != null || 
+                  rep.frameworkScores.bant != null ||
                   rep.frameworkScores.gapSelling !== null || 
                   rep.frameworkScores.activeListening !== null) && (
                   <div className="flex items-center gap-3 mt-2 pt-2 border-t border-dashed">
                     <span className="text-xs text-muted-foreground">Framework Scores:</span>
-                    {rep.frameworkScores.bant !== null && (
+                    {rep.frameworkScores.meddpicc != null && (
+                      <div className="flex items-center gap-1">
+                        <div className={cn("w-2 h-2 rounded-full", getScoreColor(rep.frameworkScores.meddpicc))} />
+                        <span className="text-xs">MEDDPICC: {rep.frameworkScores.meddpicc.toFixed(1)}</span>
+                      </div>
+                    )}
+                    {rep.frameworkScores.meddpicc == null && rep.frameworkScores.bant != null && (
                       <div className="flex items-center gap-1">
                         <div className={cn("w-2 h-2 rounded-full", getScoreColor(rep.frameworkScores.bant))} />
                         <span className="text-xs">BANT: {rep.frameworkScores.bant.toFixed(1)}</span>

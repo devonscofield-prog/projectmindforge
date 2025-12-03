@@ -696,14 +696,14 @@ export default function AdminCoachingTrends() {
               </h2>
               <div className="grid gap-4 md:grid-cols-3">
                 <TrendCard
-                  title="BANT"
+                  title="MEDDPICC"
                   icon={<Target className="h-4 w-4 text-blue-500" />}
-                  trend={displayAnalysis.trendAnalysis.bant.trend}
-                  startingAvg={displayAnalysis.trendAnalysis.bant.startingAvg}
-                  endingAvg={displayAnalysis.trendAnalysis.bant.endingAvg}
-                  keyInsight={displayAnalysis.trendAnalysis.bant.keyInsight}
-                  evidence={displayAnalysis.trendAnalysis.bant.evidence}
-                  recommendation={displayAnalysis.trendAnalysis.bant.recommendation}
+                  trend={displayAnalysis.trendAnalysis.meddpicc?.trend ?? displayAnalysis.trendAnalysis.bant?.trend ?? 'stable'}
+                  startingAvg={displayAnalysis.trendAnalysis.meddpicc?.startingAvg ?? displayAnalysis.trendAnalysis.bant?.startingAvg ?? 0}
+                  endingAvg={displayAnalysis.trendAnalysis.meddpicc?.endingAvg ?? displayAnalysis.trendAnalysis.bant?.endingAvg ?? 0}
+                  keyInsight={displayAnalysis.trendAnalysis.meddpicc?.keyInsight ?? displayAnalysis.trendAnalysis.bant?.keyInsight ?? ''}
+                  evidence={displayAnalysis.trendAnalysis.meddpicc?.evidence ?? displayAnalysis.trendAnalysis.bant?.evidence ?? []}
+                  recommendation={displayAnalysis.trendAnalysis.meddpicc?.recommendation ?? displayAnalysis.trendAnalysis.bant?.recommendation ?? ''}
                 />
                 <TrendCard
                   title="Gap Selling"
@@ -787,7 +787,15 @@ export default function AdminCoachingTrends() {
             {/* Rep Contribution Breakdown */}
             {displayMetadata?.repContributions && displayMetadata.repContributions.length > 0 && scope !== 'rep' && (
               <RepContributionBreakdown
-                contributions={displayMetadata.repContributions}
+                contributions={displayMetadata.repContributions.map(c => ({
+                  ...c,
+                  frameworkScores: {
+                    meddpicc: c.frameworkScores.meddpicc,
+                    gapSelling: c.frameworkScores.gapSelling,
+                    activeListening: c.frameworkScores.activeListening,
+                    bant: c.frameworkScores.bant,
+                  }
+                }))}
                 totalCalls={displayMetadata.totalCalls}
                 scope={scope as 'organization' | 'team'}
               />

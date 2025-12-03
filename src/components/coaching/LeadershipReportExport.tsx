@@ -126,10 +126,11 @@ export function LeadershipReportExport({
         ${sections.frameworkTrends ? `
           <h2 style="color: #0f172a; font-size: 20px; margin: 28px 0 16px 0;">📊 Framework Performance</h2>
           <div style="display: grid; gap: 16px;">
-            ${['bant', 'gapSelling', 'activeListening'].map(key => {
-              const framework = analysis.trendAnalysis[key as keyof typeof analysis.trendAnalysis];
-              const label = key === 'bant' ? 'BANT Qualification' : key === 'gapSelling' ? 'Gap Selling' : 'Active Listening';
-              const emoji = key === 'bant' ? '🎯' : key === 'gapSelling' ? '💬' : '👂';
+            ${(['meddpicc', 'gapSelling', 'activeListening'] as const).map(key => {
+              const framework = analysis.trendAnalysis[key];
+              if (!framework) return '';
+              const label = key === 'meddpicc' ? 'MEDDPICC Qualification' : key === 'gapSelling' ? 'Gap Selling' : 'Active Listening';
+              const emoji = key === 'meddpicc' ? '🎯' : key === 'gapSelling' ? '💬' : '👂';
               return `
                 <div style="background: #f8fafc; border-radius: 12px; padding: 20px; border: 1px solid #e2e8f0;">
                   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
@@ -275,8 +276,9 @@ ${analysis.summary}
 `;
 
     if (sections.frameworkTrends) {
+      const meddpicc = analysis.trendAnalysis.meddpicc;
       text += `FRAMEWORK PERFORMANCE
-• BANT: ${analysis.trendAnalysis.bant.trend} (${analysis.trendAnalysis.bant.startingAvg?.toFixed(1)} → ${analysis.trendAnalysis.bant.endingAvg?.toFixed(1)})
+• MEDDPICC: ${meddpicc?.trend || 'N/A'} (${meddpicc?.startingAvg?.toFixed(1) || 'N/A'} → ${meddpicc?.endingAvg?.toFixed(1) || 'N/A'})
 • Gap Selling: ${analysis.trendAnalysis.gapSelling.trend} (${analysis.trendAnalysis.gapSelling.startingAvg?.toFixed(1)} → ${analysis.trendAnalysis.gapSelling.endingAvg?.toFixed(1)})
 • Active Listening: ${analysis.trendAnalysis.activeListening.trend} (${analysis.trendAnalysis.activeListening.startingAvg?.toFixed(1)} → ${analysis.trendAnalysis.activeListening.endingAvg?.toFixed(1)})
 
