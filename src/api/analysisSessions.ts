@@ -86,6 +86,7 @@ export async function saveAnalysisSession(
 /**
  * Fetch recent sessions for list view - excludes large messages array
  * Uses compound index on (user_id, updated_at DESC) for optimal performance
+ * Note: message_count is not available in list view to avoid fetching messages
  */
 export async function fetchRecentSessionsForList(
   userId: string, 
@@ -95,7 +96,7 @@ export async function fetchRecentSessionsForList(
   
   const { data, error } = await supabase
     .from('analysis_sessions')
-    .select('id, user_id, transcript_ids, analysis_mode, title, created_at, updated_at, messages')
+    .select('id, user_id, transcript_ids, analysis_mode, title, created_at, updated_at')
     .eq('user_id', userId)
     .order('updated_at', { ascending: false })
     .limit(limit);
@@ -105,7 +106,6 @@ export async function fetchRecentSessionsForList(
     return [];
   }
   
-  // Transform to list items with message count instead of full messages
   return (data || []).map(session => ({
     id: session.id,
     user_id: session.user_id,
@@ -114,7 +114,7 @@ export async function fetchRecentSessionsForList(
     title: session.title,
     created_at: session.created_at,
     updated_at: session.updated_at,
-    message_count: Array.isArray(session.messages) ? session.messages.length : 0,
+    message_count: 0, // Not available in list view - fetch full session for count
   }));
 }
 
@@ -194,11 +194,14 @@ export async function fetchSessionByTranscripts(userId: string, transcriptIds: s
   return toAnalysisSession(matchingSession);
 }
 
-export async function deleteAnalysisSession(sessionId: string): Promise<boolean> {
+export async function deleteAnalysisSession(sessionId: string, userId: string): Promise<boolean> {
+  if (!sessionId || !userId) return false;
+  
   const { error } = await supabase
     .from('analysis_sessions')
     .delete()
-    .eq('id', sessionId);
+    .eq('id', sessionId)
+    .eq('user_id', userId); // Defense in depth - ensure user owns session
   
   return !error;
 }
