@@ -36,7 +36,7 @@ export function MFAGate({ children }: MFAGateProps) {
         .select('id, expires_at')
         .eq('user_id', user.id)
         .eq('device_id', deviceId)
-        .single();
+        .maybeSingle(); // Use maybeSingle - device may not exist yet
 
       if (trustedDevice && trustedDevice.expires_at && new Date(trustedDevice.expires_at) > new Date()) {
         // Device is trusted and not expired - update last_used_at

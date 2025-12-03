@@ -83,7 +83,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
         .from('admin_transcript_selections')
         .select('*')
         .eq('share_token', shareToken)
-        .single();
+        .maybeSingle(); // Use maybeSingle - token may be invalid
       
       if (error || !data) {
         toast.error('Shared selection not found or access denied');

@@ -69,18 +69,20 @@ function AdminUserEdit() {
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle(); // Use maybeSingle - user may not exist if invalid URL
 
       if (profileError) throw profileError;
+      if (!profileData) throw new Error('User not found');
 
       // Fetch role
       const { data: roleData, error: roleError } = await supabase
         .from('user_roles')
         .select('role')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle(); // Use maybeSingle - role may not exist
 
       if (roleError) throw roleError;
+      if (!roleData) throw new Error('User role not found');
 
       const userData: UserProfile = {
         ...profileData,
