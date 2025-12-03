@@ -27,8 +27,8 @@ export function createQueryClient(): QueryClient {
         
         queryLogger.querySuccess(query.queryKey, data, duration);
         
-        // Track in performance metrics (only for slow queries or in production)
-        if (duration > 500) {
+        // Track in performance metrics (only for slow queries, but cap to filter browser/network anomalies)
+        if (duration > 500 && duration < MAX_REASONABLE_QUERY_MS) {
           trackQueryPerformance(query.queryKey, duration, 'success');
         }
       },
