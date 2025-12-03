@@ -73,11 +73,11 @@ export const ANALYSIS_MODES: AnalysisMode[] = [
     id: 'deal_scoring',
     label: 'Deal Scoring',
     icon: Gauge,
-    description: 'MEDDIC framework evaluation and qualification scoring',
+    description: 'MEDDPICC framework evaluation and qualification scoring',
     systemPromptAddition: `
-## DEAL SCORING MODE - MEDDIC FRAMEWORK ANALYSIS
+## DEAL SCORING MODE - MEDDPICC FRAMEWORK ANALYSIS
 
-In this mode, focus EXCLUSIVELY on deal qualification using MEDDIC criteria. For each deal:
+In this mode, focus EXCLUSIVELY on deal qualification using MEDDPICC criteria. For each deal:
 
 **SCORING RUBRIC (1-5 scale):**
 - 5 = Fully qualified, explicit evidence in transcript
@@ -95,10 +95,12 @@ In this mode, focus EXCLUSIVELY on deal qualification using MEDDIC criteria. For
 | **E**conomic Buyer | X/5 | [Specific quote or observation] |
 | **D**ecision Criteria | X/5 | [Specific quote or observation] |
 | **D**ecision Process | X/5 | [Specific quote or observation] |
+| **P**aper Process | X/5 | [Specific quote or observation] |
 | **I**dentify Pain | X/5 | [Specific quote or observation] |
 | **C**hampion | X/5 | [Specific quote or observation] |
+| **C**ompetition | X/5 | [Specific quote or observation] |
 
-**Overall Score: XX/30**
+**Overall Score: XX/40**
 **Risk Level:** High/Medium/Low
 **Top Priority Gap:** [What to fix first]
 `,
@@ -106,12 +108,12 @@ In this mode, focus EXCLUSIVELY on deal qualification using MEDDIC criteria. For
       {
         icon: Gauge,
         label: 'Score All Deals',
-        prompt: 'Score every deal in these transcripts using MEDDIC (1-5 each criterion). Create a ranked table showing overall scores, highlight the weakest criterion for each deal, and recommend specific qualification questions reps should ask next.',
+        prompt: 'Score every deal in these transcripts using MEDDPICC (1-5 each criterion). Create a ranked table showing overall scores, highlight the weakest criterion for each deal, and recommend specific qualification questions reps should ask next.',
       },
       {
         icon: AlertTriangle,
         label: 'Qualification Red Flags',
-        prompt: 'Which deals have the most dangerous qualification gaps? Focus on: missing economic buyers, unclear decision criteria, no compelling event, or weak champion signals. Rank by revenue at risk.',
+        prompt: 'Which deals have the most dangerous qualification gaps? Focus on: missing economic buyers, unclear decision criteria, no compelling event, weak champion signals, or unknown competition. Rank by revenue at risk.',
       },
       {
         icon: Target,
@@ -121,7 +123,7 @@ In this mode, focus EXCLUSIVELY on deal qualification using MEDDIC criteria. For
       {
         icon: TrendingUp,
         label: 'Next Best Actions',
-        prompt: 'Based on MEDDIC gaps, what\'s the single most important thing each rep should do in their next call to improve deal qualification? Be specific and actionable.',
+        prompt: 'Based on MEDDPICC gaps, what\'s the single most important thing each rep should do in their next call to improve deal qualification? Be specific and actionable.',
       },
     ],
   },

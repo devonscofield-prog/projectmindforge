@@ -145,9 +145,9 @@ Return format: ["term1", "term2", "term3"]`;
 const ANALYSIS_MODE_PROMPTS: Record<string, string> = {
   general: '',
   deal_scoring: `
-## DEAL SCORING MODE - MEDDIC FRAMEWORK ANALYSIS
+## DEAL SCORING MODE - MEDDPICC FRAMEWORK ANALYSIS
 
-In this mode, focus EXCLUSIVELY on deal qualification using MEDDIC criteria. For each deal:
+In this mode, focus EXCLUSIVELY on deal qualification using MEDDPICC criteria. For each deal:
 
 **SCORING RUBRIC (1-5 scale):**
 - 5 = Fully qualified, explicit evidence in transcript
@@ -165,10 +165,12 @@ In this mode, focus EXCLUSIVELY on deal qualification using MEDDIC criteria. For
 | **E**conomic Buyer | X/5 | [Specific quote or observation] |
 | **D**ecision Criteria | X/5 | [Specific quote or observation] |
 | **D**ecision Process | X/5 | [Specific quote or observation] |
+| **P**aper Process | X/5 | [Specific quote or observation] |
 | **I**dentify Pain | X/5 | [Specific quote or observation] |
 | **C**hampion | X/5 | [Specific quote or observation] |
+| **C**ompetition | X/5 | [Specific quote or observation] |
 
-**Overall Score: XX/30**
+**Overall Score: XX/40**
 **Risk Level:** High/Medium/Low
 **Top Priority Gap:** [What to fix first]
 `,
