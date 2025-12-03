@@ -1,4 +1,11 @@
-import { CoachingTrendAnalysis, FrameworkTrend, PersistentGap } from '@/api/aiCallAnalysis';
+import { 
+  CoachingTrendAnalysis, 
+  FrameworkTrend, 
+  PersistentGap,
+  getPrimaryFrameworkTrend,
+  getPrimaryFrameworkLabel,
+  defaultFrameworkTrend
+} from '@/api/aiCallAnalysis';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
@@ -138,7 +145,12 @@ function getChangeTypeBadge(type: ChangeType) {
 }
 
 export function CoachingTrendsComparison({ periodA, periodB }: CoachingTrendsComparisonProps) {
-  const bantChange = calculateFrameworkChange(periodA.analysis.trendAnalysis.bant, periodB.analysis.trendAnalysis.bant);
+  // Use helper functions for backward compatibility with BANT/MEDDPICC
+  const primaryFrameworkA = getPrimaryFrameworkTrend(periodA.analysis.trendAnalysis);
+  const primaryFrameworkB = getPrimaryFrameworkTrend(periodB.analysis.trendAnalysis);
+  const primaryLabel = getPrimaryFrameworkLabel(periodB.analysis.trendAnalysis); // Use latest period's label
+  
+  const primaryChange = calculateFrameworkChange(primaryFrameworkA, primaryFrameworkB);
   const gapSellingChange = calculateFrameworkChange(periodA.analysis.trendAnalysis.gapSelling, periodB.analysis.trendAnalysis.gapSelling);
   const activeListeningChange = calculateFrameworkChange(periodA.analysis.trendAnalysis.activeListening, periodB.analysis.trendAnalysis.activeListening);
   
@@ -228,24 +240,24 @@ export function CoachingTrendsComparison({ periodA, periodB }: CoachingTrendsCom
                   <td className="py-3">
                     <div className="flex items-center gap-2">
                       <Target className="h-4 w-4 text-blue-500" />
-                      <span className="font-medium">BANT</span>
+                      <span className="font-medium">{primaryLabel}</span>
                     </div>
                   </td>
                   <td className="py-3 text-center">
                     <div className="flex flex-col items-center">
-                      <span>{periodA.analysis.trendAnalysis.bant.startingAvg} → {periodA.analysis.trendAnalysis.bant.endingAvg}</span>
-                      {getTrendBadge(periodA.analysis.trendAnalysis.bant.trend)}
+                      <span>{primaryFrameworkA.startingAvg} → {primaryFrameworkA.endingAvg}</span>
+                      {getTrendBadge(primaryFrameworkA.trend)}
                     </div>
                   </td>
                   <td className="py-3 text-center">
                     <div className="flex flex-col items-center">
-                      <span>{periodB.analysis.trendAnalysis.bant.startingAvg} → {periodB.analysis.trendAnalysis.bant.endingAvg}</span>
-                      {getTrendBadge(periodB.analysis.trendAnalysis.bant.trend)}
+                      <span>{primaryFrameworkB.startingAvg} → {primaryFrameworkB.endingAvg}</span>
+                      {getTrendBadge(primaryFrameworkB.trend)}
                     </div>
                   </td>
                   <td className="py-3 text-center">
-                    {getChangeTypeBadge(bantChange.type)}
-                    <p className="text-xs text-muted-foreground mt-1">{bantChange.label}</p>
+                    {getChangeTypeBadge(primaryChange.type)}
+                    <p className="text-xs text-muted-foreground mt-1">{primaryChange.label}</p>
                   </td>
                 </tr>
                 <tr className="border-b">
