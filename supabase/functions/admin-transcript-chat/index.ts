@@ -135,12 +135,6 @@ Structure your analysis with clear sections:
 
 You have access to transcripts from sales calls. Analyze them like the veteran you are—find the patterns, call out the risks, and deliver insights that drive revenue.`;
 
-const RAG_SEARCH_PROMPT = `Extract 3-5 key search terms from this user question to find relevant transcript sections. Return ONLY a JSON array of search terms, nothing else.
-
-Question: "{QUERY}"
-
-Return format: ["term1", "term2", "term3"]`;
-
 // Analysis mode-specific prompts
 const ANALYSIS_MODE_PROMPTS: Record<string, string> = {
   general: '',
@@ -433,35 +427,152 @@ function validateMessages(messages: unknown): string | null {
 
 // Maximum transcripts for direct injection
 const DIRECT_INJECTION_MAX = 20;
-// Maximum chunks to include in RAG context
-const RAG_CHUNK_LIMIT = 50;
+// Maximum chunks to include in RAG context - UPDATED TO 100
+const RAG_CHUNK_LIMIT = 100;
 
-// Performance logging helper
-async function logPerformanceMetric(
-  supabaseClient: ReturnType<typeof createClient>,
-  functionName: string,
-  durationMs: number,
-  status: 'success' | 'error' | 'timeout',
-  userId?: string,
-  metadata?: Record<string, unknown>
-): Promise<void> {
-  try {
-    const { error } = await supabaseClient
-      .from('performance_metrics' as any)
-      .insert({
-        metric_type: 'edge_function' as const,
-        metric_name: functionName,
-        duration_ms: Math.round(durationMs),
-        status,
-        user_id: userId || null,
-        metadata: metadata || null,
-      } as any);
-    
-    if (error) {
-      console.warn('[performance] Failed to log metric:', error.message);
+// Query Intent Classification Schema for Tool Calling
+const QUERY_INTENT_SCHEMA = {
+  type: "object",
+  properties: {
+    keywords: {
+      type: "array",
+      items: { type: "string" },
+      description: "Key search terms extracted from the query"
+    },
+    entities: {
+      type: "object",
+      properties: {
+        people: { type: "array", items: { type: "string" } },
+        organizations: { type: "array", items: { type: "string" } },
+        competitors: { type: "array", items: { type: "string" } }
+      },
+      description: "Named entities to search for"
+    },
+    topics: {
+      type: "array",
+      items: {
+        type: "string",
+        enum: ["pricing", "objections", "demo", "next_steps", "discovery", "negotiation",
+               "technical", "competitor_discussion", "budget", "timeline", "decision_process",
+               "pain_points", "value_prop", "closing"]
+      },
+      description: "Sales conversation topics relevant to the query"
+    },
+    meddpicc_elements: {
+      type: "array",
+      items: {
+        type: "string",
+        enum: ["metrics", "economic_buyer", "decision_criteria", "decision_process",
+               "paper_process", "identify_pain", "champion", "competition"]
+      },
+      description: "MEDDPICC elements relevant to the query"
     }
-  } catch (err) {
-    console.warn('[performance] Failed to log metric:', err);
+  },
+  required: ["keywords", "entities", "topics", "meddpicc_elements"]
+};
+
+interface QueryIntent {
+  keywords: string[];
+  entities: {
+    people?: string[];
+    organizations?: string[];
+    competitors?: string[];
+  };
+  topics: string[];
+  meddpicc_elements: string[];
+}
+
+// Generate embedding using Supabase.ai gte-small model
+async function generateQueryEmbedding(text: string): Promise<string> {
+  try {
+    // @ts-ignore - Supabase.ai is available in Edge Function runtime
+    const session = new Supabase.ai.Session('gte-small');
+    const embedding: number[] = await session.run(text, {
+      mean_pool: true,
+      normalize: true,
+    });
+    // Format as PostgreSQL array string: [0.123, -0.456, ...]
+    return `[${embedding.join(',')}]`;
+  } catch (error) {
+    console.error('[admin-transcript-chat] Query embedding generation failed:', error);
+    throw error;
+  }
+}
+
+// Classify query intent using Lovable AI Gateway with tool calling
+async function classifyQueryIntent(query: string, apiKey: string): Promise<QueryIntent> {
+  try {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash-lite',
+        messages: [{
+          role: 'user',
+          content: `Analyze this sales transcript analysis query and extract search parameters for finding relevant transcript sections:
+
+"${query}"
+
+Extract:
+- keywords: Key search terms
+- entities: People, organizations, competitors mentioned
+- topics: Relevant sales conversation topics
+- meddpicc_elements: MEDDPICC framework elements being asked about`
+        }],
+        tools: [{
+          type: 'function',
+          function: {
+            name: 'classify_query',
+            description: 'Extract search parameters from user query for transcript search',
+            parameters: QUERY_INTENT_SCHEMA
+          }
+        }],
+        tool_choice: { type: 'function', function: { name: 'classify_query' } }
+      })
+    });
+
+    if (!response.ok) {
+      console.error('[admin-transcript-chat] Intent classification failed:', response.status);
+      // Return default intent on failure
+      return {
+        keywords: query.toLowerCase().split(/\s+/).filter(w => w.length > 3).slice(0, 5),
+        entities: {},
+        topics: [],
+        meddpicc_elements: []
+      };
+    }
+
+    const data = await response.json();
+    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+
+    if (!toolCall?.function?.arguments) {
+      console.warn('[admin-transcript-chat] No tool call in intent response, using defaults');
+      return {
+        keywords: query.toLowerCase().split(/\s+/).filter(w => w.length > 3).slice(0, 5),
+        entities: {},
+        topics: [],
+        meddpicc_elements: []
+      };
+    }
+
+    const args = JSON.parse(toolCall.function.arguments);
+    return {
+      keywords: args.keywords || [],
+      entities: args.entities || {},
+      topics: args.topics || [],
+      meddpicc_elements: args.meddpicc_elements || []
+    };
+  } catch (error) {
+    console.error('[admin-transcript-chat] Error classifying query intent:', error);
+    return {
+      keywords: query.toLowerCase().split(/\s+/).filter(w => w.length > 3).slice(0, 5),
+      entities: {},
+      topics: [],
+      meddpicc_elements: []
+    };
   }
 }
 
@@ -577,7 +688,6 @@ serve(async (req) => {
 
     // For managers, validate they can only access their team's transcripts
     if (isManager) {
-      // Get manager's team
       const { data: managerTeam } = await supabase
         .from('teams')
         .select('id')
@@ -591,7 +701,6 @@ serve(async (req) => {
         );
       }
 
-      // Get all rep IDs in the manager's team
       const { data: teamReps } = await supabase
         .from('profiles')
         .select('id')
@@ -599,7 +708,6 @@ serve(async (req) => {
 
       const teamRepIds = new Set((teamReps || []).map((r: { id: string }) => r.id));
 
-      // Verify all requested transcripts belong to team reps
       const { data: transcripts } = await supabase
         .from('call_transcripts')
         .select('id, rep_id')
@@ -646,7 +754,7 @@ serve(async (req) => {
     let usedDirectFallback = false;
 
     if (shouldUseRag) {
-      // RAG mode: Use chunked search
+      // RAG V2 mode: Use hybrid search
       try {
         transcriptContext = await buildRagContext(
           supabase, 
@@ -776,19 +884,19 @@ async function buildDirectContext(
   return context;
 }
 
+// RAG V2: Build context using hybrid search with embeddings, FTS, and entity matching
 async function buildRagContext(
   supabase: any,
   transcriptIds: string[],
   messages: Message[],
   apiKey: string
 ): Promise<string> {
-  // Get the latest user message for search
   const latestUserMessage = [...messages].reverse().find(m => m.role === 'user');
   if (!latestUserMessage) {
     throw new Error('No user message found');
   }
 
-  console.log(`[admin-transcript-chat] RAG mode for ${transcriptIds.length} transcripts`);
+  console.log(`[admin-transcript-chat] RAG V2 mode for ${transcriptIds.length} transcripts`);
 
   // First, ensure transcripts are chunked
   const { data: existingChunks } = await supabase
@@ -806,35 +914,71 @@ async function buildRagContext(
     
     if (!chunkingResult.success) {
       console.error(`[admin-transcript-chat] Inline chunking failed: ${chunkingResult.error}`);
-      // Throw error to trigger fallback to direct mode
       throw new Error(`Failed to index transcripts: ${chunkingResult.error}`);
     }
     
     console.log(`[admin-transcript-chat] Successfully chunked ${chunkingResult.chunksCreated} chunks`);
   }
 
-  // Extract search terms from the query using AI
-  const searchTerms = await extractSearchTerms(latestUserMessage.content, apiKey);
-  console.log(`[admin-transcript-chat] Search terms: ${searchTerms.join(', ')}`);
+  // Step 1: Generate query embedding
+  let queryEmbedding: string | null = null;
+  try {
+    queryEmbedding = await generateQueryEmbedding(latestUserMessage.content);
+    console.log(`[admin-transcript-chat] Generated query embedding`);
+  } catch (embError) {
+    console.warn(`[admin-transcript-chat] Query embedding failed, will use FTS only:`, embError);
+  }
 
-  // Build full-text search query
-  const searchQuery = searchTerms.join(' | ');
+  // Step 2: Classify query intent
+  const intent = await classifyQueryIntent(latestUserMessage.content, apiKey);
+  console.log(`[admin-transcript-chat] Query intent: keywords=${intent.keywords.join(',')}, topics=${intent.topics.join(',')}, meddpicc=${intent.meddpicc_elements.join(',')}`);
 
-  // Search chunks using full-text search
+  // Step 3: Call unified hybrid search RPC
+  const searchParams: Record<string, unknown> = {
+    filter_transcript_ids: transcriptIds,
+    match_count: RAG_CHUNK_LIMIT,
+    weight_vector: 0.5,
+    weight_fts: 0.3,
+    weight_entity: 0.2
+  };
+
+  // Add embedding if available
+  if (queryEmbedding) {
+    searchParams.query_embedding = queryEmbedding;
+  }
+
+  // Add FTS query from keywords
+  if (intent.keywords.length > 0) {
+    searchParams.query_text = intent.keywords.join(' ');
+  }
+
+  // Add entity search
+  if (Object.keys(intent.entities).length > 0) {
+    searchParams.search_entities = intent.entities;
+  }
+
+  // Add topic search
+  if (intent.topics.length > 0) {
+    searchParams.search_topics = intent.topics;
+  }
+
+  // Add MEDDPICC search
+  if (intent.meddpicc_elements.length > 0) {
+    searchParams.search_meddpicc = intent.meddpicc_elements;
+  }
+
+  console.log(`[admin-transcript-chat] Calling find_best_chunks RPC with ${Object.keys(searchParams).length} parameters`);
+
   const { data: searchResults, error: searchError } = await supabase
-    .from('transcript_chunks')
-    .select('id, chunk_text, metadata, transcript_id')
-    .in('transcript_id', transcriptIds)
-    .textSearch('search_vector', searchQuery, { type: 'websearch' })
-    .limit(RAG_CHUNK_LIMIT);
+    .rpc('find_best_chunks', searchParams);
 
   if (searchError) {
-    console.error('[admin-transcript-chat] Search error:', searchError);
-    // Fallback to getting first chunks from each transcript
+    console.error('[admin-transcript-chat] Hybrid search error:', searchError);
+    // Fallback to getting chunks from each transcript
     return await buildFallbackContext(supabase, transcriptIds);
   }
 
-  console.log(`[admin-transcript-chat] Found ${searchResults?.length || 0} relevant chunks`);
+  console.log(`[admin-transcript-chat] Hybrid search found ${searchResults?.length || 0} relevant chunks`);
 
   // If no results from search, use fallback
   if (!searchResults || searchResults.length === 0) {
@@ -842,7 +986,7 @@ async function buildRagContext(
   }
 
   // Build context from search results
-  let context = `Note: Using semantic search across ${transcriptIds.length} transcripts. Showing ${searchResults.length} most relevant sections.\n\n`;
+  let context = `Note: Using RAG V2 hybrid search (vector + FTS + entity) across ${transcriptIds.length} transcripts. Showing ${searchResults.length} most relevant sections.\n\n`;
 
   // Group chunks by transcript for better organization
   const chunksByTranscript = new Map<string, any[]>();
@@ -857,8 +1001,9 @@ async function buildRagContext(
   for (const [transcriptId, chunks] of chunksByTranscript) {
     const meta = chunks[0].metadata;
     context += `\n${'='.repeat(60)}\n`;
-    context += `TRANSCRIPT: ${meta.account_name || 'Unknown'} | ${meta.call_date} | ${meta.call_type || 'Call'}\n`;
-    context += `Rep: ${meta.rep_name || 'Unknown'}\n`;
+    context += `TRANSCRIPT: ${meta?.account_name || 'Unknown'} | ${meta?.call_date || 'Unknown'} | ${meta?.call_type || 'Call'}\n`;
+    context += `Rep: ${meta?.rep_name || 'Unknown'}\n`;
+    context += `[Relevance scores: ${chunks.map((c: any) => c.relevance_score?.toFixed(3)).join(', ')}]\n`;
     context += `${'='.repeat(60)}\n\n`;
     
     for (const chunk of chunks.sort((a: any, b: any) => (a.chunk_index || 0) - (b.chunk_index || 0))) {
@@ -869,53 +1014,11 @@ async function buildRagContext(
   return context;
 }
 
-async function extractSearchTerms(query: string, apiKey: string): Promise<string[]> {
-  try {
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { 
-            role: 'user', 
-            content: RAG_SEARCH_PROMPT.replace('{QUERY}', query)
-          }
-        ],
-        temperature: 0,
-      })
-    });
-
-    if (!response.ok) {
-      console.error('[admin-transcript-chat] Failed to extract search terms');
-      return query.toLowerCase().split(/\s+/).filter(w => w.length > 3).slice(0, 5);
-    }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || '';
-    
-    // Parse JSON array from response
-    const match = content.match(/\[.*\]/s);
-    if (match) {
-      return JSON.parse(match[0]);
-    }
-    
-    // Fallback: extract words from response
-    return query.toLowerCase().split(/\s+/).filter(w => w.length > 3).slice(0, 5);
-  } catch (error) {
-    console.error('[admin-transcript-chat] Error extracting search terms:', error);
-    return query.toLowerCase().split(/\s+/).filter(w => w.length > 3).slice(0, 5);
-  }
-}
-
 async function buildFallbackContext(
   supabase: any,
   transcriptIds: string[]
 ): Promise<string> {
-  // Get first few chunks from each transcript
+  // Get first chunks from each transcript, up to RAG_CHUNK_LIMIT (100)
   const chunksPerTranscript = Math.ceil(RAG_CHUNK_LIMIT / transcriptIds.length);
   
   const { data: chunks } = await supabase
@@ -926,11 +1029,10 @@ async function buildFallbackContext(
     .limit(RAG_CHUNK_LIMIT);
 
   if (!chunks || chunks.length === 0) {
-    // No chunks exist - throw error to trigger direct mode fallback
     throw new Error('No indexed content available for these transcripts');
   }
 
-  let context = `Note: Showing first sections from ${transcriptIds.length} transcripts.\n\n`;
+  let context = `Note: Using fallback mode. Showing first sections from ${transcriptIds.length} transcripts (up to ${RAG_CHUNK_LIMIT} chunks).\n\n`;
 
   const chunksByTranscript = new Map<string, any[]>();
   for (const chunk of chunks) {
@@ -946,8 +1048,8 @@ async function buildFallbackContext(
   for (const [transcriptId, transcriptChunks] of chunksByTranscript) {
     const meta = transcriptChunks[0].metadata;
     context += `\n${'='.repeat(60)}\n`;
-    context += `TRANSCRIPT: ${meta.account_name || 'Unknown'} | ${meta.call_date} | ${meta.call_type || 'Call'}\n`;
-    context += `Rep: ${meta.rep_name || 'Unknown'}\n`;
+    context += `TRANSCRIPT: ${meta?.account_name || 'Unknown'} | ${meta?.call_date || 'Unknown'} | ${meta?.call_type || 'Call'}\n`;
+    context += `Rep: ${meta?.rep_name || 'Unknown'}\n`;
     context += `${'='.repeat(60)}\n\n`;
     
     for (const chunk of transcriptChunks) {
@@ -964,6 +1066,7 @@ interface ChunkingResult {
   error?: string;
 }
 
+// Inline chunking (legacy - without RAG V2 columns for quick indexing)
 async function chunkTranscriptsInline(
   supabase: any,
   transcriptIds: string[]
@@ -978,8 +1081,7 @@ async function chunkTranscriptsInline(
       .in('id', transcriptIds);
 
     if (fetchError) {
-      console.error('[admin-transcript-chat] Error fetching transcripts for chunking:', fetchError);
-      return { success: false, chunksCreated: 0, error: 'Failed to fetch transcripts' };
+      return { success: false, chunksCreated: 0, error: `Failed to fetch transcripts: ${fetchError.message}` };
     }
 
     if (!transcripts || transcripts.length === 0) {
@@ -992,19 +1094,33 @@ async function chunkTranscriptsInline(
       .select('id, name')
       .in('id', repIds);
 
-    const repMap = new Map((profiles || []).map((p: any) => [p.id, p.name]));
+    const repMap = new Map<string, string>((profiles || []).map((p: { id: string; name: string }) => [p.id, p.name]));
 
-    const allChunks: any[] = [];
-    
+    interface InlineChunk {
+      transcript_id: string;
+      chunk_index: number;
+      chunk_text: string;
+      extraction_status: string;
+      metadata: {
+        account_name: string;
+        call_date: string;
+        call_type: string;
+        rep_name: string;
+        rep_id: string;
+      };
+    }
+
+    const allChunks: InlineChunk[] = [];
     for (const transcript of transcripts) {
       const chunks = chunkText(transcript.raw_text || '', CHUNK_SIZE, CHUNK_OVERLAP);
-      const repName = repMap.get(transcript.rep_id) || 'Unknown';
+      const repName: string = repMap.get(transcript.rep_id) || 'Unknown';
       
       chunks.forEach((chunkTextContent, index) => {
         allChunks.push({
           transcript_id: transcript.id,
           chunk_index: index,
           chunk_text: chunkTextContent,
+          extraction_status: 'pending', // Mark as pending for later backfill
           metadata: {
             account_name: transcript.account_name || 'Unknown',
             call_date: transcript.call_date,
@@ -1027,7 +1143,6 @@ async function chunkTranscriptsInline(
     for (let i = 0; i < allChunks.length; i += BATCH_SIZE) {
       const batch = allChunks.slice(i, i + BATCH_SIZE);
       
-      // Try up to 2 times
       let insertError: any = null;
       for (let attempt = 0; attempt < 2; attempt++) {
         const { error } = await supabase
@@ -1043,7 +1158,6 @@ async function chunkTranscriptsInline(
         insertError = error;
         console.warn(`[admin-transcript-chat] Chunk insert attempt ${attempt + 1} failed:`, error.message);
         
-        // Wait before retry
         if (attempt < 1) {
           await new Promise(resolve => setTimeout(resolve, 500));
         }
@@ -1074,16 +1188,24 @@ function chunkText(text: string, chunkSize: number, overlap: number): string[] {
   const chunks: string[] = [];
   if (!text || text.length === 0) return chunks;
 
-  const paragraphs = text.split(/\n\n+/);
+  // Speaker-aware splitting
+  const speakerPattern = /(?=\n\n(?:REP|PROSPECT):)/gi;
+  let sections = text.split(speakerPattern).filter(s => s.trim().length > 0);
+
+  // Fall back to paragraph splitting if no speaker markers
+  if (sections.length <= 1) {
+    sections = text.split(/\n\n+/).filter(s => s.trim().length > 0);
+  }
+
   let currentChunk = '';
 
-  for (const paragraph of paragraphs) {
-    if (currentChunk.length + paragraph.length > chunkSize && currentChunk.length > 0) {
+  for (const section of sections) {
+    if (currentChunk.length + section.length > chunkSize && currentChunk.length > 0) {
       chunks.push(currentChunk.trim());
       const overlapText = currentChunk.slice(-overlap);
-      currentChunk = overlapText + '\n\n' + paragraph;
+      currentChunk = overlapText + '\n\n' + section;
     } else {
-      currentChunk += (currentChunk ? '\n\n' : '') + paragraph;
+      currentChunk += (currentChunk ? '\n\n' : '') + section;
     }
   }
 
