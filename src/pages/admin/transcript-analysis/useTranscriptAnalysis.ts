@@ -662,13 +662,8 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
         const nerResult = await nerResponse.json();
         totalNer += nerResult.success_count || 0;
         
-        // Check if there are more chunks to process
-        const { count: pendingCount } = await supabase
-          .from('transcript_chunks')
-          .select('*', { count: 'exact', head: true })
-          .or('extraction_status.eq.pending,extraction_status.eq.failed');
-        
-        nerRemaining = pendingCount || 0;
+        // Use the 'remaining' count from edge function response (now available)
+        nerRemaining = nerResult.remaining || 0;
         
         setResetProgress(`Extracting entities... ${nerResult.chunks_with_entities || totalNer} completed`);
         
