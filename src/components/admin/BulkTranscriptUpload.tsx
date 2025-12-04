@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
-import { Upload, FileText, CheckCircle2, XCircle, Loader2, Trash2, Users, Calendar, Tag, AlertTriangle, User, X, RefreshCw } from 'lucide-react';
+import { Upload, FileText, CheckCircle2, XCircle, Loader2, Trash2, Users, Calendar, Tag, AlertTriangle, User, X, RefreshCw, ExternalLink } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -184,6 +185,14 @@ export function BulkTranscriptUpload() {
                     Retry Upload
                   </Button>
                 </>
+              )}
+              {uploadMutation.data.summary.inserted > 0 && (
+                <Button variant="outline" size="sm" asChild className="ml-auto">
+                  <Link to="/admin/transcript-analysis?source=bulk_upload">
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    View Uploaded Transcripts
+                  </Link>
+                </Button>
               )}
             </div>
           </AlertDescription>
@@ -402,7 +411,7 @@ export function BulkTranscriptUpload() {
                 <div className="divide-y">
                   {extractedFiles.map((file, index) => {
                     const meta = fileMetadata.get(file.fileName);
-                    const isValid = meta?.repId && meta?.accountName && meta?.stakeholderName;
+                    const isValid = meta?.repId && meta?.accountName?.trim() && meta?.stakeholderName?.trim();
                     
                     return (
                       <div key={file.fileName} className="p-4 space-y-3">
