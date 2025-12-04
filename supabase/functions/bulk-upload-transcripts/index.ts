@@ -279,28 +279,31 @@ async function queueAnalysis(
   }
 }
 
-// ============= Helper: Queue Indexing (chunk-transcripts) =============
-async function queueIndexing(
-  supabase: SupabaseClient,
-  transcriptId: string,
-  fileName: string
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    const { error } = await supabase.functions.invoke('chunk-transcripts', {
-      body: { transcript_ids: [transcriptId] }
-    });
-
-    if (error) {
-      throw error;
+// ============= Helper: Queue Batch Indexing (fire-and-forget) =============
+// Uses fetch directly to avoid awaiting the response - indexing happens in background
+function queueBatchIndexingAsync(transcriptIds: string[]): void {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  
+  // Fire and forget - don't await the response
+  fetch(`${supabaseUrl}/functions/v1/chunk-transcripts`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${serviceKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ transcript_ids: transcriptIds })
+  }).then(response => {
+    if (!response.ok) {
+      console.error(`[bulk-upload] Background indexing request returned status ${response.status}`);
+    } else {
+      console.log(`[bulk-upload] Background indexing request acknowledged`);
     }
-
-    console.log(`[bulk-upload] Indexing queued for ${fileName} (${transcriptId})`);
-    return { success: true };
-  } catch (error: unknown) {
-    const err = error as { message?: string };
-    console.error(`[bulk-upload] Failed to queue indexing for ${fileName}:`, error);
-    return { success: false, error: err.message || 'Indexing queue failed' };
-  }
+  }).catch(err => {
+    console.error('[bulk-upload] Background indexing request failed:', err);
+  });
+  
+  console.log(`[bulk-upload] Background indexing triggered for ${transcriptIds.length} transcripts`);
 }
 
 // ============= Helper: Validate RepId Exists =============
@@ -518,28 +521,20 @@ serve(async (req) => {
           }
         }
       } else {
-        // Index only mode: call chunk-transcripts directly
-        console.log('[bulk-upload] Starting indexing queue with adaptive rate limiting');
+        // Index only mode: trigger batch indexing in background (fire-and-forget)
+        console.log('[bulk-upload] Triggering background batch indexing');
         
-        const indexingResults = await processWithAdaptiveRateLimit(
-          insertedTranscripts,
-          async (t) => queueIndexing(supabase, t.id, t.fileName),
-          ANALYSIS_BATCH_SIZE,
-          (t) => t.fileName
-        );
-
-        // Update results based on indexing queue outcome
-        for (const result of indexingResults) {
-          const resultIndex = insertResults.findIndex(r => r.fileName === result.item.fileName);
+        const transcriptIds = insertedTranscripts.map(t => t.id);
+        
+        // Fire and forget - don't wait for indexing to complete
+        queueBatchIndexingAsync(transcriptIds);
+        
+        // Mark all as indexing_queued since we've triggered the batch
+        indexingQueued = insertedTranscripts.length;
+        for (const t of insertedTranscripts) {
+          const resultIndex = insertResults.findIndex(r => r.fileName === t.fileName);
           if (resultIndex !== -1) {
-            if (result.success) {
-              indexingQueued++;
-              insertResults[resultIndex].status = 'success';
-            } else {
-              indexingFailed++;
-              insertResults[resultIndex].status = 'indexing_failed';
-              insertResults[resultIndex].error = result.error;
-            }
+            insertResults[resultIndex].status = 'success';
           }
         }
       }
