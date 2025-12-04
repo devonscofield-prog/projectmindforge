@@ -18,6 +18,7 @@ import {
   TrendingUp,
   Activity,
   Settings,
+  Upload,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -60,6 +61,7 @@ function SidebarNav() {
         { href: '/admin/accounts', label: 'Accounts', icon: UserCheck },
         { href: '/admin/coaching', label: 'Coaching', icon: TrendingUp },
         { href: '/admin/transcripts', label: 'Transcripts', icon: FileText },
+        { href: '/admin/bulk-upload', label: 'Bulk Upload', icon: Upload },
         { href: '/admin/performance', label: 'Performance', icon: Activity },
         { href: '/admin/audit-log', label: 'Audit Log', icon: History },
       ]

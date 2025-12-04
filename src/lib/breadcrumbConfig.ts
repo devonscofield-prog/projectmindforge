@@ -104,7 +104,7 @@ export function getSimpleBreadcrumb(label: string): BreadcrumbItem[] {
  * Type-safe helper to get admin page breadcrumbs
  */
 export function getAdminPageBreadcrumb(
-  page: 'users' | 'teams' | 'transcriptAnalysis' | 'coachingTrends' | 'accounts'
+  page: 'users' | 'teams' | 'transcriptAnalysis' | 'coachingTrends' | 'accounts' | 'bulkUpload'
 ): BreadcrumbItem[] {
   const labels: Record<typeof page, string> = {
     users: BREADCRUMB_LABELS.users,
@@ -112,6 +112,7 @@ export function getAdminPageBreadcrumb(
     transcriptAnalysis: BREADCRUMB_LABELS.transcriptAnalysis,
     coachingTrends: BREADCRUMB_LABELS.coachingTrends,
     accounts: 'Accounts',
+    bulkUpload: 'Bulk Upload',
   };
   return [{ label: labels[page] }];
 }
