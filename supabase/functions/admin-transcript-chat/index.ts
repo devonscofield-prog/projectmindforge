@@ -482,17 +482,35 @@ interface QueryIntent {
   meddpicc_elements: string[];
 }
 
-// Generate embedding using Supabase.ai gte-small model
-async function generateQueryEmbedding(text: string): Promise<string> {
+// Generate embedding using OpenAI API (text-embedding-3-small, 1536 dimensions)
+// Must match the document embeddings in chunk-transcripts
+async function generateQueryEmbedding(text: string, openaiApiKey: string): Promise<string> {
   try {
-    // @ts-ignore - Supabase.ai is available in Edge Function runtime
-    const session = new Supabase.ai.Session('gte-small');
-    const embedding: number[] = await session.run(text, {
-      mean_pool: true,
-      normalize: true,
+    const response = await fetch('https://api.openai.com/v1/embeddings', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'text-embedding-3-small',
+        input: text.slice(0, 8000) // Limit input length
+      })
     });
-    // Format as PostgreSQL array string: {0.123, -0.456, ...}
-    return `{${embedding.join(',')}}`;
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[admin-transcript-chat] OpenAI Embedding API error:', response.status, errorText);
+      throw new Error(`OpenAI Embedding API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const embedding = data.data?.[0]?.embedding;
+    if (!embedding || !Array.isArray(embedding)) {
+      throw new Error('Invalid embedding response from OpenAI');
+    }
+    // Format as PostgreSQL array string: [0.123, -0.456, ...]
+    return `[${embedding.join(',')}]`;
   } catch (error) {
     console.error('[admin-transcript-chat] Query embedding generation failed:', error);
     throw error;
@@ -750,6 +768,11 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
+    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+    if (!OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY not configured');
+    }
+
     let transcriptContext: string;
     let usedDirectFallback = false;
 
@@ -760,7 +783,8 @@ serve(async (req) => {
           supabase, 
           validatedTranscriptIds, 
           validatedMessages, 
-          LOVABLE_API_KEY
+          LOVABLE_API_KEY,
+          OPENAI_API_KEY
         );
       } catch (ragError) {
         // If RAG fails and we have 20 or fewer transcripts, fall back to direct mode
@@ -889,7 +913,8 @@ async function buildRagContext(
   supabase: any,
   transcriptIds: string[],
   messages: Message[],
-  apiKey: string
+  apiKey: string,
+  openaiApiKey: string
 ): Promise<string> {
   const latestUserMessage = [...messages].reverse().find(m => m.role === 'user');
   if (!latestUserMessage) {
@@ -920,10 +945,10 @@ async function buildRagContext(
     console.log(`[admin-transcript-chat] Successfully chunked ${chunkingResult.chunksCreated} chunks`);
   }
 
-  // Step 1: Generate query embedding
+  // Step 1: Generate query embedding using OpenAI (same model as document embeddings)
   let queryEmbedding: string | null = null;
   try {
-    queryEmbedding = await generateQueryEmbedding(latestUserMessage.content);
+    queryEmbedding = await generateQueryEmbedding(latestUserMessage.content, openaiApiKey);
     console.log(`[admin-transcript-chat] Generated query embedding`);
   } catch (embError) {
     console.warn(`[admin-transcript-chat] Query embedding failed, will use FTS only:`, embError);
