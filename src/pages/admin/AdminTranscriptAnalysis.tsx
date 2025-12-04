@@ -43,6 +43,8 @@ function AdminTranscriptAnalysis() {
     // Data
     teams,
     reps,
+    isLoadingTeams,
+    isLoadingReps,
     transcripts,
     totalCount,
     totalPages,
@@ -153,6 +155,8 @@ function AdminTranscriptAnalysis() {
             selectedAnalysisStatus={selectedAnalysisStatus}
             teams={teams}
             reps={reps}
+            isLoadingTeams={isLoadingTeams}
+            isLoadingReps={isLoadingReps}
             onPresetChange={handlePresetChange}
             onFromDateChange={handleFromDateChange}
             onToDateChange={handleToDateChange}

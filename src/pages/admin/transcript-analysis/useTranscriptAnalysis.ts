@@ -152,12 +152,12 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
   const selfRepId = isSelfScoped ? user?.id : null;
 
   // Use reusable hooks for teams and reps
-  const { data: teams } = useTeams();
+  const { data: teams, isLoading: isLoadingTeams } = useTeams();
   
   // For team-scoped view, auto-filter to manager's team
   const effectiveTeamId = isTeamScoped && managerTeam ? managerTeam.id : selectedTeamId;
   
-  const { data: reps } = useReps({ 
+  const { data: reps, isLoading: isLoadingReps } = useReps({ 
     teamId: effectiveTeamId !== 'all' ? effectiveTeamId : undefined 
   });
 
@@ -734,6 +734,8 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     // Data
     teams,
     reps,
+    isLoadingTeams,
+    isLoadingReps,
     transcripts,
     totalCount,
     totalPages,
