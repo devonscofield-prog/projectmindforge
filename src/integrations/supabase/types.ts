@@ -1761,7 +1761,7 @@ export type Database = {
         | "meetings"
         | "proposals"
       call_analysis_status: "pending" | "processing" | "completed" | "error"
-      call_source_type: "zoom" | "teams" | "dialer" | "other"
+      call_source_type: "zoom" | "teams" | "dialer" | "other" | "bulk_upload"
       email_direction: "incoming" | "outgoing"
       prospect_activity_type:
         | "call"
@@ -1925,7 +1925,7 @@ export const Constants = {
         "proposals",
       ],
       call_analysis_status: ["pending", "processing", "completed", "error"],
-      call_source_type: ["zoom", "teams", "dialer", "other"],
+      call_source_type: ["zoom", "teams", "dialer", "other", "bulk_upload"],
       email_direction: ["incoming", "outgoing"],
       prospect_activity_type: [
         "call",

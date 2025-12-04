@@ -25,6 +25,7 @@ export function BulkTranscriptUpload() {
     fileMetadata,
     isExtracting,
     extractionError,
+    extractionProgress,
     extractZip,
     updateFileMetadata,
     applyToAll,
@@ -192,10 +193,25 @@ export function BulkTranscriptUpload() {
             />
             
             {isExtracting ? (
-              <>
+              <div className="flex flex-col items-center">
                 <Loader2 className="h-12 w-12 text-primary animate-spin mb-4" />
-                <p className="text-muted-foreground">Extracting ZIP file...</p>
-              </>
+                {extractionProgress ? (
+                  <>
+                    <p className="text-muted-foreground mb-2">
+                      Extracting file {extractionProgress.current} of {extractionProgress.total}
+                    </p>
+                    <Progress 
+                      value={(extractionProgress.current / extractionProgress.total) * 100} 
+                      className="w-64 h-2 mb-2"
+                    />
+                    <p className="text-xs text-muted-foreground truncate max-w-xs">
+                      {extractionProgress.currentFileName}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-muted-foreground">Loading ZIP file...</p>
+                )}
+              </div>
             ) : (
               <>
                 <Upload className="h-12 w-12 text-muted-foreground mb-4" />
