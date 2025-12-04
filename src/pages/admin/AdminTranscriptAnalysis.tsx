@@ -83,6 +83,7 @@ function AdminTranscriptAnalysis() {
     handleToDateChange,
     toggleTranscript,
     selectAll,
+    selectAllMatching,
     deselectAll,
     toggleCallType,
     handlePreIndex,
@@ -167,6 +168,7 @@ function AdminTranscriptAnalysis() {
             selectedTranscripts={selectedTranscripts}
             currentSelectionId={currentSelectionId}
             estimatedTokens={estimatedTokens}
+            totalCount={totalCount}
             chunkStatus={chunkStatus}
             globalChunkStatus={globalChunkStatus}
             isIndexing={isIndexing}
@@ -176,6 +178,7 @@ function AdminTranscriptAnalysis() {
             isAdmin={isAdmin}
             onChatOpenChange={setChatOpen}
             onSelectAll={selectAll}
+            onSelectAllMatching={selectAllMatching}
             onDeselectAll={deselectAll}
             onPreIndex={handlePreIndex}
             onBackfillAll={handleBackfillAll}

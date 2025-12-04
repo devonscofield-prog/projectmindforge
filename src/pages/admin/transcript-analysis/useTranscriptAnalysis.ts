@@ -423,6 +423,58 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     }
   };
 
+  const selectAllMatching = async () => {
+    try {
+      let repIds: string[] = [];
+      
+      if (isSelfScoped && selfRepId) {
+        repIds = [selfRepId];
+      } else if (selectedRepId !== 'all') {
+        repIds = [selectedRepId];
+      } else if (effectiveTeamId !== 'all') {
+        const { data: teamReps } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('team_id', effectiveTeamId);
+        repIds = (teamReps || []).map(r => r.id);
+      }
+
+      let query = supabase
+        .from('call_transcripts')
+        .select('id')
+        .gte('call_date', format(dateRange.from, 'yyyy-MM-dd'))
+        .lte('call_date', format(dateRange.to, 'yyyy-MM-dd'));
+
+      if (selectedAnalysisStatus === 'all') {
+        query = query.in('analysis_status', ['completed', 'skipped']);
+      } else {
+        query = query.eq('analysis_status', selectedAnalysisStatus);
+      }
+
+      if (repIds.length > 0) {
+        query = query.in('rep_id', repIds);
+      }
+
+      if (accountSearch.trim()) {
+        query = query.ilike('account_name', `%${accountSearch.trim()}%`);
+      }
+
+      if (selectedCallTypes.length > 0) {
+        query = query.in('call_type', selectedCallTypes);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      const allIds = (data || []).map(t => t.id);
+      setSelectedTranscriptIds(new Set(allIds));
+      toast.success(`Selected ${allIds.length} transcripts`);
+    } catch (err) {
+      log.error('Error selecting all matching transcripts', { error: err });
+      toast.error('Failed to select all matching transcripts');
+    }
+  };
+
   const deselectAll = () => {
     setSelectedTranscriptIds(new Set());
   };
@@ -519,6 +571,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     handleToDateChange,
     toggleTranscript,
     selectAll,
+    selectAllMatching,
     deselectAll,
     toggleCallType,
     handlePreIndex,
