@@ -37,6 +37,8 @@ function AdminTranscriptAnalysis() {
     accountSearch,
     setAccountSearch,
     selectedCallTypes,
+    selectedAnalysisStatus,
+    setSelectedAnalysisStatus,
     
     // Data
     teams,
@@ -141,6 +143,7 @@ function AdminTranscriptAnalysis() {
             selectedRepId={selectedRepId}
             accountSearch={accountSearch}
             selectedCallTypes={selectedCallTypes}
+            selectedAnalysisStatus={selectedAnalysisStatus}
             teams={teams}
             reps={reps}
             onPresetChange={handlePresetChange}
@@ -150,6 +153,7 @@ function AdminTranscriptAnalysis() {
             onRepChange={setSelectedRepId}
             onAccountSearchChange={setAccountSearch}
             onToggleCallType={toggleCallType}
+            onAnalysisStatusChange={setSelectedAnalysisStatus}
             hideTeamFilter={isTeamScoped || isSelfScoped}
             hideRepFilter={isSelfScoped}
           />

@@ -26,6 +26,12 @@ export function createDateRange(daysBack: number): { from: Date; to: Date } {
 
 export type TranscriptAnalysisStatus = 'completed' | 'skipped';
 
+export const ANALYSIS_STATUS_OPTIONS = [
+  { value: 'all', label: 'All Statuses' },
+  { value: 'completed', label: 'Analyzed' },
+  { value: 'skipped', label: 'Indexed Only' },
+];
+
 export interface Transcript {
   id: string;
   call_date: string;
