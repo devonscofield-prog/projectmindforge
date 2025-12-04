@@ -63,6 +63,8 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
   const [isBackfilling, setIsBackfilling] = useState(false);
   const [isBackfillingEmbeddings, setIsBackfillingEmbeddings] = useState(false);
   const [isBackfillingEntities, setIsBackfillingEntities] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetProgress, setResetProgress] = useState<string | null>(null);
   const [embeddingsProgress, setEmbeddingsProgress] = useState<{ processed: number; total: number } | null>(null);
   const [shouldStopBackfill, setShouldStopBackfill] = useState(false);
   
@@ -525,6 +527,169 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     toast.info('Stopping backfill after current batch...');
   };
 
+  // Reset and reindex all handler (admin only - full RAG system reset)
+  const handleResetAndReindex = async () => {
+    if (role !== 'admin') {
+      toast.error('Only admins can reset the RAG system');
+      return;
+    }
+    
+    if (!confirm('⚠️ FULL RAG RESET\n\nThis will:\n1. Delete ALL existing chunks\n2. Re-chunk all transcripts\n3. Generate embeddings for all chunks\n4. Run NER extraction on all chunks\n\nThis may take 15-30 minutes. Continue?')) {
+      return;
+    }
+    
+    setIsResetting(true);
+    setResetProgress('Deleting existing chunks...');
+    
+    try {
+      const token = await getFreshToken();
+      if (!token) {
+        toast.error('Your session has expired. Please sign in again.');
+        return;
+      }
+      
+      // Step 1: Reset all chunks
+      log.info('Starting RAG reset - Step 1: Deleting chunks');
+      const resetResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chunk-transcripts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ reset_all_chunks: true }),
+      });
+      
+      if (!resetResponse.ok) {
+        const errorText = await resetResponse.text();
+        throw new Error('Failed to reset chunks: ' + errorText);
+      }
+      
+      const resetResult = await resetResponse.json();
+      toast.info(`Deleted ${resetResult.deleted_count} chunks. Starting fresh reindex...`);
+      
+      // Step 2: Backfill all transcripts (chunking)
+      setResetProgress('Re-chunking all transcripts...');
+      log.info('RAG reset - Step 2: Re-chunking transcripts');
+      
+      const backfillResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chunk-transcripts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ backfill_all: true }),
+      });
+      
+      if (!backfillResponse.ok) {
+        const errorText = await backfillResponse.text();
+        throw new Error('Failed to re-chunk transcripts: ' + errorText);
+      }
+      
+      const backfillResult = await backfillResponse.json();
+      toast.info(`Created ${backfillResult.new_chunks || 0} chunks. Starting embeddings...`);
+      
+      // Step 3: Generate embeddings (auto-continue loop)
+      setResetProgress('Generating embeddings...');
+      log.info('RAG reset - Step 3: Generating embeddings');
+      
+      let embeddingsRemaining = 1;
+      let totalEmbeddings = 0;
+      let consecutiveErrors = 0;
+      
+      while (embeddingsRemaining > 0 && consecutiveErrors < 3) {
+        const embResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chunk-transcripts`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ backfill_embeddings: true }),
+        });
+        
+        if (!embResponse.ok) {
+          consecutiveErrors++;
+          log.warn('Embeddings batch error', { consecutiveErrors });
+          if (consecutiveErrors >= 3) {
+            throw new Error('Failed to generate embeddings after 3 attempts');
+          }
+          await new Promise(r => setTimeout(r, 2000));
+          continue;
+        }
+        
+        consecutiveErrors = 0;
+        const embResult = await embResponse.json();
+        totalEmbeddings += embResult.success_count || 0;
+        embeddingsRemaining = embResult.remaining || 0;
+        
+        setResetProgress(`Generating embeddings... ${embResult.chunks_with_embeddings}/${embResult.total_chunks}`);
+        
+        if (embeddingsRemaining > 0) {
+          await new Promise(r => setTimeout(r, 500));
+        }
+      }
+      
+      toast.info(`Generated ${totalEmbeddings} embeddings. Starting NER extraction...`);
+      
+      // Step 4: NER extraction (auto-continue loop)
+      setResetProgress('Extracting entities...');
+      log.info('RAG reset - Step 4: NER extraction');
+      
+      let nerRemaining = 1;
+      let totalNer = 0;
+      consecutiveErrors = 0;
+      
+      while (nerRemaining > 0 && consecutiveErrors < 3) {
+        const nerResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chunk-transcripts`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ backfill_entities: true }),
+        });
+        
+        if (!nerResponse.ok) {
+          consecutiveErrors++;
+          log.warn('NER batch error', { consecutiveErrors });
+          if (consecutiveErrors >= 3) {
+            throw new Error('Failed to extract entities after 3 attempts');
+          }
+          await new Promise(r => setTimeout(r, 2000));
+          continue;
+        }
+        
+        consecutiveErrors = 0;
+        const nerResult = await nerResponse.json();
+        totalNer += nerResult.success_count || 0;
+        
+        // Check if there are more chunks to process
+        const { count: pendingCount } = await supabase
+          .from('transcript_chunks')
+          .select('*', { count: 'exact', head: true })
+          .or('extraction_status.eq.pending,extraction_status.eq.failed');
+        
+        nerRemaining = pendingCount || 0;
+        
+        setResetProgress(`Extracting entities... ${nerResult.chunks_with_entities || totalNer} completed`);
+        
+        if (nerRemaining > 0) {
+          await new Promise(r => setTimeout(r, 500));
+        }
+      }
+      
+      toast.success(`Full RAG reset complete! ${backfillResult.new_chunks || 0} chunks, ${totalEmbeddings} embeddings, ${totalNer} entities extracted.`);
+      
+      refetchChunkStatus();
+      refetchGlobalChunkStatus();
+    } catch (err) {
+      log.error('RAG reset error', { error: err });
+      toast.error(err instanceof Error ? err.message : 'Failed to reset RAG system');
+    } finally {
+      setIsResetting(false);
+      setResetProgress(null);
+    }
+  };
+
   // Backfill NER entities handler (admin only)
   const handleBackfillEntities = async () => {
     if (role !== 'admin') {
@@ -762,6 +927,8 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     isBackfilling,
     isBackfillingEmbeddings,
     isBackfillingEntities,
+    isResetting,
+    resetProgress,
     embeddingsProgress,
     
     // Pagination
@@ -787,6 +954,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     handleBackfillEmbeddings,
     handleBackfillEntities,
     stopEmbeddingsBackfill,
+    handleResetAndReindex,
     handleLoadSelection,
   };
 }
