@@ -68,7 +68,7 @@ export interface CallTranscriptWithHeat extends CallTranscript {
   heat_score: number | null;
 }
 
-export type AnalysisStatus = 'pending' | 'processing' | 'completed' | 'error';
+export type AnalysisStatus = 'pending' | 'processing' | 'completed' | 'error' | 'skipped';
 
 export type HeatRange = 'hot' | 'warm' | 'cold';
 

@@ -196,8 +196,8 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
 
       let query = supabase
         .from('call_transcripts')
-        .select('id, call_date, account_name, call_type, raw_text, rep_id', { count: 'exact' })
-        .eq('analysis_status', 'completed')
+        .select('id, call_date, account_name, call_type, raw_text, rep_id, analysis_status', { count: 'exact' })
+        .in('analysis_status', ['completed', 'skipped'])
         .gte('call_date', format(dateRange.from, 'yyyy-MM-dd'))
         .lte('call_date', format(dateRange.to, 'yyyy-MM-dd'))
         .order('call_date', { ascending: false });
@@ -273,11 +273,11 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
   const { data: globalChunkStatus, refetch: refetchGlobalChunkStatus } = useQuery({
     queryKey: ['global-chunk-status'],
     queryFn: async () => {
-      // Get total count of completed transcripts
+      // Get total count of completed or skipped transcripts (both are valid for RAG)
       const { count: totalCount, error: countError } = await supabase
         .from('call_transcripts')
         .select('id', { count: 'exact', head: true })
-        .eq('analysis_status', 'completed')
+        .in('analysis_status', ['completed', 'skipped'])
         .is('deleted_at', null);
       
       if (countError) throw countError;

@@ -24,6 +24,8 @@ export function createDateRange(daysBack: number): { from: Date; to: Date } {
   return { from, to };
 }
 
+export type TranscriptAnalysisStatus = 'completed' | 'skipped';
+
 export interface Transcript {
   id: string;
   call_date: string;
@@ -31,6 +33,7 @@ export interface Transcript {
   call_type: string | null;
   raw_text: string;
   rep_id: string;
+  analysis_status: TranscriptAnalysisStatus;
   rep_name?: string;
   team_name?: string;
 }
