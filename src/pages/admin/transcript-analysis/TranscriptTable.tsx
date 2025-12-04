@@ -53,11 +53,12 @@ export function TranscriptTable({
           <ScrollArea className="h-[500px]">
             <table className="w-full">
               <thead className="sticky top-0 bg-background border-b">
-                <tr className="text-left text-sm text-muted-foreground">
+              <tr className="text-left text-sm text-muted-foreground">
                   <th className="p-3 w-10"></th>
                   <th className="p-3">Date</th>
                   <th className="p-3">Account</th>
                   <th className="p-3">Type</th>
+                  <th className="p-3">Status</th>
                   <th className="p-3">Rep</th>
                   <th className="p-3">Team</th>
                   <th className="p-3">Preview</th>
@@ -88,6 +89,14 @@ export function TranscriptTable({
                     <td className="p-3">
                       <Badge variant="outline" className="text-xs">
                         {CALL_TYPES.find(t => t.value === transcript.call_type)?.label || transcript.call_type || 'Call'}
+                      </Badge>
+                    </td>
+                    <td className="p-3">
+                      <Badge 
+                        variant={transcript.analysis_status === 'completed' ? 'default' : 'secondary'}
+                        className="text-xs"
+                      >
+                        {transcript.analysis_status === 'completed' ? 'Analyzed' : 'Indexed Only'}
                       </Badge>
                     </td>
                     <td className="p-3 text-sm">{transcript.rep_name}</td>
