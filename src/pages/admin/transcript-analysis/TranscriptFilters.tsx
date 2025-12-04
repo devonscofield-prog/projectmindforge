@@ -15,7 +15,8 @@ import {
   Filter,
   ChevronDown,
 } from 'lucide-react';
-import { TIME_RANGES, CALL_TYPES } from './constants';
+import { TIME_RANGES, CALL_TYPES, ANALYSIS_STATUS_OPTIONS, TranscriptAnalysisStatus } from './constants';
+import { FileCheck } from 'lucide-react';
 
 interface TranscriptFiltersProps {
   dateRange: { from: Date; to: Date };
@@ -24,6 +25,7 @@ interface TranscriptFiltersProps {
   selectedRepId: string;
   accountSearch: string;
   selectedCallTypes: string[];
+  selectedAnalysisStatus: 'all' | TranscriptAnalysisStatus;
   teams: { id: string; name: string }[] | undefined;
   reps: { id: string; name: string; team_id: string | null }[] | undefined;
   onPresetChange: (value: string) => void;
@@ -33,6 +35,7 @@ interface TranscriptFiltersProps {
   onRepChange: (value: string) => void;
   onAccountSearchChange: (value: string) => void;
   onToggleCallType: (callType: string) => void;
+  onAnalysisStatusChange: (value: 'all' | TranscriptAnalysisStatus) => void;
   hideTeamFilter?: boolean;
   hideRepFilter?: boolean;
 }
@@ -44,6 +47,7 @@ export function TranscriptFilters({
   selectedRepId,
   accountSearch,
   selectedCallTypes,
+  selectedAnalysisStatus,
   teams,
   reps,
   onPresetChange,
@@ -53,6 +57,7 @@ export function TranscriptFilters({
   onRepChange,
   onAccountSearchChange,
   onToggleCallType,
+  onAnalysisStatusChange,
   hideTeamFilter = false,
   hideRepFilter = false,
 }: TranscriptFiltersProps) {
@@ -203,6 +208,22 @@ export function TranscriptFilters({
                 </div>
               </PopoverContent>
             </Popover>
+          </div>
+
+          {/* Analysis Status Filter */}
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Status</Label>
+            <Select value={selectedAnalysisStatus} onValueChange={(v) => onAnalysisStatusChange(v as 'all' | TranscriptAnalysisStatus)}>
+              <SelectTrigger className="w-[140px]">
+                <FileCheck className="h-4 w-4 mr-2" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ANALYSIS_STATUS_OPTIONS.map(opt => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </CardContent>

@@ -11,7 +11,7 @@ import { useDateRangeSelector } from '@/hooks/useDateRangeSelector';
 
 const log = createLogger('transcriptAnalysis');
 import { useTeams, useReps } from '@/hooks';
-import { Transcript } from './constants';
+import { Transcript, TranscriptAnalysisStatus } from './constants';
 
 interface UseTranscriptAnalysisOptions {
   scope?: 'org' | 'team' | 'self';
@@ -44,6 +44,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
   const [selectedRepId, setSelectedRepId] = useState<string>('all');
   const [accountSearch, setAccountSearch] = useState<string>('');
   const [selectedCallTypes, setSelectedCallTypes] = useState<string[]>([]);
+  const [selectedAnalysisStatus, setSelectedAnalysisStatus] = useState<'all' | TranscriptAnalysisStatus>('all');
   
   // Selection state
   const [selectedTranscriptIds, setSelectedTranscriptIds] = useState<Set<string>>(new Set());
@@ -159,7 +160,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
   // Reset pagination when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [dateRange.from, dateRange.to, selectedTeamId, selectedRepId, accountSearch, selectedCallTypes]);
+  }, [dateRange.from, dateRange.to, selectedTeamId, selectedRepId, accountSearch, selectedCallTypes, selectedAnalysisStatus]);
 
   // Fetch transcripts with filters and server-side pagination
   const { data: transcriptsData, isLoading } = useQuery({
@@ -171,6 +172,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
       selectedRepId,
       accountSearch,
       selectedCallTypes,
+      selectedAnalysisStatus,
       currentPage,
       pageSize,
       isTeamScoped,
@@ -197,10 +199,16 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
       let query = supabase
         .from('call_transcripts')
         .select('id, call_date, account_name, call_type, raw_text, rep_id, analysis_status', { count: 'exact' })
-        .in('analysis_status', ['completed', 'skipped'])
         .gte('call_date', format(dateRange.from, 'yyyy-MM-dd'))
         .lte('call_date', format(dateRange.to, 'yyyy-MM-dd'))
         .order('call_date', { ascending: false });
+
+      // Filter by analysis status
+      if (selectedAnalysisStatus === 'all') {
+        query = query.in('analysis_status', ['completed', 'skipped']);
+      } else {
+        query = query.eq('analysis_status', selectedAnalysisStatus);
+      }
 
       if (repIds.length > 0) {
         query = query.in('rep_id', repIds);
@@ -465,6 +473,8 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     accountSearch,
     setAccountSearch,
     selectedCallTypes,
+    selectedAnalysisStatus,
+    setSelectedAnalysisStatus,
     
     // Data
     teams,
