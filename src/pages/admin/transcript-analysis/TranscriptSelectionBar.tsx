@@ -24,6 +24,7 @@ interface TranscriptSelectionBarProps {
   selectedTranscripts: Transcript[];
   currentSelectionId: string | null;
   estimatedTokens: number;
+  totalCount: number;
   chunkStatus: { indexed: number; total: number } | undefined;
   globalChunkStatus?: { indexed: number; total: number };
   isIndexing: boolean;
@@ -33,6 +34,7 @@ interface TranscriptSelectionBarProps {
   isAdmin?: boolean;
   onChatOpenChange: (open: boolean) => void;
   onSelectAll: () => void;
+  onSelectAllMatching: () => void;
   onDeselectAll: () => void;
   onPreIndex: () => void;
   onBackfillAll?: () => void;
@@ -47,6 +49,7 @@ export function TranscriptSelectionBar({
   selectedTranscripts,
   currentSelectionId,
   estimatedTokens,
+  totalCount,
   chunkStatus,
   globalChunkStatus,
   isIndexing,
@@ -56,6 +59,7 @@ export function TranscriptSelectionBar({
   isAdmin,
   onChatOpenChange,
   onSelectAll,
+  onSelectAllMatching,
   onDeselectAll,
   onPreIndex,
   onBackfillAll,
@@ -70,17 +74,23 @@ export function TranscriptSelectionBar({
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={onSelectAll} disabled={!transcripts?.length}>
             <CheckSquare className="h-4 w-4 mr-1" />
-            Select All
+            Page
           </Button>
+          {totalCount > transcripts?.length && (
+            <Button variant="outline" size="sm" onClick={onSelectAllMatching}>
+              <CheckSquare className="h-4 w-4 mr-1" />
+              All ({totalCount})
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={onDeselectAll} disabled={selectedTranscriptIds.size === 0}>
             <Square className="h-4 w-4 mr-1" />
-            Deselect All
+            Clear
           </Button>
         </div>
         
         <div className="text-sm">
           <span className="font-medium">{selectedTranscriptIds.size}</span>
-          <span className="text-muted-foreground"> of {transcripts?.length || 0} transcripts selected</span>
+          <span className="text-muted-foreground"> of {totalCount} selected</span>
         </div>
 
         <div className="text-sm text-muted-foreground">
