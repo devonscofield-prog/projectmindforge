@@ -691,6 +691,9 @@ serve(async (req) => {
         .select('*', { count: 'exact', head: true })
         .eq('extraction_status', 'completed');
 
+      // Get remaining count for auto-continue (like embeddings does)
+      const remaining = (totalChunks || 0) - (chunksWithEntities || 0);
+
       return new Response(
         JSON.stringify({
           success: true,
@@ -699,7 +702,8 @@ serve(async (req) => {
           success_count: successCount,
           error_count: errorCount,
           total_chunks: totalChunks || 0,
-          chunks_with_entities: chunksWithEntities || 0
+          chunks_with_entities: chunksWithEntities || 0,
+          remaining // Key for auto-continue
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -716,10 +720,11 @@ serve(async (req) => {
 
       console.log(`[chunk-transcripts] Admin ${userId} initiated backfill_all`);
 
+      // Include both 'completed' AND 'skipped' transcripts (skipped = indexed-only from bulk upload)
       const { data: allTranscripts, error: allError } = await supabase
         .from('call_transcripts')
         .select('id')
-        .eq('analysis_status', 'completed')
+        .in('analysis_status', ['completed', 'skipped'])
         .is('deleted_at', null);
 
       if (allError) {
@@ -778,46 +783,17 @@ serve(async (req) => {
           const chunks = chunkText(transcript.raw_text || '');
           const repName = repMap.get(transcript.rep_id) || 'Unknown';
           
+          // Only create chunks - embedding and NER are handled separately via backfill_embeddings/backfill_entities
+          // This avoids edge function timeouts on large backfills
           for (let idx = 0; idx < chunks.length; idx++) {
             const chunkTextContent = chunks[idx];
-            let embedding: string | undefined;
-            let entities: Record<string, unknown> = {};
-            let topics: string[] = [];
-            let meddpicc_elements: string[] = [];
-            let extraction_status = 'pending';
-
-            // Generate embedding
-            try {
-              embedding = await generateEmbedding(chunkTextContent, openaiApiKey);
-            } catch (err) {
-              console.warn(`[chunk-transcripts] Embedding failed for transcript ${transcript.id} chunk ${idx}:`, err);
-            }
-
-            // Extract entities (with rate limiting consideration)
-            try {
-              const nerResult = await extractEntities(
-                chunkTextContent,
-                { accountName: transcript.account_name || undefined, repName, callType: transcript.call_type || undefined },
-                lovableApiKey
-              );
-              entities = nerResult.entities;
-              topics = nerResult.topics;
-              meddpicc_elements = nerResult.meddpicc_elements;
-              extraction_status = 'completed';
-            } catch (err) {
-              console.warn(`[chunk-transcripts] NER failed for transcript ${transcript.id} chunk ${idx}:`, err);
-              extraction_status = 'failed';
-            }
 
             allChunks.push({
               transcript_id: transcript.id,
               chunk_index: idx,
               chunk_text: chunkTextContent,
-              embedding,
-              entities,
-              topics,
-              meddpicc_elements,
-              extraction_status,
+              // No embedding or NER - these are generated separately to avoid timeout
+              extraction_status: 'pending',
               metadata: {
                 account_name: transcript.account_name || 'Unknown',
                 call_date: transcript.call_date,
@@ -826,11 +802,6 @@ serve(async (req) => {
                 rep_id: transcript.rep_id,
               }
             });
-
-            // Small delay between chunks to avoid rate limits
-            if (idx < chunks.length - 1) {
-              await new Promise(r => setTimeout(r, BASE_DELAY_MS));
-            }
           }
         }
 
