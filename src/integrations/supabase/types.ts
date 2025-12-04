@@ -1486,27 +1486,42 @@ export type Database = {
           chunk_index: number
           chunk_text: string
           created_at: string
+          embedding: string | null
+          entities: Json | null
+          extraction_status: string | null
           id: string
+          meddpicc_elements: string[] | null
           metadata: Json | null
           search_vector: unknown
+          topics: string[] | null
           transcript_id: string
         }
         Insert: {
           chunk_index: number
           chunk_text: string
           created_at?: string
+          embedding?: string | null
+          entities?: Json | null
+          extraction_status?: string | null
           id?: string
+          meddpicc_elements?: string[] | null
           metadata?: Json | null
           search_vector?: unknown
+          topics?: string[] | null
           transcript_id: string
         }
         Update: {
           chunk_index?: number
           chunk_text?: string
           created_at?: string
+          embedding?: string | null
+          entities?: Json | null
+          extraction_status?: string | null
           id?: string
+          meddpicc_elements?: string[] | null
           metadata?: Json | null
           search_vector?: unknown
+          topics?: string[] | null
           transcript_id?: string
         }
         Relationships: [
@@ -1660,6 +1675,34 @@ export type Database = {
       cleanup_expired_cache: { Args: never; Returns: number }
       cleanup_expired_devices: { Args: never; Returns: number }
       cleanup_old_metrics: { Args: never; Returns: number }
+      find_best_chunks: {
+        Args: {
+          filter_transcript_ids?: string[]
+          match_count?: number
+          query_embedding?: string
+          query_text?: string
+          search_entities?: Json
+          search_meddpicc?: string[]
+          search_topics?: string[]
+          weight_entity?: number
+          weight_fts?: number
+          weight_vector?: number
+        }
+        Returns: {
+          chunk_index: number
+          chunk_text: string
+          entities: Json
+          entity_score: number
+          fts_score: number
+          id: string
+          meddpicc_elements: string[]
+          metadata: Json
+          relevance_score: number
+          topics: string[]
+          transcript_id: string
+          vector_score: number
+        }[]
+      }
       get_cached_admin_stats: { Args: never; Returns: Json }
       get_cached_prospect_stats: { Args: never; Returns: Json }
       get_performance_summary: {
