@@ -945,7 +945,9 @@ serve(async (req) => {
 
     const repMap = new Map((profiles || []).map(p => [p.id, p.name]));
 
-    // Chunk each transcript with RAG V2 processing
+    // Chunk each transcript - only create chunks, no inline embedding/NER
+    // Embedding and NER are handled separately via backfill_embeddings/backfill_entities
+    // This avoids edge function timeouts on large or multiple transcript processing
     const allChunks: TranscriptChunk[] = [];
     
     for (const transcript of transcripts || []) {
@@ -954,44 +956,13 @@ serve(async (req) => {
       
       for (let idx = 0; idx < chunks.length; idx++) {
         const chunkTextContent = chunks[idx];
-        let embedding: string | undefined;
-        let entities: Record<string, unknown> = {};
-        let topics: string[] = [];
-        let meddpicc_elements: string[] = [];
-        let extraction_status = 'pending';
-
-        // Generate embedding
-        try {
-          embedding = await generateEmbedding(chunkTextContent, openaiApiKey);
-        } catch (err) {
-          console.warn(`[chunk-transcripts] Embedding failed for transcript ${transcript.id} chunk ${idx}:`, err);
-        }
-
-        // Extract entities
-        try {
-          const nerResult = await extractEntities(
-            chunkTextContent,
-            { accountName: transcript.account_name || undefined, repName, callType: transcript.call_type || undefined },
-            lovableApiKey
-          );
-          entities = nerResult.entities;
-          topics = nerResult.topics;
-          meddpicc_elements = nerResult.meddpicc_elements;
-          extraction_status = 'completed';
-        } catch (err) {
-          console.warn(`[chunk-transcripts] NER failed for transcript ${transcript.id} chunk ${idx}:`, err);
-          extraction_status = 'failed';
-        }
 
         allChunks.push({
           transcript_id: transcript.id,
           chunk_index: idx,
           chunk_text: chunkTextContent,
-          embedding,
-          entities,
-          topics,
-          meddpicc_elements,
-          extraction_status,
+          // No embedding or NER - these are generated separately via backfill to avoid timeout
+          extraction_status: 'pending',
           metadata: {
             account_name: transcript.account_name || 'Unknown',
             call_date: transcript.call_date,
@@ -1000,11 +971,6 @@ serve(async (req) => {
             rep_id: transcript.rep_id,
           }
         });
-
-        // Small delay between chunks
-        if (idx < chunks.length - 1) {
-          await new Promise(r => setTimeout(r, BASE_DELAY_MS));
-        }
       }
     }
 

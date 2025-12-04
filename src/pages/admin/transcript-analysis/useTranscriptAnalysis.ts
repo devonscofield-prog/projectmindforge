@@ -718,7 +718,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
       }
       
       const result = await response.json();
-      toast.success(`NER backfill: ${result.entities_extracted || 0} extracted, ${result.entities_failed || 0} failed`);
+      toast.success(`NER backfill: ${result.success_count || 0} extracted, ${result.error_count || 0} failed`);
       refetchGlobalChunkStatus();
     } catch (err) {
       log.error('Entities backfill error', { error: err });
