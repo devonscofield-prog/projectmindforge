@@ -236,13 +236,13 @@ function mergeWithOverlap(sections: string[]): string[] {
   return chunks;
 }
 
-// Generate embedding using Lovable AI Gateway (external API - no CPU overhead)
-async function generateEmbedding(text: string, apiKey: string): Promise<string> {
+// Generate embedding using OpenAI API directly (text-embedding-3-small, 1536 dimensions)
+async function generateEmbedding(text: string, openaiApiKey: string): Promise<string> {
   try {
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/embeddings', {
+    const response = await fetch('https://api.openai.com/v1/embeddings', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        'Authorization': `Bearer ${openaiApiKey}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -253,8 +253,8 @@ async function generateEmbedding(text: string, apiKey: string): Promise<string> 
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[chunk-transcripts] Embedding API error:', response.status, errorText);
-      throw new Error(`Embedding API error: ${response.status}`);
+      console.error('[chunk-transcripts] OpenAI Embedding API error:', response.status, errorText);
+      throw new Error(`OpenAI Embedding API error: ${response.status}`);
     }
 
     const data = await response.json();
@@ -396,6 +396,7 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const lovableApiKey = Deno.env.get('LOVABLE_API_KEY')!;
+    const openaiApiKey = Deno.env.get('OPENAI_API_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Parse and validate request body
@@ -524,7 +525,7 @@ serve(async (req) => {
         const batch = chunksToProcess.slice(i, i + PARALLEL_BATCH);
         const results = await Promise.allSettled(
           batch.map(async (chunk) => {
-            const embedding = await generateEmbedding(chunk.chunk_text, lovableApiKey);
+            const embedding = await generateEmbedding(chunk.chunk_text, openaiApiKey);
             const { error: updateError } = await supabase
               .from('transcript_chunks')
               .update({ embedding })
@@ -746,7 +747,7 @@ serve(async (req) => {
 
             // Generate embedding
             try {
-              embedding = await generateEmbedding(chunkTextContent, lovableApiKey);
+              embedding = await generateEmbedding(chunkTextContent, openaiApiKey);
             } catch (err) {
               console.warn(`[chunk-transcripts] Embedding failed for transcript ${transcript.id} chunk ${idx}:`, err);
             }
@@ -949,7 +950,7 @@ serve(async (req) => {
 
         // Generate embedding
         try {
-          embedding = await generateEmbedding(chunkTextContent, lovableApiKey);
+          embedding = await generateEmbedding(chunkTextContent, openaiApiKey);
         } catch (err) {
           console.warn(`[chunk-transcripts] Embedding failed for transcript ${transcript.id} chunk ${idx}:`, err);
         }
