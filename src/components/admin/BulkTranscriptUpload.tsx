@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { Upload, FileText, CheckCircle2, XCircle, Loader2, Trash2, Users, Calendar, Tag, AlertTriangle, User, X, RefreshCw, ExternalLink } from 'lucide-react';
+import { Upload, FileText, CheckCircle2, XCircle, Loader2, Trash2, Users, Calendar, Tag, AlertTriangle, User, X, RefreshCw, ExternalLink, Link2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -56,7 +56,7 @@ export function BulkTranscriptUpload() {
   const [bulkCallTypeOther, setBulkCallTypeOther] = useState('');
   const [bulkCallDate, setBulkCallDate] = useState(new Date().toISOString().split('T')[0]);
   const [bulkStakeholderName, setBulkStakeholderName] = useState('');
-
+  const [bulkSalesforceLink, setBulkSalesforceLink] = useState('');
   // ============= File Drop Handlers =============
   
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -100,6 +100,7 @@ export function BulkTranscriptUpload() {
     if (bulkCallType) updates.callType = bulkCallType;
     if (bulkCallDate) updates.callDate = bulkCallDate;
     if (bulkStakeholderName.trim()) updates.stakeholderName = bulkStakeholderName.trim();
+    if (bulkSalesforceLink.trim()) updates.salesforceLink = bulkSalesforceLink.trim();
     // Handle callTypeOther
     if (bulkCallType === 'other' && bulkCallTypeOther.trim()) {
       updates.callTypeOther = bulkCallTypeOther.trim();
@@ -109,7 +110,7 @@ export function BulkTranscriptUpload() {
     
     applyToAll(updates);
     toast.success('Applied to all files');
-  }, [bulkRepId, bulkCallType, bulkCallTypeOther, bulkCallDate, bulkStakeholderName, applyToAll]);
+  }, [bulkRepId, bulkCallType, bulkCallTypeOther, bulkCallDate, bulkStakeholderName, bulkSalesforceLink, applyToAll]);
 
   // ============= Upload Handler =============
   
@@ -380,6 +381,18 @@ export function BulkTranscriptUpload() {
                   </div>
                 )}
                 
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Link2 className="h-4 w-4" />
+                    Salesforce Link
+                  </Label>
+                  <Input
+                    value={bulkSalesforceLink}
+                    onChange={e => setBulkSalesforceLink(e.target.value)}
+                    placeholder="https://..."
+                  />
+                </div>
+                
                 <div className="flex items-end">
                   <Button onClick={handleApplyToAll} className="w-full">
                     Apply to All ({extractedFiles.length})
@@ -520,6 +533,17 @@ export function BulkTranscriptUpload() {
                             />
                           </div>
                         )}
+                        
+                        {/* Salesforce Link Input */}
+                        <div className="mt-2">
+                          <Label className="text-xs">Salesforce Link</Label>
+                          <Input
+                            className="h-8 mt-1"
+                            value={meta?.salesforceLink || ''}
+                            onChange={e => updateFileMetadata(file.fileName, { salesforceLink: e.target.value })}
+                            placeholder="https://..."
+                          />
+                        </div>
                       </div>
                     );
                   })}
