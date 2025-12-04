@@ -2,6 +2,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 import { TranscriptChatPanel } from '@/components/admin/TranscriptChatPanel';
 import { cn } from '@/lib/utils';
 import {
@@ -15,6 +22,8 @@ import {
   Sparkles,
   Info,
   RefreshCw,
+  Settings2,
+  Zap,
 } from 'lucide-react';
 import { Transcript } from './constants';
 
@@ -88,21 +97,45 @@ export function TranscriptSelectionBar({
   onInsightsClick,
 }: TranscriptSelectionBarProps) {
   const hasUnindexed = globalChunkStatus && globalChunkStatus.indexed < globalChunkStatus.total;
+  const isAnyBackfillRunning = isIndexing || isBackfilling || isBackfillingEmbeddings || isBackfillingEntities;
+  const hasAdminActions = isAdmin && (
+    hasUnindexed || 
+    (globalChunkStatus?.missingEmbeddings && globalChunkStatus.missingEmbeddings > 0) ||
+    (globalChunkStatus?.nerPending && globalChunkStatus.nerPending > 0)
+  );
+
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-muted/50 rounded-lg">
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={onSelectAll} disabled={!transcripts?.length}>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={onSelectAll} 
+            disabled={!transcripts?.length}
+            aria-label="Select all transcripts on current page"
+          >
             <CheckSquare className="h-4 w-4 mr-1" />
             Page
           </Button>
           {totalCount > transcripts?.length && (
-            <Button variant="outline" size="sm" onClick={onSelectAllMatching}>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={onSelectAllMatching}
+              aria-label={`Select all ${totalCount} matching transcripts`}
+            >
               <CheckSquare className="h-4 w-4 mr-1" />
               All ({totalCount})
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={onDeselectAll} disabled={selectedTranscriptIds.size === 0}>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={onDeselectAll} 
+            disabled={selectedTranscriptIds.size === 0}
+            aria-label="Clear selection"
+          >
             <Square className="h-4 w-4 mr-1" />
             Clear
           </Button>
@@ -113,23 +146,34 @@ export function TranscriptSelectionBar({
           <span className="text-muted-foreground"> of {totalCount} selected</span>
         </div>
 
-        <div className="text-sm text-muted-foreground">
-          ~{estimatedTokens.toLocaleString()} tokens
-        </div>
+        {/* Token count - only show in Direct mode */}
+        {!analysisMode.useRag && (
+          <div className="text-sm text-muted-foreground">
+            ~{estimatedTokens.toLocaleString()} tokens
+          </div>
+        )}
+
+        {/* RAG Mode indicator when in RAG mode */}
+        {analysisMode.useRag && (
+          <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/20">
+            <Zap className="h-3 w-3 mr-1" />
+            RAG Mode - Unlimited
+          </Badge>
+        )}
 
         {/* Pre-Index Status for selection */}
         {chunkStatus && chunkStatus.total > 0 && (
           <Badge 
-            variant={chunkStatus.indexed === chunkStatus.total ? 'default' : 'secondary'}
+            variant={chunkStatus.indexed >= chunkStatus.total ? 'default' : 'secondary'}
             className={cn(
               "text-xs",
-              chunkStatus.indexed === chunkStatus.total 
+              chunkStatus.indexed >= chunkStatus.total 
                 ? "bg-green-500/10 text-green-600 border-green-500/20" 
                 : "bg-amber-500/10 text-amber-600 border-amber-500/20"
             )}
           >
             <Database className="h-3 w-3 mr-1" />
-            {chunkStatus.indexed} / {chunkStatus.total} indexed
+            {Math.min(chunkStatus.indexed, chunkStatus.total)} / {chunkStatus.total} indexed
           </Badge>
         )}
 
@@ -141,16 +185,16 @@ export function TranscriptSelectionBar({
                 variant="outline"
                 className={cn(
                   "text-xs cursor-help",
-                  globalChunkStatus.indexed === globalChunkStatus.total 
+                  globalChunkStatus.indexed >= globalChunkStatus.total 
                     ? "border-green-500/30 text-green-600" 
                     : "border-amber-500/30 text-amber-600"
                 )}
               >
                 <Database className="h-3 w-3 mr-1" />
-                Global: {globalChunkStatus.indexed} / {globalChunkStatus.total}
+                Global: {Math.min(globalChunkStatus.indexed, globalChunkStatus.total)} / {globalChunkStatus.total}
               </Badge>
             </HoverCardTrigger>
-            <HoverCardContent className="w-80">
+            <HoverCardContent className="w-80" side="bottom">
               <div className="space-y-3 text-sm">
                 <p><strong>RAG Index Status</strong></p>
                 <p>{globalChunkStatus.indexed} of {globalChunkStatus.total} completed transcripts are indexed for RAG search.</p>
@@ -187,14 +231,15 @@ export function TranscriptSelectionBar({
       </div>
 
       <div className="flex items-center gap-3">
-        {/* Pre-Index & Save/Load Buttons */}
+        {/* Core Actions */}
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
             onClick={onPreIndex}
-            disabled={!transcripts?.length || isIndexing || isBackfilling || (chunkStatus?.indexed === chunkStatus?.total && (chunkStatus?.total ?? 0) > 0)}
+            disabled={!transcripts?.length || isAnyBackfillRunning || (chunkStatus?.indexed === chunkStatus?.total && (chunkStatus?.total ?? 0) > 0)}
             title="Pre-index selected transcripts for faster RAG queries"
+            aria-label="Index selected transcripts"
           >
             {isIndexing ? (
               <Loader2 className="h-4 w-4 mr-1 animate-spin" />
@@ -203,93 +248,91 @@ export function TranscriptSelectionBar({
             )}
             {isIndexing ? 'Indexing...' : 'Index Selected'}
           </Button>
-          
-          {/* Backfill All button (Admin only) */}
-          {isAdmin && onBackfillAll && hasUnindexed && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onBackfillAll}
-              disabled={isIndexing || isBackfilling || isBackfillingEmbeddings || isBackfillingEntities}
-              title={`Index all ${(globalChunkStatus?.total || 0) - (globalChunkStatus?.indexed || 0)} unindexed transcripts`}
-              className="border-amber-500/30 text-amber-600 hover:bg-amber-500/10"
-            >
-              {isBackfilling ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4 mr-1" />
-              )}
-              {isBackfilling ? 'Backfilling...' : `Backfill Chunks (${(globalChunkStatus?.total || 0) - (globalChunkStatus?.indexed || 0)})`}
-            </Button>
-          )}
 
-          {/* Backfill Embeddings button (Admin only) - with auto-continue */}
-          {isAdmin && onBackfillEmbeddings && globalChunkStatus?.missingEmbeddings && globalChunkStatus.missingEmbeddings > 0 && (
-            <div className="flex items-center gap-1">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={isBackfillingEmbeddings ? onStopEmbeddingsBackfill : onBackfillEmbeddings}
-                disabled={isIndexing || isBackfilling || isBackfillingEntities}
-                title={isBackfillingEmbeddings 
-                  ? 'Click to stop after current batch' 
-                  : `Auto-generate embeddings for ${globalChunkStatus.missingEmbeddings} chunks`}
-                className={cn(
-                  "border-blue-500/30 text-blue-600 hover:bg-blue-500/10",
-                  isBackfillingEmbeddings && "bg-blue-500/10"
-                )}
-              >
-                {isBackfillingEmbeddings ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                    {embeddingsProgress 
-                      ? `${embeddingsProgress.processed}/${embeddingsProgress.total}` 
-                      : 'Starting...'}
-                  </>
-                ) : (
-                  <>
-                    <Database className="h-4 w-4 mr-1" />
-                    Auto-Embeddings ({globalChunkStatus.missingEmbeddings.toLocaleString()})
-                  </>
-                )}
-              </Button>
-              {isBackfillingEmbeddings && (
+          {/* Admin Tools Dropdown */}
+          {hasAdminActions && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
-                  onClick={onStopEmbeddingsBackfill}
-                  className="text-red-500 hover:text-red-600 hover:bg-red-500/10 px-2"
-                  title="Stop backfill"
+                  disabled={isAnyBackfillRunning}
+                  className="border-primary/30 text-primary hover:bg-primary/10"
                 >
-                  Stop
+                  {isAnyBackfillRunning ? (
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : (
+                    <Settings2 className="h-4 w-4 mr-1" />
+                  )}
+                  Admin Tools
                 </Button>
-              )}
-            </div>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                {hasUnindexed && onBackfillAll && (
+                  <DropdownMenuItem 
+                    onClick={onBackfillAll}
+                    disabled={isAnyBackfillRunning}
+                    className="gap-2"
+                  >
+                    <RefreshCw className="h-4 w-4 text-amber-600" />
+                    <div className="flex flex-col">
+                      <span>Backfill Chunks</span>
+                      <span className="text-xs text-muted-foreground">
+                        {(globalChunkStatus?.total || 0) - (globalChunkStatus?.indexed || 0)} unindexed
+                      </span>
+                    </div>
+                  </DropdownMenuItem>
+                )}
+                
+                {globalChunkStatus?.missingEmbeddings && globalChunkStatus.missingEmbeddings > 0 && onBackfillEmbeddings && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onClick={isBackfillingEmbeddings ? onStopEmbeddingsBackfill : onBackfillEmbeddings}
+                      disabled={isIndexing || isBackfilling || isBackfillingEntities}
+                      className="gap-2"
+                    >
+                      <Database className={cn("h-4 w-4 text-blue-600", isBackfillingEmbeddings && "animate-spin")} />
+                      <div className="flex flex-col">
+                        <span>{isBackfillingEmbeddings ? 'Stop Embeddings' : 'Auto-Embeddings'}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {isBackfillingEmbeddings && embeddingsProgress 
+                            ? `${embeddingsProgress.processed}/${embeddingsProgress.total}` 
+                            : `${globalChunkStatus.missingEmbeddings.toLocaleString()} missing`}
+                        </span>
+                      </div>
+                    </DropdownMenuItem>
+                  </>
+                )}
+                
+                {globalChunkStatus?.nerPending && globalChunkStatus.nerPending > 0 && onBackfillEntities && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onClick={onBackfillEntities}
+                      disabled={isIndexing || isBackfilling || isBackfillingEmbeddings || isBackfillingEntities}
+                      className="gap-2"
+                    >
+                      <Sparkles className={cn("h-4 w-4 text-purple-600", isBackfillingEntities && "animate-spin")} />
+                      <div className="flex flex-col">
+                        <span>{isBackfillingEntities ? 'Extracting...' : 'NER Extraction'}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {globalChunkStatus.nerPending.toLocaleString()} pending
+                        </span>
+                      </div>
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
 
-          {/* Backfill NER button (Admin only) */}
-          {isAdmin && onBackfillEntities && globalChunkStatus?.nerPending && globalChunkStatus.nerPending > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onBackfillEntities}
-              disabled={isIndexing || isBackfilling || isBackfillingEmbeddings || isBackfillingEntities}
-              title={`Extract entities for ${globalChunkStatus.nerPending} chunks`}
-              className="border-purple-500/30 text-purple-600 hover:bg-purple-500/10"
-            >
-              {isBackfillingEntities ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-              ) : (
-                <Sparkles className="h-4 w-4 mr-1" />
-              )}
-              {isBackfillingEntities ? 'Extracting...' : `NER (${globalChunkStatus.nerPending.toLocaleString()})`}
-            </Button>
-          )}
           <Button
             variant="outline"
             size="sm"
             onClick={onSaveClick}
             disabled={selectedTranscriptIds.size === 0}
+            aria-label="Save current selection"
           >
             <Save className="h-4 w-4 mr-1" />
             Save
@@ -298,6 +341,7 @@ export function TranscriptSelectionBar({
             variant="outline"
             size="sm"
             onClick={onLoadClick}
+            aria-label="Load saved selection"
           >
             <FolderOpen className="h-4 w-4 mr-1" />
             Load
@@ -306,6 +350,7 @@ export function TranscriptSelectionBar({
             variant="outline"
             size="sm"
             onClick={onInsightsClick}
+            aria-label="View saved insights"
           >
             <Lightbulb className="h-4 w-4 mr-1" />
             Insights
@@ -318,9 +363,9 @@ export function TranscriptSelectionBar({
           </span>
           <HoverCard>
             <HoverCardTrigger>
-              <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+              <Info className="h-4 w-4 text-muted-foreground cursor-help" aria-label="Analysis mode information" />
             </HoverCardTrigger>
-            <HoverCardContent className="w-80">
+            <HoverCardContent className="w-80" side="bottom">
               <div className="space-y-2 text-sm">
                 <p><strong>Direct Analysis (1-20):</strong> Full transcript text sent to AI for complete context</p>
                 <p><strong>RAG Mode (20+):</strong> AI searches for relevant sections using semantic search, enabling analysis of unlimited transcripts</p>
@@ -334,6 +379,7 @@ export function TranscriptSelectionBar({
             <Button
               disabled={selectedTranscriptIds.size === 0}
               className="gap-2"
+              aria-label={`Analyze ${selectedTranscriptIds.size} transcripts with AI`}
             >
               <Sparkles className="h-4 w-4" />
               Analyze with AI
@@ -342,7 +388,7 @@ export function TranscriptSelectionBar({
               )}
             </Button>
           </SheetTrigger>
-          <SheetContent className="w-full sm:max-w-xl flex flex-col p-0">
+          <SheetContent className="w-full sm:max-w-2xl lg:max-w-3xl flex flex-col p-0">
             <TranscriptChatPanel
               selectedTranscripts={selectedTranscripts}
               useRag={analysisMode.useRag}

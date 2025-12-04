@@ -20,9 +20,9 @@ export function ModeSelector({ selectedMode, activePreset, onModeChange }: ModeS
   const ModeIcon = selectedMode.icon;
 
   return (
-    <div className="pt-2">
+    <div className="px-6 pt-4 pb-2">
       <Select value={selectedMode.id} onValueChange={onModeChange}>
-        <SelectTrigger className="w-full bg-muted/50">
+        <SelectTrigger className="w-full bg-muted/50" aria-label="Select analysis mode">
           <div className="flex items-center gap-2">
             <ModeIcon className="h-4 w-4 text-primary" />
             <SelectValue placeholder="Select analysis mode" />
@@ -34,7 +34,7 @@ export function ModeSelector({ selectedMode, activePreset, onModeChange }: ModeS
             )}
           </div>
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent position="popper">
           {ANALYSIS_MODES.map((mode) => {
             const Icon = mode.icon;
             return (
