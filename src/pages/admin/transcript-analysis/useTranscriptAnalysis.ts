@@ -262,25 +262,28 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
   const transcripts = transcriptsData?.transcripts || [];
   const totalCount = transcriptsData?.totalCount || 0;
   const totalPages = transcriptsData?.totalPages || 1;
-
   // Query to check which transcripts are already chunked (for current selection)
+  // Optimized: Uses server-side aggregation via RPC function instead of fetching all transcript_ids
   const { data: chunkStatus, refetch: refetchChunkStatus } = useQuery({
-    queryKey: ['chunk-status', transcripts?.map(t => t.id).join(',')],
+    queryKey: ['chunk-status', transcripts?.map(t => t.id).sort().join(',')],
     queryFn: async () => {
       if (!transcripts?.length) return { indexed: 0, total: 0 };
       const ids = transcripts.map(t => t.id);
       
-      const { data, error } = await supabase
-        .from('transcript_chunks')
-        .select('transcript_id')
-        .in('transcript_id', ids);
+      // Use optimized RPC function for server-side counting
+      // Reduces data transfer from ~50KB to ~100 bytes
+      const { data, error } = await (supabase.rpc as Function)(
+        'get_chunk_status_for_transcripts',
+        { transcript_ids: ids }
+      );
       
       if (error) throw error;
       
-      const indexedIds = new Set((data || []).map(c => c.transcript_id));
-      return { indexed: indexedIds.size, total: ids.length };
+      const result = data as { indexed_count: number; total_count: number };
+      return { indexed: result.indexed_count || 0, total: ids.length };
     },
     enabled: !!transcripts?.length,
+    staleTime: 30 * 1000, // 30 seconds - chunk status can change during indexing
   });
 
   // Query for global chunk status using efficient server-side aggregation

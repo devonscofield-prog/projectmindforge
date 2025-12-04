@@ -1705,6 +1705,10 @@ export type Database = {
       }
       get_cached_admin_stats: { Args: never; Returns: Json }
       get_cached_prospect_stats: { Args: never; Returns: Json }
+      get_chunk_status_for_transcripts: {
+        Args: { transcript_ids: string[] }
+        Returns: Json
+      }
       get_performance_summary: {
         Args: { p_hours?: number }
         Returns: {
@@ -1748,6 +1752,7 @@ export type Database = {
         }
         Returns: string
       }
+      maintenance_analyze_tables: { Args: never; Returns: Json }
       soft_delete_record: {
         Args: { p_record_id: string; p_table_name: string }
         Returns: boolean
