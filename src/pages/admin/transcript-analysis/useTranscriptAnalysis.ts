@@ -63,6 +63,8 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
   const [isBackfilling, setIsBackfilling] = useState(false);
   const [isBackfillingEmbeddings, setIsBackfillingEmbeddings] = useState(false);
   const [isBackfillingEntities, setIsBackfillingEntities] = useState(false);
+  const [embeddingsProgress, setEmbeddingsProgress] = useState<{ processed: number; total: number } | null>(null);
+  const [shouldStopBackfill, setShouldStopBackfill] = useState(false);
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -433,7 +435,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     }
   };
 
-  // Backfill embeddings handler (admin only)
+  // Backfill embeddings handler with auto-continue (admin only)
   const handleBackfillEmbeddings = async () => {
     if (role !== 'admin') {
       toast.error('Only admins can backfill embeddings');
@@ -441,6 +443,8 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     }
     
     setIsBackfillingEmbeddings(true);
+    setShouldStopBackfill(false);
+    setEmbeddingsProgress(null);
     
     try {
       const token = await getFreshToken();
@@ -449,31 +453,76 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
         return;
       }
       
-      toast.info('Starting embedding backfill (batch of 50)...');
+      toast.info('Starting auto-backfill of embeddings...');
       
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chunk-transcripts`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ backfill_embeddings: true }),
-      });
+      let totalProcessed = 0;
+      let remaining = 1; // Start with assumption there's work to do
+      let consecutiveErrors = 0;
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || 'Failed to backfill embeddings');
+      while (remaining > 0 && !shouldStopBackfill && consecutiveErrors < 3) {
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chunk-transcripts`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ backfill_embeddings: true }),
+        });
+        
+        if (!response.ok) {
+          consecutiveErrors++;
+          const errorText = await response.text();
+          log.error('Embeddings backfill batch error', { error: errorText, consecutiveErrors });
+          if (consecutiveErrors >= 3) {
+            throw new Error(errorText || 'Failed to backfill embeddings after 3 attempts');
+          }
+          await new Promise(r => setTimeout(r, 2000)); // Wait before retry
+          continue;
+        }
+        
+        consecutiveErrors = 0;
+        const result = await response.json();
+        totalProcessed += result.success_count || 0;
+        remaining = result.remaining || 0;
+        
+        setEmbeddingsProgress({
+          processed: result.chunks_with_embeddings || 0,
+          total: result.total_chunks || 0
+        });
+        
+        log.info('Embeddings batch complete', { 
+          batchProcessed: result.success_count, 
+          totalProcessed, 
+          remaining 
+        });
+        
+        // Small delay between batches to be nice to the API
+        if (remaining > 0) {
+          await new Promise(r => setTimeout(r, 500));
+        }
       }
       
-      const result = await response.json();
-      toast.success(`Embeddings backfill: ${result.embeddings_generated || 0} generated, ${result.embeddings_failed || 0} failed`);
+      if (shouldStopBackfill) {
+        toast.info(`Backfill stopped. Processed ${totalProcessed} embeddings.`);
+      } else {
+        toast.success(`Embeddings backfill complete! ${totalProcessed} embeddings generated.`);
+      }
+      
       refetchGlobalChunkStatus();
     } catch (err) {
       log.error('Embeddings backfill error', { error: err });
       toast.error(err instanceof Error ? err.message : 'Failed to backfill embeddings');
     } finally {
       setIsBackfillingEmbeddings(false);
+      setEmbeddingsProgress(null);
+      setShouldStopBackfill(false);
     }
+  };
+
+  // Stop backfill handler
+  const stopEmbeddingsBackfill = () => {
+    setShouldStopBackfill(true);
+    toast.info('Stopping backfill after current batch...');
   };
 
   // Backfill NER entities handler (admin only)
@@ -711,6 +760,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     isBackfilling,
     isBackfillingEmbeddings,
     isBackfillingEntities,
+    embeddingsProgress,
     
     // Pagination
     currentPage,
@@ -734,6 +784,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     handleBackfillAll,
     handleBackfillEmbeddings,
     handleBackfillEntities,
+    stopEmbeddingsBackfill,
     handleLoadSelection,
   };
 }

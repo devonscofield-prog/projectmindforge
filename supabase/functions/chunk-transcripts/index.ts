@@ -53,12 +53,11 @@ const chunkTranscriptsSchema = z.object({
 // Constants
 const CHUNK_SIZE = 2000;
 const CHUNK_OVERLAP = 200;
-const NER_BATCH_SIZE = 5; // Reduced for CPU limits
+const NER_BATCH_SIZE = 10;
 const BASE_DELAY_MS = 200;
 const MAX_DELAY_MS = 5000;
 const MAX_RETRIES = 3;
-const BACKFILL_BATCH_SIZE = 5; // Reduced from 10 to avoid CPU timeout
-const EMBEDDING_DELAY_MS = 150; // Increased delay between embeddings
+const BACKFILL_BATCH_SIZE = 50; // Increased - external API is I/O bound, not CPU bound
 
 // Types
 interface TranscriptChunk {
@@ -237,17 +236,35 @@ function mergeWithOverlap(sections: string[]): string[] {
   return chunks;
 }
 
-// Generate embedding using Supabase.ai gte-small model
-async function generateEmbedding(text: string): Promise<string> {
+// Generate embedding using Lovable AI Gateway (external API - no CPU overhead)
+async function generateEmbedding(text: string, apiKey: string): Promise<string> {
   try {
-    // @ts-ignore - Supabase.ai is available in Edge Function runtime
-    const session = new Supabase.ai.Session('gte-small');
-    const embedding: number[] = await session.run(text, {
-      mean_pool: true,
-      normalize: true,
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/embeddings', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'text-embedding-3-small',
+        input: text.slice(0, 8000) // API limit
+      })
     });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[chunk-transcripts] Embedding API error:', response.status, errorText);
+      throw new Error(`Embedding API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const embedding = data.data?.[0]?.embedding;
+    
+    if (!embedding || !Array.isArray(embedding)) {
+      throw new Error('Invalid embedding response format');
+    }
+
     // Format as PostgreSQL vector string: [0.123, -0.456, ...]
-    // CRITICAL: Must use square brackets, not curly braces for pgvector
     return `[${embedding.join(',')}]`;
   } catch (error) {
     console.error('[chunk-transcripts] Embedding generation failed:', error);
@@ -501,29 +518,37 @@ serve(async (req) => {
       let successCount = 0;
       let errorCount = 0;
 
-      for (let i = 0; i < chunksToProcess.length; i++) {
-        const chunk = chunksToProcess[i];
-        try {
-          const embedding = await generateEmbedding(chunk.chunk_text);
-          const { error: updateError } = await supabase
-            .from('transcript_chunks')
-            .update({ embedding })
-            .eq('id', chunk.id);
+      // Process in parallel batches for speed (external API is I/O bound)
+      const PARALLEL_BATCH = 10;
+      for (let i = 0; i < chunksToProcess.length; i += PARALLEL_BATCH) {
+        const batch = chunksToProcess.slice(i, i + PARALLEL_BATCH);
+        const results = await Promise.allSettled(
+          batch.map(async (chunk) => {
+            const embedding = await generateEmbedding(chunk.chunk_text, lovableApiKey);
+            const { error: updateError } = await supabase
+              .from('transcript_chunks')
+              .update({ embedding })
+              .eq('id', chunk.id);
 
-          if (updateError) {
-            console.error(`[chunk-transcripts] Error updating embedding for chunk ${chunk.id}:`, updateError);
-            errorCount++;
-          } else {
+            if (updateError) {
+              throw new Error(`Update failed: ${updateError.message}`);
+            }
+            return true;
+          })
+        );
+
+        results.forEach((result, idx) => {
+          if (result.status === 'fulfilled') {
             successCount++;
+          } else {
+            console.error(`[chunk-transcripts] Embedding failed for chunk ${batch[idx].id}:`, result.reason);
+            errorCount++;
           }
-          
-          // Add delay between embeddings to prevent CPU exhaustion
-          if (i < chunksToProcess.length - 1) {
-            await new Promise(r => setTimeout(r, EMBEDDING_DELAY_MS));
-          }
-        } catch (err) {
-          console.error(`[chunk-transcripts] Embedding generation failed for chunk ${chunk.id}:`, err);
-          errorCount++;
+        });
+
+        // Small delay between parallel batches to avoid rate limits
+        if (i + PARALLEL_BATCH < chunksToProcess.length) {
+          await new Promise(r => setTimeout(r, 100));
         }
       }
 
@@ -537,6 +562,8 @@ serve(async (req) => {
         .select('*', { count: 'exact', head: true })
         .not('embedding', 'is', null);
 
+      const remaining = (totalChunks || 0) - (chunksWithEmbeddings || 0);
+
       return new Response(
         JSON.stringify({
           success: true,
@@ -545,7 +572,8 @@ serve(async (req) => {
           success_count: successCount,
           error_count: errorCount,
           total_chunks: totalChunks || 0,
-          chunks_with_embeddings: chunksWithEmbeddings || 0
+          chunks_with_embeddings: chunksWithEmbeddings || 0,
+          remaining // Key for auto-continue
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -718,7 +746,7 @@ serve(async (req) => {
 
             // Generate embedding
             try {
-              embedding = await generateEmbedding(chunkTextContent);
+              embedding = await generateEmbedding(chunkTextContent, lovableApiKey);
             } catch (err) {
               console.warn(`[chunk-transcripts] Embedding failed for transcript ${transcript.id} chunk ${idx}:`, err);
             }
@@ -921,7 +949,7 @@ serve(async (req) => {
 
         // Generate embedding
         try {
-          embedding = await generateEmbedding(chunkTextContent);
+          embedding = await generateEmbedding(chunkTextContent, lovableApiKey);
         } catch (err) {
           console.warn(`[chunk-transcripts] Embedding failed for transcript ${transcript.id} chunk ${idx}:`, err);
         }
