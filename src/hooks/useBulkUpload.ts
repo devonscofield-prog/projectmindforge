@@ -57,8 +57,36 @@ export interface UseBulkUploadResult {
 // ============= Constants =============
 
 const MAX_FILE_SIZE = 500 * 1024; // 500KB per file
+const MAX_ZIP_SIZE = 50 * 1024 * 1024; // 50MB total ZIP size
+const MIN_TRANSCRIPT_LENGTH = 500; // Minimum 500 characters
 const MAX_FILES = 100;
 const POLL_INTERVAL = 5000; // 5 seconds
+
+// ============= Helper Functions =============
+
+/**
+ * Generate a unique filename by appending a counter if duplicates exist
+ */
+function getUniqueFileName(baseName: string, existingNames: Set<string>): string {
+  if (!existingNames.has(baseName)) {
+    return baseName;
+  }
+  
+  // Extract name and extension
+  const lastDotIndex = baseName.lastIndexOf('.');
+  const name = lastDotIndex > 0 ? baseName.slice(0, lastDotIndex) : baseName;
+  const ext = lastDotIndex > 0 ? baseName.slice(lastDotIndex) : '';
+  
+  let counter = 1;
+  let uniqueName = `${name}_${counter}${ext}`;
+  
+  while (existingNames.has(uniqueName)) {
+    counter++;
+    uniqueName = `${name}_${counter}${ext}`;
+  }
+  
+  return uniqueName;
+}
 
 // ============= Hook Implementation =============
 
@@ -80,9 +108,16 @@ export function useBulkUpload(): UseBulkUploadResult {
     setExtractionError(null);
     
     try {
+      // Validate ZIP file size
+      if (file.size > MAX_ZIP_SIZE) {
+        throw new Error(`ZIP file too large. Maximum is ${MAX_ZIP_SIZE / 1024 / 1024}MB, got ${(file.size / 1024 / 1024).toFixed(1)}MB`);
+      }
+      
       const zip = await JSZip.loadAsync(file);
       const txtFiles: ExtractedFile[] = [];
       const newMetadata = new Map<string, FileMetadata>();
+      const usedFileNames = new Set<string>();
+      const skippedFiles: { name: string; reason: string }[] = [];
       
       // Filter for .txt files only
       const fileNames = Object.keys(zip.files).filter(name => 
@@ -105,33 +140,54 @@ export function useBulkUpload(): UseBulkUploadResult {
         // Check file size
         const size = new Blob([content]).size;
         if (size > MAX_FILE_SIZE) {
+          skippedFiles.push({ name: fileName, reason: `exceeds ${MAX_FILE_SIZE / 1024}KB limit` });
           console.warn(`[useBulkUpload] File ${fileName} exceeds size limit (${size} bytes)`);
           continue;
         }
         
-        // Extract just the filename without path
-        const cleanFileName = fileName.split('/').pop() || fileName;
+        // Check minimum transcript length
+        const trimmedContent = content.trim();
+        if (trimmedContent.length < MIN_TRANSCRIPT_LENGTH) {
+          skippedFiles.push({ name: fileName, reason: `too short (min ${MIN_TRANSCRIPT_LENGTH} chars)` });
+          console.warn(`[useBulkUpload] File ${fileName} too short (${trimmedContent.length} chars)`);
+          continue;
+        }
+        
+        // Extract just the filename without path and handle duplicates
+        const baseFileName = fileName.split('/').pop() || fileName;
+        const uniqueFileName = getUniqueFileName(baseFileName, usedFileNames);
+        usedFileNames.add(uniqueFileName);
         
         txtFiles.push({
-          fileName: cleanFileName,
-          content,
+          fileName: uniqueFileName,
+          content: trimmedContent,
           size,
         });
         
         // Initialize metadata with defaults
         const today = new Date().toISOString().split('T')[0];
-        newMetadata.set(cleanFileName, {
-          fileName: cleanFileName,
+        newMetadata.set(uniqueFileName, {
+          fileName: uniqueFileName,
           repId: '',
           callDate: today,
           callType: 'first_demo',
-          accountName: cleanFileName.replace(/\.txt$/i, ''),
+          accountName: uniqueFileName.replace(/\.txt$/i, '').replace(/_\d+$/, ''), // Remove counter from account name
           stakeholderName: '',
         });
       }
       
+      if (txtFiles.length === 0) {
+        throw new Error('No valid transcript files found. All files were either too large or too short.');
+      }
+      
       setExtractedFiles(txtFiles);
       setFileMetadata(newMetadata);
+      
+      // Show warning if some files were skipped
+      if (skippedFiles.length > 0) {
+        console.warn(`[useBulkUpload] Skipped ${skippedFiles.length} files:`, skippedFiles);
+        toast.warning(`${skippedFiles.length} file(s) skipped: ${skippedFiles.map(f => f.reason).join(', ')}`);
+      }
       
       console.log(`[useBulkUpload] Extracted ${txtFiles.length} files`);
       
