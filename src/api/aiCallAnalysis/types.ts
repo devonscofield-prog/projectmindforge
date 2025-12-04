@@ -50,7 +50,7 @@ export interface CallTranscript {
   source: string;
   raw_text: string;
   notes: string | null;
-  analysis_status: 'pending' | 'processing' | 'completed' | 'error';
+  analysis_status: 'pending' | 'processing' | 'completed' | 'error' | 'skipped';
   analysis_error: string | null;
   analysis_version: string;
   created_at: string;
