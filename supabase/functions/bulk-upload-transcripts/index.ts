@@ -60,6 +60,7 @@ interface TranscriptInput {
 
 interface BulkUploadRequest {
   transcripts: TranscriptInput[];
+  processingMode?: 'analyze' | 'index_only';
 }
 
 interface InsertedTranscript {
@@ -82,12 +83,14 @@ interface BulkUploadResponse {
     inserted: number;
     analysisQueued: number;
     analysisFailed: number;
+    indexingQueued: number;
+    indexingFailed: number;
     insertFailed: number;
   };
   results: Array<{
     fileName: string;
     transcriptId?: string;
-    status: 'success' | 'insert_failed' | 'analysis_queued' | 'analysis_failed';
+    status: 'success' | 'insert_failed' | 'analysis_queued' | 'analysis_failed' | 'indexing_queued' | 'indexing_failed';
     error?: string;
   }>;
 }
@@ -210,11 +213,16 @@ async function getOrCreateProspect(
 async function insertTranscript(
   supabase: SupabaseClient,
   transcript: TranscriptInput,
-  prospectId: string | null
+  prospectId: string | null,
+  processingMode: 'analyze' | 'index_only' = 'analyze'
 ): Promise<{ transcriptId: string | null; error?: string }> {
   try {
     // Use defaults for optional fields
     const today = new Date().toISOString().split('T')[0];
+    
+    // Set analysis_status based on processing mode
+    // 'skipped' means no AI analysis will run, just indexing
+    const analysisStatus = processingMode === 'index_only' ? 'skipped' : 'pending';
     
     const { data, error } = await supabase
       .from('call_transcripts')
@@ -229,7 +237,7 @@ async function insertTranscript(
         account_name: transcript.accountName || null,
         salesforce_demo_link: transcript.salesforceLink || null,
         source: 'bulk_upload',
-        analysis_status: 'pending',
+        analysis_status: analysisStatus,
         notes: `Bulk uploaded from file: ${transcript.fileName}`, // Track original filename
       })
       .select('id')
@@ -268,6 +276,30 @@ async function queueAnalysis(
     const err = error as { message?: string };
     console.error(`[bulk-upload] Failed to queue analysis for ${fileName}:`, error);
     return { success: false, error: err.message || 'Analysis queue failed' };
+  }
+}
+
+// ============= Helper: Queue Indexing (chunk-transcripts) =============
+async function queueIndexing(
+  supabase: SupabaseClient,
+  transcriptId: string,
+  fileName: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase.functions.invoke('chunk-transcripts', {
+      body: { transcript_ids: [transcriptId] }
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    console.log(`[bulk-upload] Indexing queued for ${fileName} (${transcriptId})`);
+    return { success: true };
+  } catch (error: unknown) {
+    const err = error as { message?: string };
+    console.error(`[bulk-upload] Failed to queue indexing for ${fileName}:`, error);
+    return { success: false, error: err.message || 'Indexing queue failed' };
   }
 }
 
@@ -387,8 +419,8 @@ serve(async (req) => {
       return errorResponse(validation.error, 400, corsHeaders);
     }
 
-    const { transcripts } = validation.data;
-    console.log(`[bulk-upload] Processing ${transcripts.length} transcripts`);
+    const { transcripts, processingMode = 'analyze' } = validation.data;
+    console.log(`[bulk-upload] Processing ${transcripts.length} transcripts in ${processingMode} mode`);
 
     // ============= Validate RepIds Exist =============
     const repIds = transcripts.map(t => t.repId);
@@ -422,11 +454,12 @@ serve(async (req) => {
         }
       }
 
-      // Insert transcript
+      // Insert transcript with appropriate analysis_status based on processing mode
       const { transcriptId, error: insertError } = await insertTranscript(
         supabase,
         transcript,
-        prospectId
+        prospectId,
+        processingMode
       );
 
       if (insertError || !transcriptId) {
@@ -441,41 +474,72 @@ serve(async (req) => {
           fileName: transcript.fileName,
           prospectId,
         });
+        // Initial status depends on mode
         insertResults.push({
           fileName: transcript.fileName,
           transcriptId,
-          status: 'analysis_queued', // Will be updated if analysis fails
+          status: processingMode === 'analyze' ? 'analysis_queued' : 'indexing_queued',
         });
       }
     }
 
     console.log(`[bulk-upload] Inserted ${insertedTranscripts.length}/${transcripts.length} transcripts`);
 
-    // ============= Phase 2: Queue Analysis with Adaptive Rate Limiting =============
+    // ============= Phase 2: Queue Processing Based on Mode =============
     let analysisQueued = 0;
     let analysisFailed = 0;
+    let indexingQueued = 0;
+    let indexingFailed = 0;
 
     if (insertedTranscripts.length > 0) {
-      console.log('[bulk-upload] Starting analysis queue with adaptive rate limiting');
-      
-      const analysisResults = await processWithAdaptiveRateLimit(
-        insertedTranscripts,
-        async (t) => queueAnalysis(supabase, t.id, t.fileName),
-        ANALYSIS_BATCH_SIZE,
-        (t) => t.fileName
-      );
+      if (processingMode === 'analyze') {
+        // Full analysis mode: call analyze-call (which also triggers chunking)
+        console.log('[bulk-upload] Starting analysis queue with adaptive rate limiting');
+        
+        const analysisResults = await processWithAdaptiveRateLimit(
+          insertedTranscripts,
+          async (t) => queueAnalysis(supabase, t.id, t.fileName),
+          ANALYSIS_BATCH_SIZE,
+          (t) => t.fileName
+        );
 
-      // Update results based on analysis queue outcome
-      for (const result of analysisResults) {
-        const resultIndex = insertResults.findIndex(r => r.fileName === result.item.fileName);
-        if (resultIndex !== -1) {
-          if (result.success) {
-            analysisQueued++;
-            insertResults[resultIndex].status = 'success';
-          } else {
-            analysisFailed++;
-            insertResults[resultIndex].status = 'analysis_failed';
-            insertResults[resultIndex].error = result.error;
+        // Update results based on analysis queue outcome
+        for (const result of analysisResults) {
+          const resultIndex = insertResults.findIndex(r => r.fileName === result.item.fileName);
+          if (resultIndex !== -1) {
+            if (result.success) {
+              analysisQueued++;
+              insertResults[resultIndex].status = 'success';
+            } else {
+              analysisFailed++;
+              insertResults[resultIndex].status = 'analysis_failed';
+              insertResults[resultIndex].error = result.error;
+            }
+          }
+        }
+      } else {
+        // Index only mode: call chunk-transcripts directly
+        console.log('[bulk-upload] Starting indexing queue with adaptive rate limiting');
+        
+        const indexingResults = await processWithAdaptiveRateLimit(
+          insertedTranscripts,
+          async (t) => queueIndexing(supabase, t.id, t.fileName),
+          ANALYSIS_BATCH_SIZE,
+          (t) => t.fileName
+        );
+
+        // Update results based on indexing queue outcome
+        for (const result of indexingResults) {
+          const resultIndex = insertResults.findIndex(r => r.fileName === result.item.fileName);
+          if (resultIndex !== -1) {
+            if (result.success) {
+              indexingQueued++;
+              insertResults[resultIndex].status = 'success';
+            } else {
+              indexingFailed++;
+              insertResults[resultIndex].status = 'indexing_failed';
+              insertResults[resultIndex].error = result.error;
+            }
           }
         }
       }
@@ -489,6 +553,8 @@ serve(async (req) => {
         inserted: insertedTranscripts.length,
         analysisQueued,
         analysisFailed,
+        indexingQueued,
+        indexingFailed,
         insertFailed: transcripts.length - insertedTranscripts.length,
       },
       results: insertResults,

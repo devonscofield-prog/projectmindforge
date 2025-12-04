@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { Upload, FileText, CheckCircle2, XCircle, Loader2, Trash2, Users, Calendar, Tag, AlertTriangle, User, X, RefreshCw, ExternalLink, Link2, Zap } from 'lucide-react';
+import { Upload, FileText, CheckCircle2, XCircle, Loader2, Trash2, Users, Calendar, Tag, AlertTriangle, User, X, RefreshCw, ExternalLink, Link2, Zap, Search, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,6 +12,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Switch } from '@/components/ui/switch';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,6 +26,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import { useBulkUpload, FileMetadata } from '@/hooks/useBulkUpload';
+import { ProcessingMode } from '@/api/bulkUpload';
 import { useProfilesBasic } from '@/hooks/useProfiles';
 import { callTypeOptions, CallType } from '@/constants/callTypes';
 import { cn } from '@/lib/utils';
@@ -48,6 +50,8 @@ export function BulkTranscriptUpload() {
     uploadMutation,
     transcriptStatuses,
     uploadedTranscriptIds,
+    processingMode,
+    setProcessingMode,
   } = useBulkUpload();
   
   const { data: profiles, isLoading: profilesLoading } = useProfilesBasic();
@@ -162,7 +166,9 @@ export function BulkTranscriptUpload() {
     return meta?.repId && meta?.accountName?.trim() && meta?.stakeholderName?.trim();
   }).length;
   
-  const completedCount = transcriptStatuses?.filter(s => s.analysis_status === 'completed').length || 0;
+  const completedCount = transcriptStatuses?.filter(s => 
+    s.analysis_status === 'completed' || s.analysis_status === 'skipped'
+  ).length || 0;
   const processingCount = transcriptStatuses?.filter(s => 
     s.analysis_status === 'pending' || s.analysis_status === 'processing'
   ).length || 0;
@@ -171,8 +177,10 @@ export function BulkTranscriptUpload() {
   // Show timeout warning for large uploads
   const LARGE_UPLOAD_THRESHOLD = 50;
   const showTimeoutWarning = extractedFiles.length > LARGE_UPLOAD_THRESHOLD;
-
-  // ============= Render =============
+  
+  // Determine what to show in results based on processing mode
+  const showAnalysisStats = uploadMutation.data?.summary.analysisQueued || uploadMutation.data?.summary.analysisFailed;
+  const showIndexingStats = uploadMutation.data?.summary.indexingQueued || uploadMutation.data?.summary.indexingFailed;
   
   return (
     <div className="space-y-6">
@@ -185,7 +193,12 @@ export function BulkTranscriptUpload() {
             <div className="flex flex-wrap items-center gap-4 mt-2">
               <span>Total: {uploadMutation.data.summary.total}</span>
               <span className="text-green-600">Inserted: {uploadMutation.data.summary.inserted}</span>
-              <span className="text-blue-600">Analysis Queued: {uploadMutation.data.summary.analysisQueued}</span>
+              {showAnalysisStats && (
+                <span className="text-blue-600">Analysis Queued: {uploadMutation.data.summary.analysisQueued}</span>
+              )}
+              {showIndexingStats && (
+                <span className="text-purple-600">Indexing Queued: {uploadMutation.data.summary.indexingQueued}</span>
+              )}
               {uploadMutation.data.summary.insertFailed > 0 && (
                 <>
                   <span className="text-destructive">Failed: {uploadMutation.data.summary.insertFailed}</span>
@@ -213,11 +226,13 @@ export function BulkTranscriptUpload() {
         </Alert>
       )}
       
-      {/* Analysis Progress */}
+      {/* Processing Progress */}
       {uploadedTranscriptIds.length > 0 && transcriptStatuses && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Analysis Progress</CardTitle>
+            <CardTitle className="text-lg">
+              {processingMode === 'analyze' ? 'Analysis Progress' : 'Indexing Progress'}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
@@ -341,7 +356,49 @@ export function BulkTranscriptUpload() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-6">
+              {/* Processing Mode Selector */}
+              <div className="p-4 bg-muted/50 rounded-lg">
+                <Label className="text-sm font-medium mb-3 block">Processing Mode</Label>
+                <RadioGroup
+                  value={processingMode}
+                  onValueChange={(v) => setProcessingMode(v as ProcessingMode)}
+                  className="grid grid-cols-1 md:grid-cols-2 gap-3"
+                >
+                  <div className={cn(
+                    "flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                    processingMode === 'analyze' ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                  )}>
+                    <RadioGroupItem value="analyze" id="mode-analyze" className="mt-0.5" />
+                    <label htmlFor="mode-analyze" className="cursor-pointer flex-1">
+                      <div className="flex items-center gap-2 font-medium">
+                        <Sparkles className="h-4 w-4 text-blue-500" />
+                        Full Analysis
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Coaching insights, call notes, MEDDPICC scoring + RAG indexing
+                      </p>
+                    </label>
+                  </div>
+                  <div className={cn(
+                    "flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                    processingMode === 'index_only' ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                  )}>
+                    <RadioGroupItem value="index_only" id="mode-index" className="mt-0.5" />
+                    <label htmlFor="mode-index" className="cursor-pointer flex-1">
+                      <div className="flex items-center gap-2 font-medium">
+                        <Search className="h-4 w-4 text-purple-500" />
+                        Index Only (RAG)
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Fast indexing for search only. No coaching analysis.
+                      </p>
+                    </label>
+                  </div>
+                </RadioGroup>
+              </div>
+              
+              {/* Metadata Fields */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
@@ -656,22 +713,43 @@ export function BulkTranscriptUpload() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Confirm Bulk Upload</AlertDialogTitle>
-            <AlertDialogDescription>
-              You are about to upload <strong>{validCount} transcript{validCount !== 1 ? 's' : ''}</strong>
-              {rawUploadMode && <span className="text-primary font-medium"> in Raw Mode</span>}.
-              {rawUploadMode && (
-                <span className="block mt-2 text-muted-foreground">
-                  Transcripts will not be linked to accounts. You can edit them later to add metadata.
-                </span>
-              )}
-              {showTimeoutWarning && (
-                <span className="block mt-2 text-amber-600">
-                  Note: Large uploads may take several minutes to process.
-                </span>
-              )}
-              <span className="block mt-2">
-                Each transcript will be analyzed automatically after upload.
-              </span>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  You are about to upload <strong>{validCount} transcript{validCount !== 1 ? 's' : ''}</strong>
+                  {rawUploadMode && <span className="text-primary font-medium"> in Raw Mode</span>}.
+                </p>
+                {rawUploadMode && (
+                  <p className="text-muted-foreground">
+                    Transcripts will not be linked to accounts. You can edit them later to add metadata.
+                  </p>
+                )}
+                {showTimeoutWarning && (
+                  <p className="text-amber-600">
+                    Note: Large uploads may take several minutes to process.
+                  </p>
+                )}
+                <div className="mt-3 p-3 bg-muted rounded-lg">
+                  <p className="font-medium flex items-center gap-2">
+                    {processingMode === 'analyze' ? (
+                      <>
+                        <Sparkles className="h-4 w-4 text-blue-500" />
+                        Full Analysis Mode
+                      </>
+                    ) : (
+                      <>
+                        <Search className="h-4 w-4 text-purple-500" />
+                        Index Only Mode
+                      </>
+                    )}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {processingMode === 'analyze' 
+                      ? 'Transcripts will be analyzed for coaching insights and indexed for RAG search.'
+                      : 'Transcripts will be indexed for RAG search only. No coaching analysis will run.'}
+                  </p>
+                </div>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
