@@ -15,10 +15,12 @@ export interface BulkTranscriptItem {
   salesforceLink?: string;
 }
 
+export type ProcessingMode = 'analyze' | 'index_only';
+
 export interface BulkUploadResult {
   fileName: string;
   transcriptId?: string;
-  status: 'success' | 'insert_failed' | 'analysis_queued' | 'analysis_failed';
+  status: 'success' | 'insert_failed' | 'analysis_queued' | 'analysis_failed' | 'indexing_queued' | 'indexing_failed';
   error?: string;
 }
 
@@ -29,6 +31,8 @@ export interface BulkUploadResponse {
     inserted: number;
     analysisQueued: number;
     analysisFailed: number;
+    indexingQueued: number;
+    indexingFailed: number;
     insertFailed: number;
   };
   results: BulkUploadResult[];
@@ -37,7 +41,7 @@ export interface BulkUploadResponse {
 export interface TranscriptStatus {
   id: string;
   fileName: string;
-  analysis_status: 'pending' | 'processing' | 'completed' | 'error';
+  analysis_status: 'pending' | 'processing' | 'completed' | 'error' | 'skipped';
   analysis_error?: string | null;
   has_chunks: boolean;
   chunk_count: number;
@@ -49,10 +53,11 @@ export interface TranscriptStatus {
  * Upload multiple transcripts via the bulk-upload-transcripts edge function
  */
 export async function uploadBulkTranscripts(
-  transcripts: BulkTranscriptItem[]
+  transcripts: BulkTranscriptItem[],
+  processingMode: ProcessingMode = 'analyze'
 ): Promise<BulkUploadResponse> {
   const { data, error } = await supabase.functions.invoke('bulk-upload-transcripts', {
-    body: { transcripts }
+    body: { transcripts, processingMode }
   });
 
   if (error) {

@@ -9,6 +9,7 @@ import {
   BulkTranscriptItem,
   BulkUploadResponse,
   TranscriptStatus,
+  ProcessingMode,
 } from '@/api/bulkUpload';
 
 // ============= Type Definitions =============
@@ -44,6 +45,7 @@ export interface UseBulkUploadResult {
   isExtracting: boolean;
   extractionError: string | null;
   extractionProgress: ExtractionProgress | null;
+  processingMode: ProcessingMode;
   
   // Actions
   extractZip: (file: File) => Promise<void>;
@@ -51,6 +53,7 @@ export interface UseBulkUploadResult {
   applyToAll: (metadata: Partial<Omit<FileMetadata, 'fileName'>>) => void;
   removeFile: (fileName: string) => void;
   clearFiles: () => void;
+  setProcessingMode: (mode: ProcessingMode) => void;
   
   // Upload mutation
   uploadMutation: ReturnType<typeof useMutation<BulkUploadResponse, Error, void>>;
@@ -109,6 +112,9 @@ export function useBulkUpload(): UseBulkUploadResult {
   // Upload tracking
   const [uploadedTranscriptIds, setUploadedTranscriptIds] = useState<string[]>([]);
   const [isPollingEnabled, setIsPollingEnabled] = useState(false);
+  
+  // Processing mode
+  const [processingMode, setProcessingMode] = useState<ProcessingMode>('analyze');
 
   // ============= ZIP Extraction =============
   
@@ -291,7 +297,7 @@ export function useBulkUpload(): UseBulkUploadResult {
         throw new Error('No valid transcripts to upload. Ensure all files have a Rep assigned.');
       }
       
-      return uploadBulkTranscripts(transcripts);
+      return uploadBulkTranscripts(transcripts, processingMode);
     },
     onSuccess: (data) => {
       // Extract transcript IDs for status polling
@@ -336,17 +342,18 @@ export function useBulkUpload(): UseBulkUploadResult {
   useEffect(() => {
     if (!transcriptStatuses || !isPollingEnabled || transcriptStatuses.length === 0) return;
     
+    // For index_only mode, we check for chunks; for analyze mode, we check analysis_status
     const allComplete = transcriptStatuses.every(
-      s => s.analysis_status === 'completed' || s.analysis_status === 'error'
+      s => s.analysis_status === 'completed' || s.analysis_status === 'error' || s.analysis_status === 'skipped'
     );
     
     if (allComplete) {
       setIsPollingEnabled(false);
       const errorCount = transcriptStatuses.filter(s => s.analysis_status === 'error').length;
       if (errorCount > 0) {
-        toast.warning(`Analysis complete: ${errorCount} transcript(s) had errors`);
+        toast.warning(`Processing complete: ${errorCount} transcript(s) had errors`);
       } else {
-        toast.success('All transcripts analyzed successfully!');
+        toast.success('All transcripts processed successfully!');
       }
     }
   }, [transcriptStatuses, isPollingEnabled]);
@@ -359,6 +366,7 @@ export function useBulkUpload(): UseBulkUploadResult {
     isExtracting,
     extractionError,
     extractionProgress,
+    processingMode,
     
     // Actions
     extractZip,
@@ -366,6 +374,7 @@ export function useBulkUpload(): UseBulkUploadResult {
     applyToAll,
     removeFile,
     clearFiles,
+    setProcessingMode,
     
     // Upload mutation
     uploadMutation,
