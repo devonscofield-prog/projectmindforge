@@ -23,29 +23,30 @@ interface ChunkStats {
   min_chunk_length: number;
   max_chunk_length: number;
   unique_transcripts: number;
+  total_eligible_transcripts: number;
 }
 
+// Use server-side aggregation function instead of fetching all chunk data
 async function fetchChunkStats(): Promise<ChunkStats> {
-  const { data, error } = await supabase
-    .from('transcript_chunks')
-    .select('id, embedding, extraction_status, chunk_text, transcript_id');
+  // Cast to any because the function was just added and types haven't regenerated yet
+  const { data, error } = await (supabase.rpc as Function)('get_rag_health_stats');
 
   if (error) throw error;
 
-  const chunks = data || [];
-  const uniqueTranscripts = new Set(chunks.map(c => c.transcript_id)).size;
-  const chunkLengths = chunks.map(c => c.chunk_text?.length || 0);
-
+  // Parse the JSONB response
+  const stats = data as Record<string, number>;
+  
   return {
-    total_chunks: chunks.length,
-    with_embeddings: chunks.filter(c => c.embedding !== null).length,
-    ner_completed: chunks.filter(c => c.extraction_status === 'completed').length,
-    ner_pending: chunks.filter(c => c.extraction_status === 'pending' || c.extraction_status === null).length,
-    ner_failed: chunks.filter(c => c.extraction_status === 'failed').length,
-    avg_chunk_length: chunkLengths.length > 0 ? Math.round(chunkLengths.reduce((a, b) => a + b, 0) / chunkLengths.length) : 0,
-    min_chunk_length: chunkLengths.length > 0 ? Math.min(...chunkLengths) : 0,
-    max_chunk_length: chunkLengths.length > 0 ? Math.max(...chunkLengths) : 0,
-    unique_transcripts: uniqueTranscripts,
+    total_chunks: stats.total_chunks || 0,
+    with_embeddings: stats.with_embeddings || 0,
+    ner_completed: stats.ner_completed || 0,
+    ner_pending: stats.ner_pending || 0,
+    ner_failed: stats.ner_failed || 0,
+    avg_chunk_length: stats.avg_chunk_length || 0,
+    min_chunk_length: stats.min_chunk_length || 0,
+    max_chunk_length: stats.max_chunk_length || 0,
+    unique_transcripts: stats.unique_transcripts || 0,
+    total_eligible_transcripts: stats.total_eligible_transcripts || 0,
   };
 }
 
@@ -126,8 +127,8 @@ export function RAGHealthDashboard() {
   const { data: stats, isLoading, error } = useQuery({
     queryKey: ['rag-health-stats'],
     queryFn: fetchChunkStats,
-    staleTime: 30 * 1000,
-    refetchInterval: 60 * 1000,
+    staleTime: 2 * 60 * 1000, // 2 minutes - stats don't change frequently
+    refetchInterval: 5 * 60 * 1000, // 5 minutes
   });
 
   if (isLoading) {
@@ -180,7 +181,14 @@ export function RAGHealthDashboard() {
         </div>
         <div className="p-3 rounded-lg bg-muted/50">
           <p className="text-2xl font-bold">{stats.unique_transcripts.toLocaleString()}</p>
-          <p className="text-xs text-muted-foreground">Transcripts Indexed</p>
+          <p className="text-xs text-muted-foreground">
+            Transcripts Indexed
+            {stats.total_eligible_transcripts > 0 && (
+              <span className="block text-[10px]">
+                of {stats.total_eligible_transcripts} eligible
+              </span>
+            )}
+          </p>
         </div>
       </div>
 
