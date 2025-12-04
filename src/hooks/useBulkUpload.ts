@@ -25,8 +25,8 @@ export interface FileMetadata {
   callDate: string;
   callType: CallType;
   callTypeOther?: string;
-  accountName: string;
-  stakeholderName: string;
+  accountName: string;      // May be empty in raw mode
+  stakeholderName: string;  // May be empty in raw mode
   salesforceLink?: string;
 }
 
@@ -277,12 +277,13 @@ export function useBulkUpload(): UseBulkUploadResult {
           fileName: file.fileName,
           rawText: file.content,
           repId: meta.repId,
-          callDate: meta.callDate,
-          callType: meta.callType,
-          callTypeOther: meta.callTypeOther,
-          accountName: meta.accountName,
-          stakeholderName: meta.stakeholderName,
-          salesforceLink: meta.salesforceLink,
+          // Only include optional fields if they have values
+          ...(meta.callDate && { callDate: meta.callDate }),
+          ...(meta.callType && { callType: meta.callType }),
+          ...(meta.callTypeOther && { callTypeOther: meta.callTypeOther }),
+          ...(meta.accountName?.trim() && { accountName: meta.accountName.trim() }),
+          ...(meta.stakeholderName?.trim() && { stakeholderName: meta.stakeholderName.trim() }),
+          ...(meta.salesforceLink?.trim() && { salesforceLink: meta.salesforceLink.trim() }),
         });
       }
       
