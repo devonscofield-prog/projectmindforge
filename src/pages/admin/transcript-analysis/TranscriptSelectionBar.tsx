@@ -24,6 +24,7 @@ import {
   RefreshCw,
   Settings2,
   Zap,
+  RotateCcw,
 } from 'lucide-react';
 import { Transcript } from './constants';
 
@@ -48,6 +49,8 @@ interface TranscriptSelectionBarProps {
   isBackfilling?: boolean;
   isBackfillingEmbeddings?: boolean;
   isBackfillingEntities?: boolean;
+  isResetting?: boolean;
+  resetProgress?: string | null;
   embeddingsProgress?: { processed: number; total: number } | null;
   analysisMode: { label: string; color: string; useRag: boolean };
   chatOpen: boolean;
@@ -61,6 +64,7 @@ interface TranscriptSelectionBarProps {
   onBackfillEmbeddings?: () => void;
   onBackfillEntities?: () => void;
   onStopEmbeddingsBackfill?: () => void;
+  onResetAndReindex?: () => void;
   onSaveClick: () => void;
   onLoadClick: () => void;
   onInsightsClick: () => void;
@@ -79,6 +83,8 @@ export function TranscriptSelectionBar({
   isBackfilling,
   isBackfillingEmbeddings,
   isBackfillingEntities,
+  isResetting,
+  resetProgress,
   embeddingsProgress,
   analysisMode,
   chatOpen,
@@ -92,16 +98,18 @@ export function TranscriptSelectionBar({
   onBackfillEmbeddings,
   onBackfillEntities,
   onStopEmbeddingsBackfill,
+  onResetAndReindex,
   onSaveClick,
   onLoadClick,
   onInsightsClick,
 }: TranscriptSelectionBarProps) {
   const hasUnindexed = globalChunkStatus && globalChunkStatus.indexed < globalChunkStatus.total;
-  const isAnyBackfillRunning = isIndexing || isBackfilling || isBackfillingEmbeddings || isBackfillingEntities;
+  const isAnyBackfillRunning = isIndexing || isBackfilling || isBackfillingEmbeddings || isBackfillingEntities || isResetting;
   const hasAdminActions = isAdmin && (
     hasUnindexed || 
     (globalChunkStatus?.missingEmbeddings && globalChunkStatus.missingEmbeddings > 0) ||
-    (globalChunkStatus?.nerPending && globalChunkStatus.nerPending > 0)
+    (globalChunkStatus?.nerPending && globalChunkStatus.nerPending > 0) ||
+    (globalChunkStatus?.totalChunks && globalChunkStatus.totalChunks > 0)
   );
 
   return (
@@ -305,19 +313,20 @@ export function TranscriptSelectionBar({
                   </>
                 )}
                 
-                {globalChunkStatus?.nerPending && globalChunkStatus.nerPending > 0 && onBackfillEntities && (
+                {/* Reset & Reindex All */}
+                {onResetAndReindex && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem 
-                      onClick={onBackfillEntities}
-                      disabled={isIndexing || isBackfilling || isBackfillingEmbeddings || isBackfillingEntities}
-                      className="gap-2"
+                      onClick={onResetAndReindex}
+                      disabled={isAnyBackfillRunning}
+                      className="gap-2 text-destructive focus:text-destructive"
                     >
-                      <Sparkles className={cn("h-4 w-4 text-purple-600", isBackfillingEntities && "animate-spin")} />
+                      <RotateCcw className={cn("h-4 w-4", isResetting && "animate-spin")} />
                       <div className="flex flex-col">
-                        <span>{isBackfillingEntities ? 'Extracting...' : 'NER Extraction'}</span>
+                        <span>{isResetting ? 'Resetting...' : 'Reset & Reindex All'}</span>
                         <span className="text-xs text-muted-foreground">
-                          {globalChunkStatus.nerPending.toLocaleString()} pending
+                          {isResetting && resetProgress ? resetProgress : 'Full RAG system reset'}
                         </span>
                       </div>
                     </DropdownMenuItem>

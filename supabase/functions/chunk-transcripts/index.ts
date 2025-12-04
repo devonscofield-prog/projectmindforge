@@ -38,16 +38,18 @@ function checkRateLimit(userId: string): { allowed: boolean; retryAfter?: number
   return { allowed: true };
 }
 
-// Zod validation schema - supports transcript_ids, backfill modes
+// Zod validation schema - supports transcript_ids, backfill modes, and reset
 const chunkTranscriptsSchema = z.object({
   transcript_ids: z.array(z.string().uuid()).max(100).optional(),
   backfill_all: z.boolean().optional(),
   backfill_embeddings: z.boolean().optional(),
   backfill_entities: z.boolean().optional(),
+  reset_all_chunks: z.boolean().optional(),
 }).refine(
   (data) => data.backfill_all === true || data.backfill_embeddings === true || 
-            data.backfill_entities === true || (data.transcript_ids && data.transcript_ids.length > 0),
-  { message: "Either transcript_ids or a backfill mode is required" }
+            data.backfill_entities === true || data.reset_all_chunks === true ||
+            (data.transcript_ids && data.transcript_ids.length > 0),
+  { message: "Either transcript_ids, a backfill mode, or reset_all_chunks is required" }
 );
 
 // Constants
@@ -423,9 +425,9 @@ serve(async (req) => {
       );
     }
 
-    const { transcript_ids, backfill_all, backfill_embeddings, backfill_entities } = validation.data;
+    const { transcript_ids, backfill_all, backfill_embeddings, backfill_entities, reset_all_chunks } = validation.data;
 
-    console.log(`[chunk-transcripts] Request: backfill_all=${backfill_all}, backfill_embeddings=${backfill_embeddings}, backfill_entities=${backfill_entities}, transcript_ids=${transcript_ids?.length || 0}`);
+    console.log(`[chunk-transcripts] Request: backfill_all=${backfill_all}, backfill_embeddings=${backfill_embeddings}, backfill_entities=${backfill_entities}, reset_all_chunks=${reset_all_chunks}, transcript_ids=${transcript_ids?.length || 0}`);
 
     // Auth check
     const authHeader = req.headers.get('Authorization');
@@ -490,6 +492,45 @@ serve(async (req) => {
     }
 
     const isAdmin = userRole === 'admin';
+
+    // ========== RESET ALL CHUNKS MODE ==========
+    if (reset_all_chunks) {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ error: 'Only admins can reset all chunks' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      console.log(`[chunk-transcripts] Admin ${userId} initiated reset_all_chunks`);
+
+      // Get count before deletion
+      const { count: beforeCount } = await supabase
+        .from('transcript_chunks')
+        .select('*', { count: 'exact', head: true });
+
+      // Delete all chunks - using a condition that matches all rows
+      const { error: deleteError } = await supabase
+        .from('transcript_chunks')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000');
+
+      if (deleteError) {
+        console.error('[chunk-transcripts] Error deleting chunks:', deleteError);
+        throw new Error('Failed to delete chunks: ' + deleteError.message);
+      }
+
+      console.log(`[chunk-transcripts] Deleted ${beforeCount || 0} chunks`);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: `Deleted all transcript chunks`,
+          deleted_count: beforeCount || 0
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // ========== BACKFILL EMBEDDINGS MODE ==========
     if (backfill_embeddings) {
