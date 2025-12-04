@@ -69,6 +69,7 @@ function AdminTranscriptAnalysis() {
     isBackfilling,
     isBackfillingEmbeddings,
     isBackfillingEntities,
+    embeddingsProgress,
     
     // Pagination
     currentPage,
@@ -92,6 +93,7 @@ function AdminTranscriptAnalysis() {
     handleBackfillAll,
     handleBackfillEmbeddings,
     handleBackfillEntities,
+    stopEmbeddingsBackfill,
     handleLoadSelection,
   } = useTranscriptAnalysis();
 
@@ -179,6 +181,7 @@ function AdminTranscriptAnalysis() {
             isBackfilling={isBackfilling}
             isBackfillingEmbeddings={isBackfillingEmbeddings}
             isBackfillingEntities={isBackfillingEntities}
+            embeddingsProgress={embeddingsProgress}
             analysisMode={analysisMode}
             chatOpen={chatOpen}
             isAdmin={isAdmin}
@@ -190,6 +193,7 @@ function AdminTranscriptAnalysis() {
             onBackfillAll={handleBackfillAll}
             onBackfillEmbeddings={handleBackfillEmbeddings}
             onBackfillEntities={handleBackfillEntities}
+            onStopEmbeddingsBackfill={stopEmbeddingsBackfill}
             onSaveClick={() => setSaveSelectionOpen(true)}
             onLoadClick={() => setSavedSelectionsOpen(true)}
             onInsightsClick={() => setSavedInsightsOpen(true)}

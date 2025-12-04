@@ -39,6 +39,7 @@ interface TranscriptSelectionBarProps {
   isBackfilling?: boolean;
   isBackfillingEmbeddings?: boolean;
   isBackfillingEntities?: boolean;
+  embeddingsProgress?: { processed: number; total: number } | null;
   analysisMode: { label: string; color: string; useRag: boolean };
   chatOpen: boolean;
   isAdmin?: boolean;
@@ -50,6 +51,7 @@ interface TranscriptSelectionBarProps {
   onBackfillAll?: () => void;
   onBackfillEmbeddings?: () => void;
   onBackfillEntities?: () => void;
+  onStopEmbeddingsBackfill?: () => void;
   onSaveClick: () => void;
   onLoadClick: () => void;
   onInsightsClick: () => void;
@@ -68,6 +70,7 @@ export function TranscriptSelectionBar({
   isBackfilling,
   isBackfillingEmbeddings,
   isBackfillingEntities,
+  embeddingsProgress,
   analysisMode,
   chatOpen,
   isAdmin,
@@ -79,6 +82,7 @@ export function TranscriptSelectionBar({
   onBackfillAll,
   onBackfillEmbeddings,
   onBackfillEntities,
+  onStopEmbeddingsBackfill,
   onSaveClick,
   onLoadClick,
   onInsightsClick,
@@ -219,23 +223,48 @@ export function TranscriptSelectionBar({
             </Button>
           )}
 
-          {/* Backfill Embeddings button (Admin only) */}
+          {/* Backfill Embeddings button (Admin only) - with auto-continue */}
           {isAdmin && onBackfillEmbeddings && globalChunkStatus?.missingEmbeddings && globalChunkStatus.missingEmbeddings > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onBackfillEmbeddings}
-              disabled={isIndexing || isBackfilling || isBackfillingEmbeddings || isBackfillingEntities}
-              title={`Generate embeddings for ${globalChunkStatus.missingEmbeddings} chunks`}
-              className="border-blue-500/30 text-blue-600 hover:bg-blue-500/10"
-            >
-              {isBackfillingEmbeddings ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-              ) : (
-                <Database className="h-4 w-4 mr-1" />
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={isBackfillingEmbeddings ? onStopEmbeddingsBackfill : onBackfillEmbeddings}
+                disabled={isIndexing || isBackfilling || isBackfillingEntities}
+                title={isBackfillingEmbeddings 
+                  ? 'Click to stop after current batch' 
+                  : `Auto-generate embeddings for ${globalChunkStatus.missingEmbeddings} chunks`}
+                className={cn(
+                  "border-blue-500/30 text-blue-600 hover:bg-blue-500/10",
+                  isBackfillingEmbeddings && "bg-blue-500/10"
+                )}
+              >
+                {isBackfillingEmbeddings ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    {embeddingsProgress 
+                      ? `${embeddingsProgress.processed}/${embeddingsProgress.total}` 
+                      : 'Starting...'}
+                  </>
+                ) : (
+                  <>
+                    <Database className="h-4 w-4 mr-1" />
+                    Auto-Embeddings ({globalChunkStatus.missingEmbeddings.toLocaleString()})
+                  </>
+                )}
+              </Button>
+              {isBackfillingEmbeddings && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onStopEmbeddingsBackfill}
+                  className="text-red-500 hover:text-red-600 hover:bg-red-500/10 px-2"
+                  title="Stop backfill"
+                >
+                  Stop
+                </Button>
               )}
-              {isBackfillingEmbeddings ? 'Generating...' : `Embeddings (${globalChunkStatus.missingEmbeddings.toLocaleString()})`}
-            </Button>
+            </div>
           )}
 
           {/* Backfill NER button (Admin only) */}
