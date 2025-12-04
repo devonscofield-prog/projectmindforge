@@ -27,11 +27,21 @@ export async function streamAdminTranscriptChat({
   const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-transcript-chat`;
 
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    // Get current session and refresh if needed to ensure valid token
+    let { data: { session } } = await supabase.auth.getSession();
+    
     if (!session) {
       onError('You must be logged in to use transcript analysis');
       return;
     }
+
+    // Validate token is still valid by attempting refresh
+    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+    if (refreshError || !refreshData.session) {
+      onError('Your session has expired. Please sign in again.');
+      return;
+    }
+    session = refreshData.session;
 
     const response = await fetch(CHAT_URL, {
       method: 'POST',
