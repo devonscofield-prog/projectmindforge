@@ -68,6 +68,16 @@ export async function uploadBulkTranscripts(
 }
 
 /**
+ * Parse original filename from notes field
+ * Notes format: "Bulk uploaded from file: {fileName}"
+ */
+function parseOriginalFileName(notes: string | null): string | null {
+  if (!notes) return null;
+  const match = notes.match(/^Bulk uploaded from file: (.+)$/);
+  return match ? match[1] : null;
+}
+
+/**
  * Fetch status of uploaded transcripts (for polling after upload)
  */
 export async function getTranscriptStatuses(
@@ -75,10 +85,10 @@ export async function getTranscriptStatuses(
 ): Promise<TranscriptStatus[]> {
   if (!transcriptIds.length) return [];
 
-  // Get transcript analysis status
+  // Get transcript analysis status (include notes to parse original filename)
   const { data: transcripts, error: transcriptError } = await supabase
     .from('call_transcripts')
-    .select('id, analysis_status, analysis_error, account_name')
+    .select('id, analysis_status, analysis_error, account_name, notes')
     .in('id', transcriptIds);
 
   if (transcriptError) {
@@ -106,7 +116,8 @@ export async function getTranscriptStatuses(
 
   return (transcripts || []).map(t => ({
     id: t.id,
-    fileName: t.account_name || 'Unknown',
+    // Prefer original filename from notes, fall back to account_name
+    fileName: parseOriginalFileName(t.notes) || t.account_name || 'Unknown',
     analysis_status: t.analysis_status,
     analysis_error: t.analysis_error,
     has_chunks: (chunkCountMap.get(t.id) || 0) > 0,
