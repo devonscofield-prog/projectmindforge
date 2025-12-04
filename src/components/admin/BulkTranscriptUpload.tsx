@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { Upload, FileText, CheckCircle2, XCircle, Loader2, Trash2, Users, Calendar, Tag, AlertTriangle, User } from 'lucide-react';
+import { Upload, FileText, CheckCircle2, XCircle, Loader2, Trash2, Users, Calendar, Tag, AlertTriangle, User, X, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,16 @@ import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { useBulkUpload, FileMetadata } from '@/hooks/useBulkUpload';
 import { useProfilesBasic } from '@/hooks/useProfiles';
@@ -19,6 +29,7 @@ import { cn } from '@/lib/utils';
 export function BulkTranscriptUpload() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   
   const {
     extractedFiles,
@@ -29,6 +40,7 @@ export function BulkTranscriptUpload() {
     extractZip,
     updateFileMetadata,
     applyToAll,
+    removeFile,
     clearFiles,
     uploadMutation,
     transcriptStatuses,
@@ -100,7 +112,7 @@ export function BulkTranscriptUpload() {
 
   // ============= Upload Handler =============
   
-  const handleUpload = useCallback(() => {
+  const handleUploadClick = useCallback(() => {
     // Validate all files have required metadata (with whitespace trimming)
     const invalidFiles = extractedFiles.filter(file => {
       const meta = fileMetadata.get(file.fileName);
@@ -112,8 +124,21 @@ export function BulkTranscriptUpload() {
       return;
     }
     
+    // Show confirmation dialog
+    setShowConfirmDialog(true);
+  }, [extractedFiles, fileMetadata]);
+  
+  const handleConfirmUpload = useCallback(() => {
+    setShowConfirmDialog(false);
     uploadMutation.mutate();
-  }, [extractedFiles, fileMetadata, uploadMutation]);
+  }, [uploadMutation]);
+
+  // ============= Retry Failed Upload =============
+  
+  const handleRetryUpload = useCallback(() => {
+    uploadMutation.reset();
+    setShowConfirmDialog(true);
+  }, [uploadMutation]);
 
   // ============= Compute Stats =============
   
@@ -142,12 +167,23 @@ export function BulkTranscriptUpload() {
           <CheckCircle2 className="h-4 w-4" />
           <AlertTitle>Upload Complete</AlertTitle>
           <AlertDescription>
-            <div className="flex flex-wrap gap-4 mt-2">
+            <div className="flex flex-wrap items-center gap-4 mt-2">
               <span>Total: {uploadMutation.data.summary.total}</span>
               <span className="text-green-600">Inserted: {uploadMutation.data.summary.inserted}</span>
               <span className="text-blue-600">Analysis Queued: {uploadMutation.data.summary.analysisQueued}</span>
               {uploadMutation.data.summary.insertFailed > 0 && (
-                <span className="text-destructive">Failed: {uploadMutation.data.summary.insertFailed}</span>
+                <>
+                  <span className="text-destructive">Failed: {uploadMutation.data.summary.insertFailed}</span>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleRetryUpload}
+                    className="ml-auto"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Retry Upload
+                  </Button>
+                </>
               )}
             </div>
           </AlertDescription>
@@ -378,13 +414,23 @@ export function BulkTranscriptUpload() {
                               ({(file.size / 1024).toFixed(1)} KB)
                             </span>
                           </div>
-                          {isValid ? (
-                            <CheckCircle2 className="h-4 w-4 text-green-500" />
-                          ) : (
-                            <Badge variant="outline" className="text-amber-600 border-amber-300">
-                              Incomplete
-                            </Badge>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {isValid ? (
+                              <CheckCircle2 className="h-4 w-4 text-green-500" />
+                            ) : (
+                              <Badge variant="outline" className="text-amber-600 border-amber-300">
+                                Incomplete
+                              </Badge>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              onClick={() => removeFile(file.fileName)}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                         
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -491,7 +537,7 @@ export function BulkTranscriptUpload() {
               Cancel
             </Button>
             <Button
-              onClick={handleUpload}
+              onClick={handleUploadClick}
               disabled={uploadMutation.isPending || validCount === 0}
               className="min-w-[200px]"
             >
@@ -510,6 +556,32 @@ export function BulkTranscriptUpload() {
           </div>
         </>
       )}
+      
+      {/* Confirmation Dialog */}
+      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Bulk Upload</AlertDialogTitle>
+            <AlertDialogDescription>
+              You are about to upload <strong>{validCount} transcript{validCount !== 1 ? 's' : ''}</strong>.
+              {showTimeoutWarning && (
+                <span className="block mt-2 text-amber-600">
+                  Note: Large uploads may take several minutes to process.
+                </span>
+              )}
+              <span className="block mt-2">
+                Each transcript will be analyzed automatically after upload.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmUpload}>
+              Upload {validCount} Transcript{validCount !== 1 ? 's' : ''}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
