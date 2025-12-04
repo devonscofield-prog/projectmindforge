@@ -16,11 +16,14 @@ export const CALL_TYPES = [
 ];
 
 export function createDateRange(daysBack: number): { from: Date; to: Date } {
-  const to = new Date();
-  to.setHours(23, 59, 59, 999);
-  const from = new Date();
-  from.setDate(from.getDate() - daysBack);
-  from.setHours(0, 0, 0, 0);
+  const now = new Date();
+  
+  // End date is today at end of day
+  const to = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  
+  // Start date is (daysBack - 1) days ago at start of day
+  const from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (daysBack - 1), 0, 0, 0, 0);
+  
   return { from, to };
 }
 
