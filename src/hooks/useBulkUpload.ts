@@ -30,6 +30,12 @@ export interface FileMetadata {
   salesforceLink?: string;
 }
 
+export interface ExtractionProgress {
+  current: number;
+  total: number;
+  currentFileName: string;
+}
+
 export interface UseBulkUploadResult {
   // State
   extractedFiles: ExtractedFile[];
@@ -37,6 +43,7 @@ export interface UseBulkUploadResult {
   uploadedTranscriptIds: string[];
   isExtracting: boolean;
   extractionError: string | null;
+  extractionProgress: ExtractionProgress | null;
   
   // Actions
   extractZip: (file: File) => Promise<void>;
@@ -96,6 +103,7 @@ export function useBulkUpload(): UseBulkUploadResult {
   const [fileMetadata, setFileMetadata] = useState<Map<string, FileMetadata>>(new Map());
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractionError, setExtractionError] = useState<string | null>(null);
+  const [extractionProgress, setExtractionProgress] = useState<ExtractionProgress | null>(null);
   
   // Upload tracking
   const [uploadedTranscriptIds, setUploadedTranscriptIds] = useState<string[]>([]);
@@ -106,6 +114,7 @@ export function useBulkUpload(): UseBulkUploadResult {
   const extractZip = useCallback(async (file: File) => {
     setIsExtracting(true);
     setExtractionError(null);
+    setExtractionProgress(null);
     
     try {
       // Validate ZIP file size
@@ -133,14 +142,24 @@ export function useBulkUpload(): UseBulkUploadResult {
       }
       
       // Extract each file
-      for (const fileName of fileNames) {
+      for (let i = 0; i < fileNames.length; i++) {
+        const fileName = fileNames[i];
+        const baseFileName = fileName.split('/').pop() || fileName;
+        
+        // Update progress
+        setExtractionProgress({
+          current: i + 1,
+          total: fileNames.length,
+          currentFileName: baseFileName,
+        });
+        
         const zipEntry = zip.files[fileName];
         const content = await zipEntry.async('string');
         
         // Check file size
         const size = new Blob([content]).size;
         if (size > MAX_FILE_SIZE) {
-          skippedFiles.push({ name: fileName, reason: `exceeds ${MAX_FILE_SIZE / 1024}KB limit` });
+          skippedFiles.push({ name: baseFileName, reason: `exceeds ${MAX_FILE_SIZE / 1024}KB limit` });
           console.warn(`[useBulkUpload] File ${fileName} exceeds size limit (${size} bytes)`);
           continue;
         }
@@ -153,8 +172,7 @@ export function useBulkUpload(): UseBulkUploadResult {
           continue;
         }
         
-        // Extract just the filename without path and handle duplicates
-        const baseFileName = fileName.split('/').pop() || fileName;
+        // Handle duplicates using baseFileName already defined above
         const uniqueFileName = getUniqueFileName(baseFileName, usedFileNames);
         usedFileNames.add(uniqueFileName);
         
@@ -199,6 +217,7 @@ export function useBulkUpload(): UseBulkUploadResult {
       setFileMetadata(new Map());
     } finally {
       setIsExtracting(false);
+      setExtractionProgress(null);
     }
   }, []);
 
@@ -328,6 +347,7 @@ export function useBulkUpload(): UseBulkUploadResult {
     uploadedTranscriptIds,
     isExtracting,
     extractionError,
+    extractionProgress,
     
     // Actions
     extractZip,

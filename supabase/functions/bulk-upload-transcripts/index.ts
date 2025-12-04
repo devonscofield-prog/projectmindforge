@@ -225,7 +225,7 @@ async function insertTranscript(
         primary_stakeholder_name: transcript.stakeholderName,
         account_name: transcript.accountName,
         salesforce_demo_link: transcript.salesforceLink || null,
-        source: 'other', // Using 'other' for bulk uploads
+        source: 'bulk_upload',
         analysis_status: 'pending',
         notes: `Bulk uploaded from file: ${transcript.fileName}`, // Track original filename
       })
