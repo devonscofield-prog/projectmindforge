@@ -59,3 +59,6 @@ verify_jwt = true
 
 [functions.reset-test-passwords]
 verify_jwt = false
+
+[functions.bulk-upload-transcripts]
+verify_jwt = true
