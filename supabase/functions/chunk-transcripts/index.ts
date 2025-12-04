@@ -245,8 +245,8 @@ async function generateEmbedding(text: string): Promise<string> {
       mean_pool: true,
       normalize: true,
     });
-    // Format as PostgreSQL array string: [0.123, -0.456, ...]
-    return `[${embedding.join(',')}]`;
+  // Format as PostgreSQL array string: {0.123, -0.456, ...}
+  return `{${embedding.join(',')}}`;
   } catch (error) {
     console.error('[chunk-transcripts] Embedding generation failed:', error);
     throw error;
