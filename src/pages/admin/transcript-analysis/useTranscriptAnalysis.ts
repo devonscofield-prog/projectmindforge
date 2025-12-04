@@ -283,51 +283,30 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     enabled: !!transcripts?.length,
   });
 
-  // Query for global chunk status (all completed transcripts) with embedding/NER stats
+  // Query for global chunk status using efficient server-side aggregation
+  // This replaces 3 separate queries with 1 RPC call, reducing data transfer from ~5MB to ~100 bytes
   const { data: globalChunkStatus, refetch: refetchGlobalChunkStatus } = useQuery({
     queryKey: ['global-chunk-status'],
     queryFn: async () => {
-      // Get total count of completed or skipped transcripts (both are valid for RAG)
-      const { count: totalCount, error: countError } = await supabase
-        .from('call_transcripts')
-        .select('id', { count: 'exact', head: true })
-        .in('analysis_status', ['completed', 'skipped'])
-        .is('deleted_at', null);
+      // Cast to any because the function was just added and types haven't regenerated yet
+      const { data, error } = await (supabase.rpc as Function)('get_rag_health_stats');
       
-      if (countError) throw countError;
+      if (error) throw error;
       
-      // Get count of distinct indexed transcripts
-      const { data: chunkedData, error: chunkedError } = await supabase
-        .from('transcript_chunks')
-        .select('transcript_id');
-      
-      if (chunkedError) throw chunkedError;
-      
-      const uniqueIndexed = new Set((chunkedData || []).map(c => c.transcript_id)).size;
-      
-      // Get embedding and NER stats
-      const { data: chunkStats, error: statsError } = await supabase
-        .from('transcript_chunks')
-        .select('embedding, extraction_status');
-      
-      if (statsError) throw statsError;
-      
-      const totalChunks = chunkStats?.length || 0;
-      const withEmbeddings = chunkStats?.filter(c => c.embedding !== null).length || 0;
-      const nerCompleted = chunkStats?.filter(c => c.extraction_status === 'completed').length || 0;
+      const stats = data as Record<string, number>;
       
       return { 
-        indexed: uniqueIndexed, 
-        total: totalCount || 0,
-        totalChunks,
-        withEmbeddings,
-        missingEmbeddings: totalChunks - withEmbeddings,
-        nerCompleted,
-        nerPending: totalChunks - nerCompleted
+        indexed: stats.unique_transcripts || 0, 
+        total: stats.total_eligible_transcripts || 0,
+        totalChunks: stats.total_chunks || 0,
+        withEmbeddings: stats.with_embeddings || 0,
+        missingEmbeddings: (stats.total_chunks || 0) - (stats.with_embeddings || 0),
+        nerCompleted: stats.ner_completed || 0,
+        nerPending: stats.ner_pending || 0
       };
     },
     enabled: role === 'admin',
-    staleTime: 30000, // 30 seconds
+    staleTime: 2 * 60 * 1000, // 2 minutes - stats don't change frequently
   });
 
   // Helper to get a fresh access token with session refresh

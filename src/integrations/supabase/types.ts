@@ -1719,6 +1719,7 @@ export type Database = {
           total_count: number
         }[]
       }
+      get_rag_health_stats: { Args: never; Returns: Json }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["user_role"]
