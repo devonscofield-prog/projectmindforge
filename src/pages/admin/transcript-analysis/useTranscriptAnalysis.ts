@@ -487,14 +487,6 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     );
   };
 
-  // Calculate token estimate
-  const estimatedTokens = useMemo(() => {
-    if (!transcripts) return 0;
-    const selected = transcripts.filter(t => selectedTranscriptIds.has(t.id));
-    const totalChars = selected.reduce((sum, t) => sum + (t.raw_text?.length || 0), 0);
-    return Math.round(totalChars / 4);
-  }, [transcripts, selectedTranscriptIds]);
-
   const getAnalysisModeLabel = () => {
     const count = selectedTranscriptIds.size;
     if (count === 0) return { label: 'Select transcripts', color: 'text-muted-foreground', useRag: false };
@@ -503,10 +495,46 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
   };
 
   const analysisMode = getAnalysisModeLabel();
-  const selectedTranscripts = useMemo(() => 
-    transcripts?.filter(t => selectedTranscriptIds.has(t.id)) || [],
-    [transcripts, selectedTranscriptIds]
-  );
+
+  // Fetch full transcript data for all selected IDs (handles cross-page selections)
+  const { data: selectedTranscripts = [] } = useQuery({
+    queryKey: ['selected-transcripts', Array.from(selectedTranscriptIds).sort().join(',')],
+    queryFn: async () => {
+      if (selectedTranscriptIds.size === 0) return [];
+      
+      const ids = Array.from(selectedTranscriptIds);
+      const { data, error } = await supabase
+        .from('call_transcripts')
+        .select('id, call_date, account_name, call_type, raw_text, rep_id, analysis_status')
+        .in('id', ids);
+      
+      if (error) throw error;
+      
+      // Fetch rep names for the transcripts
+      const repIdSet = new Set((data || []).map(t => t.rep_id));
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, name, team_id')
+        .in('id', Array.from(repIdSet));
+      
+      const profileMap = new Map((profiles || []).map(p => [p.id, p]));
+      const teamMap = new Map((teams || []).map(t => [t.id, t.name]));
+      
+      return (data || []).map(t => ({
+        ...t,
+        rep_name: profileMap.get(t.rep_id)?.name || 'Unknown',
+        team_name: teamMap.get(profileMap.get(t.rep_id)?.team_id || '') || 'Unknown',
+      })) as Transcript[];
+    },
+    enabled: selectedTranscriptIds.size > 0,
+    staleTime: 60000, // 1 minute - selections don't change often
+  });
+
+  // Calculate token estimate - uses selectedTranscripts from query (supports cross-page)
+  const estimatedTokens = useMemo(() => {
+    const totalChars = selectedTranscripts.reduce((sum, t) => sum + (t.raw_text?.length || 0), 0);
+    return Math.round(totalChars / 4);
+  }, [selectedTranscripts]);
 
   return {
     // Scope info
