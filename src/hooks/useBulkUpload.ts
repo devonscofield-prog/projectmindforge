@@ -49,6 +49,7 @@ export interface UseBulkUploadResult {
   extractZip: (file: File) => Promise<void>;
   updateFileMetadata: (fileName: string, metadata: Partial<FileMetadata>) => void;
   applyToAll: (metadata: Partial<Omit<FileMetadata, 'fileName'>>) => void;
+  removeFile: (fileName: string) => void;
   clearFiles: () => void;
   
   // Upload mutation
@@ -244,6 +245,15 @@ export function useBulkUpload(): UseBulkUploadResult {
     });
   }, []);
   
+  const removeFile = useCallback((fileName: string) => {
+    setExtractedFiles(prev => prev.filter(f => f.fileName !== fileName));
+    setFileMetadata(prev => {
+      const newMap = new Map(prev);
+      newMap.delete(fileName);
+      return newMap;
+    });
+  }, []);
+  
   const clearFiles = useCallback(() => {
     setExtractedFiles([]);
     setFileMetadata(new Map());
@@ -353,6 +363,7 @@ export function useBulkUpload(): UseBulkUploadResult {
     extractZip,
     updateFileMetadata,
     applyToAll,
+    removeFile,
     clearFiles,
     
     // Upload mutation
