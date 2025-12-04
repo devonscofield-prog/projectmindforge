@@ -17,6 +17,9 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useState } from 'react';
 import { Input } from '@/components/ui/input';
+import { AppLayout } from '@/components/layout/AppLayout';
+import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
+import { getAdminPageBreadcrumb } from '@/lib/breadcrumbConfig';
 
 export default function AdminAuditLog() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -91,13 +94,16 @@ export default function AdminAuditLog() {
   });
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Audit Log</h1>
-        <p className="text-muted-foreground mt-2">
-          Track all admin actions including user management, role changes, and password resets
-        </p>
-      </div>
+    <AppLayout>
+      <div className="space-y-6">
+        <PageBreadcrumb items={getAdminPageBreadcrumb('auditLog')} />
+        
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Audit Log</h1>
+          <p className="text-muted-foreground mt-2">
+            Track all admin actions including user management, role changes, and password resets
+          </p>
+        </div>
 
       <Card>
         <CardHeader>
@@ -238,6 +244,7 @@ export default function AdminAuditLog() {
           )}
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </AppLayout>
   );
 }

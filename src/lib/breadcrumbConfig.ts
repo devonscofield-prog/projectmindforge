@@ -15,11 +15,12 @@ import {
 
 // Static page labels (role-independent)
 export const BREADCRUMB_LABELS = {
-  // Admin pages
+// Admin pages
   users: 'Users',
   teams: 'Teams',
   transcriptAnalysis: 'Transcript Analysis',
   coachingTrends: 'Coaching Trends',
+  auditLog: 'Audit Log',
   
   // Manager pages
   coaching: 'Coaching',
@@ -104,7 +105,7 @@ export function getSimpleBreadcrumb(label: string): BreadcrumbItem[] {
  * Type-safe helper to get admin page breadcrumbs
  */
 export function getAdminPageBreadcrumb(
-  page: 'users' | 'teams' | 'transcriptAnalysis' | 'coachingTrends' | 'accounts' | 'bulkUpload'
+  page: 'users' | 'teams' | 'transcriptAnalysis' | 'coachingTrends' | 'accounts' | 'bulkUpload' | 'auditLog'
 ): BreadcrumbItem[] {
   const labels: Record<typeof page, string> = {
     users: BREADCRUMB_LABELS.users,
@@ -113,6 +114,7 @@ export function getAdminPageBreadcrumb(
     coachingTrends: BREADCRUMB_LABELS.coachingTrends,
     accounts: 'Accounts',
     bulkUpload: 'Bulk Upload',
+    auditLog: BREADCRUMB_LABELS.auditLog,
   };
   return [{ label: labels[page] }];
 }
