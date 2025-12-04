@@ -5,8 +5,10 @@ import { getAdminPageBreadcrumb, getManagerPageBreadcrumb, getRepPageBreadcrumb 
 import { SaveSelectionDialog } from '@/components/admin/SaveSelectionDialog';
 import { SavedSelectionsSheet } from '@/components/admin/SavedSelectionsSheet';
 import { SavedInsightsSheet } from '@/components/admin/SavedInsightsSheet';
+import { RAGHealthDashboard } from '@/components/admin/RAGHealthDashboard';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { FileText, AlertCircle } from 'lucide-react';
+import { CollapsibleSection } from '@/components/ui/collapsible-section';
+import { FileText, AlertCircle, Activity } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 import {
@@ -141,6 +143,17 @@ function AdminTranscriptAnalysis() {
               You don't have a team assigned yet. Please contact an administrator to assign you to a team before you can view transcripts.
             </AlertDescription>
           </Alert>
+        )}
+
+        {/* RAG Health Dashboard - Admin only */}
+        {isAdmin && (
+          <CollapsibleSection
+            title="RAG System Health"
+            icon={<Activity className="h-4 w-4" />}
+            defaultOpen={false}
+          >
+            <RAGHealthDashboard />
+          </CollapsibleSection>
         )}
 
         {/* Filters - only show if manager has a team or not team-scoped */}
