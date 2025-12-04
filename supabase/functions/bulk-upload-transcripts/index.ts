@@ -227,6 +227,7 @@ async function insertTranscript(
         salesforce_demo_link: transcript.salesforceLink || null,
         source: 'other', // Using 'other' for bulk uploads
         analysis_status: 'pending',
+        notes: `Bulk uploaded from file: ${transcript.fileName}`, // Track original filename
       })
       .select('id')
       .single();
@@ -265,6 +266,25 @@ async function queueAnalysis(
     console.error(`[bulk-upload] Failed to queue analysis for ${fileName}:`, error);
     return { success: false, error: err.message || 'Analysis queue failed' };
   }
+}
+
+// ============= Helper: Validate RepId Exists =============
+async function validateRepIds(
+  supabase: SupabaseClient,
+  repIds: string[]
+): Promise<{ valid: boolean; invalidIds: string[] }> {
+  const uniqueIds = [...new Set(repIds)];
+  
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id')
+    .in('id', uniqueIds)
+    .eq('is_active', true);
+  
+  const validIds = new Set(profiles?.map(p => p.id) || []);
+  const invalidIds = uniqueIds.filter(id => !validIds.has(id));
+  
+  return { valid: invalidIds.length === 0, invalidIds };
 }
 
 // ============= Validation =============
@@ -369,6 +389,15 @@ serve(async (req) => {
 
     const { transcripts } = validation.data;
     console.log(`[bulk-upload] Processing ${transcripts.length} transcripts`);
+
+    // ============= Validate RepIds Exist =============
+    const repIds = transcripts.map(t => t.repId);
+    const { valid: repIdsValid, invalidIds } = await validateRepIds(supabase, repIds);
+    
+    if (!repIdsValid) {
+      console.error(`[bulk-upload] Invalid repIds found: ${invalidIds.join(', ')}`);
+      return errorResponse(`Invalid or inactive rep IDs: ${invalidIds.join(', ')}`, 400, corsHeaders);
+    }
 
     // ============= Phase 1: Insert All Transcripts =============
     const insertedTranscripts: InsertedTranscript[] = [];

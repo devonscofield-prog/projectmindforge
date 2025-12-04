@@ -339,7 +339,7 @@ export function BulkTranscriptUpload() {
                           )}
                         </div>
                         
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                           <div className="space-y-1">
                             <Label className="text-xs">Rep *</Label>
                             <Select
@@ -374,6 +374,16 @@ export function BulkTranscriptUpload() {
                               value={meta?.stakeholderName || ''}
                               onChange={e => updateFileMetadata(file.fileName, { stakeholderName: e.target.value })}
                               placeholder="Contact name"
+                            />
+                          </div>
+                          
+                          <div className="space-y-1">
+                            <Label className="text-xs">Call Date</Label>
+                            <Input
+                              type="date"
+                              className="h-8"
+                              value={meta?.callDate || ''}
+                              onChange={e => updateFileMetadata(file.fileName, { callDate: e.target.value })}
                             />
                           </div>
                           
