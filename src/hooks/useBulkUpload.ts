@@ -1,6 +1,7 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import JSZip from 'jszip';
+import { toast } from 'sonner';
 import { CallType } from '@/constants/callTypes';
 import {
   uploadBulkTranscripts,
@@ -219,6 +220,9 @@ export function useBulkUpload(): UseBulkUploadResult {
         setIsPollingEnabled(true);
       }
     },
+    onError: (error) => {
+      toast.error(`Upload failed: ${error.message}`);
+    },
   });
 
   // ============= Status Polling =============
@@ -241,6 +245,25 @@ export function useBulkUpload(): UseBulkUploadResult {
   const stopPolling = useCallback(() => {
     setIsPollingEnabled(false);
   }, []);
+
+  // Auto-stop polling when all transcripts are processed
+  useEffect(() => {
+    if (!transcriptStatuses || !isPollingEnabled || transcriptStatuses.length === 0) return;
+    
+    const allComplete = transcriptStatuses.every(
+      s => s.analysis_status === 'completed' || s.analysis_status === 'error'
+    );
+    
+    if (allComplete) {
+      setIsPollingEnabled(false);
+      const errorCount = transcriptStatuses.filter(s => s.analysis_status === 'error').length;
+      if (errorCount > 0) {
+        toast.warning(`Analysis complete: ${errorCount} transcript(s) had errors`);
+      } else {
+        toast.success('All transcripts analyzed successfully!');
+      }
+    }
+  }, [transcriptStatuses, isPollingEnabled]);
 
   return {
     // State

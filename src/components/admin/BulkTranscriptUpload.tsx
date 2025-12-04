@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { Upload, FileText, CheckCircle2, XCircle, Loader2, Trash2, Users, Calendar, Tag } from 'lucide-react';
+import { Upload, FileText, CheckCircle2, XCircle, Loader2, Trash2, Users, Calendar, Tag, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -117,6 +117,10 @@ export function BulkTranscriptUpload() {
     s.analysis_status === 'pending' || s.analysis_status === 'processing'
   ).length || 0;
   const errorCount = transcriptStatuses?.filter(s => s.analysis_status === 'error').length || 0;
+  
+  // Show timeout warning for large uploads
+  const LARGE_UPLOAD_THRESHOLD = 50;
+  const showTimeoutWarning = extractedFiles.length > LARGE_UPLOAD_THRESHOLD;
 
   // ============= Render =============
   
@@ -397,6 +401,18 @@ export function BulkTranscriptUpload() {
               </ScrollArea>
             </CardContent>
           </Card>
+
+          {/* Timeout Warning for Large Uploads */}
+          {showTimeoutWarning && (
+            <Alert variant="default" className="border-amber-500/50 bg-amber-500/10">
+              <AlertTriangle className="h-4 w-4 text-amber-500" />
+              <AlertTitle className="text-amber-600">Large Upload Warning</AlertTitle>
+              <AlertDescription className="text-amber-600/80">
+                Uploading {extractedFiles.length} files may take longer than usual. 
+                Consider uploading in smaller batches (50 or fewer) to avoid timeouts.
+              </AlertDescription>
+            </Alert>
+          )}
 
           {/* Upload Button */}
           <div className="flex justify-end gap-4">

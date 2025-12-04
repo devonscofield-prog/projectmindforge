@@ -24,11 +24,12 @@ export interface ProfileBasic {
  */
 export function useProfilesBasic(): UseQueryResult<ProfileBasic[], Error> {
   return useQuery({
-    queryKey: ['profiles-basic'],
+    queryKey: ['profiles-basic-active'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')
         .select('id, name')
+        .eq('is_active', true)
         .order('name');
       if (error) throw error;
       return (data || []) as ProfileBasic[];
