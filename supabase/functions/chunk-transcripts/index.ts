@@ -53,12 +53,12 @@ const chunkTranscriptsSchema = z.object({
 // Constants
 const CHUNK_SIZE = 2000;
 const CHUNK_OVERLAP = 200;
-const NER_BATCH_SIZE = 10;
+const NER_BATCH_SIZE = 5; // Reduced for CPU limits
 const BASE_DELAY_MS = 200;
 const MAX_DELAY_MS = 5000;
 const MAX_RETRIES = 3;
-const BACKFILL_BATCH_SIZE = 10; // Reduced from 50 to avoid CPU timeout
-const EMBEDDING_DELAY_MS = 100; // Delay between embeddings to prevent resource exhaustion
+const BACKFILL_BATCH_SIZE = 5; // Reduced from 10 to avoid CPU timeout
+const EMBEDDING_DELAY_MS = 150; // Increased delay between embeddings
 
 // Types
 interface TranscriptChunk {
