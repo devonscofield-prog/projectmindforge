@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { Upload, FileText, CheckCircle2, XCircle, Loader2, Trash2, Users, Calendar, Tag, AlertTriangle } from 'lucide-react';
+import { Upload, FileText, CheckCircle2, XCircle, Loader2, Trash2, Users, Calendar, Tag, AlertTriangle, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -40,7 +40,9 @@ export function BulkTranscriptUpload() {
   // ============= Bulk Apply State =============
   const [bulkRepId, setBulkRepId] = useState('');
   const [bulkCallType, setBulkCallType] = useState<CallType>('first_demo');
+  const [bulkCallTypeOther, setBulkCallTypeOther] = useState('');
   const [bulkCallDate, setBulkCallDate] = useState(new Date().toISOString().split('T')[0]);
+  const [bulkStakeholderName, setBulkStakeholderName] = useState('');
 
   // ============= File Drop Handlers =============
   
@@ -84,18 +86,25 @@ export function BulkTranscriptUpload() {
     if (bulkRepId) updates.repId = bulkRepId;
     if (bulkCallType) updates.callType = bulkCallType;
     if (bulkCallDate) updates.callDate = bulkCallDate;
+    if (bulkStakeholderName.trim()) updates.stakeholderName = bulkStakeholderName.trim();
+    // Handle callTypeOther
+    if (bulkCallType === 'other' && bulkCallTypeOther.trim()) {
+      updates.callTypeOther = bulkCallTypeOther.trim();
+    } else {
+      updates.callTypeOther = '';
+    }
     
     applyToAll(updates);
     toast.success('Applied to all files');
-  }, [bulkRepId, bulkCallType, bulkCallDate, applyToAll]);
+  }, [bulkRepId, bulkCallType, bulkCallTypeOther, bulkCallDate, bulkStakeholderName, applyToAll]);
 
   // ============= Upload Handler =============
   
   const handleUpload = useCallback(() => {
-    // Validate all files have required metadata
+    // Validate all files have required metadata (with whitespace trimming)
     const invalidFiles = extractedFiles.filter(file => {
       const meta = fileMetadata.get(file.fileName);
-      return !meta?.repId || !meta?.accountName || !meta?.stakeholderName;
+      return !meta?.repId || !meta?.accountName?.trim() || !meta?.stakeholderName?.trim();
     });
     
     if (invalidFiles.length > 0) {
@@ -110,7 +119,7 @@ export function BulkTranscriptUpload() {
   
   const validCount = extractedFiles.filter(f => {
     const meta = fileMetadata.get(f.fileName);
-    return meta?.repId && meta?.accountName && meta?.stakeholderName;
+    return meta?.repId && meta?.accountName?.trim() && meta?.stakeholderName?.trim();
   }).length;
   
   const completedCount = transcriptStatuses?.filter(s => s.analysis_status === 'completed').length || 0;
@@ -252,7 +261,7 @@ export function BulkTranscriptUpload() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <Users className="h-4 w-4" />
@@ -272,6 +281,18 @@ export function BulkTranscriptUpload() {
                       )}
                     </SelectContent>
                   </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    Stakeholder Name
+                  </Label>
+                  <Input
+                    value={bulkStakeholderName}
+                    onChange={e => setBulkStakeholderName(e.target.value)}
+                    placeholder="Contact name..."
+                  />
                 </div>
                 
                 <div className="space-y-2">
@@ -302,6 +323,17 @@ export function BulkTranscriptUpload() {
                     </SelectContent>
                   </Select>
                 </div>
+                
+                {bulkCallType === 'other' && (
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Other Call Type</Label>
+                    <Input
+                      value={bulkCallTypeOther}
+                      onChange={e => setBulkCallTypeOther(e.target.value)}
+                      placeholder="Describe call type..."
+                    />
+                  </div>
+                )}
                 
                 <div className="flex items-end">
                   <Button onClick={handleApplyToAll} className="w-full">
@@ -420,6 +452,19 @@ export function BulkTranscriptUpload() {
                             </Select>
                           </div>
                         </div>
+                        
+                        {/* Other Call Type Input - shown when call type is 'other' */}
+                        {meta?.callType === 'other' && (
+                          <div className="mt-2">
+                            <Label className="text-xs">Other Call Type Description</Label>
+                            <Input
+                              className="h-8 mt-1"
+                              value={meta?.callTypeOther || ''}
+                              onChange={e => updateFileMetadata(file.fileName, { callTypeOther: e.target.value })}
+                              placeholder="Describe the call type..."
+                            />
+                          </div>
+                        )}
                       </div>
                     );
                   })}
