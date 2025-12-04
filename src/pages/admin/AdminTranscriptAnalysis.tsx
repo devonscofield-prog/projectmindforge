@@ -67,6 +67,8 @@ function AdminTranscriptAnalysis() {
     setSavedInsightsOpen,
     isIndexing,
     isBackfilling,
+    isBackfillingEmbeddings,
+    isBackfillingEntities,
     
     // Pagination
     currentPage,
@@ -88,6 +90,8 @@ function AdminTranscriptAnalysis() {
     toggleCallType,
     handlePreIndex,
     handleBackfillAll,
+    handleBackfillEmbeddings,
+    handleBackfillEntities,
     handleLoadSelection,
   } = useTranscriptAnalysis();
 
@@ -173,6 +177,8 @@ function AdminTranscriptAnalysis() {
             globalChunkStatus={globalChunkStatus}
             isIndexing={isIndexing}
             isBackfilling={isBackfilling}
+            isBackfillingEmbeddings={isBackfillingEmbeddings}
+            isBackfillingEntities={isBackfillingEntities}
             analysisMode={analysisMode}
             chatOpen={chatOpen}
             isAdmin={isAdmin}
@@ -182,6 +188,8 @@ function AdminTranscriptAnalysis() {
             onDeselectAll={deselectAll}
             onPreIndex={handlePreIndex}
             onBackfillAll={handleBackfillAll}
+            onBackfillEmbeddings={handleBackfillEmbeddings}
+            onBackfillEntities={handleBackfillEntities}
             onSaveClick={() => setSaveSelectionOpen(true)}
             onLoadClick={() => setSavedSelectionsOpen(true)}
             onInsightsClick={() => setSavedInsightsOpen(true)}

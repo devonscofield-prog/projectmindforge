@@ -61,6 +61,8 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
   // Pre-indexing state
   const [isIndexing, setIsIndexing] = useState(false);
   const [isBackfilling, setIsBackfilling] = useState(false);
+  const [isBackfillingEmbeddings, setIsBackfillingEmbeddings] = useState(false);
+  const [isBackfillingEntities, setIsBackfillingEntities] = useState(false);
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -277,7 +279,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     enabled: !!transcripts?.length,
   });
 
-  // Query for global chunk status (all completed transcripts)
+  // Query for global chunk status (all completed transcripts) with embedding/NER stats
   const { data: globalChunkStatus, refetch: refetchGlobalChunkStatus } = useQuery({
     queryKey: ['global-chunk-status'],
     queryFn: async () => {
@@ -299,11 +301,49 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
       
       const uniqueIndexed = new Set((chunkedData || []).map(c => c.transcript_id)).size;
       
-      return { indexed: uniqueIndexed, total: totalCount || 0 };
+      // Get embedding and NER stats
+      const { data: chunkStats, error: statsError } = await supabase
+        .from('transcript_chunks')
+        .select('embedding, extraction_status');
+      
+      if (statsError) throw statsError;
+      
+      const totalChunks = chunkStats?.length || 0;
+      const withEmbeddings = chunkStats?.filter(c => c.embedding !== null).length || 0;
+      const nerCompleted = chunkStats?.filter(c => c.extraction_status === 'completed').length || 0;
+      
+      return { 
+        indexed: uniqueIndexed, 
+        total: totalCount || 0,
+        totalChunks,
+        withEmbeddings,
+        missingEmbeddings: totalChunks - withEmbeddings,
+        nerCompleted,
+        nerPending: totalChunks - nerCompleted
+      };
     },
     enabled: role === 'admin',
     staleTime: 30000, // 30 seconds
   });
+
+  // Helper to get a fresh access token with session refresh
+  const getFreshToken = async (): Promise<string | null> => {
+    // Get current session
+    let { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
+      return null;
+    }
+    
+    // Refresh to ensure token is valid
+    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+    if (refreshError || !refreshData.session) {
+      log.warn('Session refresh failed', { error: refreshError });
+      return null;
+    }
+    
+    return refreshData.session.access_token;
+  };
 
   // Pre-index handler (for selected transcripts on current page)
   const handlePreIndex = async () => {
@@ -311,9 +351,9 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     setIsIndexing(true);
     
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast.error('Please sign in to pre-index transcripts');
+      const token = await getFreshToken();
+      if (!token) {
+        toast.error('Your session has expired. Please sign in again.');
         return;
       }
       
@@ -321,7 +361,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({ transcript_ids: transcripts.map(t => t.id) }),
       });
@@ -353,9 +393,9 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     setIsBackfilling(true);
     
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast.error('Please sign in to backfill transcripts');
+      const token = await getFreshToken();
+      if (!token) {
+        toast.error('Your session has expired. Please sign in again.');
         return;
       }
       
@@ -365,7 +405,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({ backfill_all: true }),
       });
@@ -390,6 +430,92 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
       toast.error(err instanceof Error ? err.message : 'Failed to backfill transcripts');
     } finally {
       setIsBackfilling(false);
+    }
+  };
+
+  // Backfill embeddings handler (admin only)
+  const handleBackfillEmbeddings = async () => {
+    if (role !== 'admin') {
+      toast.error('Only admins can backfill embeddings');
+      return;
+    }
+    
+    setIsBackfillingEmbeddings(true);
+    
+    try {
+      const token = await getFreshToken();
+      if (!token) {
+        toast.error('Your session has expired. Please sign in again.');
+        return;
+      }
+      
+      toast.info('Starting embedding backfill (batch of 50)...');
+      
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chunk-transcripts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ backfill_embeddings: true }),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to backfill embeddings');
+      }
+      
+      const result = await response.json();
+      toast.success(`Embeddings backfill: ${result.embeddings_generated || 0} generated, ${result.embeddings_failed || 0} failed`);
+      refetchGlobalChunkStatus();
+    } catch (err) {
+      log.error('Embeddings backfill error', { error: err });
+      toast.error(err instanceof Error ? err.message : 'Failed to backfill embeddings');
+    } finally {
+      setIsBackfillingEmbeddings(false);
+    }
+  };
+
+  // Backfill NER entities handler (admin only)
+  const handleBackfillEntities = async () => {
+    if (role !== 'admin') {
+      toast.error('Only admins can backfill entities');
+      return;
+    }
+    
+    setIsBackfillingEntities(true);
+    
+    try {
+      const token = await getFreshToken();
+      if (!token) {
+        toast.error('Your session has expired. Please sign in again.');
+        return;
+      }
+      
+      toast.info('Starting NER entity extraction backfill (batch of 50)...');
+      
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chunk-transcripts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ backfill_entities: true }),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to backfill entities');
+      }
+      
+      const result = await response.json();
+      toast.success(`NER backfill: ${result.entities_extracted || 0} extracted, ${result.entities_failed || 0} failed`);
+      refetchGlobalChunkStatus();
+    } catch (err) {
+      log.error('Entities backfill error', { error: err });
+      toast.error(err instanceof Error ? err.message : 'Failed to backfill entities');
+    } finally {
+      setIsBackfillingEntities(false);
     }
   };
 
@@ -583,6 +709,8 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     setSavedInsightsOpen,
     isIndexing,
     isBackfilling,
+    isBackfillingEmbeddings,
+    isBackfillingEntities,
     
     // Pagination
     currentPage,
@@ -604,6 +732,8 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     toggleCallType,
     handlePreIndex,
     handleBackfillAll,
+    handleBackfillEmbeddings,
+    handleBackfillEntities,
     handleLoadSelection,
   };
 }

@@ -26,9 +26,19 @@ interface TranscriptSelectionBarProps {
   estimatedTokens: number;
   totalCount: number;
   chunkStatus: { indexed: number; total: number } | undefined;
-  globalChunkStatus?: { indexed: number; total: number };
+  globalChunkStatus?: { 
+    indexed: number; 
+    total: number;
+    totalChunks?: number;
+    withEmbeddings?: number;
+    missingEmbeddings?: number;
+    nerCompleted?: number;
+    nerPending?: number;
+  };
   isIndexing: boolean;
   isBackfilling?: boolean;
+  isBackfillingEmbeddings?: boolean;
+  isBackfillingEntities?: boolean;
   analysisMode: { label: string; color: string; useRag: boolean };
   chatOpen: boolean;
   isAdmin?: boolean;
@@ -38,6 +48,8 @@ interface TranscriptSelectionBarProps {
   onDeselectAll: () => void;
   onPreIndex: () => void;
   onBackfillAll?: () => void;
+  onBackfillEmbeddings?: () => void;
+  onBackfillEntities?: () => void;
   onSaveClick: () => void;
   onLoadClick: () => void;
   onInsightsClick: () => void;
@@ -54,6 +66,8 @@ export function TranscriptSelectionBar({
   globalChunkStatus,
   isIndexing,
   isBackfilling,
+  isBackfillingEmbeddings,
+  isBackfillingEntities,
   analysisMode,
   chatOpen,
   isAdmin,
@@ -63,6 +77,8 @@ export function TranscriptSelectionBar({
   onDeselectAll,
   onPreIndex,
   onBackfillAll,
+  onBackfillEmbeddings,
+  onBackfillEntities,
   onSaveClick,
   onLoadClick,
   onInsightsClick,
@@ -130,10 +146,31 @@ export function TranscriptSelectionBar({
                 Global: {globalChunkStatus.indexed} / {globalChunkStatus.total}
               </Badge>
             </HoverCardTrigger>
-            <HoverCardContent className="w-64">
-              <div className="space-y-2 text-sm">
+            <HoverCardContent className="w-80">
+              <div className="space-y-3 text-sm">
                 <p><strong>RAG Index Status</strong></p>
                 <p>{globalChunkStatus.indexed} of {globalChunkStatus.total} completed transcripts are indexed for RAG search.</p>
+                
+                {globalChunkStatus.totalChunks !== undefined && (
+                  <div className="space-y-1 pt-2 border-t">
+                    <p><strong>Chunk Quality:</strong></p>
+                    <p className={cn(
+                      globalChunkStatus.withEmbeddings === globalChunkStatus.totalChunks 
+                        ? "text-green-600" 
+                        : "text-amber-600"
+                    )}>
+                      Embeddings: {globalChunkStatus.withEmbeddings?.toLocaleString()} / {globalChunkStatus.totalChunks?.toLocaleString()}
+                    </p>
+                    <p className={cn(
+                      globalChunkStatus.nerCompleted === globalChunkStatus.totalChunks 
+                        ? "text-green-600" 
+                        : "text-amber-600"
+                    )}>
+                      NER Extraction: {globalChunkStatus.nerCompleted?.toLocaleString()} / {globalChunkStatus.totalChunks?.toLocaleString()}
+                    </p>
+                  </div>
+                )}
+
                 {hasUnindexed && (
                   <p className="text-amber-600">
                     {globalChunkStatus.total - globalChunkStatus.indexed} transcripts need indexing for optimal RAG performance.
@@ -169,7 +206,7 @@ export function TranscriptSelectionBar({
               variant="outline"
               size="sm"
               onClick={onBackfillAll}
-              disabled={isIndexing || isBackfilling}
+              disabled={isIndexing || isBackfilling || isBackfillingEmbeddings || isBackfillingEntities}
               title={`Index all ${(globalChunkStatus?.total || 0) - (globalChunkStatus?.indexed || 0)} unindexed transcripts`}
               className="border-amber-500/30 text-amber-600 hover:bg-amber-500/10"
             >
@@ -178,7 +215,45 @@ export function TranscriptSelectionBar({
               ) : (
                 <RefreshCw className="h-4 w-4 mr-1" />
               )}
-              {isBackfilling ? 'Backfilling...' : `Backfill All (${(globalChunkStatus?.total || 0) - (globalChunkStatus?.indexed || 0)})`}
+              {isBackfilling ? 'Backfilling...' : `Backfill Chunks (${(globalChunkStatus?.total || 0) - (globalChunkStatus?.indexed || 0)})`}
+            </Button>
+          )}
+
+          {/* Backfill Embeddings button (Admin only) */}
+          {isAdmin && onBackfillEmbeddings && globalChunkStatus?.missingEmbeddings && globalChunkStatus.missingEmbeddings > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onBackfillEmbeddings}
+              disabled={isIndexing || isBackfilling || isBackfillingEmbeddings || isBackfillingEntities}
+              title={`Generate embeddings for ${globalChunkStatus.missingEmbeddings} chunks`}
+              className="border-blue-500/30 text-blue-600 hover:bg-blue-500/10"
+            >
+              {isBackfillingEmbeddings ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Database className="h-4 w-4 mr-1" />
+              )}
+              {isBackfillingEmbeddings ? 'Generating...' : `Embeddings (${globalChunkStatus.missingEmbeddings.toLocaleString()})`}
+            </Button>
+          )}
+
+          {/* Backfill NER button (Admin only) */}
+          {isAdmin && onBackfillEntities && globalChunkStatus?.nerPending && globalChunkStatus.nerPending > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onBackfillEntities}
+              disabled={isIndexing || isBackfilling || isBackfillingEmbeddings || isBackfillingEntities}
+              title={`Extract entities for ${globalChunkStatus.nerPending} chunks`}
+              className="border-purple-500/30 text-purple-600 hover:bg-purple-500/10"
+            >
+              {isBackfillingEntities ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4 mr-1" />
+              )}
+              {isBackfillingEntities ? 'Extracting...' : `NER (${globalChunkStatus.nerPending.toLocaleString()})`}
             </Button>
           )}
           <Button
