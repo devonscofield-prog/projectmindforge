@@ -7,11 +7,11 @@ export interface BulkTranscriptItem {
   fileName: string;
   rawText: string;
   repId: string;
-  callDate: string;
-  callType: CallType;
+  callDate?: string;        // Optional - defaults to today in edge function
+  callType?: CallType;      // Optional - defaults to 'first_demo'
   callTypeOther?: string;
-  accountName: string;
-  stakeholderName: string;
+  accountName?: string;     // Optional for raw upload mode
+  stakeholderName?: string; // Optional for raw upload mode
   salesforceLink?: string;
 }
 

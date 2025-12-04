@@ -50,11 +50,11 @@ interface TranscriptInput {
   fileName: string;
   rawText: string;
   repId: string;
-  callDate: string;
-  callType: string;
+  callDate?: string;        // Optional - defaults to today
+  callType?: string;        // Optional - defaults to 'first_demo'
   callTypeOther?: string;
-  accountName: string;
-  stakeholderName: string;
+  accountName?: string;     // Optional for raw upload mode
+  stakeholderName?: string; // Optional for raw upload mode
   salesforceLink?: string;
 }
 
@@ -213,17 +213,20 @@ async function insertTranscript(
   prospectId: string | null
 ): Promise<{ transcriptId: string | null; error?: string }> {
   try {
+    // Use defaults for optional fields
+    const today = new Date().toISOString().split('T')[0];
+    
     const { data, error } = await supabase
       .from('call_transcripts')
       .insert({
         rep_id: transcript.repId,
         prospect_id: prospectId,
         raw_text: transcript.rawText,
-        call_date: transcript.callDate,
-        call_type: transcript.callType,
+        call_date: transcript.callDate || today,
+        call_type: transcript.callType || 'first_demo',
         call_type_other: transcript.callTypeOther || null,
-        primary_stakeholder_name: transcript.stakeholderName,
-        account_name: transcript.accountName,
+        primary_stakeholder_name: transcript.stakeholderName || null,
+        account_name: transcript.accountName || null,
         salesforce_demo_link: transcript.salesforceLink || null,
         source: 'bulk_upload',
         analysis_status: 'pending',
@@ -307,16 +310,13 @@ function validateRequest(body: unknown): { valid: true; data: BulkUploadRequest 
     return { valid: false, error: `Maximum ${MAX_TRANSCRIPTS} transcripts per upload` };
   }
 
-  // Validate each transcript
+  // Validate each transcript - only fileName, rawText, and repId are required
   for (let i = 0; i < request.transcripts.length; i++) {
     const t = request.transcripts[i];
     if (!t.fileName) return { valid: false, error: `Transcript ${i + 1}: fileName is required` };
     if (!t.rawText) return { valid: false, error: `Transcript ${i + 1}: rawText is required` };
     if (!t.repId) return { valid: false, error: `Transcript ${i + 1}: repId is required` };
-    if (!t.callDate) return { valid: false, error: `Transcript ${i + 1}: callDate is required` };
-    if (!t.callType) return { valid: false, error: `Transcript ${i + 1}: callType is required` };
-    if (!t.accountName) return { valid: false, error: `Transcript ${i + 1}: accountName is required` };
-    if (!t.stakeholderName) return { valid: false, error: `Transcript ${i + 1}: stakeholderName is required` };
+    // callDate, callType, accountName, stakeholderName are now optional for raw upload mode
   }
 
   return { valid: true, data: request };
@@ -404,17 +404,22 @@ serve(async (req) => {
     const insertResults: BulkUploadResponse['results'] = [];
 
     for (const transcript of transcripts) {
-      // Get or create prospect
-      const { prospectId, error: prospectError } = await getOrCreateProspect(
-        supabase,
-        transcript.repId,
-        transcript.accountName,
-        transcript.stakeholderName,
-        transcript.salesforceLink
-      );
+      // Only create prospect if accountName is provided
+      let prospectId: string | null = null;
+      
+      if (transcript.accountName) {
+        const { prospectId: pid, error: prospectError } = await getOrCreateProspect(
+          supabase,
+          transcript.repId,
+          transcript.accountName,
+          transcript.stakeholderName || 'Unknown',
+          transcript.salesforceLink
+        );
+        prospectId = pid;
 
-      if (prospectError) {
-        console.error(`[bulk-upload] Prospect creation failed for ${transcript.fileName}: ${prospectError}`);
+        if (prospectError) {
+          console.error(`[bulk-upload] Prospect creation failed for ${transcript.fileName}: ${prospectError}`);
+        }
       }
 
       // Insert transcript
