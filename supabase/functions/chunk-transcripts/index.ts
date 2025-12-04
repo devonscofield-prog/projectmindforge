@@ -57,7 +57,8 @@ const NER_BATCH_SIZE = 10;
 const BASE_DELAY_MS = 200;
 const MAX_DELAY_MS = 5000;
 const MAX_RETRIES = 3;
-const BACKFILL_BATCH_SIZE = 50;
+const BACKFILL_BATCH_SIZE = 10; // Reduced from 50 to avoid CPU timeout
+const EMBEDDING_DELAY_MS = 100; // Delay between embeddings to prevent resource exhaustion
 
 // Types
 interface TranscriptChunk {
@@ -245,8 +246,9 @@ async function generateEmbedding(text: string): Promise<string> {
       mean_pool: true,
       normalize: true,
     });
-  // Format as PostgreSQL array string: {0.123, -0.456, ...}
-  return `{${embedding.join(',')}}`;
+    // Format as PostgreSQL vector string: [0.123, -0.456, ...]
+    // CRITICAL: Must use square brackets, not curly braces for pgvector
+    return `[${embedding.join(',')}]`;
   } catch (error) {
     console.error('[chunk-transcripts] Embedding generation failed:', error);
     throw error;
@@ -499,7 +501,8 @@ serve(async (req) => {
       let successCount = 0;
       let errorCount = 0;
 
-      for (const chunk of chunksToProcess) {
+      for (let i = 0; i < chunksToProcess.length; i++) {
+        const chunk = chunksToProcess[i];
         try {
           const embedding = await generateEmbedding(chunk.chunk_text);
           const { error: updateError } = await supabase
@@ -512,6 +515,11 @@ serve(async (req) => {
             errorCount++;
           } else {
             successCount++;
+          }
+          
+          // Add delay between embeddings to prevent CPU exhaustion
+          if (i < chunksToProcess.length - 1) {
+            await new Promise(r => setTimeout(r, EMBEDDING_DELAY_MS));
           }
         } catch (err) {
           console.error(`[chunk-transcripts] Embedding generation failed for chunk ${chunk.id}:`, err);
