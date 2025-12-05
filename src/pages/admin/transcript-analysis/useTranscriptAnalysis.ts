@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -67,8 +67,8 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
   const [resetProgress, setResetProgress] = useState<string | null>(null);
   const [embeddingsProgress, setEmbeddingsProgress] = useState<{ processed: number; total: number } | null>(null);
   const [entitiesProgress, setEntitiesProgress] = useState<{ processed: number; total: number } | null>(null);
-  const [shouldStopBackfill, setShouldStopBackfill] = useState(false);
-  const [shouldStopNERBackfill, setShouldStopNERBackfill] = useState(false);
+  const shouldStopBackfillRef = useRef(false);
+  const shouldStopNERBackfillRef = useRef(false);
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -429,7 +429,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     }
     
     setIsBackfillingEmbeddings(true);
-    setShouldStopBackfill(false);
+    shouldStopBackfillRef.current = false;
     setEmbeddingsProgress(null);
     
     try {
@@ -445,7 +445,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
       let remaining = 1; // Start with assumption there's work to do
       let consecutiveErrors = 0;
       
-      while (remaining > 0 && !shouldStopBackfill && consecutiveErrors < 3) {
+      while (remaining > 0 && !shouldStopBackfillRef.current && consecutiveErrors < 3) {
         const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chunk-transcripts`, {
           method: 'POST',
           headers: {
@@ -488,7 +488,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
         }
       }
       
-      if (shouldStopBackfill) {
+      if (shouldStopBackfillRef.current) {
         toast.info(`Backfill stopped. Processed ${totalProcessed} embeddings.`);
       } else {
         toast.success(`Embeddings backfill complete! ${totalProcessed} embeddings generated.`);
@@ -501,13 +501,13 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     } finally {
       setIsBackfillingEmbeddings(false);
       setEmbeddingsProgress(null);
-      setShouldStopBackfill(false);
+      shouldStopBackfillRef.current = false;
     }
   };
 
   // Stop backfill handler
   const stopEmbeddingsBackfill = () => {
-    setShouldStopBackfill(true);
+    shouldStopBackfillRef.current = true;
     toast.info('Stopping backfill after current batch...');
   };
 
@@ -677,7 +677,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     }
     
     setIsBackfillingEntities(true);
-    setShouldStopNERBackfill(false);
+    shouldStopNERBackfillRef.current = false;
     setEntitiesProgress(null);
     
     try {
@@ -695,7 +695,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
       
       while (remaining > 0 && consecutiveErrors < 3) {
         // Check stop flag at start of each iteration
-        if (shouldStopNERBackfill) break;
+        if (shouldStopNERBackfillRef.current) break;
         
         const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chunk-transcripts`, {
           method: 'POST',
@@ -734,12 +734,12 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
         });
         
         // Small delay between batches
-        if (remaining > 0 && !shouldStopNERBackfill) {
+        if (remaining > 0 && !shouldStopNERBackfillRef.current) {
           await new Promise(r => setTimeout(r, 500));
         }
       }
       
-      if (shouldStopNERBackfill) {
+      if (shouldStopNERBackfillRef.current) {
         toast.info(`NER backfill stopped. Processed ${totalProcessed} entities.`);
       } else {
         toast.success(`NER backfill complete! ${totalProcessed} entities extracted.`);
@@ -752,12 +752,12 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     } finally {
       setIsBackfillingEntities(false);
       setEntitiesProgress(null);
-      setShouldStopNERBackfill(false);
+      shouldStopNERBackfillRef.current = false;
     }
   };
 
   const stopNERBackfill = () => {
-    setShouldStopNERBackfill(true);
+    shouldStopNERBackfillRef.current = true;
     toast.info('Stopping NER backfill after current batch...');
   };
 
