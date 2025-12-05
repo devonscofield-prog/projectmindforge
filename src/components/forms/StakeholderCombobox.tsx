@@ -75,6 +75,7 @@ export function StakeholderCombobox({
           variant="outline"
           role="combobox"
           aria-expanded={open}
+          aria-label="Select or create stakeholder"
           className="w-full justify-between font-normal"
           disabled={disabled}
         >
