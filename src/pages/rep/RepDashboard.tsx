@@ -17,7 +17,8 @@ import type { ProductEntry } from '@/api/aiCallAnalysis';
 import { updateProspect } from '@/api/prospects';
 import { CallType, callTypeOptions } from '@/constants/callTypes';
 import { format } from 'date-fns';
-import { Send, Loader2, Mic, Pencil, BarChart3 } from 'lucide-react';
+import { Send, Loader2, FileText, Pencil, BarChart3 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import { AccountCombobox } from '@/components/forms/AccountCombobox';
 import { StakeholderCombobox } from '@/components/forms/StakeholderCombobox';
 import { ProductSelector } from '@/components/forms/ProductSelector';
@@ -188,12 +189,33 @@ function RepDashboard() {
       setIsSubmitting(false);
     }
   };
+  // Show loading skeleton while profile loads
+  if (!profile) {
+    return (
+      <AppLayout>
+        <div className="space-y-6 md:space-y-8">
+          <div className="text-center space-y-2">
+            <Skeleton className="h-8 w-64 mx-auto" />
+            <Skeleton className="h-5 w-96 mx-auto" />
+            <Skeleton className="h-9 w-48 mx-auto mt-2" />
+          </div>
+          <div className="grid gap-6 lg:gap-8 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <Skeleton className="h-[600px] w-full rounded-lg" />
+            </div>
+            <Skeleton className="h-[400px] w-full rounded-lg" />
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
   return <AppLayout>
       <div className="space-y-6 md:space-y-8">
         {/* Header */}
         <div className="text-center space-y-2">
           <h1 className="text-2xl md:text-3xl font-bold">
-            Welcome back, {profile?.name?.split(' ')[0] || 'Rep'}
+            Welcome back, {profile.name?.split(' ')[0] || 'Rep'}
           </h1>
           <p className="text-sm md:text-base text-muted-foreground">
             Submit your call transcripts for AI-powered coaching and insights
@@ -212,11 +234,11 @@ function RepDashboard() {
             <Card className="border-2">
               <CardHeader className="text-center pb-2">
                 <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                  <Mic className="h-6 w-6 text-primary" />
+                  <FileText className="h-6 w-6 text-primary" />
                 </div>
-                <CardTitle className="text-xl md:text-2xl">Submit a Transcript</CardTitle>
+                <CardTitle className="text-xl md:text-2xl">Analyze a Call</CardTitle>
                 <CardDescription className="text-sm md:text-base">
-                  Paste your call transcript below to get AI coaching, actionable insights, and a recap email draft.
+                  Paste your call transcript to get AI coaching, MEDDPICC scoring, and a recap email draft.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -252,11 +274,18 @@ function RepDashboard() {
                   {/* Date and Call Type Row */}
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="callDate">Call Date</Label>
-                      <Input id="callDate" type="date" value={callDate} onChange={e => setCallDate(e.target.value)} required />
+                      <Label htmlFor="callDate">Call Date *</Label>
+                      <Input 
+                        id="callDate" 
+                        type="date" 
+                        value={callDate} 
+                        onChange={e => setCallDate(e.target.value)} 
+                        max={format(new Date(), 'yyyy-MM-dd')}
+                        required 
+                      />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="callType">Call Type</Label>
+                      <Label htmlFor="callType">Call Type *</Label>
                       <Select value={callType} onValueChange={v => setCallType(v as CallType)}>
                         <SelectTrigger id="callType">
                           <SelectValue />
@@ -279,20 +308,34 @@ function RepDashboard() {
                   {/* Transcript */}
                   <div className="space-y-2">
                     <Label htmlFor="transcript">Call Transcript *</Label>
-                    <Textarea id="transcript" placeholder="Paste your full call transcript here..." value={transcript} onChange={e => setTranscript(e.target.value)} className="min-h-[250px] font-mono text-sm" required />
-                    <p className="text-xs text-muted-foreground">
-                      Include the full conversation for best analysis results.
-                    </p>
+                    <Textarea 
+                      id="transcript" 
+                      placeholder="Paste the full call transcript here. Include the entire conversation—speaker labels are helpful but not required. The more detail you include, the better the analysis." 
+                      value={transcript} 
+                      onChange={e => setTranscript(e.target.value)} 
+                      className="min-h-[200px] md:min-h-[250px] font-mono text-sm" 
+                      required 
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Include the full conversation for best analysis results.</span>
+                      <span className={transcript.length < 500 ? 'text-amber-500' : 'text-muted-foreground'}>
+                        {transcript.length.toLocaleString()} characters
+                        {transcript.length < 500 && transcript.length > 0 && ' (short)'}
+                      </span>
                     </div>
+                  </div>
 
-                    {/* Product Selection */}
-                    <div className="space-y-2">
-                      <Label htmlFor="products">Products Discussed (Optional)</Label>
-                      <ProductSelector
-                        value={selectedProducts}
-                        onChange={setSelectedProducts}
-                      />
-                    </div>
+                  {/* Product Selection */}
+                  <div className="space-y-2">
+                    <Label htmlFor="products">Products Discussed (Optional)</Label>
+                    <p className="text-xs text-muted-foreground -mt-1">
+                      Track products and pricing discussed on this call to calculate active revenue.
+                    </p>
+                    <ProductSelector
+                      value={selectedProducts}
+                      onChange={setSelectedProducts}
+                    />
+                  </div>
 
                     {/* Submit Button */}
                     <Button type="submit" disabled={isSubmitting || !transcript.trim() || stakeholderName.trim().length < 2 || accountName.trim().length < 2 || (!selectedProspectId || !existingAccountHasSalesforceLink) && !salesforceAccountLink.trim()} className="w-full h-12 text-lg" size="lg">
