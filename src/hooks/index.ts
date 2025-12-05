@@ -11,6 +11,7 @@ export * from './useTeams';
 export * from './useReps';
 export * from './useProfiles';
 export * from './useAdminStats';
+export * from './useUserRole';
 export * from './useProspectQueries';
 export * from './useManagerDashboardQueries';
 export * from './useAdminTeamsQueries';
