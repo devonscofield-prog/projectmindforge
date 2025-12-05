@@ -8,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ArrowLeft, Building2, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Building2, ExternalLink, User } from 'lucide-react';
 import { statusLabels, industryOptions } from './constants';
 import type { Prospect, ProspectStatus } from '@/api/prospects';
 import type { Stakeholder } from '@/api/stakeholders';
@@ -17,9 +17,11 @@ interface ProspectHeaderProps {
   prospect: Prospect;
   primaryStakeholder: Stakeholder | undefined;
   onStatusChange: (status: ProspectStatus) => void;
+  repName?: string;
+  showRepName?: boolean;
 }
 
-export function ProspectHeader({ prospect, primaryStakeholder, onStatusChange }: ProspectHeaderProps) {
+export function ProspectHeader({ prospect, primaryStakeholder, onStatusChange, repName, showRepName }: ProspectHeaderProps) {
   const navigate = useNavigate();
 
   return (
@@ -62,6 +64,12 @@ export function ProspectHeader({ prospect, primaryStakeholder, onStatusChange }:
                 </SelectContent>
               </Select>
             </div>
+            {showRepName && repName && (
+              <p className="text-sm text-muted-foreground truncate mt-1 flex items-center gap-1">
+                <User className="h-3.5 w-3.5" />
+                <span>Owned by: {repName}</span>
+              </p>
+            )}
             {primaryStakeholder && (
               <p className="text-sm text-muted-foreground truncate mt-1">
                 Primary: {primaryStakeholder.name}

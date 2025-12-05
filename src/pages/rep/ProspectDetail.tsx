@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { DetailPageSkeleton } from '@/components/ui/skeletons';
 import { useProspectData } from '@/hooks/useProspectData';
+import { useProfile } from '@/hooks/useProfiles';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
 import { getAccountDetailBreadcrumbs } from '@/lib/breadcrumbConfig';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
@@ -73,6 +74,10 @@ function ProspectDetail() {
     setIsStakeholderSheetOpen(true);
   };
 
+  // Fetch rep info for managers/admins
+  const showRepName = role === 'manager' || role === 'admin';
+  const { data: repProfile } = useProfile(showRepName ? prospect?.rep_id : null);
+
   // Get primary stakeholder for header display
   const primaryStakeholder = stakeholders.find(s => s.is_primary_contact);
 
@@ -101,6 +106,8 @@ function ProspectDetail() {
           prospect={prospect}
           primaryStakeholder={primaryStakeholder}
           onStatusChange={handleStatusChange}
+          repName={repProfile?.name}
+          showRepName={showRepName}
         />
 
         {/* Quick Stats Bar */}
