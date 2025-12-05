@@ -49,7 +49,7 @@ export function validateCallNotes(callNotes: string): {
     issues.push(`Call notes too short (${callNotes.length} chars, minimum ${MIN_CALL_NOTES_LENGTH})`);
   }
   
-  // Check for required sections
+  // Check for required sections - this is the most reliable indicator
   const missingSections = REQUIRED_CALL_NOTES_SECTIONS.filter(
     section => !callNotes.includes(section)
   );
@@ -57,13 +57,28 @@ export function validateCallNotes(callNotes: string): {
     issues.push(`Missing sections: ${missingSections.join(', ')}`);
   }
   
-  // Check for truncation indicators (ends mid-sentence without punctuation)
+  // Check for obvious truncation indicators
+  // Only flag as truncated if content is clearly cut off mid-word or mid-sentence
   const trimmed = callNotes.trim();
-  const lastChar = trimmed.charAt(trimmed.length - 1);
-  const validEndChars = ['.', ')', ']', '"', "'", '!', '?', '-', '*'];
-  if (!validEndChars.includes(lastChar)) {
-    issues.push(`Possible truncation detected (ends with: "${lastChar}")`);
+  const lastLine = trimmed.split('\n').pop()?.trim() || '';
+  
+  // Check if the last line looks like it was cut off mid-word
+  // Signs of real truncation: ends with incomplete word, orphan punctuation, or very short fragment
+  const clearTruncationPatterns = [
+    /\s\w{1,2}$/, // Ends with 1-2 letter word (likely cut off)
+    /[,;:]$/, // Ends with continuation punctuation
+    /\s(the|a|an|to|of|and|or|in|on|at|for|is|was|are|were|be|been|have|has|had|will|would|could|should|may|might|must|can|do|does|did)$/i, // Ends with common article/preposition/aux verb
+  ];
+  
+  const isClearlyTruncated = clearTruncationPatterns.some(pattern => pattern.test(lastLine));
+  
+  if (isClearlyTruncated) {
+    issues.push(`Possible truncation detected (last line: "${lastLine.slice(-30)}")`);
   }
   
-  return { valid: issues.length === 0, issues, missingSections };
+  // Only mark as invalid if there are missing sections (reliable indicator)
+  // Truncation warnings are logged but don't fail validation if all sections present
+  const hasHardFailure = missingSections.length > 0 || callNotes.length < MIN_CALL_NOTES_LENGTH;
+  
+  return { valid: !hasHardFailure, issues, missingSections };
 }
