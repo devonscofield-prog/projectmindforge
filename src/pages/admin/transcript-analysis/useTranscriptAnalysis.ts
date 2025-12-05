@@ -681,7 +681,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     setEntitiesProgress(null);
     
     try {
-      const token = await getFreshToken();
+      let token = await getFreshToken();
       if (!token) {
         toast.error('Your session has expired. Please sign in again.');
         return;
@@ -692,10 +692,27 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
       let totalProcessed = 0;
       let remaining = 1; // Start with assumption there's work to do
       let consecutiveErrors = 0;
+      let batchesSinceTokenRefresh = 0;
+      const TOKEN_REFRESH_INTERVAL = 10; // Refresh token every 10 batches
       
       while (remaining > 0 && consecutiveErrors < 3) {
         // Check stop flag at start of each iteration
-        if (shouldStopNERBackfillRef.current) break;
+        if (shouldStopNERBackfillRef.current) {
+          log.info('NER backfill stopped by user', { totalProcessed, remaining });
+          break;
+        }
+        
+        // Refresh token periodically to prevent expiration
+        if (batchesSinceTokenRefresh >= TOKEN_REFRESH_INTERVAL) {
+          log.info('Refreshing auth token...');
+          token = await getFreshToken();
+          if (!token) {
+            log.error('Token refresh failed during NER backfill');
+            toast.error('Session expired. Please sign in again and restart.');
+            break;
+          }
+          batchesSinceTokenRefresh = 0;
+        }
         
         const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chunk-transcripts`, {
           method: 'POST',
@@ -705,6 +722,8 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
           },
           body: JSON.stringify({ backfill_entities: true }),
         });
+        
+        batchesSinceTokenRefresh++;
         
         if (!response.ok) {
           consecutiveErrors++;
@@ -720,7 +739,15 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
         consecutiveErrors = 0;
         const result = await response.json();
         totalProcessed += result.success_count || 0;
-        remaining = result.remaining || 0;
+        
+        // Safer remaining check - don't exit loop if remaining is missing
+        if (typeof result.remaining === 'number') {
+          remaining = result.remaining;
+        } else {
+          // Response missing remaining count - assume there's more work
+          log.warn('Response missing remaining count, assuming more work exists');
+          remaining = 1;
+        }
         
         setEntitiesProgress({
           processed: result.chunks_with_entities || 0,
@@ -730,7 +757,8 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
         log.info('NER batch complete', { 
           batchProcessed: result.success_count, 
           totalProcessed, 
-          remaining 
+          remaining,
+          batchesSinceTokenRefresh
         });
         
         // Small delay between batches
@@ -739,10 +767,20 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
         }
       }
       
+      // Log why loop exited
+      log.info('NER backfill loop exited', { 
+        remaining, 
+        consecutiveErrors, 
+        wasStopped: shouldStopNERBackfillRef.current,
+        totalProcessed 
+      });
+      
       if (shouldStopNERBackfillRef.current) {
         toast.info(`NER backfill stopped. Processed ${totalProcessed} entities.`);
-      } else {
+      } else if (remaining === 0) {
         toast.success(`NER backfill complete! ${totalProcessed} entities extracted.`);
+      } else {
+        toast.warning(`NER backfill paused after errors. Processed ${totalProcessed} entities.`);
       }
       
       refetchGlobalChunkStatus();

@@ -60,7 +60,7 @@ const BASE_DELAY_MS = 200;
 const MAX_DELAY_MS = 5000;
 const MAX_RETRIES = 3;
 const NER_CHUNKS_PER_API_CALL = 3; // Reduced from 5 - smaller payloads = less likely to timeout
-const NER_BACKFILL_BATCH_SIZE = 15; // Total chunks per edge function invocation (5 API calls now)
+const NER_BACKFILL_BATCH_SIZE = 9; // Reduced from 15 - 3 API calls per invocation to stay under 60s timeout
 const CHUNKING_BATCH_SIZE = 50; // For chunking transcripts
 const EMBEDDING_BATCH_SIZE = 10; // Smaller batches for embedding to respect rate limits
 const EMBEDDING_DELAY_MS = 500; // 500ms between embedding API calls to respect 40k TPM limit
