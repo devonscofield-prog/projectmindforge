@@ -73,10 +73,12 @@ export function createQueryClient(): QueryClient {
     }),
     defaultOptions: {
       queries: {
-        staleTime: 1000 * 60, // 1 minute
+        staleTime: 1000 * 30, // 30 seconds - trust cache, reduce duplicate fetches
         gcTime: 1000 * 60 * 5, // 5 minutes (formerly cacheTime)
         retry: 1,
-        refetchOnWindowFocus: false,
+        refetchOnWindowFocus: false, // Don't refetch when user returns to tab
+        refetchOnMount: false, // Trust cached data on component mount
+        refetchOnReconnect: false, // Don't auto-refetch on network reconnect
       },
       mutations: {
         retry: 0,
