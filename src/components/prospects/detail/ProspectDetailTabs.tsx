@@ -1,14 +1,29 @@
+import { lazy, Suspense } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LayoutGrid, Users, History, Brain } from 'lucide-react';
 import { ProspectOpportunityDetails } from './ProspectOpportunityDetails';
 import { ProspectStakeholdersSection } from './ProspectStakeholdersSection';
 import { StakeholderRelationshipMap } from '@/components/prospects/StakeholderRelationshipMap';
-import { ProspectCallHistory } from './ProspectCallHistory';
-import { ProspectEmailLogSection } from './ProspectEmailLogSection';
-import { ProspectActivityLog } from './ProspectActivityLog';
 import { ProspectAIInsights } from './ProspectAIInsights';
 import { ProspectAccountResearch } from './ProspectAccountResearch';
 import { ProspectProductsBreakdown } from './ProspectProductsBreakdown';
+import { Skeleton } from '@/components/ui/skeleton';
+
+// Lazy load heavy components that aren't immediately visible
+const ProspectCallHistory = lazy(() => import('./ProspectCallHistory').then(m => ({ default: m.ProspectCallHistory })));
+const ProspectEmailLogSection = lazy(() => import('./ProspectEmailLogSection').then(m => ({ default: m.ProspectEmailLogSection })));
+const ProspectActivityLog = lazy(() => import('./ProspectActivityLog').then(m => ({ default: m.ProspectActivityLog })));
+
+// Loading fallback for lazy components
+function TabContentSkeleton() {
+  return (
+    <div className="space-y-4">
+      <Skeleton className="h-8 w-48" />
+      <Skeleton className="h-32 w-full" />
+      <Skeleton className="h-24 w-full" />
+    </div>
+  );
+}
 import type { Prospect } from '@/api/prospects';
 import type { Stakeholder } from '@/api/stakeholders';
 import type { StakeholderRelationship } from '@/api/stakeholderRelationships';
@@ -124,17 +139,19 @@ export function ProspectDetailTabs({
       </TabsContent>
 
       <TabsContent value="history" className="space-y-6 mt-6">
-        <ProspectCallHistory calls={calls} />
-        <ProspectEmailLogSection
-          emailLogs={emailLogs}
-          stakeholders={stakeholders}
-          onAddEmail={onAddEmail}
-          onDeleteEmail={onDeleteEmail}
-        />
-        <ProspectActivityLog 
-          activities={activities}
-          onAddActivity={onAddActivity}
-        />
+        <Suspense fallback={<TabContentSkeleton />}>
+          <ProspectCallHistory calls={calls} />
+          <ProspectEmailLogSection
+            emailLogs={emailLogs}
+            stakeholders={stakeholders}
+            onAddEmail={onAddEmail}
+            onDeleteEmail={onDeleteEmail}
+          />
+          <ProspectActivityLog 
+            activities={activities}
+            onAddActivity={onAddActivity}
+          />
+        </Suspense>
       </TabsContent>
     </Tabs>
   );
