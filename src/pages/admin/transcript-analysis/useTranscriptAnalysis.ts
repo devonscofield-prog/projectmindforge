@@ -714,12 +714,13 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
         }
       }
       
-      // Cleanup
+      // Cleanup - capture stop state before resetting
+      const wasStopped = shouldStopNERRef.current;
       setIsNERBackfillRunning(false);
       shouldStopNERRef.current = false;
       refetchGlobalChunkStatus();
       
-      if (shouldStopNERRef.current) {
+      if (wasStopped) {
         toast.info('NER extraction stopped');
       }
     };
