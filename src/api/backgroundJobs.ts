@@ -104,7 +104,7 @@ export async function processNERBatch(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(errorText || 'Failed to process NER batch');
+    throw new Error(`[${response.status}] ${errorText || 'Failed to process NER batch'}`);
   }
 
   return await response.json();
