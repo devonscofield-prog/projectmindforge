@@ -5,21 +5,23 @@ import { RATE_LIMIT_WINDOW_MS, RATE_LIMIT_MAX_REQUESTS } from './constants.ts';
 // Rate limit map (in-memory, resets on cold start)
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 
-// Clean up old rate limit entries periodically
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, value] of rateLimitMap.entries()) {
-    if (now > value.resetTime) {
-      rateLimitMap.delete(key);
-    }
-  }
-}, 60 * 1000);
-
 /**
- * Check rate limit for a user
+ * Check rate limit for a user with passive cleanup of expired entries
+ * Note: Removed setInterval as it's unreliable in edge functions
  */
 export function checkRateLimit(userId: string): { allowed: boolean; retryAfter?: number } {
   const now = Date.now();
+  
+  // Passive cleanup: remove expired entries when checking (max 10 per call to avoid slowdown)
+  let cleanedCount = 0;
+  for (const [key, value] of rateLimitMap.entries()) {
+    if (now > value.resetTime) {
+      rateLimitMap.delete(key);
+      cleanedCount++;
+      if (cleanedCount >= 10) break;
+    }
+  }
+  
   const userLimit = rateLimitMap.get(userId);
   
   if (!userLimit || now > userLimit.resetTime) {
