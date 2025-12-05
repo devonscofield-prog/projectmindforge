@@ -4,7 +4,7 @@ project_id = "wuquclmippzuejqbcksl"
 verify_jwt = false
 
 [functions.reset-database]
-verify_jwt = false
+verify_jwt = true
 
 [functions.analyze-call]
 verify_jwt = true
