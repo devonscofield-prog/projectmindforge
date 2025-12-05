@@ -275,6 +275,14 @@ function AdminTranscriptAnalysis() {
             pageSize={pageSize}
             onToggleTranscript={toggleTranscript}
             onPageChange={setCurrentPage}
+            onClearFilters={() => {
+              setAccountSearch('');
+              setSelectedRepId('all');
+              if (!isTeamScoped && !isSelfScoped) {
+                setSelectedTeamId('all');
+              }
+              handlePresetChange('30d');
+            }}
           />
         )}
       </div>

@@ -369,7 +369,9 @@ export function TranscriptSelectionBar({
                       <div className="flex flex-col">
                         <span>{isResetting ? 'Stop Reindex' : 'Reset & Reindex All'}</span>
                         <span className="text-xs text-muted-foreground">
-                          {isResetting && resetProgress ? resetProgress : 'Full RAG system reset'}
+                          {isResetting && resetProgress 
+                            ? resetProgress 
+                            : `Full RAG system reset (${globalChunkStatus?.total || 0} transcripts)`}
                         </span>
                       </div>
                     </DropdownMenuItem>
