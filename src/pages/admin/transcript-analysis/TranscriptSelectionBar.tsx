@@ -51,6 +51,7 @@ interface TranscriptSelectionBarProps {
   isBackfillingEmbeddings?: boolean;
   isBackfillingEntities?: boolean;
   isResetting?: boolean;
+  isSelectingAll?: boolean;
   resetProgress?: string | null;
   embeddingsProgress?: { processed: number; total: number } | null;
   entitiesProgress?: { processed: number; total: number } | null;
@@ -68,6 +69,7 @@ interface TranscriptSelectionBarProps {
   onStopEmbeddingsBackfill?: () => void;
   onStopNERBackfill?: () => void;
   onResetAndReindex?: () => void;
+  onStopReindex?: () => void;
   onSaveClick: () => void;
   onLoadClick: () => void;
   onInsightsClick: () => void;
@@ -87,6 +89,7 @@ export function TranscriptSelectionBar({
   isBackfillingEmbeddings,
   isBackfillingEntities,
   isResetting,
+  isSelectingAll,
   resetProgress,
   embeddingsProgress,
   entitiesProgress,
@@ -104,6 +107,7 @@ export function TranscriptSelectionBar({
   onStopEmbeddingsBackfill,
   onStopNERBackfill,
   onResetAndReindex,
+  onStopReindex,
   onSaveClick,
   onLoadClick,
   onInsightsClick,
@@ -136,10 +140,15 @@ export function TranscriptSelectionBar({
               variant="outline" 
               size="sm" 
               onClick={onSelectAllMatching}
+              disabled={isSelectingAll}
               aria-label={`Select all ${totalCount} matching transcripts`}
             >
-              <CheckSquare className="h-4 w-4 mr-1" />
-              All ({totalCount})
+              {isSelectingAll ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <CheckSquare className="h-4 w-4 mr-1" />
+              )}
+              {isSelectingAll ? 'Selecting...' : `All (${totalCount})`}
             </Button>
           )}
           <Button 
@@ -348,17 +357,17 @@ export function TranscriptSelectionBar({
                 )}
 
                 {/* Reset & Reindex All */}
-                {onResetAndReindex && (
+                {(onResetAndReindex || isResetting) && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem 
-                      onClick={onResetAndReindex}
-                      disabled={isAnyBackfillRunning}
-                      className="gap-2 text-destructive focus:text-destructive"
+                      onClick={isResetting ? onStopReindex : onResetAndReindex}
+                      disabled={!isResetting && isAnyBackfillRunning}
+                      className={cn("gap-2", !isResetting && "text-destructive focus:text-destructive")}
                     >
                       <RotateCcw className={cn("h-4 w-4", isResetting && "animate-spin")} />
                       <div className="flex flex-col">
-                        <span>{isResetting ? 'Resetting...' : 'Reset & Reindex All'}</span>
+                        <span>{isResetting ? 'Stop Reindex' : 'Reset & Reindex All'}</span>
                         <span className="text-xs text-muted-foreground">
                           {isResetting && resetProgress ? resetProgress : 'Full RAG system reset'}
                         </span>
