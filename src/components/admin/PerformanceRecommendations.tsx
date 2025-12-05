@@ -84,15 +84,22 @@ function getHealthLabel(score: number): string {
 
 const logger = createLogger('PerformanceRecommendations');
 
-async function fetchRecommendations(): Promise<AnalysisResult> {
-  const { data, error } = await supabase.functions.invoke('analyze-performance');
+interface AnalysisResultWithCache extends AnalysisResult {
+  _cached?: boolean;
+  _cachedAt?: string;
+}
+
+async function fetchRecommendations(forceRefresh = false): Promise<AnalysisResultWithCache> {
+  const { data, error } = await supabase.functions.invoke('analyze-performance', {
+    body: { forceRefresh }
+  });
 
   if (error) {
     logger.error('Error fetching recommendations', { error });
     throw error;
   }
 
-  return data as AnalysisResult;
+  return data as AnalysisResultWithCache;
 }
 
 export function PerformanceRecommendations() {
@@ -104,10 +111,9 @@ export function PerformanceRecommendations() {
     data: analysis,
     isLoading,
     error,
-    refetch,
-  } = useQuery({
+  } = useQuery<AnalysisResultWithCache>({
     queryKey: ['performance-recommendations'],
-    queryFn: fetchRecommendations,
+    queryFn: () => fetchRecommendations(false),
     staleTime: 5 * 60 * 1000, // Consider fresh for 5 minutes
     retry: 1,
   });
@@ -135,8 +141,12 @@ export function PerformanceRecommendations() {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await refetch();
-      toast.success('Recommendations updated');
+      // Force refresh bypasses server cache
+      await queryClient.fetchQuery({
+        queryKey: ['performance-recommendations'],
+        queryFn: () => fetchRecommendations(true),
+      });
+      toast.success('Recommendations regenerated');
     } catch (e) {
       toast.error('Failed to refresh recommendations');
     } finally {
@@ -213,6 +223,11 @@ export function PerformanceRecommendations() {
         </div>
         <CardDescription>
           Automated optimization suggestions based on your performance data
+          {analysis?._cached && analysis._cachedAt && (
+            <span className="ml-1 text-xs">
+              (cached {new Date(analysis._cachedAt).toLocaleTimeString()})
+            </span>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
