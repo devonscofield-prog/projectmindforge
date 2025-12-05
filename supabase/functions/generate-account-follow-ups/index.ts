@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
 
 // Rate limiting: 10 requests per minute per user (this is a heavier operation)
@@ -7,7 +7,23 @@ const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 10;
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 
+// Passive cleanup: clean old entries during rate limit checks
+function cleanupRateLimitEntries(): void {
+  const now = Date.now();
+  let cleaned = 0;
+  for (const [key, value] of rateLimitMap.entries()) {
+    if (now > value.resetTime) {
+      rateLimitMap.delete(key);
+      cleaned++;
+      if (cleaned >= 10) break; // Limit cleanup per call
+    }
+  }
+}
+
 function checkRateLimit(userId: string): { allowed: boolean; retryAfter?: number } {
+  // Passive cleanup on each check
+  cleanupRateLimitEntries();
+  
   const now = Date.now();
   const userLimit = rateLimitMap.get(userId);
   
@@ -25,15 +41,34 @@ function checkRateLimit(userId: string): { allowed: boolean; retryAfter?: number
   return { allowed: true };
 }
 
-// Clean up old rate limit entries periodically
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, value] of rateLimitMap.entries()) {
-    if (now > value.resetTime) {
-      rateLimitMap.delete(key);
-    }
+// Update background job status helper
+async function updateJobStatus(
+  supabase: SupabaseClient,
+  jobId: string | null,
+  status: 'processing' | 'completed' | 'failed',
+  error?: string
+): Promise<void> {
+  if (!jobId) return;
+  
+  const updates: Record<string, unknown> = { 
+    status, 
+    updated_at: new Date().toISOString() 
+  };
+  
+  if (error) {
+    updates.error = error;
   }
-}, 60 * 1000);
+  
+  if (status === 'processing') {
+    updates.started_at = new Date().toISOString();
+  }
+  
+  if (status === 'completed' || status === 'failed') {
+    updates.completed_at = new Date().toISOString();
+  }
+  
+  await supabase.from('background_jobs').update(updates).eq('id', jobId);
+}
 
 // CORS: Restrict to production domains
 function getCorsHeaders(origin?: string | null): Record<string, string> {
@@ -50,7 +85,8 @@ function getCorsHeaders(origin?: string | null): Record<string, string> {
 
 // Zod validation schema
 const generateFollowUpsSchema = z.object({
-  prospect_id: z.string().uuid({ message: "Invalid prospect_id UUID format" })
+  prospect_id: z.string().uuid({ message: "Invalid prospect_id UUID format" }),
+  job_id: z.string().uuid().optional()
 });
 
 // Sales veteran system prompt for generating follow-up steps
@@ -147,9 +183,12 @@ serve(async (req) => {
       );
     }
 
-    const { prospect_id } = validation.data;
+    const { prospect_id, job_id } = validation.data;
 
-    console.log(`[generate-account-follow-ups] Starting for prospect: ${prospect_id}`);
+    console.log(`[generate-account-follow-ups] Starting for prospect: ${prospect_id}${job_id ? ` (job: ${job_id})` : ''}`);
+    
+    // Mark job as processing
+    await updateJobStatus(supabase, job_id || null, 'processing');
 
     // Check for internal service call (from analyze-call or other edge functions)
     const authHeader = req.headers.get('Authorization');
@@ -442,6 +481,9 @@ serve(async (req) => {
       })
       .eq('id', prospect_id);
 
+    // Mark job as completed
+    await updateJobStatus(supabase, job_id || null, 'completed');
+
     console.log(`[generate-account-follow-ups] Completed successfully for prospect: ${prospect_id}`);
 
     return new Response(
@@ -452,20 +494,25 @@ serve(async (req) => {
   } catch (error) {
     console.error('[generate-account-follow-ups] Error:', error);
     
-    // Try to update status to error if we have prospect_id
+    // Try to update status to error if we have prospect_id and job_id
     try {
-      const { prospect_id } = await req.clone().json();
+      const parsedBody = await req.clone().json();
+      const { prospect_id, job_id } = parsedBody;
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const supabase = createClient(supabaseUrl, supabaseServiceKey);
+      
       if (prospect_id) {
-        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-        const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-        const supabase = createClient(supabaseUrl, supabaseServiceKey);
         await supabase
           .from('prospects')
           .update({ follow_ups_generation_status: 'error' })
           .eq('id', prospect_id);
       }
+      
+      // Mark job as failed
+      await updateJobStatus(supabase, job_id || null, 'failed', error instanceof Error ? error.message : 'Unknown error');
     } catch (e) {
-      // Ignore
+      // Ignore cleanup errors
     }
 
     return new Response(

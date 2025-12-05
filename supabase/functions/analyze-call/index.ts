@@ -213,7 +213,7 @@ serve(async (req) => {
     if (prospectId && currentProspect && (analysis.prospect_intel || analysis.coach_output)) {
       logger.startPhase('update_prospect');
       try {
-        await updateProspectWithIntel(supabaseAdmin, prospectId, currentProspect, analysis, callId);
+        await updateProspectWithIntel(supabaseAdmin, prospectId, currentProspect, analysis, callId, logger);
       } catch (prospectErr) {
         logger.error('Failed to update prospect', { error: String(prospectErr) });
       }
@@ -224,7 +224,7 @@ serve(async (req) => {
     if (prospectId && stakeholders_intel && stakeholders_intel.length > 0) {
       logger.startPhase('process_stakeholders');
       try {
-        await processStakeholdersBatched(supabaseAdmin, prospectId, repId, callId, stakeholders_intel);
+        await processStakeholdersBatched(supabaseAdmin, prospectId, repId, callId, stakeholders_intel, logger);
       } catch (stakeholderErr) {
         logger.error('Failed to process stakeholders', { error: String(stakeholderErr) });
       }
@@ -240,7 +240,8 @@ serve(async (req) => {
       prospectId,
       callId,
       user.id,
-      EdgeRuntime.waitUntil
+      EdgeRuntime.waitUntil,
+      logger
     );
     logger.endPhase();
 

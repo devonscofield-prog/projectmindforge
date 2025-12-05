@@ -2,6 +2,7 @@
 
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import type { AnalysisResult, ProspectData, StakeholderIntel } from './types.ts';
+import type { Logger } from './logger.ts';
 
 /**
  * Update prospect with AI-extracted intel (consolidated single query)
@@ -11,7 +12,8 @@ export async function updateProspectWithIntel(
   prospectId: string,
   currentProspect: ProspectData,
   analysis: AnalysisResult,
-  callId: string
+  callId: string,
+  logger?: Logger
 ): Promise<void> {
   const prospectUpdates: Record<string, unknown> = {};
   
@@ -22,7 +24,7 @@ export async function updateProspectWithIntel(
     // Auto-populate industry only if not already set
     if (analysis.prospect_intel.industry && !currentProspect.industry) {
       prospectUpdates.industry = analysis.prospect_intel.industry;
-      console.log(`[analyze-call] Auto-populating industry: ${analysis.prospect_intel.industry}`);
+      logger?.info('Auto-populating industry', { industry: analysis.prospect_intel.industry });
     }
   }
   
@@ -51,7 +53,11 @@ export async function updateProspectWithIntel(
         extracted_at: new Date().toISOString(),
       },
     };
-    console.log('[analyze-call] Including user counts in prospect update');
+    logger?.info('Including user counts in prospect update', { 
+      it_users: userCounts.it_users, 
+      end_users: userCounts.end_users, 
+      ai_users: userCounts.ai_users 
+    });
   }
 
   // Execute single consolidated prospect update
@@ -62,9 +68,15 @@ export async function updateProspectWithIntel(
       .eq('id', prospectId);
     
     if (updateProspectError) {
-      console.error('[analyze-call] Failed to update prospect:', updateProspectError);
+      logger?.error('Failed to update prospect', { 
+        prospectId, 
+        error: updateProspectError.message 
+      });
     } else {
-      console.log(`[analyze-call] Updated prospect ${prospectId} with AI intel (single query)`);
+      logger?.info('Updated prospect with AI intel', { 
+        prospectId, 
+        fieldsUpdated: Object.keys(prospectUpdates).length 
+      });
     }
   }
 }
@@ -77,9 +89,13 @@ export async function processStakeholdersBatched(
   prospectId: string,
   repId: string,
   callId: string,
-  stakeholdersIntel: StakeholderIntel[]
+  stakeholdersIntel: StakeholderIntel[],
+  logger?: Logger
 ): Promise<void> {
-  console.log(`[analyze-call] Processing ${stakeholdersIntel.length} stakeholders (batched)`);
+  logger?.info('Processing stakeholders', { 
+    count: stakeholdersIntel.length, 
+    mode: 'batched' 
+  });
   
   // Single query to get all existing stakeholders for this prospect
   const { data: existingStakeholders } = await supabaseAdmin
@@ -143,7 +159,7 @@ export async function processStakeholdersBatched(
       .update(update.data)
       .eq('id', update.id);
   }
-  console.log(`[analyze-call] Updated ${stakeholderUpdates.length} existing stakeholders`);
+  logger?.info('Updated existing stakeholders', { count: stakeholderUpdates.length });
   
   // Batch insert new stakeholders
   if (stakeholderInserts.length > 0) {
@@ -153,9 +169,11 @@ export async function processStakeholdersBatched(
       .select('id, name');
     
     if (insertStakeholdersError) {
-      console.error('[analyze-call] Failed to batch insert stakeholders:', insertStakeholdersError);
+      logger?.error('Failed to batch insert stakeholders', { 
+        error: insertStakeholdersError.message 
+      });
     } else if (newStakeholders) {
-      console.log(`[analyze-call] Created ${newStakeholders.length} new stakeholders`);
+      logger?.info('Created new stakeholders', { count: newStakeholders.length });
       
       // Queue mentions for new stakeholders
       for (const newS of newStakeholders) {
@@ -179,13 +197,15 @@ export async function processStakeholdersBatched(
       .upsert(mentionsToInsert, { onConflict: 'call_id,stakeholder_id' });
     
     if (mentionsError) {
-      console.error('[analyze-call] Failed to batch upsert mentions:', mentionsError);
+      logger?.error('Failed to batch upsert mentions', { 
+        error: mentionsError.message 
+      });
     } else {
-      console.log(`[analyze-call] Upserted ${mentionsToInsert.length} stakeholder mentions`);
+      logger?.info('Upserted stakeholder mentions', { count: mentionsToInsert.length });
     }
   }
   
-  console.log(`[analyze-call] Finished processing stakeholders`);
+  logger?.info('Finished processing stakeholders');
 }
 
 /**
@@ -195,7 +215,8 @@ export async function createBackgroundJob(
   supabaseAdmin: SupabaseClient,
   jobType: string,
   createdBy: string,
-  metadata?: Record<string, unknown>
+  metadata?: Record<string, unknown>,
+  logger?: Logger
 ): Promise<string | null> {
   const { data, error } = await supabaseAdmin
     .from('background_jobs')
@@ -209,10 +230,63 @@ export async function createBackgroundJob(
     .single();
   
   if (error) {
-    console.error(`[analyze-call] Failed to create background job: ${error.message}`);
+    logger?.error('Failed to create background job', { 
+      jobType, 
+      error: error.message 
+    });
     return null;
   }
+  
+  logger?.info('Created background job', { jobId: data?.id, jobType });
   return data?.id || null;
+}
+
+/**
+ * Update background job status
+ */
+export async function updateBackgroundJobStatus(
+  supabaseAdmin: SupabaseClient,
+  jobId: string,
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled',
+  progress?: Record<string, unknown>,
+  error?: string,
+  logger?: Logger
+): Promise<void> {
+  const updates: Record<string, unknown> = { 
+    status, 
+    updated_at: new Date().toISOString() 
+  };
+  
+  if (progress) {
+    updates.progress = progress;
+  }
+  
+  if (error) {
+    updates.error = error;
+  }
+  
+  if (status === 'processing') {
+    updates.started_at = new Date().toISOString();
+  }
+  
+  if (status === 'completed' || status === 'failed' || status === 'cancelled') {
+    updates.completed_at = new Date().toISOString();
+  }
+  
+  const { error: updateError } = await supabaseAdmin
+    .from('background_jobs')
+    .update(updates)
+    .eq('id', jobId);
+  
+  if (updateError) {
+    logger?.error('Failed to update background job', { 
+      jobId, 
+      status, 
+      error: updateError.message 
+    });
+  } else {
+    logger?.info('Updated background job status', { jobId, status });
+  }
 }
 
 /**
@@ -225,16 +299,20 @@ export async function triggerBackgroundTasks(
   prospectId: string | null,
   callId: string,
   userId: string,
-  waitUntil: (promise: Promise<unknown>) => void
+  waitUntil: (promise: Promise<unknown>) => void,
+  logger?: Logger
 ): Promise<void> {
   // Trigger follow-up generation if prospect exists
   if (prospectId) {
-    const jobId = await createBackgroundJob(supabaseAdmin, 'follow_up_generation', userId, {
-      prospect_id: prospectId,
-      triggered_by_call: callId
-    });
+    const jobId = await createBackgroundJob(
+      supabaseAdmin, 
+      'follow_up_generation', 
+      userId, 
+      { prospect_id: prospectId, triggered_by_call: callId },
+      logger
+    );
     
-    console.log(`[analyze-call] Triggering follow-up generation for prospect: ${prospectId} (job: ${jobId})`);
+    logger?.info('Triggering follow-up generation', { prospectId, jobId });
     waitUntil(
       fetch(`${supabaseUrl}/functions/v1/generate-account-follow-ups`, {
         method: 'POST',
@@ -243,16 +321,20 @@ export async function triggerBackgroundTasks(
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ prospect_id: prospectId, job_id: jobId })
-      }).catch(err => console.error('[analyze-call] Failed to trigger follow-up generation:', err))
+      }).catch(err => logger?.error('Failed to trigger follow-up generation', { error: String(err) }))
     );
   }
 
   // Trigger transcript chunking for RAG indexing
-  const chunkJobId = await createBackgroundJob(supabaseAdmin, 'transcript_chunking', userId, {
-    call_id: callId
-  });
+  const chunkJobId = await createBackgroundJob(
+    supabaseAdmin, 
+    'transcript_chunking', 
+    userId, 
+    { call_id: callId },
+    logger
+  );
   
-  console.log(`[analyze-call] Triggering transcript chunking for call: ${callId} (job: ${chunkJobId})`);
+  logger?.info('Triggering transcript chunking', { callId, jobId: chunkJobId });
   waitUntil(
     fetch(`${supabaseUrl}/functions/v1/chunk-transcripts`, {
       method: 'POST',
@@ -261,6 +343,6 @@ export async function triggerBackgroundTasks(
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ call_ids: [callId], job_id: chunkJobId })
-    }).catch(err => console.error('[analyze-call] Failed to trigger chunking:', err))
+    }).catch(err => logger?.error('Failed to trigger chunking', { error: String(err) }))
   );
 }
