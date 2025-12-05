@@ -21,6 +21,7 @@ interface TranscriptTableProps {
   pageSize: number;
   onToggleTranscript: (id: string) => void;
   onPageChange: (page: number) => void;
+  onClearFilters?: () => void;
 }
 
 const STATUS_CONFIG = {
@@ -66,6 +67,7 @@ export function TranscriptTable({
   pageSize,
   onToggleTranscript,
   onPageChange,
+  onClearFilters,
 }: TranscriptTableProps) {
   const renderStatusBadge = (status: string) => {
     const config = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.pending;
@@ -100,10 +102,10 @@ export function TranscriptTable({
             title="No transcripts found"
             description="No transcripts match your current filters."
             className="py-12"
-            action={{
+            action={onClearFilters ? {
               label: 'Clear All Filters',
-              onClick: () => window.location.reload()
-            }}
+              onClick: onClearFilters
+            } : undefined}
           />
         ) : (
           <ScrollArea className="h-[500px]">

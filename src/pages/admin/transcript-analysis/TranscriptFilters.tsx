@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -66,6 +67,23 @@ export function TranscriptFilters({
   hideTeamFilter = false,
   hideRepFilter = false,
 }: TranscriptFiltersProps) {
+  // Debounce account search - local state updates immediately, parent notified after delay
+  const [localAccountSearch, setLocalAccountSearch] = useState(accountSearch);
+  
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (localAccountSearch !== accountSearch) {
+        onAccountSearchChange(localAccountSearch);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [localAccountSearch, accountSearch, onAccountSearchChange]);
+
+  // Sync local state if parent changes (e.g., from clear filters)
+  useEffect(() => {
+    setLocalAccountSearch(accountSearch);
+  }, [accountSearch]);
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -98,9 +116,9 @@ export function TranscriptFilters({
                 <>
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm" className="w-[120px] justify-start text-left font-normal">
+                    <Button variant="outline" size="sm" className="w-[130px] justify-start text-left font-normal">
                         <CalendarIcon className="mr-2 h-4 w-4" />
-                        {format(dateRange.from, 'MMM d, yy')}
+                        {format(dateRange.from, 'MMM d, yyyy')}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
@@ -116,9 +134,9 @@ export function TranscriptFilters({
                   <span className="text-muted-foreground text-sm">to</span>
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm" className="w-[120px] justify-start text-left font-normal">
+                    <Button variant="outline" size="sm" className="w-[130px] justify-start text-left font-normal">
                         <CalendarIcon className="mr-2 h-4 w-4" />
-                        {format(dateRange.to, 'MMM d, yy')}
+                        {format(dateRange.to, 'MMM d, yyyy')}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
@@ -190,8 +208,8 @@ export function TranscriptFilters({
               <Input
                 id="account-search"
                 placeholder="Search accounts..."
-                value={accountSearch}
-                onChange={(e) => onAccountSearchChange(e.target.value)}
+                value={localAccountSearch}
+                onChange={(e) => setLocalAccountSearch(e.target.value)}
                 className="pl-8 w-[180px]"
                 aria-label="Search accounts"
               />
