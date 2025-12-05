@@ -65,159 +65,209 @@ function getCorsHeaders(origin?: string | null): Record<string, string> {
 // UUID validation regex
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// System prompt for call analysis - includes call_notes and recap_email_draft generation
-const ANALYSIS_SYSTEM_PROMPT = `You are an AI Sales Call Analyst for StormWind.
+// Compressed system prompt - optimized for token efficiency while maintaining clarity
+const ANALYSIS_SYSTEM_PROMPT = `You are an AI Sales Call Analyst for StormWind. Analyze call transcripts and generate:
+1. Structured JSON analysis for coaching
+2. Internal Call Notes (markdown)
+3. Customer-facing Recap Email Draft
+4. AI Call Coach feedback with framework scores
+5. Stakeholder intelligence
 
-Your job is to analyze a full call transcript and generate:
-1. A structured JSON analysis for coaching
-2. Internal Call Notes for CRM use
-3. A customer-facing Recap Email Draft for the rep to send
-4. AI Call Coach feedback with framework scores and improvements
-5. Stakeholder intelligence - details about each person mentioned in the call
+CALL NOTES (markdown, bullet points only):
+Required sections in order: ## Call Overview, ## Participants, ## Business Context & Pain, ## Current State / Environment, ## Solution Topics Discussed, ## Decision Process & Stakeholders, ## Timeline & Urgency, ## Budget / Commercials, ## Next Steps & Commitments, ## Risks & Open Questions, ## Competitors Mentioned
+- Never fabricate data. If not discussed, state "- Not discussed."
+- Competitors: Only list if named. If referenced indirectly: "- A competitor was referenced indirectly but not named."
 
-You must follow all formatting rules exactly.
+RECAP EMAIL (plain text with markdown links):
+Format: Subject: <short subject>
+Hi {{ProspectFirstName}},
+<Thank you + summary bullets + value paragraph + next steps if discussed>
 
-PART 1 — CALL NOTES (field: call_notes)
-- Format: Markdown.
-- Must contain these section headers in this exact order:
-  ## Call Overview
-  ## Participants
-  ## Business Context & Pain
-  ## Current State / Environment
-  ## Solution Topics Discussed
-  ## Decision Process & Stakeholders
-  ## Timeline & Urgency
-  ## Budget / Commercials
-  ## Next Steps & Commitments
-  ## Risks & Open Questions
-  ## Competitors Mentioned
-- Use concise bullet points only.
-- Never fabricate names, dates, prices, or commitments.
-- If something wasn't discussed, explicitly state that (e.g. "- Budget not discussed.").
-- In "Competitors Mentioned":
-  - Only list competitors actually named or clearly referenced.
-  - If unnamed competitor is referenced, say "- A competitor was referenced indirectly but not named."
-  - If none: "- None mentioned."
+CRITICAL - REQUIRED LINKS (copy verbatim at email end):
+You can learn more here:
+[StormWind Website](https://info.stormwind.com/)
+View sample courses here:
+[View Sample Courses](https://info.stormwind.com/training-samples)
+Best,
+{{RepFirstName}}
+{{RepCompanyName}}
 
-PART 2 — RECAP EMAIL DRAFT (field: recap_email_draft)
-- Format: plain text email body with markdown links.
-- Must start with a Subject line:
-  Subject: <short subject>
-- Then:
-  Hi {{ProspectFirstName}},
+COACHING FIELDS:
+- call_summary: 2-3 sentences
+- confidence: 0.0-1.0
+- trend_indicators: {area: "improving"|"stable"|"declining"}
+- deal_gaps: {critical_missing_info: [], unresolved_objections: []}
+- strengths/opportunities: [{area, example}]
+- skill_tags, deal_tags, meta_tags: string[]
 
-  <Thank you + call purpose>
+MEDDPICC (Most Important) - Score 0-100 + justification for each:
+M=Metrics (quantifiable outcomes), E=Economic Buyer (budget authority), D1=Decision Criteria, D2=Decision Process, P=Paper Process (procurement/legal), I=Identify Pain, C=Champion (internal advocate), C2=Competition
++ overall_score (weighted avg) + summary (2-3 sentences)
 
-  <Summary of key points (bullets or short lines)>
+Gap Selling & Active Listening: Score 0-100 + 1-sentence summary + 1-2 improvements
 
-  <Value alignment paragraph>
+Additional Coaching:
+- 3-5 critical_info_missing with missed_opportunity (reference specific call moments)
+- 3-5 recommended_follow_up_questions with timing_example
+- heat_signature: 1-10 score + explanation
 
-  <Next steps (ONLY if actually discussed)>
+STAKEHOLDER INTEL - For each person:
+- name, job_title, influence_level (light_influencer|heavy_influencer|secondary_dm|final_dm)
+- champion_score (1-10), champion_score_reasoning, was_present (bool), ai_notes
 
-**CRITICAL REQUIREMENT - REQUIRED LINKS:**
-- You MUST ALWAYS include these EXACT lines at the bottom of EVERY recap email, word-for-word:
+USER COUNTS (only if explicitly mentioned, never estimate):
+- it_users, end_users, ai_users with source_quote
 
-  You can learn more here:
-  [StormWind Website](https://info.stormwind.com/)
+Return all fields via submit_call_analysis function.`;
 
-  View sample courses here:
-  [View Sample Courses](https://info.stormwind.com/training-samples)
+// Tool schema for structured output - defined once at cold start
+const ANALYSIS_TOOL_SCHEMA = {
+  type: "function",
+  function: {
+    name: "submit_call_analysis",
+    description: "Submit complete analysis results for a sales call transcript",
+    parameters: {
+      type: "object",
+      properties: {
+        call_summary: { type: "string", description: "2-3 sentence summary" },
+        confidence: { type: "number", description: "0.0-1.0" },
+        trend_indicators: { type: "object", additionalProperties: { type: "string" } },
+        deal_gaps: {
+          type: "object",
+          properties: {
+            critical_missing_info: { type: "array", items: { type: "string" } },
+            unresolved_objections: { type: "array", items: { type: "string" } }
+          },
+          required: ["critical_missing_info", "unresolved_objections"]
+        },
+        strengths: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: { area: { type: "string" }, example: { type: "string" } },
+            required: ["area", "example"]
+          }
+        },
+        opportunities: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: { area: { type: "string" }, example: { type: "string" } },
+            required: ["area", "example"]
+          }
+        },
+        skill_tags: { type: "array", items: { type: "string" } },
+        deal_tags: { type: "array", items: { type: "string" } },
+        meta_tags: { type: "array", items: { type: "string" } },
+        call_notes: { type: "string", description: "Markdown with required sections" },
+        recap_email_draft: { type: "string", description: "Email with required links" },
+        coach_output: {
+          type: "object",
+          properties: {
+            call_type: { type: "string" },
+            duration_minutes: { type: "number" },
+            framework_scores: {
+              type: "object",
+              properties: {
+                meddpicc: {
+                  type: "object",
+                  properties: {
+                    metrics: { type: "object", properties: { score: { type: "number" }, justification: { type: "string" } }, required: ["score", "justification"] },
+                    economic_buyer: { type: "object", properties: { score: { type: "number" }, justification: { type: "string" } }, required: ["score", "justification"] },
+                    decision_criteria: { type: "object", properties: { score: { type: "number" }, justification: { type: "string" } }, required: ["score", "justification"] },
+                    decision_process: { type: "object", properties: { score: { type: "number" }, justification: { type: "string" } }, required: ["score", "justification"] },
+                    paper_process: { type: "object", properties: { score: { type: "number" }, justification: { type: "string" } }, required: ["score", "justification"] },
+                    identify_pain: { type: "object", properties: { score: { type: "number" }, justification: { type: "string" } }, required: ["score", "justification"] },
+                    champion: { type: "object", properties: { score: { type: "number" }, justification: { type: "string" } }, required: ["score", "justification"] },
+                    competition: { type: "object", properties: { score: { type: "number" }, justification: { type: "string" } }, required: ["score", "justification"] },
+                    overall_score: { type: "number" },
+                    summary: { type: "string" }
+                  },
+                  required: ["metrics", "economic_buyer", "decision_criteria", "decision_process", "paper_process", "identify_pain", "champion", "competition", "overall_score", "summary"]
+                },
+                gap_selling: { type: "object", properties: { score: { type: "number" }, summary: { type: "string" } }, required: ["score", "summary"] },
+                active_listening: { type: "object", properties: { score: { type: "number" }, summary: { type: "string" } }, required: ["score", "summary"] }
+              },
+              required: ["meddpicc", "gap_selling", "active_listening"]
+            },
+            meddpicc_improvements: { type: "array", items: { type: "string" } },
+            gap_selling_improvements: { type: "array", items: { type: "string" } },
+            active_listening_improvements: { type: "array", items: { type: "string" } },
+            critical_info_missing: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: { info: { type: "string" }, missed_opportunity: { type: "string" } },
+                required: ["info", "missed_opportunity"]
+              }
+            },
+            recommended_follow_up_questions: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: { question: { type: "string" }, timing_example: { type: "string" } },
+                required: ["question", "timing_example"]
+              }
+            },
+            heat_signature: {
+              type: "object",
+              properties: { score: { type: "number" }, explanation: { type: "string" } },
+              required: ["score", "explanation"]
+            }
+          },
+          required: ["call_type", "duration_minutes", "framework_scores", "meddpicc_improvements", "gap_selling_improvements", "active_listening_improvements", "critical_info_missing", "recommended_follow_up_questions", "heat_signature"]
+        },
+        prospect_intel: {
+          type: "object",
+          properties: {
+            business_context: { type: "string" },
+            pain_points: { type: "array", items: { type: "string" } },
+            current_state: { type: "string" },
+            decision_process: {
+              type: "object",
+              properties: {
+                stakeholders: { type: "array", items: { type: "string" } },
+                timeline: { type: "string" },
+                budget_signals: { type: "string" }
+              }
+            },
+            competitors_mentioned: { type: "array", items: { type: "string" } },
+            industry: { type: "string", enum: ["education", "local_government", "state_government", "federal_government", "healthcare", "msp", "technology", "finance", "manufacturing", "retail", "nonprofit", "other"] },
+            user_counts: {
+              type: "object",
+              properties: {
+                it_users: { type: "number" },
+                end_users: { type: "number" },
+                ai_users: { type: "number" },
+                source_quote: { type: "string" }
+              }
+            }
+          }
+        },
+        stakeholders_intel: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              job_title: { type: "string" },
+              influence_level: { type: "string", enum: ["light_influencer", "heavy_influencer", "secondary_dm", "final_dm"] },
+              champion_score: { type: "number" },
+              champion_score_reasoning: { type: "string" },
+              was_present: { type: "boolean" },
+              ai_notes: { type: "string" }
+            },
+            required: ["name", "influence_level"]
+          }
+        }
+      },
+      required: ["call_summary", "confidence", "trend_indicators", "deal_gaps", "strengths", "opportunities", "skill_tags", "deal_tags", "meta_tags", "call_notes", "recap_email_draft", "coach_output", "prospect_intel"]
+    }
+  }
+} as const;
 
-  Best,
-  {{RepFirstName}}
-  {{RepCompanyName}}
-
-- FAILURE TO INCLUDE THESE EXACT LINKS WILL CAUSE THE ANALYSIS TO FAIL.
-- Copy these links character-for-character. Do not paraphrase or modify them.
-
-- Do NOT:
-  - Invent commitments, dates, or prices.
-  - Remove, modify, or paraphrase the two required links above.
-  - Remove placeholders like {{ProspectFirstName}}.
-
-PART 3 — COACHING FIELDS
-Also include:
-- call_summary: 2-3 sentence summary of the call
-- confidence: Your confidence in the analysis from 0.0 to 1.0
-- trend_indicators: Object with trend directions (e.g., {"discovery": "improving", "objections": "stable"})
-- deal_gaps: Object with "critical_missing_info" (array of strings) and "unresolved_objections" (array of strings)
-- strengths: Array of objects with "area" and "example" fields showing what went well
-- opportunities: Array of objects with "area" and "example" fields for improvement areas
-- skill_tags: Array of skill-related tags (e.g., "discovery_depth_medium", "rapport_strong")
-- deal_tags: Array of deal-related tags (e.g., "no_confirmed_timeline", "single_threaded")
-- meta_tags: Array of metadata tags (e.g., "short_transcript", "first_call")
-
-### StormWind AI Call Coach — Concise Edition (v8)
-In addition to all existing outputs, act as the StormWind AI Call Coach. Populate the \`coach_output\` field with:
-- Call Type (Discovery, Demo, Negotiation)
-- Duration in minutes (estimate based on transcript length if not explicit)
-- Framework scores (MEDDPICC, Gap Selling, Active Listening)
-
-#### MEDDPICC Framework (Most Important)
-For MEDDPICC, provide a SCORE (0-100) and JUSTIFICATION for EACH of the 8 elements:
-• Metrics (M): Did the rep uncover quantifiable business outcomes the prospect wants to achieve?
-• Economic Buyer (E): Was the person with final budget authority and sign-off power identified?
-• Decision Criteria (D1): Were the formal evaluation criteria and requirements established?
-• Decision Process (D2): Was the buying process, approval chain, and timeline mapped out?
-• Paper Process (P): Was procurement, legal review, or contract process discussed?
-• Identify Pain (I): Were business pains, their root causes, and business impact thoroughly uncovered?
-• Champion (C): Is there an internal advocate who is actively selling on your behalf?
-• Competition (C2): Were alternatives, competitors, or "do nothing" options understood?
-
-For each element, provide:
-- score: 0-100 based on evidence from the transcript
-- justification: 1-2 sentences with specific examples from the call explaining the score
-
-Also provide:
-- overall_score: Weighted average of all 8 elements (0-100)
-- summary: 2-3 sentence assessment of MEDDPICC qualification status
-
-#### Gap Selling Framework
-- Score 0-100 with 1-sentence summary
-- 1-2 improvement points
-
-#### Active Listening Framework
-- Score 0-100 with 1-sentence summary
-- 1-2 improvement points
-
-#### Additional Coaching Output
-- 3–5 critical missing pieces needed to close the deal, each with a specific example of when during the call the rep missed an opportunity to ask for this information (referencing what the prospect said or the moment in the conversation)
-- 3–5 recommended follow-up questions, each with a specific example of when during the call it would have been best to ask (referencing what the prospect said or the moment in the conversation)
-- Heat Signature (1–10) with explanation of deal temperature/likelihood to close
-Use direct evidence from transcript or explicitly say "⚠️ No evidence found."
-
-### Stakeholder Intelligence
-Extract information about EVERY person/stakeholder mentioned in the transcript. For each person:
-- name: Full name as mentioned
-- job_title: Their role/title if mentioned
-- influence_level: One of "light_influencer", "heavy_influencer", "secondary_dm", "final_dm" based on context clues
-- champion_score: 1-10 rating of how bought-in they are to the product/solution
-- champion_score_reasoning: 1-2 sentences explaining the score based on their statements/actions
-- was_present: true if they were on the call, false if just mentioned
-- ai_notes: Any other relevant observations about this person
-
-Influence level guidelines:
-- final_dm: Has final budget/sign-off authority, can make the decision alone
-- secondary_dm: Has significant decision power but needs approval from above
-- heavy_influencer: Strong voice in the decision, technical gatekeeper, or key advocate
-- light_influencer: Involved but limited decision power, may be end user or junior stakeholder
-
-Champion score guidelines:
-- 8-10: Actively advocating internally, asking about implementation, pushing timeline
-- 5-7: Interested and engaged, but not actively pushing internally yet
-- 3-4: Neutral or showing some concerns that need addressing
-- 1-2: Skeptical, resistant, or actively blocking
-
-### User Count Extraction
-Extract organization size information when the prospect mentions team sizes, user counts, or organization details:
-- it_users: Number of IT/technical staff mentioned
-- end_users: Total employee count or non-technical users mentioned
-- ai_users: Users who would need AI-specific training mentioned
-- source_quote: The exact quote where this information was mentioned
-Only extract if explicitly mentioned - do not estimate or guess.
-
-FINAL OUTPUT:
-Return all fields via the submit_call_analysis function call.`;
+// AI Gateway timeout (55s to leave buffer before edge function 60s timeout)
+const AI_GATEWAY_TIMEOUT_MS = 55000;
 
 interface TranscriptRow {
   id: string;
@@ -438,332 +488,49 @@ async function generateRealAnalysis(
   const transcriptLength = transcript.raw_text.length;
   const maxTokens = calculateMaxTokens(transcriptLength, retryCount);
   
+  const startTime = Date.now();
   console.log(`[analyze-call] Calling Lovable AI Gateway (attempt ${retryCount + 1}, transcript: ${transcriptLength} chars, max_tokens: ${maxTokens})...`);
 
-  // Define the tool for structured output - includes call_notes and recap_email_draft
-  const analysisToolSchema = {
-    type: "function",
-    function: {
-      name: "submit_call_analysis",
-      description: "Submit the complete analysis results for a sales call transcript including coaching scores, call notes, and recap email draft",
-      parameters: {
-        type: "object",
-        properties: {
-          call_summary: {
-            type: "string",
-            description: "2-3 sentence summary of the call"
-          },
-          confidence: {
-            type: "number",
-            description: "Confidence in the analysis from 0.0 to 1.0"
-          },
-          trend_indicators: {
-            type: "object",
-            description: "Object with trend directions for each area (e.g., 'improving', 'stable', 'declining')",
-            additionalProperties: { type: "string" }
-          },
-          deal_gaps: {
-            type: "object",
-            properties: {
-              critical_missing_info: {
-                type: "array",
-                items: { type: "string" },
-                description: "List of critical missing information from the call"
-              },
-              unresolved_objections: {
-                type: "array",
-                items: { type: "string" },
-                description: "List of objections that were not fully resolved"
-              }
-            },
-            required: ["critical_missing_info", "unresolved_objections"]
-          },
-          strengths: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                area: { type: "string", description: "The skill or behavior area" },
-                example: { type: "string", description: "Specific example from the call" }
-              },
-              required: ["area", "example"]
-            },
-            description: "Array of strength areas with specific examples from the call"
-          },
-          opportunities: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                area: { type: "string", description: "The skill or behavior area to improve" },
-                example: { type: "string", description: "Specific recommendation" }
-              },
-              required: ["area", "example"]
-            },
-            description: "Array of improvement opportunities with recommendations"
-          },
-          skill_tags: {
-            type: "array",
-            items: { type: "string" },
-            description: "Skill-related tags (e.g., 'discovery_depth_medium', 'rapport_strong')"
-          },
-          deal_tags: {
-            type: "array",
-            items: { type: "string" },
-            description: "Deal-related tags (e.g., 'no_confirmed_timeline', 'single_threaded')"
-          },
-          meta_tags: {
-            type: "array",
-            items: { type: "string" },
-            description: "Metadata tags about the call (e.g., 'short_transcript', 'first_call')"
-          },
-          call_notes: {
-            type: "string",
-            description: "Structured markdown call notes with sections: Call Overview, Participants, Business Context & Pain, Current State / Environment, Solution Topics Discussed, Decision Process & Stakeholders, Timeline & Urgency, Budget / Commercials, Next Steps & Commitments, Risks & Open Questions, Competitors Mentioned. Use bullet points, never fabricate information."
-          },
-          recap_email_draft: {
-            type: "string",
-            description: "Customer-facing recap email starting with 'Subject: <subject>', then 'Hi {{ProspectFirstName}},' followed by thank you, summary bullets, value paragraph, next steps. CRITICAL: Email MUST end with EXACTLY these two links (copy verbatim): '[StormWind Website](https://info.stormwind.com/)' and '[View Sample Courses](https://info.stormwind.com/training-samples)' followed by 'Best, {{RepFirstName}} {{RepCompanyName}}'. These links are REQUIRED - do not omit or modify them."
-          },
-          coach_output: {
-            type: "object",
-            description: "Coaching output based on MEDDPICC, Gap Selling, and Active Listening frameworks.",
-            properties: {
-              call_type: { type: "string", description: "Type of call: Discovery, Demo, or Negotiation" },
-              duration_minutes: { type: "number", description: "Estimated duration of the call in minutes" },
-              framework_scores: {
-                type: "object",
-                properties: {
-                  meddpicc: {
-                    type: "object",
-                    description: "MEDDPICC qualification framework with per-element scoring",
-                    properties: {
-                      metrics: {
-                        type: "object",
-                        properties: {
-                          score: { type: "number", description: "Score 0-100 for Metrics qualification" },
-                          justification: { type: "string", description: "1-2 sentences explaining the score with specific examples from the call" }
-                        },
-                        required: ["score", "justification"]
-                      },
-                      economic_buyer: {
-                        type: "object",
-                        properties: {
-                          score: { type: "number", description: "Score 0-100 for Economic Buyer identification" },
-                          justification: { type: "string", description: "1-2 sentences explaining the score with specific examples from the call" }
-                        },
-                        required: ["score", "justification"]
-                      },
-                      decision_criteria: {
-                        type: "object",
-                        properties: {
-                          score: { type: "number", description: "Score 0-100 for Decision Criteria establishment" },
-                          justification: { type: "string", description: "1-2 sentences explaining the score with specific examples from the call" }
-                        },
-                        required: ["score", "justification"]
-                      },
-                      decision_process: {
-                        type: "object",
-                        properties: {
-                          score: { type: "number", description: "Score 0-100 for Decision Process mapping" },
-                          justification: { type: "string", description: "1-2 sentences explaining the score with specific examples from the call" }
-                        },
-                        required: ["score", "justification"]
-                      },
-                      paper_process: {
-                        type: "object",
-                        properties: {
-                          score: { type: "number", description: "Score 0-100 for Paper Process understanding" },
-                          justification: { type: "string", description: "1-2 sentences explaining the score with specific examples from the call" }
-                        },
-                        required: ["score", "justification"]
-                      },
-                      identify_pain: {
-                        type: "object",
-                        properties: {
-                          score: { type: "number", description: "Score 0-100 for Identify Pain depth" },
-                          justification: { type: "string", description: "1-2 sentences explaining the score with specific examples from the call" }
-                        },
-                        required: ["score", "justification"]
-                      },
-                      champion: {
-                        type: "object",
-                        properties: {
-                          score: { type: "number", description: "Score 0-100 for Champion identification" },
-                          justification: { type: "string", description: "1-2 sentences explaining the score with specific examples from the call" }
-                        },
-                        required: ["score", "justification"]
-                      },
-                      competition: {
-                        type: "object",
-                        properties: {
-                          score: { type: "number", description: "Score 0-100 for Competition understanding" },
-                          justification: { type: "string", description: "1-2 sentences explaining the score with specific examples from the call" }
-                        },
-                        required: ["score", "justification"]
-                      },
-                      overall_score: { type: "number", description: "Weighted average score 0-100 across all MEDDPICC elements" },
-                      summary: { type: "string", description: "2-3 sentence assessment of overall MEDDPICC qualification status" }
-                    },
-                    required: ["metrics", "economic_buyer", "decision_criteria", "decision_process", "paper_process", "identify_pain", "champion", "competition", "overall_score", "summary"]
-                  },
-                  gap_selling: {
-                    type: "object",
-                    properties: {
-                      score: { type: "number", description: "Score 0-100 for Gap Selling methodology" },
-                      summary: { type: "string", description: "1-sentence summary of Gap Selling performance" }
-                    },
-                    required: ["score", "summary"]
-                  },
-                  active_listening: {
-                    type: "object",
-                    properties: {
-                      score: { type: "number", description: "Score 0-100 for Active Listening skills" },
-                      summary: { type: "string", description: "1-sentence summary of Active Listening performance" }
-                    },
-                    required: ["score", "summary"]
-                  }
-                },
-                required: ["meddpicc", "gap_selling", "active_listening"]
-              },
-              meddpicc_improvements: { type: "array", items: { type: "string" }, description: "1-2 specific improvements for MEDDPICC qualification" },
-              gap_selling_improvements: { type: "array", items: { type: "string" }, description: "1-2 specific improvements for Gap Selling" },
-              active_listening_improvements: { type: "array", items: { type: "string" }, description: "1-2 specific improvements for Active Listening" },
-              critical_info_missing: { 
-                type: "array", 
-                items: { 
-                  type: "object",
-                  properties: {
-                    info: { type: "string", description: "The critical piece of information that's missing" },
-                    missed_opportunity: { type: "string", description: "When during the call the rep missed an opportunity to ask for this, referencing a specific moment or statement" }
-                  },
-                  required: ["info", "missed_opportunity"]
-                }, 
-                description: "3-5 critical missing pieces with examples of when the rep could have asked" 
-              },
-              recommended_follow_up_questions: { 
-                type: "array", 
-                items: { 
-                  type: "object",
-                  properties: {
-                    question: { type: "string", description: "The follow-up question to ask" },
-                    timing_example: { type: "string", description: "When during the call this question would have been best asked, referencing a specific moment or statement from the prospect" }
-                  },
-                  required: ["question", "timing_example"]
-                }, 
-                description: "3-5 recommended follow-up questions with examples of optimal timing" 
-              },
-              heat_signature: {
-                type: "object",
-                properties: {
-                  score: { type: "number", description: "Deal temperature score 1-10 (10 = hot, ready to close)" },
-                  explanation: { type: "string", description: "Explanation of the heat signature score" }
-                },
-                required: ["score", "explanation"]
-              }
-            },
-            required: [
-              "call_type",
-              "duration_minutes",
-              "framework_scores",
-              "meddpicc_improvements",
-              "gap_selling_improvements",
-              "active_listening_improvements",
-              "critical_info_missing",
-              "recommended_follow_up_questions",
-              "heat_signature"
-            ]
-          },
-          prospect_intel: {
-            type: "object",
-            description: "Structured intelligence about the prospect extracted from the call",
-            properties: {
-              business_context: { type: "string", description: "Brief description of the prospect's business, industry, and situation" },
-              pain_points: { type: "array", items: { type: "string" }, description: "Key pain points and challenges mentioned" },
-              current_state: { type: "string", description: "Current state of prospect's solutions/environment" },
-              decision_process: {
-                type: "object",
-                properties: {
-                  stakeholders: { type: "array", items: { type: "string" }, description: "Decision makers and influencers mentioned" },
-                  timeline: { type: "string", description: "Decision timeline or urgency signals" },
-                  budget_signals: { type: "string", description: "Budget information or signals mentioned" }
-                }
-              },
-              competitors_mentioned: { type: "array", items: { type: "string" }, description: "Competitors mentioned during the call" },
-              industry: { 
-                type: "string", 
-                enum: ["education", "local_government", "state_government", "federal_government", "healthcare", "msp", "technology", "finance", "manufacturing", "retail", "nonprofit", "other"],
-                description: "The likely industry based on this call transcript"
-              },
-              user_counts: {
-                type: "object",
-                description: "Organization size information if explicitly mentioned - DO NOT estimate or guess",
-                properties: {
-                  it_users: { type: "number", description: "Number of IT/technical staff explicitly mentioned" },
-                  end_users: { type: "number", description: "Total employee count or non-technical users explicitly mentioned" },
-                  ai_users: { type: "number", description: "Users who would need AI-specific training explicitly mentioned" },
-                  source_quote: { type: "string", description: "The exact quote where this information was mentioned" }
-                }
-              }
-            }
-          },
-          stakeholders_intel: {
-            type: "array",
-            description: "Detailed intelligence about each stakeholder mentioned in the call",
-            items: {
-              type: "object",
-              properties: {
-                name: { type: "string", description: "Full name of the stakeholder" },
-                job_title: { type: "string", description: "Job title or role if mentioned" },
-                influence_level: { type: "string", enum: ["light_influencer", "heavy_influencer", "secondary_dm", "final_dm"], description: "Level of influence in the decision" },
-                champion_score: { type: "number", description: "1-10 rating of how bought-in they are" },
-                champion_score_reasoning: { type: "string", description: "Explanation for the champion score" },
-                was_present: { type: "boolean", description: "Whether they were on the call" },
-                ai_notes: { type: "string", description: "Additional observations about this person" }
-              },
-              required: ["name", "influence_level"]
-            }
-          }
-        },
-        required: [
-          "call_summary",
-          "confidence",
-          "trend_indicators",
-          "deal_gaps",
-          "strengths",
-          "opportunities",
-          "skill_tags",
-          "deal_tags",
-          "meta_tags",
-          "call_notes",
-          "recap_email_draft",
-          "coach_output",
-          "prospect_intel"
-        ]
-      }
-    }
-  };
+  // Add timeout via AbortController to prevent hanging requests
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), AI_GATEWAY_TIMEOUT_MS);
 
-  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'google/gemini-2.5-flash',
-      max_tokens: maxTokens,
-      messages: [
-        { role: 'system', content: ANALYSIS_SYSTEM_PROMPT },
-        { 
-          role: 'user', 
-          content: `Please analyze the following sales call transcript and generate the complete analysis including call_notes and recap_email_draft:\n\n---\n${transcript.raw_text}\n---\n\nCall Date: ${transcript.call_date}\nSource: ${transcript.source}` 
-        }
-      ],
-      tools: [analysisToolSchema],
-      tool_choice: { type: "function", function: { name: "submit_call_analysis" } }
-    }),
-  });
+  let response: Response;
+  try {
+    response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash',
+        max_tokens: maxTokens,
+        messages: [
+          { role: 'system', content: ANALYSIS_SYSTEM_PROMPT },
+          { 
+            role: 'user', 
+            content: `Please analyze the following sales call transcript and generate the complete analysis including call_notes and recap_email_draft:\n\n---\n${transcript.raw_text}\n---\n\nCall Date: ${transcript.call_date}\nSource: ${transcript.source}` 
+          }
+        ],
+        tools: [ANALYSIS_TOOL_SCHEMA],
+        tool_choice: { type: "function", function: { name: "submit_call_analysis" } }
+      }),
+    });
+  } catch (fetchError) {
+    clearTimeout(timeoutId);
+    if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+      console.error(`[analyze-call] AI Gateway timeout after ${AI_GATEWAY_TIMEOUT_MS}ms`);
+      throw new Error('AI analysis timed out. Please try again.');
+    }
+    throw fetchError;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  const aiDurationMs = Date.now() - startTime;
+  console.log(`[analyze-call] AI Gateway response received in ${aiDurationMs}ms`);
 
   if (!response.ok) {
     const errorText = await response.text();
