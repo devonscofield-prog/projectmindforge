@@ -354,6 +354,38 @@ const REQUIRED_CALL_NOTES_SECTIONS = [
 // Minimum length for complete call_notes (characters)
 const MIN_CALL_NOTES_LENGTH = 1500;
 
+// Adaptive token limits based on transcript length
+const TOKEN_LIMITS = {
+  SHORT: 16384,      // Transcripts < 15,000 chars
+  MEDIUM: 24576,     // Transcripts 15,000-25,000 chars
+  LONG: 32768,       // Transcripts > 25,000 chars or retry
+  MAX_RETRY: 40960   // Maximum for second retry
+};
+
+// Transcript length thresholds (characters)
+const TRANSCRIPT_LENGTH_THRESHOLDS = {
+  MEDIUM: 15000,
+  LONG: 25000
+};
+
+/**
+ * Calculate adaptive max_tokens based on transcript length and retry count
+ */
+function calculateMaxTokens(transcriptLength: number, retryCount: number): number {
+  // On retry, use higher limits
+  if (retryCount >= 2) return TOKEN_LIMITS.MAX_RETRY;
+  if (retryCount === 1) return TOKEN_LIMITS.LONG;
+  
+  // First attempt - base on transcript length
+  if (transcriptLength > TRANSCRIPT_LENGTH_THRESHOLDS.LONG) {
+    return TOKEN_LIMITS.MEDIUM;
+  }
+  if (transcriptLength > TRANSCRIPT_LENGTH_THRESHOLDS.MEDIUM) {
+    return TOKEN_LIMITS.MEDIUM;
+  }
+  return TOKEN_LIMITS.SHORT;
+}
+
 /**
  * Validate that recap_email_draft contains required links
  */
@@ -364,7 +396,7 @@ function validateRecapEmailLinks(recapEmail: string): boolean {
 /**
  * Validate call_notes for completeness and detect truncation
  */
-function validateCallNotes(callNotes: string): { valid: boolean; issues: string[] } {
+function validateCallNotes(callNotes: string): { valid: boolean; issues: string[]; missingSections: string[] } {
   const issues: string[] = [];
   
   // Check minimum length
@@ -388,19 +420,25 @@ function validateCallNotes(callNotes: string): { valid: boolean; issues: string[
     issues.push(`Possible truncation detected (ends with: "${lastChar}")`);
   }
   
-  return { valid: issues.length === 0, issues };
+  return { valid: issues.length === 0, issues, missingSections };
 }
 
 /**
- * Generate real analysis using Lovable AI Gateway
+ * Generate real analysis using Lovable AI Gateway with automatic retry on truncation
  */
-async function generateRealAnalysis(transcript: TranscriptRow): Promise<AnalysisResult> {
+async function generateRealAnalysis(
+  transcript: TranscriptRow,
+  retryCount: number = 0
+): Promise<AnalysisResult> {
   const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
   if (!LOVABLE_API_KEY) {
     throw new Error('LOVABLE_API_KEY is not configured');
   }
 
-  console.log('[analyze-call] Calling Lovable AI Gateway for analysis...');
+  const transcriptLength = transcript.raw_text.length;
+  const maxTokens = calculateMaxTokens(transcriptLength, retryCount);
+  
+  console.log(`[analyze-call] Calling Lovable AI Gateway (attempt ${retryCount + 1}, transcript: ${transcriptLength} chars, max_tokens: ${maxTokens})...`);
 
   // Define the tool for structured output - includes call_notes and recap_email_draft
   const analysisToolSchema = {
@@ -714,7 +752,7 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
     },
     body: JSON.stringify({
       model: 'google/gemini-2.5-flash',
-      max_tokens: 16384, // Ensure sufficient output for complete structured analysis
+      max_tokens: maxTokens,
       messages: [
         { role: 'system', content: ANALYSIS_SYSTEM_PROMPT },
         { 
@@ -741,7 +779,10 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
   }
 
   const data = await response.json();
-  console.log('[analyze-call] AI response received');
+  
+  // Extract and log finish_reason to detect truncation
+  const finishReason = data.choices?.[0]?.finish_reason;
+  console.log(`[analyze-call] AI response received (finish_reason: ${finishReason}, transcript: ${transcriptLength} chars)`);
 
   // Extract the tool call arguments
   const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
@@ -780,11 +821,33 @@ async function generateRealAnalysis(transcript: TranscriptRow): Promise<Analysis
   }
   
   // Validate call_notes completeness
-  const callNotesValidation = validateCallNotes(callNotes);
-  if (!callNotesValidation.valid) {
-    console.error('[analyze-call] call_notes validation failed:', callNotesValidation.issues);
-    // Log warning but don't throw - allow partial notes to be saved with warning
-    console.warn('[analyze-call] WARNING: Call notes may be truncated or incomplete');
+  const callNotesValidation = validateCallNotes(callNotes as string);
+  
+  // Check if truncation occurred (finish_reason === 'length' or validation failed)
+  const wasTruncated = finishReason === 'length' || !callNotesValidation.valid;
+  
+  if (wasTruncated) {
+    console.warn('[analyze-call] Output truncation detected:', {
+      finish_reason: finishReason,
+      call_notes_length: (callNotes as string).length,
+      transcript_length: transcriptLength,
+      max_tokens_used: maxTokens,
+      validation_issues: callNotesValidation.issues,
+      missing_sections: callNotesValidation.missingSections
+    });
+    
+    // Retry with higher max_tokens if we haven't exceeded retry limit
+    const MAX_RETRIES = 2;
+    if (retryCount < MAX_RETRIES) {
+      console.log(`[analyze-call] Retrying with higher max_tokens (attempt ${retryCount + 2} of ${MAX_RETRIES + 1})...`);
+      return generateRealAnalysis(transcript, retryCount + 1);
+    }
+    
+    // After all retries, throw error if still invalid
+    if (!callNotesValidation.valid) {
+      console.error('[analyze-call] Call notes still incomplete after retries:', callNotesValidation.issues);
+      throw new Error(`Call notes incomplete after ${MAX_RETRIES + 1} attempts. Missing: ${callNotesValidation.missingSections.join(', ')}`);
+    }
   }
 
   // Validate recap_email_draft is a non-empty string with required links
@@ -825,7 +888,7 @@ View sample courses here:
   // Extract stakeholders_intel (optional)
   const stakeholdersIntel = analysisData.stakeholders_intel as StakeholderIntel[] | undefined;
 
-  // Build the result object
+  // Build the result object with analysis metadata for debugging
   const result: AnalysisResult = {
     call_id: transcript.id,
     rep_id: transcript.rep_id,
@@ -850,12 +913,21 @@ View sample courses here:
     call_notes: String(callNotes),
     recap_email_draft: String(finalRecapEmail),
     coach_output: coachOutput,
-    raw_json: analysisData,
+    raw_json: {
+      ...analysisData,
+      _analysis_metadata: {
+        finish_reason: finishReason,
+        retry_count: retryCount,
+        transcript_length: transcriptLength,
+        max_tokens_used: maxTokens,
+        call_notes_length: (callNotes as string).length
+      }
+    },
     prospect_intel: prospectIntel,
     stakeholders_intel: stakeholdersIntel
   };
 
-  console.log('[analyze-call] Analysis parsed successfully with call_notes, recap_email_draft, and coach_output');
+  console.log(`[analyze-call] Analysis parsed successfully (attempts: ${retryCount + 1}, call_notes: ${(callNotes as string).length} chars)`);
   return result;
 }
 
