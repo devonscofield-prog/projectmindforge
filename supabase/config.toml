@@ -27,6 +27,9 @@ verify_jwt = true
 [functions.generate-coaching-chunk-summary]
 verify_jwt = true
 
+[functions.generate-aggregate-coaching-trends]
+verify_jwt = true
+
 [functions.admin-transcript-chat]
 verify_jwt = true
 

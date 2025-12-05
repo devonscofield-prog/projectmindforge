@@ -424,7 +424,7 @@ export async function generateCoachingTrends(
 
 /**
  * Generates AI-powered coaching trend analysis across multiple reps.
- * Optimized: Caching, parallelized queries, reduced column fetch.
+ * Now delegates to edge function for server-side caching with service role.
  */
 export async function generateAggregateCoachingTrends(
   params: AggregateAnalysisParams
@@ -433,7 +433,7 @@ export async function generateAggregateCoachingTrends(
   const fromDate = dateRange.from.toISOString().split('T')[0];
   const toDate = dateRange.to.toISOString().split('T')[0];
 
-  // If individual rep, delegate to existing function
+  // If individual rep, delegate to existing function (uses client-side caching which works)
   if (scope === 'rep' && repId) {
     const result = await generateCoachingTrends(repId, dateRange, options);
     return {
@@ -446,197 +446,46 @@ export async function generateAggregateCoachingTrends(
     };
   }
 
-  // Generate cache key for aggregate analysis
-  const cacheKey = `aggregate_coaching_${scope}_${teamId || 'all'}_${fromDate}_${toDate}`;
-  
-  // 1. Check cache first (unless force refresh) - 5 minute TTL
-  if (!options?.forceRefresh) {
-    const { data: cached } = await supabase
-      .from('dashboard_cache')
-      .select('cache_data')
-      .eq('cache_key', cacheKey)
-      .gt('expires_at', new Date().toISOString())
-      .maybeSingle();
-    
-    if (cached?.cache_data) {
-      log.debug('Using cached aggregate analysis');
-      return cached.cache_data as unknown as AggregateCoachingTrendAnalysisWithMeta;
+  log.info('Invoking aggregate coaching trends edge function', { scope, teamId });
+
+  // Call edge function which handles caching with service role
+  const { data, error } = await supabase.functions.invoke('generate-aggregate-coaching-trends', {
+    body: {
+      scope,
+      teamId,
+      repId,
+      dateRange: { from: fromDate, to: toDate },
+      forceRefresh: options?.forceRefresh,
     }
-  }
-
-  // 2. Parallelize independent queries: rep profiles + teams (if needed)
-  const repProfilesPromise = scope === 'team' && teamId
-    ? supabase
-        .from('profiles')
-        .select('id, name, team_id')
-        .eq('team_id', teamId)
-    : supabase
-        .from('user_with_role')
-        .select('id, name, team_id')
-        .eq('role', 'rep')
-        .eq('is_active', true);
-
-  const teamsPromise = scope === 'organization'
-    ? supabase.from('teams').select('id, name')
-    : Promise.resolve({ data: null });
-
-  const [repProfilesResult, teamsResult] = await Promise.all([
-    repProfilesPromise,
-    teamsPromise,
-  ]);
-
-  if (repProfilesResult.error) {
-    throw new Error(`Failed to fetch reps: ${repProfilesResult.error.message}`);
-  }
-
-  const repProfiles = (repProfilesResult.data || []).map(r => ({ 
-    id: r.id!, 
-    name: r.name || 'Unknown', 
-    team_id: r.team_id 
-  }));
-
-  const repIds = repProfiles.map(r => r.id);
-
-  if (repIds.length === 0) {
-    throw new Error('No reps found for the selected scope');
-  }
-
-  const teamMap = new Map<string, string>();
-  if (teamsResult.data) {
-    teamsResult.data.forEach(t => teamMap.set(t.id, t.name));
-  }
-
-  log.info('Analyzing aggregate coaching trends', { repCount: repIds.length, scope });
-
-  // 3. Fetch call analyses with count in single query
-  const { data, error, count } = await supabase
-    .from('ai_call_analysis')
-    .select('*', { count: 'exact' })
-    .in('rep_id', repIds)
-    .gte('created_at', dateRange.from.toISOString())
-    .lte('created_at', dateRange.to.toISOString())
-    .is('deleted_at', null)
-    .order('created_at', { ascending: true });
+  });
 
   if (error) {
-    log.error('Error fetching aggregate analyses', { error });
-    throw new Error(`Failed to fetch call analyses: ${error.message}`);
+    const errorMessage = error.message?.toLowerCase() || '';
+    
+    if (errorMessage.includes('429') || errorMessage.includes('rate')) {
+      throw new Error('AI service is temporarily busy. Please wait a moment and try again.');
+    }
+    if (errorMessage.includes('402') || errorMessage.includes('quota')) {
+      throw new Error('AI usage quota exceeded. Please contact support or try again later.');
+    }
+    
+    log.error('Aggregate coaching trends edge function error', { error });
+    throw new Error(`Failed to generate aggregate coaching trends: ${error.message}`);
   }
 
-  const analyses = (data || []).map(toCallAnalysis);
-  const callCount = count || analyses.length;
-
-  if (analyses.length === 0) {
-    throw new Error('No analyzed calls found for the selected scope and period');
+  if (!data || data.error) {
+    throw new Error(data?.error || 'Unknown error from aggregate coaching trends');
   }
 
-  // Calculate rep contributions
-  const repContributions = calculateRepContributions(
-    analyses, 
-    repProfiles, 
-    teamMap, 
-    callCount
-  );
-
-  const tier = determineAnalysisTier(callCount);
-  log.info('Aggregate analysis tier', { callCount, tier });
-
-  // Format calls for AI - support both MEDDPICC and legacy BANT
-  const formattedCalls: FormattedCall[] = analyses.map(a => ({
-    date: a.created_at.split('T')[0],
-    framework_scores: a.coach_output?.framework_scores ?? null,
-    meddpicc_improvements: a.coach_output?.meddpicc_improvements ?? [],
-    gap_selling_improvements: a.coach_output?.gap_selling_improvements ?? [],
-    active_listening_improvements: a.coach_output?.active_listening_improvements ?? [],
-    // Legacy BANT improvements for backward compatibility
-    bant_improvements: a.coach_output?.bant_improvements ?? [],
-    critical_info_missing: a.coach_output?.critical_info_missing ?? [],
-    follow_up_questions: a.coach_output?.recommended_follow_up_questions ?? [],
-    heat_score: a.coach_output?.heat_signature?.score ?? null,
-  }));
-
-  let trendData: CoachingTrendAnalysis;
-  let metadata: AggregateAnalysisMetadata;
-
-  // Execute analysis based on tier
-  if (tier === 'direct') {
-    log.info('Direct aggregate analysis', { callCount: formattedCalls.length });
-    
-    const response = await invokeCoachingTrendsFunction(formattedCalls, { from: fromDate, to: toDate });
-    trendData = response;
-    metadata = {
-      tier: 'direct',
-      totalCalls: callCount,
-      analyzedCalls: formattedCalls.length,
-      scope,
-      teamId,
-      repsIncluded: repIds.length,
-      repContributions,
-    };
-  } else if (tier === 'sampled') {
-    const { sampled, originalCount } = stratifiedSample(formattedCalls, DIRECT_ANALYSIS_MAX);
-    log.info('Sampled aggregate analysis', { sampled: sampled.length, original: originalCount });
-    
-    const response = await invokeCoachingTrendsFunction(sampled, { from: fromDate, to: toDate });
-    trendData = response;
-    metadata = {
-      tier: 'sampled',
-      totalCalls: callCount,
-      analyzedCalls: sampled.length,
-      samplingInfo: {
-        method: 'stratified',
-        originalCount,
-        sampledCount: sampled.length,
-      },
-      scope,
-      teamId,
-      repsIncluded: repIds.length,
-      repContributions,
-    };
+  // Log cache status
+  if (data._cached) {
+    log.debug('Used cached aggregate analysis', { cachedAt: data._cachedAt });
   } else {
-    log.info('Hierarchical aggregate analysis', { callCount: formattedCalls.length });
-    
-    const { analysis, chunksAnalyzed, callsPerChunk } = await analyzeHierarchically(
-      formattedCalls,
-      { from: fromDate, to: toDate }
-    );
-    trendData = analysis;
-    metadata = {
-      tier: 'hierarchical',
-      totalCalls: callCount,
-      analyzedCalls: formattedCalls.length,
-      hierarchicalInfo: {
-        chunksAnalyzed,
-        callsPerChunk,
-      },
-      scope,
-      teamId,
-      repsIncluded: repIds.length,
-      repContributions,
-    };
+    log.debug('Generated fresh aggregate analysis');
   }
 
-  log.debug('Successfully generated aggregate trend analysis');
-
-  const result = { analysis: trendData, metadata };
-
-  // 4. Cache the result with 5-minute TTL
-  const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-  const { error: cacheError } = await supabase
-    .from('dashboard_cache')
-    .upsert(
-      {
-        cache_key: cacheKey,
-        cache_data: JSON.parse(JSON.stringify(result)),
-        expires_at: expiresAt,
-        computed_at: new Date().toISOString(),
-      },
-      { onConflict: 'cache_key' }
-    );
-  
-  if (cacheError) {
-    log.warn('Failed to cache aggregate analysis', { error: cacheError });
-  }
-
-  return result;
+  return {
+    analysis: data.analysis,
+    metadata: data.metadata,
+  };
 }
