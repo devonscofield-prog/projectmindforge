@@ -59,7 +59,8 @@ const NER_BATCH_SIZE = 10;
 const BASE_DELAY_MS = 200;
 const MAX_DELAY_MS = 5000;
 const MAX_RETRIES = 3;
-const BACKFILL_BATCH_SIZE = 50; // For NER extraction
+const NER_BACKFILL_BATCH_SIZE = 10; // Smaller batch for NER to avoid timeouts
+const CHUNKING_BATCH_SIZE = 50; // For chunking transcripts
 const EMBEDDING_BATCH_SIZE = 10; // Smaller batches for embedding to respect rate limits
 const EMBEDDING_DELAY_MS = 500; // 500ms between embedding API calls to respect 40k TPM limit
 
@@ -668,7 +669,7 @@ serve(async (req) => {
         .from('transcript_chunks')
         .select('id, chunk_text, metadata, transcript_id')
         .or('extraction_status.eq.pending,extraction_status.eq.failed')
-        .limit(BACKFILL_BATCH_SIZE);
+        .limit(NER_BACKFILL_BATCH_SIZE);
 
       if (fetchError) {
         console.error('[chunk-transcripts] Error fetching chunks for NER backfill:', fetchError);
@@ -678,9 +679,12 @@ serve(async (req) => {
       const chunksToProcess = chunksNeedingNER || [];
       console.log(`[chunk-transcripts] Found ${chunksToProcess.length} chunks needing NER extraction`);
 
+      let processedCount = 0;
       const results = await processWithAdaptiveRateLimit(
         chunksToProcess,
         async (chunk) => {
+          processedCount++;
+          console.log(`[chunk-transcripts] NER extracting chunk ${processedCount}/${chunksToProcess.length}`);
           const metadata = chunk.metadata as { account_name?: string; rep_name?: string; call_type?: string };
           const nerResult = await extractEntities(
             chunk.chunk_text,
@@ -792,8 +796,8 @@ serve(async (req) => {
       let totalChunksCreated = 0;
       let transcriptsProcessed = 0;
 
-      for (let i = 0; i < unchunkedIds.length; i += BACKFILL_BATCH_SIZE) {
-        const batchIds = unchunkedIds.slice(i, i + BACKFILL_BATCH_SIZE);
+      for (let i = 0; i < unchunkedIds.length; i += CHUNKING_BATCH_SIZE) {
+        const batchIds = unchunkedIds.slice(i, i + CHUNKING_BATCH_SIZE);
         
         const { data: transcripts } = await supabase
           .from('call_transcripts')
