@@ -76,6 +76,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
   const [isBackfilling, setIsBackfilling] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [resetProgress, setResetProgress] = useState<string | null>(null);
+  const [isSelectingAll, setIsSelectingAll] = useState(false);
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -762,6 +763,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
   };
 
   const selectAllMatching = async () => {
+    setIsSelectingAll(true);
     try {
       let repIds: string[] = [];
       
@@ -810,6 +812,8 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     } catch (err) {
       log.error('Error selecting all matching transcripts', { error: err });
       toast.error('Failed to select all matching transcripts');
+    } finally {
+      setIsSelectingAll(false);
     }
   };
 
@@ -926,6 +930,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     isBackfillingEmbeddings,
     isBackfillingEntities,
     isResetting,
+    isSelectingAll,
     resetProgress,
     embeddingsProgress,
     entitiesProgress,

@@ -98,13 +98,17 @@ export function TranscriptTable({
           <EmptyState
             icon={FileText}
             title="No transcripts found"
-            description="No transcripts match your current filters. Try adjusting the date range or other filters."
+            description="No transcripts match your current filters."
             className="py-12"
+            action={{
+              label: 'Clear All Filters',
+              onClick: () => window.location.reload()
+            }}
           />
         ) : (
           <ScrollArea className="h-[500px]">
             <table className="w-full">
-              <thead className="sticky top-0 z-10 bg-card border-b">
+              <thead className="sticky top-0 z-20 bg-card border-b">
                 <tr className="text-left text-sm text-muted-foreground">
                   <th className="p-3 w-10">
                     <span className="sr-only">Select</span>
@@ -122,11 +126,18 @@ export function TranscriptTable({
                 {transcripts?.map(transcript => (
                   <tr
                     key={transcript.id}
+                    tabIndex={0}
                     className={cn(
-                      "border-b hover:bg-muted/50 cursor-pointer transition-colors",
+                      "border-b hover:bg-muted/50 cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-inset",
                       selectedTranscriptIds.has(transcript.id) && "bg-primary/5"
                     )}
                     onClick={() => onToggleTranscript(transcript.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onToggleTranscript(transcript.id);
+                      }
+                    }}
                   >
                     <td className="p-3" onClick={(e) => e.stopPropagation()}>
                       <Checkbox

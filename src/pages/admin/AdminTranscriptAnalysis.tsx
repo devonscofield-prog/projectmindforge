@@ -103,7 +103,9 @@ function AdminTranscriptAnalysis() {
     stopEmbeddingsBackfill,
     stopNERBackfill,
     handleResetAndReindex,
+    stopReindex,
     handleLoadSelection,
+    isSelectingAll,
   } = useTranscriptAnalysis();
 
   const breadcrumbItems = isAdmin 
@@ -155,7 +157,11 @@ function AdminTranscriptAnalysis() {
           <CollapsibleSection
             title="RAG System Health"
             icon={<Activity className="h-4 w-4" />}
-            defaultOpen={false}
+            defaultOpen={globalChunkStatus ? 
+              ((globalChunkStatus.withEmbeddings ?? 0) + (globalChunkStatus.nerCompleted ?? 0)) / 
+              (2 * (globalChunkStatus.totalChunks || 1)) < 0.5 
+              : false
+            }
           >
             <RAGHealthDashboard />
           </CollapsibleSection>
@@ -221,6 +227,8 @@ function AdminTranscriptAnalysis() {
             onStopEmbeddingsBackfill={stopEmbeddingsBackfill}
             onStopNERBackfill={stopNERBackfill}
             onResetAndReindex={handleResetAndReindex}
+            onStopReindex={stopReindex}
+            isSelectingAll={isSelectingAll}
             onSaveClick={() => setSaveSelectionOpen(true)}
             onLoadClick={() => setSavedSelectionsOpen(true)}
             onInsightsClick={() => setSavedInsightsOpen(true)}
