@@ -90,3 +90,22 @@ export async function startEmbeddingsBackfillJob(token: string): Promise<{ jobId
   const result = await response.json();
   return { jobId: result.job_id };
 }
+
+export async function startFullReindexJob(token: string): Promise<{ jobId: string }> {
+  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chunk-transcripts`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ full_reindex: true }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || 'Failed to start full reindex job');
+  }
+
+  const result = await response.json();
+  return { jobId: result.job_id };
+}
