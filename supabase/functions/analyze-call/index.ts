@@ -162,7 +162,7 @@ serve(async (req) => {
 
     // Step 3: Generate analysis using AI
     logger.startPhase('ai_analysis');
-    const analysis = await generateRealAnalysis(transcript);
+    const analysis = await generateRealAnalysis(transcript, logger);
     analysis.prompt_version = 'v2-real-2025-11-27';
     logger.info('AI analysis completed', {
       callNotesLength: analysis.call_notes.length,

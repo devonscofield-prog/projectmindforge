@@ -1894,6 +1894,14 @@ export type Database = {
         Returns: string
       }
       maintenance_analyze_tables: { Args: never; Returns: Json }
+      recover_stuck_processing_transcripts: {
+        Args: never
+        Returns: {
+          account_name: string
+          stuck_since: string
+          transcript_id: string
+        }[]
+      }
       soft_delete_record: {
         Args: { p_record_id: string; p_table_name: string }
         Returns: boolean

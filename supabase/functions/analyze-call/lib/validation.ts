@@ -17,8 +17,9 @@ export function calculateMaxTokens(transcriptLength: number, retryCount: number)
   if (retryCount === 1) return TOKEN_LIMITS.LONG;
   
   // First attempt - base on transcript length
+  // FIXED: Long transcripts (>25k chars) now correctly get TOKEN_LIMITS.LONG
   if (transcriptLength > TRANSCRIPT_LENGTH_THRESHOLDS.LONG) {
-    return TOKEN_LIMITS.MEDIUM;
+    return TOKEN_LIMITS.LONG;
   }
   if (transcriptLength > TRANSCRIPT_LENGTH_THRESHOLDS.MEDIUM) {
     return TOKEN_LIMITS.MEDIUM;

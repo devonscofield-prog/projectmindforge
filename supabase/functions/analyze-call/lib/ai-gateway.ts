@@ -3,16 +3,19 @@
 import type { TranscriptRow, AnalysisResult, CoachOutput, ProspectIntel, StakeholderIntel } from './types.ts';
 import { ANALYSIS_SYSTEM_PROMPT, ANALYSIS_TOOL_SCHEMA, AI_GATEWAY_TIMEOUT_MS, REQUIRED_RECAP_LINKS } from './constants.ts';
 import { calculateMaxTokens, validateCallNotes, validateRecapEmailLinks } from './validation.ts';
+import type { Logger } from './logger.ts';
 
 /**
  * Generate real analysis using Lovable AI Gateway with automatic retry on truncation
  */
 export async function generateRealAnalysis(
   transcript: TranscriptRow,
+  logger: Logger,
   retryCount: number = 0
 ): Promise<AnalysisResult> {
   const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
   if (!LOVABLE_API_KEY) {
+    logger.error('LOVABLE_API_KEY is not configured');
     throw new Error('LOVABLE_API_KEY is not configured');
   }
 
@@ -20,7 +23,7 @@ export async function generateRealAnalysis(
   const maxTokens = calculateMaxTokens(transcriptLength, retryCount);
   
   const startTime = Date.now();
-  console.log(`[analyze-call] Calling Lovable AI Gateway (attempt ${retryCount + 1}, transcript: ${transcriptLength} chars, max_tokens: ${maxTokens})...`);
+  logger.info(`Calling Lovable AI Gateway (attempt ${retryCount + 1}, transcript: ${transcriptLength} chars, max_tokens: ${maxTokens})...`);
 
   // Add timeout via AbortController to prevent hanging requests
   const controller = new AbortController();
@@ -52,7 +55,7 @@ export async function generateRealAnalysis(
   } catch (fetchError) {
     clearTimeout(timeoutId);
     if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-      console.error(`[analyze-call] AI Gateway timeout after ${AI_GATEWAY_TIMEOUT_MS}ms`);
+      logger.error(`AI Gateway timeout after ${AI_GATEWAY_TIMEOUT_MS}ms`);
       throw new Error('AI analysis timed out. Please try again.');
     }
     throw fetchError;
@@ -61,11 +64,11 @@ export async function generateRealAnalysis(
   }
 
   const aiDurationMs = Date.now() - startTime;
-  console.log(`[analyze-call] AI Gateway response received in ${aiDurationMs}ms`);
+  logger.info(`AI Gateway response received in ${aiDurationMs}ms`);
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('[analyze-call] AI Gateway error:', response.status, errorText);
+    logger.error('AI Gateway error', { status: response.status, error: errorText });
     
     if (response.status === 429) {
       throw new Error('Rate limit exceeded. Please try again later.');
@@ -80,12 +83,12 @@ export async function generateRealAnalysis(
   
   // Extract and log finish_reason to detect truncation
   const finishReason = data.choices?.[0]?.finish_reason;
-  console.log(`[analyze-call] AI response received (finish_reason: ${finishReason}, transcript: ${transcriptLength} chars)`);
+  logger.info(`AI response received (finish_reason: ${finishReason}, transcript: ${transcriptLength} chars)`);
 
   // Extract the tool call arguments
   const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
   if (!toolCall || toolCall.function.name !== 'submit_call_analysis') {
-    console.error('[analyze-call] No valid tool call in response:', JSON.stringify(data));
+    logger.error('No valid tool call in response', { response: JSON.stringify(data).substring(0, 500) });
     throw new Error('AI did not return structured analysis');
   }
 
@@ -93,7 +96,7 @@ export async function generateRealAnalysis(
   try {
     analysisData = JSON.parse(toolCall.function.arguments);
   } catch (parseError) {
-    console.error('[analyze-call] Failed to parse tool arguments:', toolCall.function.arguments);
+    logger.error('Failed to parse tool arguments', { arguments: toolCall.function.arguments.substring(0, 500) });
     throw new Error('Failed to parse AI analysis response');
   }
 
@@ -106,7 +109,7 @@ export async function generateRealAnalysis(
 
   for (const field of requiredFields) {
     if (analysisData[field] === undefined) {
-      console.error(`[analyze-call] Missing required field: ${field}`);
+      logger.error(`Missing required field: ${field}`);
       throw new Error(`AI analysis missing required field: ${field}`);
     }
   }
@@ -114,7 +117,7 @@ export async function generateRealAnalysis(
   // Validate call_notes is a non-empty string with all required sections
   const callNotes = analysisData.call_notes;
   if (typeof callNotes !== 'string' || callNotes.trim().length === 0) {
-    console.error('[analyze-call] call_notes is not a valid string');
+    logger.error('call_notes is not a valid string');
     throw new Error('AI analysis call_notes must be a non-empty string');
   }
   
@@ -125,7 +128,7 @@ export async function generateRealAnalysis(
   const wasTruncated = finishReason === 'length' || !callNotesValidation.valid;
   
   if (wasTruncated) {
-    console.warn('[analyze-call] Output truncation detected:', {
+    logger.warn('Output truncation detected', {
       finish_reason: finishReason,
       call_notes_length: (callNotes as string).length,
       transcript_length: transcriptLength,
@@ -137,13 +140,13 @@ export async function generateRealAnalysis(
     // Retry with higher max_tokens if we haven't exceeded retry limit
     const MAX_RETRIES = 2;
     if (retryCount < MAX_RETRIES) {
-      console.log(`[analyze-call] Retrying with higher max_tokens (attempt ${retryCount + 2} of ${MAX_RETRIES + 1})...`);
-      return generateRealAnalysis(transcript, retryCount + 1);
+      logger.info(`Retrying with higher max_tokens (attempt ${retryCount + 2} of ${MAX_RETRIES + 1})...`);
+      return generateRealAnalysis(transcript, logger, retryCount + 1);
     }
     
     // After all retries, throw error if still invalid
     if (!callNotesValidation.valid) {
-      console.error('[analyze-call] Call notes still incomplete after retries:', callNotesValidation.issues);
+      logger.error('Call notes still incomplete after retries', { issues: callNotesValidation.issues });
       throw new Error(`Call notes incomplete after ${MAX_RETRIES + 1} attempts. Missing: ${callNotesValidation.missingSections.join(', ')}`);
     }
   }
@@ -151,15 +154,15 @@ export async function generateRealAnalysis(
   // Validate recap_email_draft is a non-empty string with required links
   const recapEmail = analysisData.recap_email_draft;
   if (typeof recapEmail !== 'string' || recapEmail.trim().length === 0) {
-    console.error('[analyze-call] recap_email_draft is not a valid string');
+    logger.error('recap_email_draft is not a valid string');
     throw new Error('AI analysis recap_email_draft must be a non-empty string');
   }
 
   // Auto-append required links if missing instead of failing
   let finalRecapEmail = recapEmail;
   if (!validateRecapEmailLinks(recapEmail)) {
-    console.warn('[analyze-call] recap_email_draft missing required links - auto-appending');
-    console.warn('[analyze-call] Missing links from:', REQUIRED_RECAP_LINKS);
+    logger.warn('recap_email_draft missing required links - auto-appending');
+    logger.warn('Missing links from:', { required: REQUIRED_RECAP_LINKS });
     
     const linksFooter = `
 
@@ -170,13 +173,13 @@ View sample courses here:
 [View Sample Courses](https://info.stormwind.com/training-samples)`;
     
     finalRecapEmail = recapEmail.trim() + linksFooter;
-    console.log('[analyze-call] Links auto-appended to recap_email_draft');
+    logger.info('Links auto-appended to recap_email_draft');
   }
 
   // Validate coach_output structure
   const coachOutput = analysisData.coach_output as CoachOutput;
   if (!coachOutput || typeof coachOutput !== 'object') {
-    console.error('[analyze-call] coach_output is not a valid object');
+    logger.error('coach_output is not a valid object');
     throw new Error('AI analysis coach_output must be a valid object');
   }
 
@@ -225,6 +228,10 @@ View sample courses here:
     stakeholders_intel: stakeholdersIntel
   };
 
-  console.log(`[analyze-call] Analysis parsed successfully (attempts: ${retryCount + 1}, call_notes: ${(callNotes as string).length} chars)`);
+  logger.info('AI analysis completed', {
+    callNotesLength: (callNotes as string).length,
+    stakeholdersCount: stakeholdersIntel?.length || 0,
+    heatScore: coachOutput?.heat_signature?.score
+  });
   return result;
 }
