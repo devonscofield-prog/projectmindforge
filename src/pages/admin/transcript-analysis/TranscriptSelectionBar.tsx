@@ -25,6 +25,7 @@ import {
   Settings2,
   Zap,
   RotateCcw,
+  Brain,
 } from 'lucide-react';
 import { Transcript } from './constants';
 
@@ -313,6 +314,26 @@ export function TranscriptSelectionBar({
                   </>
                 )}
                 
+                {/* NER Extraction */}
+                {globalChunkStatus?.nerPending && globalChunkStatus.nerPending > 0 && onBackfillEntities && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onClick={onBackfillEntities}
+                      disabled={isIndexing || isBackfilling || isBackfillingEmbeddings || isResetting}
+                      className="gap-2"
+                    >
+                      <Brain className={cn("h-4 w-4 text-purple-600", isBackfillingEntities && "animate-spin")} />
+                      <div className="flex flex-col">
+                        <span>{isBackfillingEntities ? 'Extracting Entities...' : 'Backfill NER'}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {globalChunkStatus.nerPending.toLocaleString()} pending
+                        </span>
+                      </div>
+                    </DropdownMenuItem>
+                  </>
+                )}
+
                 {/* Reset & Reindex All */}
                 {onResetAndReindex && (
                   <>
