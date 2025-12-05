@@ -43,7 +43,7 @@ function checkRateLimit(userId: string): { allowed: boolean; retryAfter?: number
   return { allowed: true };
 }
 
-// Zod validation schema - supports transcript_ids, backfill modes, reset, and full_reindex
+// Zod validation schema - supports transcript_ids, backfill modes, reset, full_reindex, and ner_batch
 const chunkTranscriptsSchema = z.object({
   transcript_ids: z.array(z.string().uuid()).max(100).optional(),
   backfill_all: z.boolean().optional(),
@@ -51,12 +51,14 @@ const chunkTranscriptsSchema = z.object({
   backfill_entities: z.boolean().optional(),
   reset_all_chunks: z.boolean().optional(),
   full_reindex: z.boolean().optional(),
+  ner_batch: z.boolean().optional(),
+  batch_size: z.number().min(1).max(50).optional(),
 }).refine(
   (data) => data.backfill_all === true || data.backfill_embeddings === true || 
             data.backfill_entities === true || data.reset_all_chunks === true ||
-            data.full_reindex === true ||
+            data.full_reindex === true || data.ner_batch === true ||
             (data.transcript_ids && data.transcript_ids.length > 0),
-  { message: "Either transcript_ids, a backfill mode, reset_all_chunks, or full_reindex is required" }
+  { message: "Either transcript_ids, a backfill mode, reset_all_chunks, full_reindex, or ner_batch is required" }
 );
 
 // Constants
@@ -1162,7 +1164,7 @@ serve(async (req) => {
       );
     }
 
-    const { transcript_ids, backfill_all, backfill_embeddings, backfill_entities, reset_all_chunks, full_reindex } = parseResult.data;
+    const { transcript_ids, backfill_all, backfill_embeddings, backfill_entities, reset_all_chunks, full_reindex, ner_batch, batch_size } = parseResult.data;
 
     // Auth check
     const authHeader = req.headers.get('Authorization');
@@ -1229,6 +1231,132 @@ serve(async (req) => {
           success: true,
           message: `Deleted all transcript chunks`,
           deleted_count: beforeCount || 0
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ========== NER BATCH MODE (Frontend-driven, synchronous) ==========
+    if (ner_batch) {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ error: 'Only admins can use ner_batch mode' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const effectiveBatchSize = batch_size || NER_BATCH_SIZE;
+      console.log(`[chunk-transcripts] Admin ${userId} processing NER batch (size: ${effectiveBatchSize})`);
+
+      // Get total counts first
+      const { count: totalChunks } = await supabase
+        .from('transcript_chunks')
+        .select('*', { count: 'exact', head: true });
+
+      const { count: pendingChunks } = await supabase
+        .from('transcript_chunks')
+        .select('*', { count: 'exact', head: true })
+        .or('extraction_status.eq.pending,extraction_status.is.null');
+
+      // Fetch chunks needing NER
+      const { data: chunksNeedingNER, error: fetchError } = await supabase
+        .from('transcript_chunks')
+        .select('id, chunk_text, metadata, transcript_id')
+        .or('extraction_status.eq.pending,extraction_status.is.null')
+        .limit(effectiveBatchSize);
+
+      if (fetchError) {
+        console.error('[chunk-transcripts] Error fetching chunks for NER batch:', fetchError);
+        throw new Error('Failed to fetch chunks for NER');
+      }
+
+      if (!chunksNeedingNER || chunksNeedingNER.length === 0) {
+        console.log(`[chunk-transcripts] No more chunks need NER extraction`);
+        return new Response(
+          JSON.stringify({
+            processed: 0,
+            remaining: 0,
+            total: totalChunks || 0,
+            errors: 0,
+            complete: true
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      let processed = 0;
+      let errors = 0;
+
+      // Process chunks in mini-batches for API efficiency
+      for (let i = 0; i < chunksNeedingNER.length; i += NER_CHUNKS_PER_API_CALL) {
+        const batch = chunksNeedingNER.slice(i, i + NER_CHUNKS_PER_API_CALL);
+        
+        const firstMetadata = batch[0]?.metadata as { account_name?: string; rep_name?: string; call_type?: string } | undefined;
+        const context = {
+          accountName: firstMetadata?.account_name,
+          repName: firstMetadata?.rep_name,
+          callType: firstMetadata?.call_type
+        };
+
+        try {
+          const batchInput = batch.map(chunk => ({
+            id: chunk.id,
+            text: chunk.chunk_text
+          }));
+
+          const nerResults = await extractEntitiesBatch(batchInput, context, lovableApiKey);
+
+          for (const chunk of batch) {
+            const nerResult = nerResults.get(chunk.id);
+            if (nerResult) {
+              const { error: updateError } = await supabase
+                .from('transcript_chunks')
+                .update({
+                  entities: nerResult.entities,
+                  topics: nerResult.topics,
+                  meddpicc_elements: nerResult.meddpicc_elements,
+                  extraction_status: 'completed'
+                })
+                .eq('id', chunk.id);
+
+              if (updateError) {
+                console.error(`[chunk-transcripts] Failed to save NER for chunk ${chunk.id}:`, updateError);
+                errors++;
+              } else {
+                processed++;
+              }
+            } else {
+              errors++;
+            }
+          }
+        } catch (error) {
+          console.error(`[chunk-transcripts] NER batch failed:`, error);
+          // Mark failed chunks
+          for (const chunk of batch) {
+            await supabase
+              .from('transcript_chunks')
+              .update({ extraction_status: 'failed' })
+              .eq('id', chunk.id);
+            errors++;
+          }
+        }
+
+        // Small delay between mini-batches to avoid rate limits
+        if (i + NER_CHUNKS_PER_API_CALL < chunksNeedingNER.length) {
+          await new Promise(r => setTimeout(r, NER_BATCH_DELAY_MS));
+        }
+      }
+
+      const remaining = Math.max(0, (pendingChunks || 0) - processed);
+      console.log(`[chunk-transcripts] NER batch complete: ${processed} processed, ${errors} errors, ${remaining} remaining`);
+
+      return new Response(
+        JSON.stringify({
+          processed,
+          remaining,
+          total: totalChunks || 0,
+          errors,
+          complete: remaining === 0
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );

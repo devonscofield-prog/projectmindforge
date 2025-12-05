@@ -80,23 +80,40 @@ export async function cancelBackgroundJob(jobId: string): Promise<void> {
   if (error) throw error;
 }
 
-export async function startNERBackfillJob(token: string): Promise<{ jobId: string }> {
+// Process a single batch of NER extraction synchronously (frontend-driven pattern)
+export interface NERBatchResult {
+  processed: number;
+  remaining: number;
+  total: number;
+  errors: number;
+  complete?: boolean;
+}
+
+export async function processNERBatch(
+  token: string, 
+  batchSize: number = 10
+): Promise<NERBatchResult> {
   const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chunk-transcripts`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`,
     },
-    body: JSON.stringify({ backfill_entities: true }),
+    body: JSON.stringify({ ner_batch: true, batch_size: batchSize }),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(errorText || 'Failed to start NER backfill job');
+    throw new Error(errorText || 'Failed to process NER batch');
   }
 
-  const result = await response.json();
-  return { jobId: result.job_id };
+  return await response.json();
+}
+
+// Legacy function - kept for backward compatibility but now uses frontend-driven pattern
+export async function startNERBackfillJob(token: string): Promise<{ jobId: string }> {
+  // This is now deprecated - use processNERBatch instead
+  throw new Error('startNERBackfillJob is deprecated. Use processNERBatch for frontend-driven backfill.');
 }
 
 export async function startEmbeddingsBackfillJob(token: string): Promise<{ jobId: string }> {
