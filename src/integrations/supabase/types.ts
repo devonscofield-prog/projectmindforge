@@ -140,6 +140,13 @@ export type Database = {
             foreignKeyName: "activity_templates_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "team_member_names"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_templates_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "user_with_role"
             referencedColumns: ["id"]
           },
@@ -383,6 +390,13 @@ export type Database = {
             foreignKeyName: "ai_call_analysis_rep_id_fkey"
             columns: ["rep_id"]
             isOneToOne: false
+            referencedRelation: "team_member_names"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_call_analysis_rep_id_fkey"
+            columns: ["rep_id"]
+            isOneToOne: false
             referencedRelation: "user_with_role"
             referencedColumns: ["id"]
           },
@@ -398,6 +412,13 @@ export type Database = {
             columns: ["rep_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_ai_call_analysis_rep_id"
+            columns: ["rep_id"]
+            isOneToOne: false
+            referencedRelation: "team_member_names"
             referencedColumns: ["id"]
           },
           {
@@ -632,6 +653,13 @@ export type Database = {
             foreignKeyName: "call_transcripts_manager_id_fkey"
             columns: ["manager_id"]
             isOneToOne: false
+            referencedRelation: "team_member_names"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_transcripts_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
             referencedRelation: "user_with_role"
             referencedColumns: ["id"]
           },
@@ -653,6 +681,13 @@ export type Database = {
             foreignKeyName: "call_transcripts_rep_id_fkey"
             columns: ["rep_id"]
             isOneToOne: false
+            referencedRelation: "team_member_names"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_transcripts_rep_id_fkey"
+            columns: ["rep_id"]
+            isOneToOne: false
             referencedRelation: "user_with_role"
             referencedColumns: ["id"]
           },
@@ -661,6 +696,13 @@ export type Database = {
             columns: ["manager_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_call_transcripts_manager_id"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "team_member_names"
             referencedColumns: ["id"]
           },
           {
@@ -675,6 +717,13 @@ export type Database = {
             columns: ["rep_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_call_transcripts_rep_id"
+            columns: ["rep_id"]
+            isOneToOne: false
+            referencedRelation: "team_member_names"
             referencedColumns: ["id"]
           },
           {
@@ -1639,6 +1688,35 @@ export type Database = {
           user_name: string | null
         }
         Relationships: []
+      }
+      team_member_names: {
+        Row: {
+          id: string | null
+          is_active: boolean | null
+          name: string | null
+          team_id: string | null
+        }
+        Insert: {
+          id?: string | null
+          is_active?: boolean | null
+          name?: string | null
+          team_id?: string | null
+        }
+        Update: {
+          id?: string | null
+          is_active?: boolean | null
+          name?: string | null
+          team_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_with_role: {
         Row: {
