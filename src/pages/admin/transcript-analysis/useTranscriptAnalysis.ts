@@ -13,7 +13,8 @@ import {
   fetchActiveJob, 
   cancelBackgroundJob, 
   startNERBackfillJob, 
-  startEmbeddingsBackfillJob 
+  startEmbeddingsBackfillJob,
+  startFullReindexJob
 } from '@/api/backgroundJobs';
 
 const log = createLogger('transcriptAnalysis');
@@ -68,6 +69,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
   // Background job state - now drives UI from database polling
   const [activeNERJobId, setActiveNERJobId] = useState<string | null>(null);
   const [activeEmbeddingsJobId, setActiveEmbeddingsJobId] = useState<string | null>(null);
+  const [activeReindexJobId, setActiveReindexJobId] = useState<string | null>(null);
   
   // Pre-indexing state
   const [isIndexing, setIsIndexing] = useState(false);
@@ -350,6 +352,22 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     }
   }, [existingEmbeddingsJob, activeEmbeddingsJobId]);
 
+  // Check for existing active reindex job on page load
+  const { data: existingReindexJob } = useQuery({
+    queryKey: ['active-job', 'full_reindex'],
+    queryFn: () => fetchActiveJob('full_reindex'),
+    enabled: role === 'admin' && !activeReindexJobId,
+    staleTime: 0,
+  });
+
+  // Resume tracking existing reindex job
+  useEffect(() => {
+    if (existingReindexJob && !activeReindexJobId) {
+      setActiveReindexJobId(existingReindexJob.id);
+      toast.info('Found active full reindex job, resuming tracking...');
+    }
+  }, [existingReindexJob, activeReindexJobId]);
+
   // Poll NER job status
   const { data: nerJobStatus } = useQuery({
     queryKey: ['background-job', 'ner', activeNERJobId],
@@ -369,6 +387,20 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     queryKey: ['background-job', 'embeddings', activeEmbeddingsJobId],
     queryFn: () => fetchBackgroundJob(activeEmbeddingsJobId!),
     enabled: !!activeEmbeddingsJobId,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      if (status === 'completed' || status === 'failed' || status === 'cancelled') {
+        return false;
+      }
+      return 3000; // Poll every 3 seconds
+    },
+  });
+
+  // Poll reindex job status
+  const { data: reindexJobStatus } = useQuery({
+    queryKey: ['background-job', 'reindex', activeReindexJobId],
+    queryFn: () => fetchBackgroundJob(activeReindexJobId!),
+    enabled: !!activeReindexJobId,
     refetchInterval: (query) => {
       const status = query.state.data?.status;
       if (status === 'completed' || status === 'failed' || status === 'cancelled') {
@@ -414,11 +446,39 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     }
   }, [embeddingsJobStatus?.status, embeddingsJobStatus?.error, refetchGlobalChunkStatus]);
 
+  // Handle reindex job status changes
+  useEffect(() => {
+    if (reindexJobStatus) {
+      const progress = reindexJobStatus.progress as { message?: string; overall_percent?: number } | null;
+      setResetProgress(progress?.message || null);
+      
+      if (reindexJobStatus.status === 'completed') {
+        toast.success('Full reindex complete!');
+        setActiveReindexJobId(null);
+        setIsResetting(false);
+        setResetProgress(null);
+        refetchGlobalChunkStatus();
+      } else if (reindexJobStatus.status === 'failed') {
+        toast.error(`Full reindex failed: ${reindexJobStatus.error || 'Unknown error'}`);
+        setActiveReindexJobId(null);
+        setIsResetting(false);
+        setResetProgress(null);
+      } else if (reindexJobStatus.status === 'cancelled') {
+        toast.info('Full reindex cancelled');
+        setActiveReindexJobId(null);
+        setIsResetting(false);
+        setResetProgress(null);
+        refetchGlobalChunkStatus();
+      }
+    }
+  }, [reindexJobStatus?.status, reindexJobStatus?.error, reindexJobStatus?.progress, refetchGlobalChunkStatus]);
+
   // Derived state from job polling
   const isBackfillingEntities = nerJobStatus?.status === 'processing' || nerJobStatus?.status === 'pending';
   const isBackfillingEmbeddings = embeddingsJobStatus?.status === 'processing' || embeddingsJobStatus?.status === 'pending';
   const entitiesProgress = nerJobStatus?.progress as { processed: number; total: number } | null;
   const embeddingsProgress = embeddingsJobStatus?.progress as { processed: number; total: number } | null;
+  const reindexProgress = reindexJobStatus?.progress as { message?: string; overall_percent?: number; stage?: string } | null;
 
   // Helper to get a fresh access token with session refresh
   const getFreshToken = async (): Promise<string | null> => {
@@ -573,19 +633,22 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     }
   };
 
-  // Reset and reindex all handler (admin only - full RAG system reset)
+  // Reset and reindex all handler (admin only - now uses background job system)
   const handleResetAndReindex = async () => {
     if (role !== 'admin') {
       toast.error('Only admins can reset the RAG system');
       return;
     }
     
-    if (!confirm('⚠️ FULL RAG RESET\n\nThis will:\n1. Delete ALL existing chunks\n2. Re-chunk all transcripts\n3. Generate embeddings for all chunks\n4. Run NER extraction on all chunks\n\nThis may take 15-30 minutes. Continue?')) {
+    // Check if already running
+    if (activeReindexJobId) {
+      toast.info('Full reindex is already in progress');
       return;
     }
     
-    setIsResetting(true);
-    setResetProgress('Deleting existing chunks...');
+    if (!confirm('⚠️ FULL RAG RESET\n\nThis will:\n1. Delete ALL existing chunks\n2. Re-chunk all transcripts\n3. Generate embeddings for all chunks\n4. Run NER extraction on all chunks\n\nThis runs in the background and may take 15-30 minutes. Continue?')) {
+      return;
+    }
     
     try {
       const token = await getFreshToken();
@@ -594,140 +657,31 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
         return;
       }
       
-      // Step 1: Reset all chunks
-      log.info('Starting RAG reset - Step 1: Deleting chunks');
-      const resetResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chunk-transcripts`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ reset_all_chunks: true }),
-      });
-      
-      if (!resetResponse.ok) {
-        const errorText = await resetResponse.text();
-        throw new Error('Failed to reset chunks: ' + errorText);
-      }
-      
-      const resetResult = await resetResponse.json();
-      toast.info(`Deleted ${resetResult.deleted_count} chunks. Starting fresh reindex...`);
-      
-      // Step 2: Backfill all transcripts (chunking)
-      setResetProgress('Re-chunking all transcripts...');
-      log.info('RAG reset - Step 2: Re-chunking transcripts');
-      
-      const backfillResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chunk-transcripts`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ backfill_all: true }),
-      });
-      
-      if (!backfillResponse.ok) {
-        const errorText = await backfillResponse.text();
-        throw new Error('Failed to re-chunk transcripts: ' + errorText);
-      }
-      
-      const backfillResult = await backfillResponse.json();
-      toast.info(`Created ${backfillResult.new_chunks || 0} chunks. Starting embeddings...`);
-      
-      // Step 3: Generate embeddings (auto-continue loop)
-      setResetProgress('Generating embeddings...');
-      log.info('RAG reset - Step 3: Generating embeddings');
-      
-      let embeddingsRemaining = 1;
-      let totalEmbeddings = 0;
-      let consecutiveErrors = 0;
-      
-      while (embeddingsRemaining > 0 && consecutiveErrors < 3) {
-        const embResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chunk-transcripts`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({ backfill_embeddings: true }),
-        });
-        
-        if (!embResponse.ok) {
-          consecutiveErrors++;
-          log.warn('Embeddings batch error', { consecutiveErrors });
-          if (consecutiveErrors >= 3) {
-            throw new Error('Failed to generate embeddings after 3 attempts');
-          }
-          await new Promise(r => setTimeout(r, 2000));
-          continue;
-        }
-        
-        consecutiveErrors = 0;
-        const embResult = await embResponse.json();
-        totalEmbeddings += embResult.success_count || 0;
-        embeddingsRemaining = embResult.remaining || 0;
-        
-        setResetProgress(`Generating embeddings... ${embResult.chunks_with_embeddings}/${embResult.total_chunks}`);
-        
-        if (embeddingsRemaining > 0) {
-          await new Promise(r => setTimeout(r, 500));
-        }
-      }
-      
-      toast.info(`Generated ${totalEmbeddings} embeddings. Starting NER extraction...`);
-      
-      // Step 4: NER extraction (auto-continue loop)
-      setResetProgress('Extracting entities...');
-      log.info('RAG reset - Step 4: NER extraction');
-      
-      let nerRemaining = 1;
-      let totalNer = 0;
-      consecutiveErrors = 0;
-      
-      while (nerRemaining > 0 && consecutiveErrors < 3) {
-        const nerResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chunk-transcripts`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({ backfill_entities: true }),
-        });
-        
-        if (!nerResponse.ok) {
-          consecutiveErrors++;
-          log.warn('NER batch error', { consecutiveErrors });
-          if (consecutiveErrors >= 3) {
-            throw new Error('Failed to extract entities after 3 attempts');
-          }
-          await new Promise(r => setTimeout(r, 2000));
-          continue;
-        }
-        
-        consecutiveErrors = 0;
-        const nerResult = await nerResponse.json();
-        totalNer += nerResult.success_count || 0;
-        
-        // Use the 'remaining' count from edge function response (now available)
-        nerRemaining = nerResult.remaining || 0;
-        
-        setResetProgress(`Extracting entities... ${nerResult.chunks_with_entities || totalNer} completed`);
-        
-        if (nerRemaining > 0) {
-          await new Promise(r => setTimeout(r, 500));
-        }
-      }
-      
-      toast.success(`Full RAG reset complete! ${backfillResult.new_chunks || 0} chunks, ${totalEmbeddings} embeddings, ${totalNer} entities extracted.`);
-      
-      refetchChunkStatus();
-      refetchGlobalChunkStatus();
+      const { jobId } = await startFullReindexJob(token);
+      setActiveReindexJobId(jobId);
+      setIsResetting(true);
+      setResetProgress('Starting full reindex...');
+      toast.success('Full reindex started in background');
     } catch (err) {
-      log.error('RAG reset error', { error: err });
-      toast.error(err instanceof Error ? err.message : 'Failed to reset RAG system');
-    } finally {
-      setIsResetting(false);
-      setResetProgress(null);
+      log.error('Failed to start full reindex', { error: err });
+      if (err instanceof Error && err.message.includes('already in progress')) {
+        toast.info('A full reindex is already in progress');
+      } else {
+        toast.error(err instanceof Error ? err.message : 'Failed to start full reindex');
+      }
+    }
+  };
+
+  // Stop full reindex
+  const stopReindex = async () => {
+    if (!activeReindexJobId) return;
+    
+    try {
+      await cancelBackgroundJob(activeReindexJobId);
+      toast.info('Cancellation requested...');
+    } catch (err) {
+      log.error('Failed to cancel full reindex', { error: err });
+      toast.error('Failed to cancel reindex');
     }
   };
 

@@ -43,18 +43,20 @@ function checkRateLimit(userId: string): { allowed: boolean; retryAfter?: number
   return { allowed: true };
 }
 
-// Zod validation schema - supports transcript_ids, backfill modes, and reset
+// Zod validation schema - supports transcript_ids, backfill modes, reset, and full_reindex
 const chunkTranscriptsSchema = z.object({
   transcript_ids: z.array(z.string().uuid()).max(100).optional(),
   backfill_all: z.boolean().optional(),
   backfill_embeddings: z.boolean().optional(),
   backfill_entities: z.boolean().optional(),
   reset_all_chunks: z.boolean().optional(),
+  full_reindex: z.boolean().optional(),
 }).refine(
   (data) => data.backfill_all === true || data.backfill_embeddings === true || 
             data.backfill_entities === true || data.reset_all_chunks === true ||
+            data.full_reindex === true ||
             (data.transcript_ids && data.transcript_ids.length > 0),
-  { message: "Either transcript_ids, a backfill mode, or reset_all_chunks is required" }
+  { message: "Either transcript_ids, a backfill mode, reset_all_chunks, or full_reindex is required" }
 );
 
 // Constants
@@ -742,6 +744,369 @@ async function processEmbeddingsBackfillJob(
   }
 }
 
+// ========== FULL REINDEX BACKGROUND JOB PROCESSING ==========
+
+interface FullReindexProgress {
+  stage: 'reset' | 'chunking' | 'embeddings' | 'ner';
+  stages_completed: string[];
+  current_stage_progress: { processed: number; total: number };
+  overall_percent: number;
+  message: string;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function processFullReindexJob(
+  jobId: string,
+  supabase: SupabaseClient<any, "public", any>,
+  openaiApiKey: string,
+  lovableApiKey: string
+) {
+  console.log(`[chunk-transcripts] Starting full reindex background job ${jobId}`);
+  
+  const updateProgress = async (progress: FullReindexProgress) => {
+    await supabase
+      .from('background_jobs')
+      .update({
+        progress,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', jobId);
+  };
+  
+  const checkCancelled = async (): Promise<boolean> => {
+    const { data: job } = await supabase
+      .from('background_jobs')
+      .select('status')
+      .eq('id', jobId)
+      .single() as { data: { status: string } | null };
+    return job?.status === 'cancelled';
+  };
+  
+  try {
+    // ========== STAGE 1: RESET (Delete all chunks) ==========
+    console.log(`[chunk-transcripts] Full reindex - Stage 1: Deleting all chunks`);
+    await updateProgress({
+      stage: 'reset',
+      stages_completed: [],
+      current_stage_progress: { processed: 0, total: 1 },
+      overall_percent: 0,
+      message: 'Deleting existing chunks...'
+    });
+    
+    const { count: beforeCount } = await supabase
+      .from('transcript_chunks')
+      .select('*', { count: 'exact', head: true });
+    
+    const { error: deleteError } = await supabase
+      .from('transcript_chunks')
+      .delete()
+      .neq('id', '00000000-0000-0000-0000-000000000000');
+    
+    if (deleteError) {
+      throw new Error(`Failed to delete chunks: ${deleteError.message}`);
+    }
+    
+    console.log(`[chunk-transcripts] Deleted ${beforeCount || 0} chunks`);
+    
+    if (await checkCancelled()) {
+      console.log(`[chunk-transcripts] Job ${jobId} cancelled during reset`);
+      return;
+    }
+    
+    // ========== STAGE 2: CHUNKING (Re-chunk all transcripts) ==========
+    console.log(`[chunk-transcripts] Full reindex - Stage 2: Re-chunking transcripts`);
+    await updateProgress({
+      stage: 'chunking',
+      stages_completed: ['reset'],
+      current_stage_progress: { processed: 0, total: 0 },
+      overall_percent: 10,
+      message: 'Re-chunking transcripts...'
+    });
+    
+    // Fetch all eligible transcripts
+    const { data: allTranscripts, error: fetchError } = await supabase
+      .from('call_transcripts')
+      .select(`
+        id,
+        raw_text,
+        account_name,
+        call_date,
+        call_type,
+        rep_id,
+        profiles:rep_id (name)
+      `)
+      .in('analysis_status', ['completed', 'skipped'])
+      .is('deleted_at', null);
+    
+    if (fetchError) {
+      throw new Error(`Failed to fetch transcripts: ${fetchError.message}`);
+    }
+    
+    const transcripts = allTranscripts || [];
+    console.log(`[chunk-transcripts] Found ${transcripts.length} transcripts to chunk`);
+    
+    let chunkedCount = 0;
+    let totalChunks = 0;
+    
+    for (let i = 0; i < transcripts.length; i += CHUNKING_BATCH_SIZE) {
+      if (await checkCancelled()) {
+        console.log(`[chunk-transcripts] Job ${jobId} cancelled during chunking`);
+        return;
+      }
+      
+      const batch = transcripts.slice(i, i + CHUNKING_BATCH_SIZE);
+      const chunksToInsert: TranscriptChunk[] = [];
+      
+      for (const transcript of batch) {
+        const textChunks = chunkText(transcript.raw_text);
+        const repProfileData = transcript.profiles as unknown;
+        const repName = Array.isArray(repProfileData) 
+          ? (repProfileData[0] as { name?: string })?.name 
+          : (repProfileData as { name?: string } | null)?.name;
+        
+        for (let chunkIndex = 0; chunkIndex < textChunks.length; chunkIndex++) {
+          chunksToInsert.push({
+            transcript_id: transcript.id,
+            chunk_index: chunkIndex,
+            chunk_text: textChunks[chunkIndex],
+            extraction_status: 'pending',
+            metadata: {
+              account_name: transcript.account_name || 'Unknown',
+              call_date: transcript.call_date,
+              call_type: transcript.call_type || 'Unknown',
+              rep_name: repName || 'Unknown',
+              rep_id: transcript.rep_id
+            }
+          });
+        }
+      }
+      
+      if (chunksToInsert.length > 0) {
+        const { error: insertError } = await supabase
+          .from('transcript_chunks')
+          .insert(chunksToInsert);
+        
+        if (insertError) {
+          console.error(`[chunk-transcripts] Chunk insert error:`, insertError);
+        } else {
+          totalChunks += chunksToInsert.length;
+        }
+      }
+      
+      chunkedCount += batch.length;
+      await updateProgress({
+        stage: 'chunking',
+        stages_completed: ['reset'],
+        current_stage_progress: { processed: chunkedCount, total: transcripts.length },
+        overall_percent: 10 + Math.floor((chunkedCount / transcripts.length) * 20),
+        message: `Chunking transcripts... ${chunkedCount}/${transcripts.length}`
+      });
+    }
+    
+    console.log(`[chunk-transcripts] Created ${totalChunks} chunks from ${transcripts.length} transcripts`);
+    
+    // ========== STAGE 3: EMBEDDINGS ==========
+    console.log(`[chunk-transcripts] Full reindex - Stage 3: Generating embeddings`);
+    await updateProgress({
+      stage: 'embeddings',
+      stages_completed: ['reset', 'chunking'],
+      current_stage_progress: { processed: 0, total: totalChunks },
+      overall_percent: 30,
+      message: 'Generating embeddings...'
+    });
+    
+    let embeddingsProcessed = 0;
+    let embeddingsErrors = 0;
+    let hasMoreEmbeddings = true;
+    
+    while (hasMoreEmbeddings) {
+      if (await checkCancelled()) {
+        console.log(`[chunk-transcripts] Job ${jobId} cancelled during embeddings`);
+        return;
+      }
+      
+      const { data: chunksNeedingEmbeddings } = await supabase
+        .from('transcript_chunks')
+        .select('id, chunk_text')
+        .is('embedding', null)
+        .limit(EMBEDDING_BATCH_SIZE) as { data: Array<{ id: string; chunk_text: string }> | null };
+      
+      if (!chunksNeedingEmbeddings || chunksNeedingEmbeddings.length === 0) {
+        hasMoreEmbeddings = false;
+        break;
+      }
+      
+      for (const chunk of chunksNeedingEmbeddings) {
+        try {
+          await new Promise(r => setTimeout(r, EMBEDDING_DELAY_MS));
+          const embedding = await generateEmbedding(chunk.chunk_text, openaiApiKey);
+          
+          const { error: updateError } = await supabase
+            .from('transcript_chunks')
+            .update({ embedding })
+            .eq('id', chunk.id);
+          
+          if (updateError) {
+            embeddingsErrors++;
+          } else {
+            embeddingsProcessed++;
+          }
+        } catch (error) {
+          console.error(`[chunk-transcripts] Embedding error:`, error);
+          embeddingsErrors++;
+        }
+      }
+      
+      const { count: withEmbeddings } = await supabase
+        .from('transcript_chunks')
+        .select('*', { count: 'exact', head: true })
+        .not('embedding', 'is', null);
+      
+      await updateProgress({
+        stage: 'embeddings',
+        stages_completed: ['reset', 'chunking'],
+        current_stage_progress: { processed: withEmbeddings || 0, total: totalChunks },
+        overall_percent: 30 + Math.floor(((withEmbeddings || 0) / totalChunks) * 35),
+        message: `Generating embeddings... ${withEmbeddings || 0}/${totalChunks}`
+      });
+    }
+    
+    console.log(`[chunk-transcripts] Embeddings complete: ${embeddingsProcessed} processed, ${embeddingsErrors} errors`);
+    
+    // ========== STAGE 4: NER EXTRACTION ==========
+    console.log(`[chunk-transcripts] Full reindex - Stage 4: NER extraction`);
+    await updateProgress({
+      stage: 'ner',
+      stages_completed: ['reset', 'chunking', 'embeddings'],
+      current_stage_progress: { processed: 0, total: totalChunks },
+      overall_percent: 65,
+      message: 'Extracting entities...'
+    });
+    
+    let nerProcessed = 0;
+    let nerErrors = 0;
+    let hasMoreNER = true;
+    
+    while (hasMoreNER) {
+      if (await checkCancelled()) {
+        console.log(`[chunk-transcripts] Job ${jobId} cancelled during NER`);
+        return;
+      }
+      
+      const { data: chunksNeedingNER } = await supabase
+        .from('transcript_chunks')
+        .select('id, chunk_text, metadata, transcript_id')
+        .or('extraction_status.eq.pending,extraction_status.eq.failed')
+        .limit(9) as { data: Array<{ id: string; chunk_text: string; metadata: any; transcript_id: string }> | null };
+      
+      if (!chunksNeedingNER || chunksNeedingNER.length === 0) {
+        hasMoreNER = false;
+        break;
+      }
+      
+      for (let i = 0; i < chunksNeedingNER.length; i += NER_CHUNKS_PER_API_CALL) {
+        const batch = chunksNeedingNER.slice(i, i + NER_CHUNKS_PER_API_CALL);
+        const firstMetadata = batch[0]?.metadata as { account_name?: string; rep_name?: string; call_type?: string } | undefined;
+        const context = {
+          accountName: firstMetadata?.account_name,
+          repName: firstMetadata?.rep_name,
+          callType: firstMetadata?.call_type
+        };
+        
+        try {
+          const batchInput = batch.map(chunk => ({ id: chunk.id, text: chunk.chunk_text }));
+          const nerResults = await extractEntitiesBatch(batchInput, context, lovableApiKey);
+          
+          for (const chunk of batch) {
+            const nerResult = nerResults.get(chunk.id);
+            if (nerResult) {
+              const { error: updateError } = await supabase
+                .from('transcript_chunks')
+                .update({
+                  entities: nerResult.entities,
+                  topics: nerResult.topics,
+                  meddpicc_elements: nerResult.meddpicc_elements,
+                  extraction_status: 'completed'
+                })
+                .eq('id', chunk.id);
+              
+              if (updateError) {
+                nerErrors++;
+              } else {
+                nerProcessed++;
+              }
+            } else {
+              nerErrors++;
+            }
+          }
+        } catch (error) {
+          console.error(`[chunk-transcripts] NER batch failed:`, error);
+          for (const chunk of batch) {
+            await supabase
+              .from('transcript_chunks')
+              .update({ extraction_status: 'failed' })
+              .eq('id', chunk.id);
+            nerErrors++;
+          }
+        }
+        
+        if (i + NER_CHUNKS_PER_API_CALL < chunksNeedingNER.length) {
+          await new Promise(r => setTimeout(r, NER_BATCH_DELAY_MS));
+        }
+      }
+      
+      const { count: withNER } = await supabase
+        .from('transcript_chunks')
+        .select('*', { count: 'exact', head: true })
+        .eq('extraction_status', 'completed');
+      
+      await updateProgress({
+        stage: 'ner',
+        stages_completed: ['reset', 'chunking', 'embeddings'],
+        current_stage_progress: { processed: withNER || 0, total: totalChunks },
+        overall_percent: 65 + Math.floor(((withNER || 0) / totalChunks) * 35),
+        message: `Extracting entities... ${withNER || 0}/${totalChunks}`
+      });
+      
+      await new Promise(r => setTimeout(r, 500));
+    }
+    
+    console.log(`[chunk-transcripts] NER complete: ${nerProcessed} processed, ${nerErrors} errors`);
+    
+    // ========== COMPLETE ==========
+    await supabase
+      .from('background_jobs')
+      .update({
+        status: 'completed',
+        progress: {
+          stage: 'ner',
+          stages_completed: ['reset', 'chunking', 'embeddings', 'ner'],
+          current_stage_progress: { processed: totalChunks, total: totalChunks },
+          overall_percent: 100,
+          message: `Complete! ${totalChunks} chunks indexed`
+        },
+        completed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', jobId);
+    
+    console.log(`[chunk-transcripts] Full reindex job ${jobId} completed successfully`);
+    
+  } catch (error) {
+    console.error(`[chunk-transcripts] Full reindex job ${jobId} failed:`, error);
+    
+    await supabase
+      .from('background_jobs')
+      .update({
+        status: 'failed',
+        error: error instanceof Error ? error.message : String(error),
+        completed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', jobId);
+  }
+}
+
 // ========== MAIN SERVER HANDLER ==========
 
 serve(async (req) => {
@@ -770,7 +1135,7 @@ serve(async (req) => {
       );
     }
 
-    const { transcript_ids, backfill_all, backfill_embeddings, backfill_entities, reset_all_chunks } = parseResult.data;
+    const { transcript_ids, backfill_all, backfill_embeddings, backfill_entities, reset_all_chunks, full_reindex } = parseResult.data;
 
     // Auth check
     const authHeader = req.headers.get('Authorization');
@@ -1079,6 +1444,72 @@ serve(async (req) => {
           total: allIds.length,
           indexed: chunkedIds.size + transcriptsProcessed,
           new_chunks: totalChunksCreated 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ========== FULL REINDEX MODE (Background Job) ==========
+    if (full_reindex) {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ error: 'Only admins can use full_reindex mode' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      console.log(`[chunk-transcripts] Admin ${userId} initiated full_reindex (background job)`);
+
+      // Check for existing active job
+      const { data: existingJob } = await supabase
+        .from('background_jobs')
+        .select('id, status')
+        .eq('job_type', 'full_reindex')
+        .in('status', ['pending', 'processing'])
+        .maybeSingle();
+
+      if (existingJob) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'Full reindex already in progress',
+            job_id: existingJob.id 
+          }),
+          { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Create job record
+      const { data: job, error: jobError } = await supabase
+        .from('background_jobs')
+        .insert({
+          job_type: 'full_reindex',
+          status: 'processing',
+          created_by: userId,
+          started_at: new Date().toISOString(),
+          progress: { 
+            stage: 'reset', 
+            stages_completed: [], 
+            current_stage_progress: { processed: 0, total: 0 },
+            overall_percent: 0,
+            message: 'Starting full reindex...'
+          }
+        })
+        .select()
+        .single();
+
+      if (jobError || !job) {
+        throw new Error('Failed to create background job');
+      }
+
+      // Start background processing
+      EdgeRuntime.waitUntil(processFullReindexJob(job.id, supabase, openaiApiKey, lovableApiKey));
+
+      // Return immediately with job ID
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'Full reindex started in background',
+          job_id: job.id
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
