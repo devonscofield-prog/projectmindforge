@@ -6,6 +6,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const CACHE_KEY = 'performance_recommendations';
+const CACHE_TTL_HOURS = 1;
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -20,6 +23,33 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Check for forceRefresh parameter
+    const body = await req.json().catch(() => ({}));
+    const forceRefresh = body.forceRefresh === true;
+
+    // Check cache first (unless force refresh)
+    if (!forceRefresh) {
+      const { data: cached } = await supabase
+        .from('dashboard_cache')
+        .select('cache_data, computed_at')
+        .eq('cache_key', CACHE_KEY)
+        .gt('expires_at', new Date().toISOString())
+        .maybeSingle();
+
+      if (cached?.cache_data) {
+        console.log('Returning cached recommendations');
+        // Add cache metadata to response
+        const cachedResponse = {
+          ...(cached.cache_data as object),
+          _cached: true,
+          _cachedAt: cached.computed_at,
+        };
+        return new Response(JSON.stringify(cachedResponse), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
 
     console.log("Fetching performance metrics for analysis...");
 
@@ -47,17 +77,6 @@ serve(async (req) => {
       console.error("Error fetching recent metrics:", metricsError);
       throw metricsError;
     }
-
-    // Prepare data for AI analysis
-    const analysisData = {
-      summary: performanceSummary || [],
-      recentMetrics: recentMetrics || [],
-      thresholds: {
-        query: { healthy: 500, warning: 1000, critical: 1500 },
-        edgeFunction: { healthy: 3000, warning: 5000, critical: 8000 },
-        errorRate: { healthy: 1, warning: 3, critical: 5 },
-      },
-    };
 
     // Identify problematic operations
     const slowQueries = (performanceSummary || [])
@@ -231,6 +250,24 @@ Format each recommendation with a clear title, priority (high/medium/low), categ
         healthScore: 50,
       };
     }
+
+    // Store in cache for future requests
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + CACHE_TTL_HOURS * 60 * 60 * 1000);
+    
+    await supabase.from('dashboard_cache').upsert({
+      cache_key: CACHE_KEY,
+      cache_data: recommendations,
+      computed_at: now.toISOString(),
+      expires_at: expiresAt.toISOString(),
+      metadata: { 
+        source: 'analyze-performance',
+        metrics_count: (performanceSummary || []).length,
+        force_refreshed: forceRefresh,
+      }
+    }, { onConflict: 'cache_key' });
+
+    console.log('Recommendations cached successfully');
 
     return new Response(JSON.stringify(recommendations), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
