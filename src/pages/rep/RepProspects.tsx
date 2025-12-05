@@ -10,6 +10,7 @@ import { getRepPageBreadcrumb } from '@/lib/breadcrumbConfig';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -28,7 +29,8 @@ import {
 import { MobileProspectListSkeleton, TableSkeleton, StatCardGridSkeleton } from '@/components/ui/skeletons';
 import { PullToRefresh } from '@/components/ui/pull-to-refresh';
 import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
-import { Search, Users, Calendar, DollarSign, ChevronRight, Building2, Flame, TrendingUp } from 'lucide-react';
+import { PaginationControls } from '@/components/ui/pagination-controls';
+import { Search, Users, Calendar, DollarSign, ChevronRight, Building2, Flame, TrendingUp, RefreshCw, ArrowUp, ArrowDown } from 'lucide-react';
 import { format } from 'date-fns';
 import { type ProspectStatus, type ProspectFilters } from '@/api/prospects';
 import { MobileProspectCard } from '@/components/prospects/MobileProspectCard';
@@ -42,6 +44,8 @@ import {
   prospectKeys 
 } from '@/hooks/useProspectQueries';
 
+type SortDirection = 'asc' | 'desc';
+
 function RepProspects() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -50,13 +54,17 @@ function RepProspects() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<ProspectFilters['sortBy']>('last_contact_date');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Fetch prospects with React Query
   const filters: ProspectFilters = useMemo(() => ({
     sortBy,
-    sortOrder: 'desc' as const,
+    sortOrder: sortDirection,
     ...(statusFilter !== 'all' && { statuses: [statusFilter as ProspectStatus] }),
-  }), [statusFilter, sortBy]);
+  }), [statusFilter, sortBy, sortDirection]);
 
   const { 
     data: prospects = [], 
@@ -74,6 +82,35 @@ function RepProspects() {
     await queryClient.invalidateQueries({ queryKey: prospectKeys.lists() });
   };
 
+  // Desktop refresh handler
+  const handleDesktopRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refetchProspects();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // Handle column header click for sorting
+  const handleSort = (column: ProspectFilters['sortBy']) => {
+    if (sortBy === column) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(column);
+      setSortDirection('desc');
+    }
+    setCurrentPage(1); // Reset to first page on sort change
+  };
+
+  // Get sort icon for column
+  const getSortIcon = (column: ProspectFilters['sortBy']) => {
+    if (sortBy !== column) return null;
+    return sortDirection === 'asc' 
+      ? <ArrowUp className="h-3 w-3 ml-1" aria-hidden="true" />
+      : <ArrowDown className="h-3 w-3 ml-1" aria-hidden="true" />;
+  };
+
   const filteredProspects = useMemo(() => {
     if (!search) return prospects;
     const searchLower = search.toLowerCase();
@@ -82,6 +119,19 @@ function RepProspects() {
       prospect.prospect_name.toLowerCase().includes(searchLower)
     );
   }, [prospects, search]);
+
+  // Paginate the filtered results
+  const paginatedProspects = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredProspects.slice(startIndex, startIndex + pageSize);
+  }, [filteredProspects, currentPage, pageSize]);
+
+  const totalPages = Math.ceil(filteredProspects.length / pageSize);
+
+  // Reset to page 1 when filters change
+  useMemo(() => {
+    setCurrentPage(1);
+  }, [search, statusFilter]);
 
   // Calculate stats from filtered data
   const stats = useMemo(() => ({
@@ -218,8 +268,25 @@ function RepProspects() {
         {/* Prospects Table */}
         <QueryErrorBoundary>
         <Card>
-          <CardHeader>
-            <CardTitle>All Accounts</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+            <div>
+              <CardTitle>All Accounts</CardTitle>
+              {!isLoading && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Showing {paginatedProspects.length} of {filteredProspects.length} accounts
+                </p>
+              )}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDesktopRefresh}
+              disabled={isRefreshing}
+              className="hidden md:flex"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
+              Refresh
+            </Button>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -249,7 +316,7 @@ function RepProspects() {
                 {/* Mobile Card View with Pull-to-Refresh */}
                 <PullToRefresh onRefresh={handleRefresh} className="md:hidden">
                   <div className="space-y-3">
-                    {filteredProspects.map((prospect) => (
+                    {paginatedProspects.map((prospect) => (
                       <MobileProspectCard
                         key={prospect.id}
                         prospect={prospect}
@@ -266,21 +333,61 @@ function RepProspects() {
                   <Table aria-label="Accounts table">
                     <TableHeader>
                       <TableRow>
-                        <TableHead scope="col">Account</TableHead>
+                        <TableHead 
+                          scope="col" 
+                          className="cursor-pointer hover:bg-muted/50 select-none"
+                          onClick={() => handleSort('account_name')}
+                          aria-sort={sortBy === 'account_name' ? (sortDirection === 'asc' ? 'ascending' : 'descending') : undefined}
+                        >
+                          <span className="flex items-center">
+                            Account
+                            {getSortIcon('account_name')}
+                          </span>
+                        </TableHead>
                         <TableHead scope="col">Status</TableHead>
                         <TableHead scope="col">Industry</TableHead>
-                        <TableHead scope="col">Heat</TableHead>
-                        <TableHead scope="col">Revenue</TableHead>
+                        <TableHead 
+                          scope="col"
+                          className="cursor-pointer hover:bg-muted/50 select-none"
+                          onClick={() => handleSort('heat_score')}
+                          aria-sort={sortBy === 'heat_score' ? (sortDirection === 'asc' ? 'ascending' : 'descending') : undefined}
+                        >
+                          <span className="flex items-center">
+                            Heat
+                            {getSortIcon('heat_score')}
+                          </span>
+                        </TableHead>
+                        <TableHead 
+                          scope="col"
+                          className="cursor-pointer hover:bg-muted/50 select-none"
+                          onClick={() => handleSort('active_revenue')}
+                          aria-sort={sortBy === 'active_revenue' ? (sortDirection === 'asc' ? 'ascending' : 'descending') : undefined}
+                        >
+                          <span className="flex items-center">
+                            Revenue
+                            {getSortIcon('active_revenue')}
+                          </span>
+                        </TableHead>
                         <TableHead scope="col">Stakeholders</TableHead>
                         <TableHead scope="col">Calls</TableHead>
-                        <TableHead scope="col">Last Contact</TableHead>
+                        <TableHead 
+                          scope="col"
+                          className="cursor-pointer hover:bg-muted/50 select-none"
+                          onClick={() => handleSort('last_contact_date')}
+                          aria-sort={sortBy === 'last_contact_date' ? (sortDirection === 'asc' ? 'ascending' : 'descending') : undefined}
+                        >
+                          <span className="flex items-center">
+                            Last Contact
+                            {getSortIcon('last_contact_date')}
+                          </span>
+                        </TableHead>
                         <TableHead scope="col" className="w-10">
                           <span className="sr-only">Actions</span>
                         </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredProspects.map((prospect) => (
+                      {paginatedProspects.map((prospect) => (
                         <TableRow
                           key={prospect.id}
                           className="cursor-pointer hover:bg-muted/50 focus-visible:bg-muted focus-visible:outline-none"
@@ -349,6 +456,23 @@ function RepProspects() {
                     </TableBody>
                   </Table>
                 </div>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="mt-4">
+                    <PaginationControls
+                      currentPage={currentPage}
+                      totalPages={totalPages}
+                      totalItems={filteredProspects.length}
+                      pageSize={pageSize}
+                      onPageChange={setCurrentPage}
+                      onPageSizeChange={(size) => {
+                        setPageSize(size);
+                        setCurrentPage(1);
+                      }}
+                    />
+                  </div>
+                )}
               </>
             )}
           </CardContent>
