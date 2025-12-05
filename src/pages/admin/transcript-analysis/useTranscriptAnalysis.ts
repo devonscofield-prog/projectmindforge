@@ -955,6 +955,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     stopEmbeddingsBackfill,
     stopNERBackfill,
     handleResetAndReindex,
+    stopReindex,
     handleLoadSelection,
   };
 }
