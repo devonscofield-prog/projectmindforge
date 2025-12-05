@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -12,11 +12,11 @@ import {
   fetchBackgroundJob, 
   fetchActiveJob, 
   cancelBackgroundJob, 
-  startNERBackfillJob, 
   startEmbeddingsBackfillJob,
   startFullReindexJob,
   isJobStalled,
-  cancelStalledJob
+  processNERBatch,
+  NERBatchResult
 } from '@/api/backgroundJobs';
 
 const log = createLogger('transcriptAnalysis');
@@ -68,10 +68,16 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
   const [savedSelectionsOpen, setSavedSelectionsOpen] = useState(false);
   const [savedInsightsOpen, setSavedInsightsOpen] = useState(false);
   
-  // Background job state - now drives UI from database polling
-  const [activeNERJobId, setActiveNERJobId] = useState<string | null>(null);
+  // Background job state for embeddings/reindex (still uses database polling)
   const [activeEmbeddingsJobId, setActiveEmbeddingsJobId] = useState<string | null>(null);
   const [activeReindexJobId, setActiveReindexJobId] = useState<string | null>(null);
+  
+  // Frontend-driven NER backfill state (using useRef to avoid stale closure issues)
+  const [isNERBackfillRunning, setIsNERBackfillRunning] = useState(false);
+  const [nerProgress, setNerProgress] = useState<{ processed: number; total: number } | null>(null);
+  const shouldStopNERRef = useRef(false);
+  const nerRetryCountRef = useRef(0);
+  const MAX_NER_RETRIES = 3;
   
   // Pre-indexing state
   const [isIndexing, setIsIndexing] = useState(false);
@@ -324,14 +330,6 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     staleTime: 2 * 60 * 1000, // 2 minutes - stats don't change frequently
   });
 
-  // Check for existing active NER job on page load
-  const { data: existingNERJob } = useQuery({
-    queryKey: ['active-job', 'ner_backfill'],
-    queryFn: () => fetchActiveJob('ner_backfill'),
-    enabled: role === 'admin' && !activeNERJobId,
-    staleTime: 0,
-  });
-
   // Check for existing active embeddings job on page load
   const { data: existingEmbeddingsJob } = useQuery({
     queryKey: ['active-job', 'embedding_backfill'],
@@ -339,14 +337,6 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     enabled: role === 'admin' && !activeEmbeddingsJobId,
     staleTime: 0,
   });
-
-  // Set active job IDs from existing jobs on mount
-  useEffect(() => {
-    if (existingNERJob && !activeNERJobId) {
-      setActiveNERJobId(existingNERJob.id);
-      toast.info('Found active NER backfill job, resuming tracking...');
-    }
-  }, [existingNERJob, activeNERJobId]);
 
   useEffect(() => {
     if (existingEmbeddingsJob && !activeEmbeddingsJobId) {
@@ -370,20 +360,6 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
       toast.info('Found active full reindex job, resuming tracking...');
     }
   }, [existingReindexJob, activeReindexJobId]);
-
-  // Poll NER job status
-  const { data: nerJobStatus } = useQuery({
-    queryKey: ['background-job', 'ner', activeNERJobId],
-    queryFn: () => fetchBackgroundJob(activeNERJobId!),
-    enabled: !!activeNERJobId,
-    refetchInterval: (query) => {
-      const status = query.state.data?.status;
-      if (status === 'completed' || status === 'failed' || status === 'cancelled') {
-        return false;
-      }
-      return 3000; // Poll every 3 seconds
-    },
-  });
 
   // Poll embeddings job status
   const { data: embeddingsJobStatus } = useQuery({
@@ -413,31 +389,9 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     },
   });
 
-  // Check if NER job is stalled (no heartbeat for > 60s)
-  const isNERJobStalled = nerJobStatus ? isJobStalled(nerJobStatus) : false;
+  // Check if jobs are stalled
   const isEmbeddingsJobStalled = embeddingsJobStatus ? isJobStalled(embeddingsJobStatus) : false;
   const isReindexJobStalled = reindexJobStatus ? isJobStalled(reindexJobStatus) : false;
-
-  // Handle NER job status changes (including stall detection)
-  useEffect(() => {
-    if (nerJobStatus) {
-      if (nerJobStatus.status === 'completed') {
-        toast.success('NER backfill complete!');
-        setActiveNERJobId(null);
-        refetchGlobalChunkStatus();
-      } else if (nerJobStatus.status === 'failed') {
-        toast.error(`NER backfill failed: ${nerJobStatus.error || 'Unknown error'}`);
-        setActiveNERJobId(null);
-      } else if (nerJobStatus.status === 'cancelled') {
-        toast.info('NER backfill cancelled');
-        setActiveNERJobId(null);
-        refetchGlobalChunkStatus();
-      } else if (isJobStalled(nerJobStatus)) {
-        // Job is stalled - notify user
-        toast.warning('NER backfill appears stalled. Click "Backfill NER" to resume.');
-      }
-    }
-  }, [nerJobStatus?.status, nerJobStatus?.error, nerJobStatus?.updated_at, refetchGlobalChunkStatus]);
 
   // Handle embeddings job status changes
   useEffect(() => {
@@ -484,10 +438,10 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     }
   }, [reindexJobStatus?.status, reindexJobStatus?.error, reindexJobStatus?.progress, refetchGlobalChunkStatus]);
 
-  // Derived state from job polling
-  const isBackfillingEntities = nerJobStatus?.status === 'processing' || nerJobStatus?.status === 'pending';
+  // Derived state from job polling and frontend state
+  const isBackfillingEntities = isNERBackfillRunning;
   const isBackfillingEmbeddings = embeddingsJobStatus?.status === 'processing' || embeddingsJobStatus?.status === 'pending';
-  const entitiesProgress = nerJobStatus?.progress as { processed: number; total: number } | null;
+  const entitiesProgress = nerProgress;
   const embeddingsProgress = embeddingsJobStatus?.progress as { processed: number; total: number } | null;
   const reindexProgress = reindexJobStatus?.progress as { message?: string; overall_percent?: number; stage?: string } | null;
 
@@ -696,7 +650,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     }
   };
 
-  // Start NER entities backfill - now uses background job system
+  // Start NER entities backfill - frontend-driven pattern
   const handleBackfillEntities = async () => {
     if (role !== 'admin') {
       toast.error('Only admins can backfill entities');
@@ -704,42 +658,81 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     }
     
     // Check if already running
-    if (activeNERJobId) {
+    if (isNERBackfillRunning) {
       toast.info('NER backfill is already in progress');
       return;
     }
     
-    try {
-      const token = await getFreshToken();
-      if (!token) {
-        toast.error('Your session has expired. Please sign in again.');
-        return;
+    const token = await getFreshToken();
+    if (!token) {
+      toast.error('Your session has expired. Please sign in again.');
+      return;
+    }
+    
+    // Reset stop flag and retry count
+    shouldStopNERRef.current = false;
+    nerRetryCountRef.current = 0;
+    setIsNERBackfillRunning(true);
+    toast.success('NER extraction started...');
+    
+    // Frontend-driven loop
+    const runNERLoop = async () => {
+      while (!shouldStopNERRef.current) {
+        try {
+          const result = await processNERBatch(token, 10);
+          
+          // Update progress
+          setNerProgress({
+            processed: result.total - result.remaining,
+            total: result.total
+          });
+          
+          // Reset retry count on success
+          nerRetryCountRef.current = 0;
+          
+          // Check if complete
+          if (result.complete || result.remaining === 0) {
+            toast.success(`NER extraction complete! Processed ${result.total} chunks`);
+            break;
+          }
+          
+          // Small delay between batches to avoid overwhelming the API
+          await new Promise(r => setTimeout(r, 500));
+          
+        } catch (err) {
+          nerRetryCountRef.current++;
+          log.error('NER batch failed', { error: err, retryCount: nerRetryCountRef.current });
+          
+          if (nerRetryCountRef.current >= MAX_NER_RETRIES) {
+            toast.error(`NER extraction stopped after ${MAX_NER_RETRIES} consecutive failures`);
+            break;
+          }
+          
+          toast.warning(`NER batch failed, retrying... (${nerRetryCountRef.current}/${MAX_NER_RETRIES})`);
+          // Wait longer before retry
+          await new Promise(r => setTimeout(r, 2000));
+        }
       }
       
-      const { jobId } = await startNERBackfillJob(token);
-      setActiveNERJobId(jobId);
-      toast.success('NER backfill started in background');
-    } catch (err) {
-      log.error('Failed to start NER backfill', { error: err });
-      if (err instanceof Error && err.message.includes('already in progress')) {
-        toast.info('An NER backfill is already in progress');
-      } else {
-        toast.error(err instanceof Error ? err.message : 'Failed to start NER backfill');
+      // Cleanup
+      setIsNERBackfillRunning(false);
+      shouldStopNERRef.current = false;
+      refetchGlobalChunkStatus();
+      
+      if (shouldStopNERRef.current) {
+        toast.info('NER extraction stopped');
       }
-    }
+    };
+    
+    // Start the loop (don't await - runs in background)
+    runNERLoop();
   };
 
-  // Stop NER backfill
-  const stopNERBackfill = async () => {
-    if (!activeNERJobId) return;
-    
-    try {
-      await cancelBackgroundJob(activeNERJobId);
-      toast.info('Cancellation requested...');
-    } catch (err) {
-      log.error('Failed to cancel NER backfill', { error: err });
-      toast.error('Failed to cancel backfill');
-    }
+  // Stop NER backfill - frontend-driven pattern
+  const stopNERBackfill = () => {
+    if (!isNERBackfillRunning) return;
+    shouldStopNERRef.current = true;
+    toast.info('Stopping NER extraction...');
   };
 
   const handlePresetChange = (value: string) => {
