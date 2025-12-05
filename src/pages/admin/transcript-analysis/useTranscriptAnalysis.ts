@@ -77,7 +77,9 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
   const [nerProgress, setNerProgress] = useState<{ processed: number; total: number } | null>(null);
   const shouldStopNERRef = useRef(false);
   const nerRetryCountRef = useRef(0);
+  const nerBatchCountRef = useRef(0);
   const MAX_NER_RETRIES = 3;
+  const TOKEN_REFRESH_INTERVAL = 10; // Refresh token every 10 batches
   
   // Pre-indexing state
   const [isIndexing, setIsIndexing] = useState(false);
@@ -663,23 +665,38 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
       return;
     }
     
-    const token = await getFreshToken();
-    if (!token) {
+    const initialToken = await getFreshToken();
+    if (!initialToken) {
       toast.error('Your session has expired. Please sign in again.');
       return;
     }
     
-    // Reset stop flag and retry count
+    // Reset stop flag, retry count, and batch count
     shouldStopNERRef.current = false;
     nerRetryCountRef.current = 0;
+    nerBatchCountRef.current = 0;
     setIsNERBackfillRunning(true);
     toast.success('NER extraction started...');
     
-    // Frontend-driven loop
+    // Frontend-driven loop with token refresh
     const runNERLoop = async () => {
+      let currentToken = initialToken;
+      
       while (!shouldStopNERRef.current) {
         try {
-          const result = await processNERBatch(token, 10);
+          // Refresh token every TOKEN_REFRESH_INTERVAL batches to prevent expiration
+          if (nerBatchCountRef.current > 0 && nerBatchCountRef.current % TOKEN_REFRESH_INTERVAL === 0) {
+            log.info('Refreshing auth token', { batchCount: nerBatchCountRef.current });
+            const freshToken = await getFreshToken();
+            if (!freshToken) {
+              toast.error('Session expired. Please sign in again and restart.');
+              break;
+            }
+            currentToken = freshToken;
+          }
+          
+          const result = await processNERBatch(currentToken, 10);
+          nerBatchCountRef.current++;
           
           // Update progress
           setNerProgress({
@@ -700,6 +717,29 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
           await new Promise(r => setTimeout(r, 500));
           
         } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : '';
+          
+          // Check for auth errors specifically
+          const isAuthError = errorMessage.includes('[401]') || 
+                              errorMessage.includes('[403]') || 
+                              errorMessage.toLowerCase().includes('unauthorized') ||
+                              errorMessage.toLowerCase().includes('jwt');
+          
+          if (isAuthError) {
+            // Immediate token refresh on auth error
+            log.info('Auth error detected, refreshing token');
+            const freshToken = await getFreshToken();
+            if (freshToken) {
+              currentToken = freshToken;
+              toast.info('Refreshed authentication, continuing...');
+              continue; // Don't count as retry, try again immediately
+            } else {
+              toast.error('Session expired. Please sign in again.');
+              break;
+            }
+          }
+          
+          // For non-auth errors, use retry logic
           nerRetryCountRef.current++;
           log.error('NER batch failed', { error: err, retryCount: nerRetryCountRef.current });
           
@@ -718,6 +758,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
       const wasStopped = shouldStopNERRef.current;
       setIsNERBackfillRunning(false);
       shouldStopNERRef.current = false;
+      nerBatchCountRef.current = 0;
       refetchGlobalChunkStatus();
       
       if (wasStopped) {
