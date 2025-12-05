@@ -1,6 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
+
+// Declare EdgeRuntime for Deno edge functions
+declare const EdgeRuntime: {
+  waitUntil(promise: Promise<unknown>): void;
+};
 
 // CORS: Restrict to production domains
 function getCorsHeaders(origin?: string | null): Record<string, string> {
@@ -59,15 +64,14 @@ const NER_BATCH_SIZE = 10;
 const BASE_DELAY_MS = 200;
 const MAX_DELAY_MS = 5000;
 const MAX_RETRIES = 3;
-const NER_CHUNKS_PER_API_CALL = 3; // Reduced from 5 - smaller payloads = less likely to timeout
-const NER_BACKFILL_BATCH_SIZE = 9; // Reduced from 15 - 3 API calls per invocation to stay under 60s timeout
-const CHUNKING_BATCH_SIZE = 50; // For chunking transcripts
-const EMBEDDING_BATCH_SIZE = 10; // Smaller batches for embedding to respect rate limits
-const EMBEDDING_DELAY_MS = 500; // 500ms between embedding API calls to respect 40k TPM limit
-const NER_BATCH_DELAY_MS = 500; // Increased from 300ms - delay between NER batches
-const NER_ERROR_DELAY_MS = 2000; // Extra delay after an error before next batch
-const NER_RETRY_MAX = 3; // Retries per batch on server errors
-const NER_RETRY_BASE_DELAY_MS = 500; // Base delay for retry backoff
+const NER_CHUNKS_PER_API_CALL = 3;
+const CHUNKING_BATCH_SIZE = 50;
+const EMBEDDING_BATCH_SIZE = 10;
+const EMBEDDING_DELAY_MS = 500;
+const NER_BATCH_DELAY_MS = 500;
+const NER_ERROR_DELAY_MS = 2000;
+const NER_RETRY_MAX = 3;
+const NER_RETRY_BASE_DELAY_MS = 500;
 
 // Types
 interface TranscriptChunk {
@@ -174,21 +178,13 @@ function chunkText(text: string): string[] {
     return [];
   }
 
-  // Priority splitters: Speaker turns first, then paragraphs, then sentences
   const speakerPattern = /(?=\n\n(?:REP|PROSPECT):)/gi;
   const paragraphPattern = /\n\n+/;
   const sentencePattern = /(?<=[.!?])\s+/;
 
-  // Step 1: Split by speaker turns first
   let sections = text.split(speakerPattern).filter(s => s.trim().length > 0);
-
-  // Step 2: Further split oversized sections by paragraphs
   sections = recursiveSplit(sections, paragraphPattern, CHUNK_SIZE * 1.5);
-
-  // Step 3: Further split oversized sections by sentences
   sections = recursiveSplit(sections, sentencePattern, CHUNK_SIZE * 1.5);
-
-  // Step 4: Final chunking with overlap
   return mergeWithOverlap(sections);
 }
 
@@ -246,8 +242,7 @@ function mergeWithOverlap(sections: string[]): string[] {
   return chunks;
 }
 
-// Generate embedding using OpenAI API directly (text-embedding-3-small, 1536 dimensions)
-// Includes retry logic with exponential backoff for rate limit (429) errors
+// Generate embedding using OpenAI API directly
 async function generateEmbedding(text: string, openaiApiKey: string, maxRetries: number = 3): Promise<string> {
   let lastError: Error | null = null;
   let retryDelay = EMBEDDING_DELAY_MS;
@@ -262,7 +257,7 @@ async function generateEmbedding(text: string, openaiApiKey: string, maxRetries:
         },
         body: JSON.stringify({
           model: 'text-embedding-3-small',
-          input: text.slice(0, 8000) // API limit
+          input: text.slice(0, 8000)
         })
       });
 
@@ -270,15 +265,12 @@ async function generateEmbedding(text: string, openaiApiKey: string, maxRetries:
         const errorText = await response.text();
         console.warn(`[chunk-transcripts] Embedding rate limited (attempt ${attempt + 1}/${maxRetries}):`, errorText);
         
-        // Parse "Please try again in Xms" from the error message
         const waitMatch = errorText.match(/try again in (\d+(?:\.\d+)?)(ms|s)/i);
         if (waitMatch) {
           const waitTime = parseFloat(waitMatch[1]);
           retryDelay = waitMatch[2].toLowerCase() === 's' ? waitTime * 1000 : waitTime;
-          // Add a small buffer to the suggested wait time
           retryDelay = Math.ceil(retryDelay) + 100;
         } else {
-          // Exponential backoff if no wait time specified
           retryDelay = Math.min(retryDelay * 2, 10000);
         }
         
@@ -300,11 +292,9 @@ async function generateEmbedding(text: string, openaiApiKey: string, maxRetries:
         throw new Error('Invalid embedding response format');
       }
 
-      // Format as PostgreSQL vector string: [0.123, -0.456, ...]
       return `[${embedding.join(',')}]`;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
-      // Only retry on rate limit errors, not other errors
       if (!lastError.message.includes('429')) {
         throw lastError;
       }
@@ -315,7 +305,7 @@ async function generateEmbedding(text: string, openaiApiKey: string, maxRetries:
   throw lastError || new Error('Embedding generation failed');
 }
 
-// Retry helper with exponential backoff for server errors (5xx)
+// Retry helper with exponential backoff
 async function retryWithBackoff<T>(
   fn: () => Promise<T>,
   options: { maxRetries?: number; baseDelay?: number; operationName?: string } = {}
@@ -329,14 +319,12 @@ async function retryWithBackoff<T>(
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
       
-      // Check if this is a retryable server error (5xx)
       const isServerError = lastError.message.includes('500') || 
                            lastError.message.includes('502') || 
                            lastError.message.includes('503') || 
                            lastError.message.includes('504') ||
                            lastError.message.includes('Worker threw exception');
       
-      // Don't retry client errors (4xx) except rate limits
       const isRateLimited = lastError.message.includes('429');
       
       if (!isServerError && !isRateLimited) {
@@ -349,7 +337,7 @@ async function retryWithBackoff<T>(
         throw lastError;
       }
       
-      const delay = baseDelay * Math.pow(2, attempt); // 500ms -> 1000ms -> 2000ms
+      const delay = baseDelay * Math.pow(2, attempt);
       console.log(`[chunk-transcripts] ${operationName} retry ${attempt + 1}/${maxRetries} after ${delay}ms (error: ${lastError.message.slice(0, 100)})`);
       await new Promise(r => setTimeout(r, delay));
     }
@@ -358,7 +346,7 @@ async function retryWithBackoff<T>(
   throw lastError || new Error(`${operationName} failed`);
 }
 
-// NER extraction using Lovable AI Gateway with tool calling (single chunk - kept for compatibility)
+// NER extraction (single chunk - for compatibility)
 async function extractEntities(
   chunkTextContent: string,
   context: { accountName?: string; repName?: string; callType?: string },
@@ -380,7 +368,7 @@ async function extractEntitiesBatch(
   );
 }
 
-// Internal batched NER extraction - processes multiple chunks in a single API call for efficiency
+// Internal batched NER extraction
 async function extractEntitiesBatchInternal(
   chunks: Array<{ id: string; text: string }>,
   context: { accountName?: string; repName?: string; callType?: string },
@@ -392,7 +380,6 @@ async function extractEntitiesBatchInternal(
     return resultsMap;
   }
 
-  // Build the prompt with numbered chunks
   const chunkList = chunks.map((c, i) => 
     `[CHUNK ${i + 1}]\n${c.text.slice(0, 2000)}`
   ).join('\n\n---\n\n');
@@ -457,7 +444,6 @@ ${chunkList}`
     const args = JSON.parse(toolCall.function.arguments);
     const results = args.results || [];
     
-    // Map results back to chunk IDs
     chunks.forEach((chunk, index) => {
       if (index < results.length) {
         resultsMap.set(chunk.id, {
@@ -466,7 +452,6 @@ ${chunkList}`
           meddpicc_elements: results[index].meddpicc_elements || []
         });
       } else {
-        // If we got fewer results than chunks, use defaults
         console.warn(`[chunk-transcripts] Missing NER result for chunk index ${index}`);
         resultsMap.set(chunk.id, { entities: {}, topics: [], meddpicc_elements: [] });
       }
@@ -479,61 +464,289 @@ ${chunkList}`
   return resultsMap;
 }
 
-// Adaptive rate limiting processor with exponential backoff
-async function processWithAdaptiveRateLimit<T, R>(
-  items: T[],
-  processor: (item: T) => Promise<R>,
-  batchSize: number = NER_BATCH_SIZE
-): Promise<Array<{ success: boolean; result?: R; error?: string }>> {
-  const results: Array<{ success: boolean; result?: R; error?: string }> = [];
-  let currentDelay = BASE_DELAY_MS;
+// ========== BACKGROUND JOB PROCESSING ==========
 
-  for (let i = 0; i < items.length; i += batchSize) {
-    const batch = items.slice(i, i + batchSize);
-
-    for (const item of batch) {
-      let retries = 0;
-      let success = false;
-
-      while (retries < MAX_RETRIES && !success) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function processNERBackfillJob(
+  jobId: string,
+  supabase: SupabaseClient<any, "public", any>,
+  lovableApiKey: string
+) {
+  console.log(`[chunk-transcripts] Starting background NER backfill for job ${jobId}`);
+  
+  let totalProcessed = 0;
+  let totalErrors = 0;
+  let shouldStop = false;
+  
+  try {
+    // Main processing loop
+    while (!shouldStop) {
+      // Check if job was cancelled
+      const { data: job } = await supabase
+        .from('background_jobs')
+        .select('status')
+        .eq('id', jobId)
+        .single() as { data: { status: string } | null };
+      
+      if (job?.status === 'cancelled') {
+        console.log(`[chunk-transcripts] Job ${jobId} was cancelled`);
+        shouldStop = true;
+        break;
+      }
+      
+      // Fetch chunks needing NER
+      const { data: chunksNeedingNER, error: fetchError } = await supabase
+        .from('transcript_chunks')
+        .select('id, chunk_text, metadata, transcript_id')
+        .or('extraction_status.eq.pending,extraction_status.eq.failed')
+        .limit(9) as { data: Array<{ id: string; chunk_text: string; metadata: any; transcript_id: string }> | null; error: any };
+      
+      if (fetchError) {
+        console.error('[chunk-transcripts] Error fetching chunks:', fetchError);
+        throw fetchError;
+      }
+      
+      if (!chunksNeedingNER || chunksNeedingNER.length === 0) {
+        console.log(`[chunk-transcripts] No more chunks to process`);
+        shouldStop = true;
+        break;
+      }
+      
+      // Process chunks in batches
+      for (let i = 0; i < chunksNeedingNER.length; i += NER_CHUNKS_PER_API_CALL) {
+        const batch = chunksNeedingNER.slice(i, i + NER_CHUNKS_PER_API_CALL);
+        
+        const firstMetadata = batch[0]?.metadata as { account_name?: string; rep_name?: string; call_type?: string } | undefined;
+        const context = {
+          accountName: firstMetadata?.account_name,
+          repName: firstMetadata?.rep_name,
+          callType: firstMetadata?.call_type
+        };
+        
         try {
-          const result = await processor(item);
-          results.push({ success: true, result });
-          success = true;
-          currentDelay = Math.max(BASE_DELAY_MS, currentDelay * 0.9);
-        } catch (error: unknown) {
-          const err = error as { status?: number; message?: string };
-          if (err.status === 429 || (err.message && err.message.includes('429'))) {
-            retries++;
-            currentDelay = Math.min(MAX_DELAY_MS, currentDelay * 2);
-            console.log(`[chunk-transcripts] Rate limited, waiting ${currentDelay}ms (retry ${retries}/${MAX_RETRIES})`);
-            await new Promise(r => setTimeout(r, currentDelay));
-          } else {
-            console.error('[chunk-transcripts] NER extraction failed:', error);
-            results.push({ success: false, error: err.message || 'Unknown error' });
-            break;
+          const batchInput = batch.map(chunk => ({
+            id: chunk.id,
+            text: chunk.chunk_text
+          }));
+          
+          const nerResults = await extractEntitiesBatch(batchInput, context, lovableApiKey);
+          
+          for (const chunk of batch) {
+            const nerResult = nerResults.get(chunk.id);
+            if (nerResult) {
+              const { error: updateError } = await supabase
+                .from('transcript_chunks')
+                .update({
+                  entities: nerResult.entities,
+                  topics: nerResult.topics,
+                  meddpicc_elements: nerResult.meddpicc_elements,
+                  extraction_status: 'completed'
+                })
+                .eq('id', chunk.id);
+              
+              if (updateError) {
+                console.error(`[chunk-transcripts] Failed to save NER for chunk ${chunk.id}:`, updateError);
+                totalErrors++;
+              } else {
+                totalProcessed++;
+              }
+            } else {
+              totalErrors++;
+            }
+          }
+        } catch (error) {
+          console.error(`[chunk-transcripts] NER batch failed:`, error);
+          for (const chunk of batch) {
+            await supabase
+              .from('transcript_chunks')
+              .update({ extraction_status: 'failed' })
+              .eq('id', chunk.id);
+            totalErrors++;
           }
         }
+        
+        // Delay between batches
+        if (i + NER_CHUNKS_PER_API_CALL < chunksNeedingNER.length) {
+          await new Promise(r => setTimeout(r, NER_BATCH_DELAY_MS));
+        }
       }
-
-      if (!success && retries >= MAX_RETRIES) {
-        results.push({ success: false, error: 'Max retries exceeded' });
-      }
+      
+      // Update job progress
+      const { count: totalChunks } = await supabase
+        .from('transcript_chunks')
+        .select('*', { count: 'exact', head: true });
+      
+      const { count: chunksWithEntities } = await supabase
+        .from('transcript_chunks')
+        .select('*', { count: 'exact', head: true })
+        .eq('extraction_status', 'completed');
+      
+      await supabase
+        .from('background_jobs')
+        .update({
+          progress: {
+            processed: chunksWithEntities || 0,
+            total: totalChunks || 0,
+            errors: totalErrors
+          },
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', jobId);
+      
+      // Small delay before next batch
+      await new Promise(r => setTimeout(r, 500));
     }
-
-    // Delay between batches
-    if (i + batchSize < items.length) {
-      await new Promise(r => setTimeout(r, currentDelay));
-    }
+    
+    // Mark job as completed
+    await supabase
+      .from('background_jobs')
+      .update({
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', jobId);
+    
+    console.log(`[chunk-transcripts] NER backfill job ${jobId} completed: ${totalProcessed} processed, ${totalErrors} errors`);
+    
+  } catch (error) {
+    console.error(`[chunk-transcripts] NER backfill job ${jobId} failed:`, error);
+    
+    await supabase
+      .from('background_jobs')
+      .update({
+        status: 'failed',
+        error: error instanceof Error ? error.message : String(error),
+        completed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', jobId);
   }
-
-  return results;
 }
 
-serve(async (req) => {
-  const origin = req.headers.get('Origin');
-  const corsHeaders = getCorsHeaders(origin);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function processEmbeddingsBackfillJob(
+  jobId: string,
+  supabase: SupabaseClient<any, "public", any>,
+  openaiApiKey: string
+) {
+  console.log(`[chunk-transcripts] Starting background embeddings backfill for job ${jobId}`);
   
+  let totalProcessed = 0;
+  let totalErrors = 0;
+  let shouldStop = false;
+  
+  try {
+    while (!shouldStop) {
+      // Check if job was cancelled
+      const { data: job } = await supabase
+        .from('background_jobs')
+        .select('status')
+        .eq('id', jobId)
+        .single() as { data: { status: string } | null };
+      
+      if (job?.status === 'cancelled') {
+        console.log(`[chunk-transcripts] Job ${jobId} was cancelled`);
+        shouldStop = true;
+        break;
+      }
+      
+      // Fetch chunks needing embeddings
+      const { data: chunksNeedingEmbeddings, error: fetchError } = await supabase
+        .from('transcript_chunks')
+        .select('id, chunk_text')
+        .is('embedding', null)
+        .limit(EMBEDDING_BATCH_SIZE) as { data: Array<{ id: string; chunk_text: string }> | null; error: any };
+      
+      if (fetchError) {
+        console.error('[chunk-transcripts] Error fetching chunks:', fetchError);
+        throw fetchError;
+      }
+      
+      if (!chunksNeedingEmbeddings || chunksNeedingEmbeddings.length === 0) {
+        console.log(`[chunk-transcripts] No more chunks to process`);
+        shouldStop = true;
+        break;
+      }
+      
+      // Process sequentially with delays
+      for (const chunk of chunksNeedingEmbeddings) {
+        try {
+          await new Promise(r => setTimeout(r, EMBEDDING_DELAY_MS));
+          
+          const embedding = await generateEmbedding(chunk.chunk_text, openaiApiKey);
+          const { error: updateError } = await supabase
+            .from('transcript_chunks')
+            .update({ embedding })
+            .eq('id', chunk.id);
+          
+          if (updateError) {
+            console.error(`[chunk-transcripts] Failed to save embedding for chunk ${chunk.id}:`, updateError);
+            totalErrors++;
+          } else {
+            totalProcessed++;
+          }
+        } catch (error) {
+          console.error(`[chunk-transcripts] Embedding failed for chunk ${chunk.id}:`, error);
+          totalErrors++;
+        }
+      }
+      
+      // Update job progress
+      const { count: totalChunks } = await supabase
+        .from('transcript_chunks')
+        .select('*', { count: 'exact', head: true });
+      
+      const { count: chunksWithEmbeddings } = await supabase
+        .from('transcript_chunks')
+        .select('*', { count: 'exact', head: true })
+        .not('embedding', 'is', null);
+      
+      await supabase
+        .from('background_jobs')
+        .update({
+          progress: {
+            processed: chunksWithEmbeddings || 0,
+            total: totalChunks || 0,
+            errors: totalErrors
+          },
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', jobId);
+    }
+    
+    // Mark job as completed
+    await supabase
+      .from('background_jobs')
+      .update({
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', jobId);
+    
+    console.log(`[chunk-transcripts] Embeddings backfill job ${jobId} completed: ${totalProcessed} processed, ${totalErrors} errors`);
+    
+  } catch (error) {
+    console.error(`[chunk-transcripts] Embeddings backfill job ${jobId} failed:`, error);
+    
+    await supabase
+      .from('background_jobs')
+      .update({
+        status: 'failed',
+        error: error instanceof Error ? error.message : String(error),
+        completed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', jobId);
+  }
+}
+
+// ========== MAIN SERVER HANDLER ==========
+
+serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get('origin'));
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -541,101 +754,56 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY')!;
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY')!;
+    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY')!;
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Parse and validate request body
-    let body: unknown;
-    try {
-      body = await req.json();
-    } catch {
+    const body = await req.json();
+    const parseResult = chunkTranscriptsSchema.safeParse(body);
+
+    if (!parseResult.success) {
+      console.error('[chunk-transcripts] Validation error:', parseResult.error.errors);
       return new Response(
-        JSON.stringify({ error: 'Invalid JSON in request body' }),
+        JSON.stringify({ error: 'Invalid request', details: parseResult.error.errors }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const validation = chunkTranscriptsSchema.safeParse(body);
-    if (!validation.success) {
-      const errors = validation.error.errors.map((err) => ({
-        path: err.path.join('.'),
-        message: err.message
-      }));
-      console.warn('[chunk-transcripts] Validation failed:', errors);
-      return new Response(
-        JSON.stringify({ error: 'Validation failed', issues: errors }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const { transcript_ids, backfill_all, backfill_embeddings, backfill_entities, reset_all_chunks } = validation.data;
-
-    console.log(`[chunk-transcripts] Request: backfill_all=${backfill_all}, backfill_embeddings=${backfill_embeddings}, backfill_entities=${backfill_entities}, reset_all_chunks=${reset_all_chunks}, transcript_ids=${transcript_ids?.length || 0}`);
+    const { transcript_ids, backfill_all, backfill_embeddings, backfill_entities, reset_all_chunks } = parseResult.data;
 
     // Auth check
     const authHeader = req.headers.get('Authorization');
-    const token = authHeader?.replace('Bearer ', '');
-    const isInternalServiceCall = token === supabaseServiceKey;
-
     let userId: string | null = null;
     let userRole: string | null = null;
 
-    if (isInternalServiceCall) {
-      console.log('[chunk-transcripts] Internal service call detected');
-      userId = 'service';
-      userRole = 'admin';
-    } else {
-      if (!authHeader) {
-        return new Response(
-          JSON.stringify({ error: 'Authorization required' }),
-          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.replace('Bearer ', '');
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
-      const { data: { user }, error: authError } = await supabase.auth.getUser(token!);
-      
-      if (authError || !user) {
-        return new Response(
-          JSON.stringify({ error: 'Invalid authentication' }),
-          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      userId = user.id;
-
-      const rateLimitResult = checkRateLimit(user.id);
-      if (!rateLimitResult.allowed) {
-        return new Response(
-          JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
-          { 
-            status: 429, 
-            headers: { 
-              ...corsHeaders, 
-              'Content-Type': 'application/json',
-              'Retry-After': String(rateLimitResult.retryAfter || 60)
-            } 
-          }
-        );
-      }
-
-      const { data: roleData } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', user.id)
-        .single();
-
-      userRole = roleData?.role || null;
-
-      if (!userRole) {
-        return new Response(
-          JSON.stringify({ error: 'Authentication required' }),
-          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+      if (!authError && user) {
+        userId = user.id;
+        const { data: roleData } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id)
+          .single();
+        userRole = roleData?.role || null;
       }
     }
 
     const isAdmin = userRole === 'admin';
+
+    // Rate limiting for non-admin
+    if (userId && !isAdmin) {
+      const { allowed, retryAfter } = checkRateLimit(userId);
+      if (!allowed) {
+        return new Response(
+          JSON.stringify({ error: `Rate limited. Try again in ${retryAfter} seconds.` }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
 
     // ========== RESET ALL CHUNKS MODE ==========
     if (reset_all_chunks) {
@@ -648,12 +816,10 @@ serve(async (req) => {
 
       console.log(`[chunk-transcripts] Admin ${userId} initiated reset_all_chunks`);
 
-      // Get count before deletion
       const { count: beforeCount } = await supabase
         .from('transcript_chunks')
         .select('*', { count: 'exact', head: true });
 
-      // Delete all chunks - using a condition that matches all rows
       const { error: deleteError } = await supabase
         .from('transcript_chunks')
         .delete()
@@ -676,7 +842,7 @@ serve(async (req) => {
       );
     }
 
-    // ========== BACKFILL EMBEDDINGS MODE ==========
+    // ========== BACKFILL EMBEDDINGS MODE (Background Job) ==========
     if (backfill_embeddings) {
       if (!isAdmin) {
         return new Response(
@@ -685,84 +851,58 @@ serve(async (req) => {
         );
       }
 
-      console.log(`[chunk-transcripts] Admin ${userId} initiated backfill_embeddings`);
+      console.log(`[chunk-transcripts] Admin ${userId} initiated backfill_embeddings (background job)`);
 
-      // Fetch smaller batch to avoid overwhelming the API
-      const { data: chunksNeedingEmbeddings, error: fetchError } = await supabase
-        .from('transcript_chunks')
-        .select('id, chunk_text')
-        .is('embedding', null)
-        .limit(EMBEDDING_BATCH_SIZE);
+      // Check for existing active job
+      const { data: existingJob } = await supabase
+        .from('background_jobs')
+        .select('id, status')
+        .eq('job_type', 'embedding_backfill')
+        .in('status', ['pending', 'processing'])
+        .maybeSingle();
 
-      if (fetchError) {
-        console.error('[chunk-transcripts] Error fetching chunks for embedding backfill:', fetchError);
-        throw new Error('Failed to fetch chunks for embedding backfill');
+      if (existingJob) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'Embeddings backfill already in progress',
+            job_id: existingJob.id 
+          }),
+          { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
 
-      const chunksToProcess = chunksNeedingEmbeddings || [];
-      console.log(`[chunk-transcripts] Found ${chunksToProcess.length} chunks needing embeddings (batch limit: ${EMBEDDING_BATCH_SIZE})`);
+      // Create job record
+      const { data: job, error: jobError } = await supabase
+        .from('background_jobs')
+        .insert({
+          job_type: 'embedding_backfill',
+          status: 'processing',
+          created_by: userId,
+          started_at: new Date().toISOString(),
+          progress: { processed: 0, total: 0, errors: 0 }
+        })
+        .select()
+        .single();
 
-      let successCount = 0;
-      let errorCount = 0;
-
-      // Process SEQUENTIALLY with delays to respect OpenAI's 40k TPM rate limit
-      // Each text-embedding-3-small request uses ~500-2000 tokens depending on input size
-      // Sequential processing with delays prevents rate limit exhaustion
-      for (const chunk of chunksToProcess) {
-        try {
-          // Add delay BEFORE each API call to spread out requests
-          await new Promise(r => setTimeout(r, EMBEDDING_DELAY_MS));
-          
-          const embedding = await generateEmbedding(chunk.chunk_text, openaiApiKey);
-          const { error: updateError } = await supabase
-            .from('transcript_chunks')
-            .update({ embedding })
-            .eq('id', chunk.id);
-
-          if (updateError) {
-            console.error(`[chunk-transcripts] Failed to save embedding for chunk ${chunk.id}:`, updateError);
-            errorCount++;
-          } else {
-            successCount++;
-            console.log(`[chunk-transcripts] Embedded chunk ${successCount}/${chunksToProcess.length}`);
-          }
-        } catch (error) {
-          console.error(`[chunk-transcripts] Embedding failed for chunk ${chunk.id}:`, error);
-          errorCount++;
-          // Continue processing remaining chunks even if one fails
-        }
+      if (jobError || !job) {
+        throw new Error('Failed to create background job');
       }
 
-      // Get total counts for progress
-      const { count: totalChunks } = await supabase
-        .from('transcript_chunks')
-        .select('*', { count: 'exact', head: true });
+      // Start background processing
+      EdgeRuntime.waitUntil(processEmbeddingsBackfillJob(job.id, supabase, openaiApiKey));
 
-      const { count: chunksWithEmbeddings } = await supabase
-        .from('transcript_chunks')
-        .select('*', { count: 'exact', head: true })
-        .not('embedding', 'is', null);
-
-      const remaining = (totalChunks || 0) - (chunksWithEmbeddings || 0);
-
-      console.log(`[chunk-transcripts] Embedding backfill complete: ${successCount} success, ${errorCount} errors, ${remaining} remaining`);
-
+      // Return immediately with job ID
       return new Response(
         JSON.stringify({
           success: true,
-          message: `Backfilled ${successCount} embeddings (${errorCount} errors)`,
-          processed: chunksToProcess.length,
-          success_count: successCount,
-          error_count: errorCount,
-          total_chunks: totalChunks || 0,
-          chunks_with_embeddings: chunksWithEmbeddings || 0,
-          remaining // Key for auto-continue
+          message: 'Embeddings backfill started in background',
+          job_id: job.id
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // ========== BACKFILL ENTITIES MODE ==========
+    // ========== BACKFILL ENTITIES MODE (Background Job) ==========
     if (backfill_entities) {
       if (!isAdmin) {
         return new Response(
@@ -771,138 +911,58 @@ serve(async (req) => {
         );
       }
 
-      console.log(`[chunk-transcripts] Admin ${userId} initiated backfill_entities`);
+      console.log(`[chunk-transcripts] Admin ${userId} initiated backfill_entities (background job)`);
 
-      const { data: chunksNeedingNER, error: fetchError } = await supabase
-        .from('transcript_chunks')
-        .select('id, chunk_text, metadata, transcript_id')
-        .or('extraction_status.eq.pending,extraction_status.eq.failed')
-        .limit(NER_BACKFILL_BATCH_SIZE);
+      // Check for existing active job
+      const { data: existingJob } = await supabase
+        .from('background_jobs')
+        .select('id, status')
+        .eq('job_type', 'ner_backfill')
+        .in('status', ['pending', 'processing'])
+        .maybeSingle();
 
-      if (fetchError) {
-        console.error('[chunk-transcripts] Error fetching chunks for NER backfill:', fetchError);
-        throw new Error('Failed to fetch chunks for NER backfill');
+      if (existingJob) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'NER backfill already in progress',
+            job_id: existingJob.id 
+          }),
+          { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
 
-      const chunksToProcess = chunksNeedingNER || [];
-      console.log(`[chunk-transcripts] Found ${chunksToProcess.length} chunks needing NER extraction`);
+      // Create job record
+      const { data: job, error: jobError } = await supabase
+        .from('background_jobs')
+        .insert({
+          job_type: 'ner_backfill',
+          status: 'processing',
+          created_by: userId,
+          started_at: new Date().toISOString(),
+          progress: { processed: 0, total: 0, errors: 0 }
+        })
+        .select()
+        .single();
 
-      let successCount = 0;
-      let errorCount = 0;
-      let lastBatchHadError = false;
-
-      // Process chunks in batches of NER_CHUNKS_PER_API_CALL (3 chunks per API call)
-      for (let i = 0; i < chunksToProcess.length; i += NER_CHUNKS_PER_API_CALL) {
-        // Extra delay if previous batch had an error (give API time to recover)
-        if (lastBatchHadError) {
-          console.log(`[chunk-transcripts] Previous batch had error, waiting ${NER_ERROR_DELAY_MS}ms before retry...`);
-          await new Promise(r => setTimeout(r, NER_ERROR_DELAY_MS));
-          lastBatchHadError = false;
-        }
-
-        const batch = chunksToProcess.slice(i, i + NER_CHUNKS_PER_API_CALL);
-        const batchNumber = Math.floor(i / NER_CHUNKS_PER_API_CALL) + 1;
-        const totalBatches = Math.ceil(chunksToProcess.length / NER_CHUNKS_PER_API_CALL);
-        
-        console.log(`[chunk-transcripts] Processing batch ${batchNumber}/${totalBatches} (${batch.length} chunks)`);
-
-        // Get context from first chunk's metadata
-        const firstMetadata = batch[0]?.metadata as { account_name?: string; rep_name?: string; call_type?: string } | undefined;
-        const context = {
-          accountName: firstMetadata?.account_name,
-          repName: firstMetadata?.rep_name,
-          callType: firstMetadata?.call_type
-        };
-
-        try {
-          // Process batch with single API call (extractEntitiesBatch now has built-in retry logic)
-          const batchInput = batch.map(chunk => ({
-            id: chunk.id,
-            text: chunk.chunk_text
-          }));
-
-          const nerResults = await extractEntitiesBatch(batchInput, context, lovableApiKey);
-
-          // Update each chunk with its NER results
-          for (const chunk of batch) {
-            const nerResult = nerResults.get(chunk.id);
-            if (nerResult) {
-              const { error: updateError } = await supabase
-                .from('transcript_chunks')
-                .update({
-                  entities: nerResult.entities,
-                  topics: nerResult.topics,
-                  meddpicc_elements: nerResult.meddpicc_elements,
-                  extraction_status: 'completed'
-                })
-                .eq('id', chunk.id);
-
-              if (updateError) {
-                console.error(`[chunk-transcripts] Failed to save NER for chunk ${chunk.id}:`, updateError);
-                errorCount++;
-              } else {
-                successCount++;
-              }
-            } else {
-              console.warn(`[chunk-transcripts] No NER result for chunk ${chunk.id}`);
-              errorCount++;
-            }
-          }
-
-          console.log(`[chunk-transcripts] Batch ${batchNumber} complete: ${batch.length} chunks processed`);
-
-        } catch (error) {
-          lastBatchHadError = true;
-          const errorMsg = error instanceof Error ? error.message : String(error);
-          console.error(`[chunk-transcripts] Batch ${batchNumber} failed after retries:`, errorMsg.slice(0, 200));
-          
-          // Mark all chunks in failed batch with error
-          for (const chunk of batch) {
-            await supabase
-              .from('transcript_chunks')
-              .update({ extraction_status: 'failed' })
-              .eq('id', chunk.id);
-            errorCount++;
-          }
-        }
-
-        // Delay between batches to avoid rate limiting (increased from 300ms to 500ms)
-        if (i + NER_CHUNKS_PER_API_CALL < chunksToProcess.length) {
-          await new Promise(r => setTimeout(r, NER_BATCH_DELAY_MS));
-        }
+      if (jobError || !job) {
+        throw new Error('Failed to create background job');
       }
 
-      // Get total counts for progress
-      const { count: totalChunks } = await supabase
-        .from('transcript_chunks')
-        .select('*', { count: 'exact', head: true });
+      // Start background processing
+      EdgeRuntime.waitUntil(processNERBackfillJob(job.id, supabase, lovableApiKey));
 
-      const { count: chunksWithEntities } = await supabase
-        .from('transcript_chunks')
-        .select('*', { count: 'exact', head: true })
-        .eq('extraction_status', 'completed');
-
-      // Get remaining count for auto-continue (like embeddings does)
-      const remaining = (totalChunks || 0) - (chunksWithEntities || 0);
-
-      console.log(`[chunk-transcripts] NER backfill complete: ${successCount} success, ${errorCount} errors, ${remaining} remaining`);
-
+      // Return immediately with job ID
       return new Response(
         JSON.stringify({
           success: true,
-          message: `Backfilled ${successCount} chunks with NER (${errorCount} errors)`,
-          processed: chunksToProcess.length,
-          success_count: successCount,
-          error_count: errorCount,
-          total_chunks: totalChunks || 0,
-          chunks_with_entities: chunksWithEntities || 0,
-          remaining // Key for auto-continue
+          message: 'NER backfill started in background',
+          job_id: job.id
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // ========== BACKFILL ALL MODE (Legacy + RAG V2) ==========
+    // ========== BACKFILL ALL MODE ==========
     if (backfill_all) {
       if (!isAdmin) {
         return new Response(
@@ -913,7 +973,6 @@ serve(async (req) => {
 
       console.log(`[chunk-transcripts] Admin ${userId} initiated backfill_all`);
 
-      // Include both 'completed' AND 'skipped' transcripts (skipped = indexed-only from bulk upload)
       const { data: allTranscripts, error: allError } = await supabase
         .from('call_transcripts')
         .select('id')
@@ -976,8 +1035,6 @@ serve(async (req) => {
           const chunks = chunkText(transcript.raw_text || '');
           const repName = repMap.get(transcript.rep_id) || 'Unknown';
           
-          // Only create chunks - embedding and NER are handled separately via backfill_embeddings/backfill_entities
-          // This avoids edge function timeouts on large backfills
           for (let idx = 0; idx < chunks.length; idx++) {
             const chunkTextContent = chunks[idx];
 
@@ -985,7 +1042,6 @@ serve(async (req) => {
               transcript_id: transcript.id,
               chunk_index: idx,
               chunk_text: chunkTextContent,
-              // No embedding or NER - these are generated separately to avoid timeout
               extraction_status: 'pending',
               metadata: {
                 account_name: transcript.account_name || 'Unknown',
@@ -998,7 +1054,6 @@ serve(async (req) => {
           }
         }
 
-        // Insert chunks in batches
         const INSERT_BATCH_SIZE = 100;
         for (let j = 0; j < allChunks.length; j += INSERT_BATCH_SIZE) {
           const insertBatch = allChunks.slice(j, j + INSERT_BATCH_SIZE);
@@ -1029,7 +1084,7 @@ serve(async (req) => {
       );
     }
 
-    // ========== STANDARD MODE: SPECIFIC TRANSCRIPT_IDS WITH RAG V2 ==========
+    // ========== STANDARD MODE: SPECIFIC TRANSCRIPT_IDS ==========
     const idsToProcess = transcript_ids || [];
     const isManager = userRole === 'manager';
     const isRep = userRole === 'rep';
@@ -1095,18 +1150,18 @@ serve(async (req) => {
       );
     }
 
-    // Check which transcripts already have chunks
+    // Check which are already chunked
     const { data: existingChunks } = await supabase
       .from('transcript_chunks')
       .select('transcript_id')
       .in('transcript_id', authorizedTranscriptIds);
 
     const chunkedIds = new Set((existingChunks || []).map(c => c.transcript_id));
-    const idsToChunk = authorizedTranscriptIds.filter(id => !chunkedIds.has(id));
+    const idsNeedingChunks = authorizedTranscriptIds.filter(id => !chunkedIds.has(id));
 
-    console.log(`[chunk-transcripts] ${chunkedIds.size} already chunked, ${idsToChunk.length} to process`);
+    console.log(`[chunk-transcripts] ${authorizedTranscriptIds.length} authorized, ${chunkedIds.size} already chunked, ${idsNeedingChunks.length} need chunks`);
 
-    if (idsToChunk.length === 0) {
+    if (idsNeedingChunks.length === 0) {
       return new Response(
         JSON.stringify({ 
           success: true, 
@@ -1118,35 +1173,32 @@ serve(async (req) => {
       );
     }
 
-    // Fetch transcripts to chunk
-    const { data: transcripts, error: fetchError } = await supabase
+    // Fetch transcripts
+    const { data: transcriptsToChunk, error: fetchError } = await supabase
       .from('call_transcripts')
       .select('id, call_date, account_name, call_type, raw_text, rep_id')
-      .in('id', idsToChunk);
+      .in('id', idsNeedingChunks);
 
     if (fetchError) {
       console.error('[chunk-transcripts] Error fetching transcripts:', fetchError);
       throw new Error('Failed to fetch transcripts');
     }
 
-    // Get rep names for metadata
-    const repIds = [...new Set((transcripts || []).map(t => t.rep_id))];
+    // Get rep names
+    const repIds = [...new Set((transcriptsToChunk || []).map(t => t.rep_id))];
     const { data: profiles } = await supabase
       .from('profiles')
       .select('id, name')
-      .in('id', repIds);
+      .in('id', repIds.length > 0 ? repIds : ['00000000-0000-0000-0000-000000000000']);
 
     const repMap = new Map((profiles || []).map(p => [p.id, p.name]));
 
-    // Chunk each transcript - only create chunks, no inline embedding/NER
-    // Embedding and NER are handled separately via backfill_embeddings/backfill_entities
-    // This avoids edge function timeouts on large or multiple transcript processing
+    // Create chunks
     const allChunks: TranscriptChunk[] = [];
-    
-    for (const transcript of transcripts || []) {
+    for (const transcript of (transcriptsToChunk || [])) {
       const chunks = chunkText(transcript.raw_text || '');
       const repName = repMap.get(transcript.rep_id) || 'Unknown';
-      
+
       for (let idx = 0; idx < chunks.length; idx++) {
         const chunkTextContent = chunks[idx];
 
@@ -1154,7 +1206,6 @@ serve(async (req) => {
           transcript_id: transcript.id,
           chunk_index: idx,
           chunk_text: chunkTextContent,
-          // No embedding or NER - these are generated separately via backfill to avoid timeout
           extraction_status: 'pending',
           metadata: {
             account_name: transcript.account_name || 'Unknown',
@@ -1167,41 +1218,40 @@ serve(async (req) => {
       }
     }
 
-    console.log(`[chunk-transcripts] Created ${allChunks.length} RAG V2 chunks from ${transcripts?.length || 0} transcripts`);
+    console.log(`[chunk-transcripts] Generated ${allChunks.length} chunks from ${transcriptsToChunk?.length || 0} transcripts`);
 
-    // Insert chunks in batches
-    const BATCH_SIZE = 100;
-    let insertedCount = 0;
-    
-    for (let i = 0; i < allChunks.length; i += BATCH_SIZE) {
-      const batch = allChunks.slice(i, i + BATCH_SIZE);
+    // Insert chunks
+    let totalInserted = 0;
+    const INSERT_BATCH_SIZE = 100;
+    for (let i = 0; i < allChunks.length; i += INSERT_BATCH_SIZE) {
+      const batch = allChunks.slice(i, i + INSERT_BATCH_SIZE);
       const { error: insertError } = await supabase
         .from('transcript_chunks')
         .insert(batch);
 
       if (insertError) {
         console.error('[chunk-transcripts] Error inserting chunks:', insertError);
-        throw new Error(`Failed to insert chunks: ${insertError.message}`);
+      } else {
+        totalInserted += batch.length;
       }
-      
-      insertedCount += batch.length;
     }
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: `Indexed ${transcripts?.length || 0} transcripts with RAG V2`,
-        chunked: authorizedTranscriptIds.length,
-        new_chunks: insertedCount 
+      JSON.stringify({
+        success: true,
+        message: `Created ${totalInserted} chunks from ${transcriptsToChunk?.length || 0} transcripts`,
+        chunked: (transcriptsToChunk?.length || 0) + chunkedIds.size,
+        new_chunks: totalInserted,
+        skipped: chunkedIds.size
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
-    console.error('[chunk-transcripts] Error:', error);
+    console.error('[chunk-transcripts] Unexpected error:', error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } }
     );
   }
 });

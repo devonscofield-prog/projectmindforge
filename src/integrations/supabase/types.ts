@@ -484,6 +484,45 @@ export type Database = {
         }
         Relationships: []
       }
+      background_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          created_by: string | null
+          error: string | null
+          id: string
+          job_type: string
+          progress: Json | null
+          started_at: string | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          error?: string | null
+          id?: string
+          job_type: string
+          progress?: Json | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          error?: string | null
+          id?: string
+          job_type?: string
+          progress?: Json | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       call_products: {
         Row: {
           call_id: string
