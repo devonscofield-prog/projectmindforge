@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { createLogger } from '@/lib/logger';
@@ -26,6 +26,9 @@ import { PendingFollowUpsWidget } from '@/components/dashboard/PendingFollowUpsW
 import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 
+// Salesforce URL validation pattern
+const SALESFORCE_URL_PATTERN = /salesforce|force\.com/i;
+
 function RepDashboard() {
   const {
     user,
@@ -35,6 +38,7 @@ function RepDashboard() {
     toast
   } = useToast();
   const navigate = useNavigate();
+  const callTypeOtherRef = useRef<HTMLInputElement>(null);
 
   // Form state
   const [transcript, setTranscript] = useState('');
@@ -50,6 +54,14 @@ function RepDashboard() {
   const [callTypeOther, setCallTypeOther] = useState('');
   const [selectedProducts, setSelectedProducts] = useState<ProductEntry[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Auto-focus "Specify Call Type" input when "Other" is selected
+  useEffect(() => {
+    if (callType === 'other' && callTypeOtherRef.current) {
+      callTypeOtherRef.current.focus();
+    }
+  }, [callType]);
+
   const handleAccountChange = (name: string, prospectId: string | null, salesforceLink?: string | null) => {
     setAccountName(name);
     setSelectedProspectId(prospectId);
@@ -67,10 +79,35 @@ function RepDashboard() {
     setStakeholderName('');
     setSelectedStakeholderId(null);
   };
+
   const handleStakeholderChange = (name: string, stakeholderId: string | null) => {
     setStakeholderName(name);
     setSelectedStakeholderId(stakeholderId);
   };
+
+  // Validation helpers
+  const isAccountValid = accountName.trim().length >= 2;
+  const isStakeholderValid = stakeholderName.trim().length >= 2;
+  const isTranscriptValid = transcript.trim().length > 0;
+  const isSalesforceRequired = !selectedProspectId || !existingAccountHasSalesforceLink;
+  const isSalesforceValid = !isSalesforceRequired || salesforceAccountLink.trim().length > 0;
+  const isSalesforceUrlValid = !salesforceAccountLink.trim() || SALESFORCE_URL_PATTERN.test(salesforceAccountLink);
+  const isCallTypeOtherValid = callType !== 'other' || callTypeOther.trim().length > 0;
+
+  const canSubmit = isAccountValid && isStakeholderValid && isTranscriptValid && isSalesforceValid && isSalesforceUrlValid && isCallTypeOtherValid && !isSubmitting;
+
+  // Get validation hints for incomplete fields
+  const getValidationHints = () => {
+    const hints: string[] = [];
+    if (!isAccountValid) hints.push('Account');
+    if (!isStakeholderValid) hints.push('Stakeholder');
+    if (!isSalesforceValid) hints.push('Salesforce Link');
+    if (!isSalesforceUrlValid) hints.push('Valid Salesforce URL');
+    if (!isTranscriptValid) hints.push('Transcript');
+    if (!isCallTypeOtherValid) hints.push('Call Type');
+    return hints;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user?.id) return undefined;
@@ -116,6 +153,15 @@ function RepDashboard() {
       toast({
         title: 'Error',
         description: 'Salesforce Account Link is required for new accounts',
+        variant: 'destructive'
+      });
+      return;
+    }
+    // Validate Salesforce URL format
+    if (salesforceAccountLink.trim() && !SALESFORCE_URL_PATTERN.test(salesforceAccountLink)) {
+      toast({
+        title: 'Error',
+        description: 'Please enter a valid Salesforce URL (must contain "salesforce" or "force.com")',
         variant: 'destructive'
       });
       return;
@@ -189,6 +235,7 @@ function RepDashboard() {
       setIsSubmitting(false);
     }
   };
+
   // Show loading skeleton while profile loads
   if (!profile) {
     return (
@@ -209,6 +256,8 @@ function RepDashboard() {
       </AppLayout>
     );
   }
+
+  const validationHints = getValidationHints();
 
   return <AppLayout>
       <div className="space-y-6 md:space-y-8">
@@ -247,11 +296,25 @@ function RepDashboard() {
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="accountName">Account Name *</Label>
-                      <AccountCombobox repId={user?.id || ''} value={accountName} selectedProspectId={selectedProspectId} onChange={handleAccountChange} placeholder="Select or type account..." disabled={!user?.id} />
+                      <AccountCombobox 
+                        repId={user?.id || ''} 
+                        value={accountName} 
+                        selectedProspectId={selectedProspectId} 
+                        onChange={handleAccountChange} 
+                        placeholder="Select or type account..." 
+                        disabled={!user?.id || isSubmitting} 
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="stakeholderName">Stakeholder *</Label>
-                      <StakeholderCombobox prospectId={selectedProspectId} value={stakeholderName} selectedStakeholderId={selectedStakeholderId} onChange={handleStakeholderChange} placeholder="Who was on the call?" disabled={!user?.id} />
+                      <StakeholderCombobox 
+                        prospectId={selectedProspectId} 
+                        value={stakeholderName} 
+                        selectedStakeholderId={selectedStakeholderId} 
+                        onChange={handleStakeholderChange} 
+                        placeholder="Who was on the call?" 
+                        disabled={!user?.id || isSubmitting} 
+                      />
                     </div>
                   </div>
 
@@ -261,14 +324,28 @@ function RepDashboard() {
                       Salesforce Account Link {(!selectedProspectId || !existingAccountHasSalesforceLink) && '*'}
                     </Label>
                     <div className="flex gap-2">
-                      <Input id="salesforceAccountLink" type="url" placeholder="https://..." value={salesforceAccountLink} onChange={e => setSalesforceAccountLink(e.target.value)} disabled={existingAccountHasSalesforceLink && !isEditingSalesforceLink} className="flex-1" />
-                      {existingAccountHasSalesforceLink && !isEditingSalesforceLink && <Button type="button" variant="outline" size="icon" onClick={() => setIsEditingSalesforceLink(true)} title="Edit Salesforce link">
+                      <Input 
+                        id="salesforceAccountLink" 
+                        type="url" 
+                        placeholder="https://..." 
+                        value={salesforceAccountLink} 
+                        onChange={e => setSalesforceAccountLink(e.target.value)} 
+                        disabled={(existingAccountHasSalesforceLink && !isEditingSalesforceLink) || isSubmitting} 
+                        maxLength={500}
+                        className="flex-1" 
+                      />
+                      {existingAccountHasSalesforceLink && !isEditingSalesforceLink && <Button type="button" variant="outline" size="icon" onClick={() => setIsEditingSalesforceLink(true)} title="Edit Salesforce link" disabled={isSubmitting}>
                           <Pencil className="h-4 w-4" />
                         </Button>}
                     </div>
                     {existingAccountHasSalesforceLink && <p className="text-xs text-muted-foreground">
                         {isEditingSalesforceLink ? 'Editing account link' : 'Using existing account link'}
                       </p>}
+                    {salesforceAccountLink.trim() && !isSalesforceUrlValid && (
+                      <p className="text-xs text-destructive">
+                        URL must contain "salesforce" or "force.com"
+                      </p>
+                    )}
                   </div>
 
                   {/* Date and Call Type Row */}
@@ -281,12 +358,13 @@ function RepDashboard() {
                         value={callDate} 
                         onChange={e => setCallDate(e.target.value)} 
                         max={format(new Date(), 'yyyy-MM-dd')}
+                        disabled={isSubmitting}
                         required 
                       />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="callType">Call Type *</Label>
-                      <Select value={callType} onValueChange={v => setCallType(v as CallType)}>
+                      <Select value={callType} onValueChange={v => setCallType(v as CallType)} disabled={isSubmitting}>
                         <SelectTrigger id="callType">
                           <SelectValue />
                         </SelectTrigger>
@@ -302,7 +380,16 @@ function RepDashboard() {
                   {/* Other Call Type Input (conditional) */}
                   {callType === 'other' && <div className="space-y-2">
                       <Label htmlFor="callTypeOther">Specify Call Type *</Label>
-                      <Input id="callTypeOther" placeholder="e.g., Technical Review" value={callTypeOther} onChange={e => setCallTypeOther(e.target.value)} required />
+                      <Input 
+                        ref={callTypeOtherRef}
+                        id="callTypeOther" 
+                        placeholder="e.g., Technical Review" 
+                        value={callTypeOther} 
+                        onChange={e => setCallTypeOther(e.target.value)} 
+                        maxLength={50}
+                        disabled={isSubmitting}
+                        required 
+                      />
                     </div>}
 
                   {/* Transcript */}
@@ -313,7 +400,9 @@ function RepDashboard() {
                       placeholder="Paste the full call transcript here. Include the entire conversation—speaker labels are helpful but not required. The more detail you include, the better the analysis." 
                       value={transcript} 
                       onChange={e => setTranscript(e.target.value)} 
-                      className="min-h-[200px] md:min-h-[250px] font-mono text-sm" 
+                      className="min-h-[150px] md:min-h-[250px] font-mono text-sm" 
+                      maxLength={100000}
+                      disabled={isSubmitting}
                       required 
                     />
                     <div className="flex justify-between text-xs text-muted-foreground">
@@ -337,16 +426,28 @@ function RepDashboard() {
                     />
                   </div>
 
-                    {/* Submit Button */}
-                    <Button type="submit" disabled={isSubmitting || !transcript.trim() || stakeholderName.trim().length < 2 || accountName.trim().length < 2 || (!selectedProspectId || !existingAccountHasSalesforceLink) && !salesforceAccountLink.trim()} className="w-full h-12 text-lg" size="lg">
-                    {isSubmitting ? <>
-                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                        Analyzing Call...
-                      </> : <>
-                        <Send className="mr-2 h-5 w-5" />
-                        Analyze Call
-                      </>}
-                  </Button>
+                  {/* Submit Button */}
+                  <div className="space-y-2">
+                    <Button 
+                      type="submit" 
+                      disabled={!canSubmit} 
+                      className="w-full h-12 text-lg" 
+                      size="lg"
+                    >
+                      {isSubmitting ? <>
+                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                          Analyzing Call...
+                        </> : <>
+                          <Send className="mr-2 h-5 w-5" />
+                          Analyze Call
+                        </>}
+                    </Button>
+                    {!canSubmit && validationHints.length > 0 && !isSubmitting && (
+                      <p className="text-xs text-muted-foreground text-center">
+                        Missing: {validationHints.join(', ')}
+                      </p>
+                    )}
+                  </div>
                 </form>
               </CardContent>
             </Card>

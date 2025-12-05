@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useProducts } from '@/hooks/useProducts';
 import { Skeleton } from '@/components/ui/skeleton';
+import { formatCurrency } from '@/lib/formatters';
 import {
   Select,
   SelectContent,
@@ -184,8 +185,16 @@ export function ProductSelector({ value, onChange }: ProductSelectorProps) {
                     />
                   </div>
 
-                  <div className="text-sm text-muted-foreground">
-                    Subtotal: ${(entry.unitPrice * entry.quantity).toFixed(2)}
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">
+                      Subtotal: {formatCurrency(entry.unitPrice * entry.quantity)}
+                    </span>
+                    {entry.unitPrice === 0 && (
+                      <span className="flex items-center gap-1 text-amber-500">
+                        <AlertCircle className="h-3 w-3" />
+                        <span className="text-xs">$0 price</span>
+                      </span>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -195,7 +204,7 @@ export function ProductSelector({ value, onChange }: ProductSelectorProps) {
           <div className="flex justify-between items-center pt-2 border-t">
             <span className="font-semibold">Total Revenue:</span>
             <span className="text-xl font-bold text-primary">
-              ${totalRevenue.toFixed(2)}
+              {formatCurrency(totalRevenue)}
             </span>
           </div>
         </div>

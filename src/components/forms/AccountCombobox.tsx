@@ -81,6 +81,7 @@ export function AccountCombobox({
           variant="outline"
           role="combobox"
           aria-expanded={open}
+          aria-label="Select or create account"
           className="w-full justify-between font-normal"
           disabled={disabled}
         >
