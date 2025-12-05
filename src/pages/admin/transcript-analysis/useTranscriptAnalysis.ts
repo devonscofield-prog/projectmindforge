@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
@@ -8,6 +8,7 @@ import { Json } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDateRangeSelector } from '@/hooks/useDateRangeSelector';
+import { BackgroundJob, fetchBackgroundJob, cancelBackgroundJob } from '@/api/backgroundJobs';
 
 const log = createLogger('transcriptAnalysis');
 import { useTeams, useReps } from '@/hooks';
@@ -57,6 +58,10 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
   const [saveSelectionOpen, setSaveSelectionOpen] = useState(false);
   const [savedSelectionsOpen, setSavedSelectionsOpen] = useState(false);
   const [savedInsightsOpen, setSavedInsightsOpen] = useState(false);
+  
+  // Background job state
+  const [activeNERJobId, setActiveNERJobId] = useState<string | null>(null);
+  const [activeEmbeddingsJobId, setActiveEmbeddingsJobId] = useState<string | null>(null);
   
   // Pre-indexing state
   const [isIndexing, setIsIndexing] = useState(false);
