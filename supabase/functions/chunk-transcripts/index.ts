@@ -59,7 +59,8 @@ const NER_BATCH_SIZE = 10;
 const BASE_DELAY_MS = 200;
 const MAX_DELAY_MS = 5000;
 const MAX_RETRIES = 3;
-const NER_BACKFILL_BATCH_SIZE = 10; // Smaller batch for NER to avoid timeouts
+const NER_CHUNKS_PER_API_CALL = 5; // Process 5 chunks in a single API call for efficiency
+const NER_BACKFILL_BATCH_SIZE = 15; // Total chunks per edge function invocation (3 API calls)
 const CHUNKING_BATCH_SIZE = 50; // For chunking transcripts
 const EMBEDDING_BATCH_SIZE = 10; // Smaller batches for embedding to respect rate limits
 const EMBEDDING_DELAY_MS = 500; // 500ms between embedding API calls to respect 40k TPM limit
@@ -310,12 +311,45 @@ async function generateEmbedding(text: string, openaiApiKey: string, maxRetries:
   throw lastError || new Error('Embedding generation failed');
 }
 
-// NER extraction using Lovable AI Gateway with tool calling
+// NER extraction using Lovable AI Gateway with tool calling (single chunk - kept for compatibility)
 async function extractEntities(
   chunkTextContent: string,
   context: { accountName?: string; repName?: string; callType?: string },
   apiKey: string
 ): Promise<NERResult> {
+  const results = await extractEntitiesBatch([{ id: 'single', text: chunkTextContent }], context, apiKey);
+  return results.get('single') || { entities: {}, topics: [], meddpicc_elements: [] };
+}
+
+// Batched NER extraction - processes multiple chunks in a single API call for efficiency
+async function extractEntitiesBatch(
+  chunks: Array<{ id: string; text: string }>,
+  context: { accountName?: string; repName?: string; callType?: string },
+  apiKey: string
+): Promise<Map<string, NERResult>> {
+  const resultsMap = new Map<string, NERResult>();
+  
+  if (chunks.length === 0) {
+    return resultsMap;
+  }
+
+  // Build the prompt with numbered chunks
+  const chunkList = chunks.map((c, i) => 
+    `[CHUNK ${i + 1}]\n${c.text.slice(0, 2000)}`
+  ).join('\n\n---\n\n');
+
+  const batchSchema = {
+    type: "object",
+    properties: {
+      results: {
+        type: "array",
+        description: `Array of ${chunks.length} NER results, one per chunk in order`,
+        items: NER_EXTRACTION_SCHEMA
+      }
+    },
+    required: ["results"]
+  };
+
   const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -326,49 +360,64 @@ async function extractEntities(
       model: 'google/gemini-2.5-flash-lite',
       messages: [{
         role: 'user',
-        content: `Extract entities, topics, and MEDDPICC elements from this sales call transcript chunk.
+        content: `Extract entities, topics, and MEDDPICC elements from each of these ${chunks.length} sales call transcript chunks.
+Return exactly ${chunks.length} results in the same order as the chunks.
+
 Context: Account=${context.accountName || 'Unknown'}, Rep=${context.repName || 'Unknown'}, CallType=${context.callType || 'Unknown'}
 
-Chunk:
-${chunkTextContent.slice(0, 3000)}` // Limit input size
+${chunkList}`
       }],
       tools: [{
         type: 'function',
         function: {
-          name: 'extract_entities',
-          description: 'Extract named entities, topics, and MEDDPICC elements from transcript chunk',
-          parameters: NER_EXTRACTION_SCHEMA
+          name: 'extract_entities_batch',
+          description: `Extract NER for ${chunks.length} transcript chunks, returning results in order`,
+          parameters: batchSchema
         }
       }],
-      tool_choice: { type: 'function', function: { name: 'extract_entities' } }
+      tool_choice: { type: 'function', function: { name: 'extract_entities_batch' } }
     })
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('[chunk-transcripts] NER API error:', response.status, errorText);
-    throw new Error(`NER API error: ${response.status}`);
+    console.error('[chunk-transcripts] Batch NER API error:', response.status, errorText);
+    throw new Error(`Batch NER API error: ${response.status}`);
   }
 
   const data = await response.json();
   const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
   
   if (!toolCall?.function?.arguments) {
-    console.warn('[chunk-transcripts] No tool call in NER response, using defaults');
-    return { entities: {}, topics: [], meddpicc_elements: [] };
+    console.warn('[chunk-transcripts] No tool call in batch NER response, using defaults for all chunks');
+    chunks.forEach(c => resultsMap.set(c.id, { entities: {}, topics: [], meddpicc_elements: [] }));
+    return resultsMap;
   }
 
   try {
     const args = JSON.parse(toolCall.function.arguments);
-    return {
-      entities: args.entities || {},
-      topics: args.topics || [],
-      meddpicc_elements: args.meddpicc_elements || []
-    };
+    const results = args.results || [];
+    
+    // Map results back to chunk IDs
+    chunks.forEach((chunk, index) => {
+      if (index < results.length) {
+        resultsMap.set(chunk.id, {
+          entities: results[index].entities || {},
+          topics: results[index].topics || [],
+          meddpicc_elements: results[index].meddpicc_elements || []
+        });
+      } else {
+        // If we got fewer results than chunks, use defaults
+        console.warn(`[chunk-transcripts] Missing NER result for chunk index ${index}`);
+        resultsMap.set(chunk.id, { entities: {}, topics: [], meddpicc_elements: [] });
+      }
+    });
   } catch (parseError) {
-    console.error('[chunk-transcripts] Failed to parse NER response:', parseError);
-    return { entities: {}, topics: [], meddpicc_elements: [] };
+    console.error('[chunk-transcripts] Failed to parse batch NER response:', parseError);
+    chunks.forEach(c => resultsMap.set(c.id, { entities: {}, topics: [], meddpicc_elements: [] }));
   }
+
+  return resultsMap;
 }
 
 // Adaptive rate limiting processor with exponential backoff
@@ -679,43 +728,79 @@ serve(async (req) => {
       const chunksToProcess = chunksNeedingNER || [];
       console.log(`[chunk-transcripts] Found ${chunksToProcess.length} chunks needing NER extraction`);
 
-      let processedCount = 0;
-      const results = await processWithAdaptiveRateLimit(
-        chunksToProcess,
-        async (chunk) => {
-          processedCount++;
-          console.log(`[chunk-transcripts] NER extracting chunk ${processedCount}/${chunksToProcess.length}`);
-          const metadata = chunk.metadata as { account_name?: string; rep_name?: string; call_type?: string };
-          const nerResult = await extractEntities(
-            chunk.chunk_text,
-            {
-              accountName: metadata?.account_name,
-              repName: metadata?.rep_name,
-              callType: metadata?.call_type
-            },
-            lovableApiKey
-          );
+      let successCount = 0;
+      let errorCount = 0;
 
-          const { error: updateError } = await supabase
-            .from('transcript_chunks')
-            .update({
-              entities: nerResult.entities,
-              topics: nerResult.topics,
-              meddpicc_elements: nerResult.meddpicc_elements,
-              extraction_status: 'completed'
-            })
-            .eq('id', chunk.id);
+      // Process chunks in batches of NER_CHUNKS_PER_API_CALL (5 chunks per API call)
+      for (let i = 0; i < chunksToProcess.length; i += NER_CHUNKS_PER_API_CALL) {
+        const batch = chunksToProcess.slice(i, i + NER_CHUNKS_PER_API_CALL);
+        const batchNumber = Math.floor(i / NER_CHUNKS_PER_API_CALL) + 1;
+        const totalBatches = Math.ceil(chunksToProcess.length / NER_CHUNKS_PER_API_CALL);
+        
+        console.log(`[chunk-transcripts] Processing batch ${batchNumber}/${totalBatches} (${batch.length} chunks)`);
 
-          if (updateError) {
-            throw new Error(`Update failed: ${updateError.message}`);
+        // Get context from first chunk's metadata
+        const firstMetadata = batch[0]?.metadata as { account_name?: string; rep_name?: string; call_type?: string } | undefined;
+        const context = {
+          accountName: firstMetadata?.account_name,
+          repName: firstMetadata?.rep_name,
+          callType: firstMetadata?.call_type
+        };
+
+        try {
+          // Process batch with single API call
+          const batchInput = batch.map(chunk => ({
+            id: chunk.id,
+            text: chunk.chunk_text
+          }));
+
+          const nerResults = await extractEntitiesBatch(batchInput, context, lovableApiKey);
+
+          // Update each chunk with its NER results
+          for (const chunk of batch) {
+            const nerResult = nerResults.get(chunk.id);
+            if (nerResult) {
+              const { error: updateError } = await supabase
+                .from('transcript_chunks')
+                .update({
+                  entities: nerResult.entities,
+                  topics: nerResult.topics,
+                  meddpicc_elements: nerResult.meddpicc_elements,
+                  extraction_status: 'completed'
+                })
+                .eq('id', chunk.id);
+
+              if (updateError) {
+                console.error(`[chunk-transcripts] Failed to save NER for chunk ${chunk.id}:`, updateError);
+                errorCount++;
+              } else {
+                successCount++;
+              }
+            } else {
+              console.warn(`[chunk-transcripts] No NER result for chunk ${chunk.id}`);
+              errorCount++;
+            }
           }
 
-          return nerResult;
-        }
-      );
+          console.log(`[chunk-transcripts] Batch ${batchNumber} complete: ${batch.length} chunks processed`);
 
-      const successCount = results.filter(r => r.success).length;
-      const errorCount = results.filter(r => !r.success).length;
+        } catch (error) {
+          console.error(`[chunk-transcripts] Batch ${batchNumber} failed:`, error);
+          // Mark all chunks in failed batch with error
+          for (const chunk of batch) {
+            await supabase
+              .from('transcript_chunks')
+              .update({ extraction_status: 'failed' })
+              .eq('id', chunk.id);
+            errorCount++;
+          }
+        }
+
+        // Small delay between batches to avoid rate limiting
+        if (i + NER_CHUNKS_PER_API_CALL < chunksToProcess.length) {
+          await new Promise(r => setTimeout(r, 300));
+        }
+      }
 
       // Get total counts for progress
       const { count: totalChunks } = await supabase
@@ -729,6 +814,8 @@ serve(async (req) => {
 
       // Get remaining count for auto-continue (like embeddings does)
       const remaining = (totalChunks || 0) - (chunksWithEntities || 0);
+
+      console.log(`[chunk-transcripts] NER backfill complete: ${successCount} success, ${errorCount} errors, ${remaining} remaining`);
 
       return new Response(
         JSON.stringify({
