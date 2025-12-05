@@ -98,7 +98,8 @@ export function queueMetric(entry: MetricEntry): void {
 export function trackQueryPerformance(
   queryKey: unknown,
   duration: number,
-  status: 'success' | 'error'
+  status: 'success' | 'error',
+  errorMessage?: string
 ): void {
   const keyString = Array.isArray(queryKey) 
     ? queryKey[0]?.toString() || 'unknown'
@@ -111,6 +112,7 @@ export function trackQueryPerformance(
     status,
     metadata: {
       full_key: JSON.stringify(queryKey).slice(0, 200),
+      ...(errorMessage && { error: errorMessage.slice(0, 500) }),
     } as Json,
   });
 }
