@@ -1820,6 +1820,30 @@ export type Database = {
           vector_score: number
         }[]
       }
+      get_admin_transcripts: {
+        Args: {
+          p_account_search?: string
+          p_analysis_status?: string[]
+          p_call_types?: string[]
+          p_from_date: string
+          p_limit?: number
+          p_offset?: number
+          p_rep_ids?: string[]
+          p_to_date: string
+        }
+        Returns: {
+          account_name: string
+          analysis_status: string
+          call_date: string
+          call_type: string
+          id: string
+          raw_text: string
+          rep_id: string
+          rep_name: string
+          team_name: string
+          total_count: number
+        }[]
+      }
       get_cached_admin_stats: { Args: never; Returns: Json }
       get_cached_prospect_stats: { Args: never; Returns: Json }
       get_chunk_status_for_transcripts: {

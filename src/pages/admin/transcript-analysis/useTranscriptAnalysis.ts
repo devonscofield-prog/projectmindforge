@@ -188,7 +188,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     setCurrentPage(1);
   }, [dateRange.from, dateRange.to, selectedTeamId, selectedRepId, accountSearch, selectedCallTypes, selectedAnalysisStatus]);
 
-  // Fetch transcripts with filters and server-side pagination
+  // Fetch transcripts with filters and server-side pagination using optimized RPC
   const { data: transcriptsData, isLoading } = useQuery({
     queryKey: [
       'admin-transcripts',
@@ -206,13 +206,12 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
       selfRepId,
     ],
     queryFn: async () => {
-      let repIds: string[] = [];
+      let repIds: string[] | null = null;
       
       // For self-scoped (rep), always filter to only their own transcripts
       if (isSelfScoped && selfRepId) {
         repIds = [selfRepId];
       } else if (selectedRepId !== 'all') {
-      
         repIds = [selectedRepId];
       } else if (effectiveTeamId !== 'all') {
         const { data: teamReps } = await supabase
@@ -222,58 +221,59 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
         repIds = (teamReps || []).map(r => r.id);
       }
 
-      let query = supabase
-        .from('call_transcripts')
-        .select('id, call_date, account_name, call_type, raw_text, rep_id, analysis_status', { count: 'exact' })
-        .gte('call_date', format(dateRange.from, 'yyyy-MM-dd'))
-        .lte('call_date', format(dateRange.to, 'yyyy-MM-dd'))
-        .order('call_date', { ascending: false });
+      // Determine analysis status filter
+      const analysisStatusFilter = selectedAnalysisStatus === 'all' 
+        ? ['completed', 'skipped'] 
+        : [selectedAnalysisStatus];
 
-      // Filter by analysis status
-      if (selectedAnalysisStatus === 'all') {
-        query = query.in('analysis_status', ['completed', 'skipped']);
-      } else {
-        query = query.eq('analysis_status', selectedAnalysisStatus);
-      }
+      // Use optimized RPC function - single query with JOINs instead of 3 separate queries
+      const { data, error } = await (supabase.rpc as Function)(
+        'get_admin_transcripts',
+        {
+          p_from_date: format(dateRange.from, 'yyyy-MM-dd'),
+          p_to_date: format(dateRange.to, 'yyyy-MM-dd'),
+          p_rep_ids: repIds,
+          p_analysis_status: analysisStatusFilter,
+          p_account_search: accountSearch.trim() || null,
+          p_call_types: selectedCallTypes.length > 0 ? selectedCallTypes : null,
+          p_limit: pageSize,
+          p_offset: (currentPage - 1) * pageSize,
+        }
+      );
 
-      if (repIds.length > 0) {
-        query = query.in('rep_id', repIds);
-      }
-
-      if (accountSearch.trim()) {
-        query = query.ilike('account_name', `%${accountSearch.trim()}%`);
-      }
-
-      if (selectedCallTypes.length > 0) {
-        query = query.in('call_type', selectedCallTypes);
-      }
-
-      const from = (currentPage - 1) * pageSize;
-      const to = from + pageSize - 1;
-      query = query.range(from, to);
-
-      const { data, error, count } = await query;
       if (error) throw error;
 
-      const repIdSet = new Set((data || []).map(t => t.rep_id));
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, name, team_id')
-        .in('id', Array.from(repIdSet));
+      const results = data as Array<{
+        id: string;
+        call_date: string;
+        account_name: string | null;
+        call_type: string | null;
+        raw_text: string;
+        rep_id: string;
+        analysis_status: string;
+        rep_name: string;
+        team_name: string;
+        total_count: number;
+      }>;
 
-      const profileMap = new Map((profiles || []).map(p => [p.id, p]));
-      const teamMap = new Map((teams || []).map(t => [t.id, t.name]));
+      const totalCount = results.length > 0 ? results[0].total_count : 0;
 
-      const transcripts = (data || []).map(t => ({
-        ...t,
-        rep_name: profileMap.get(t.rep_id)?.name || 'Unknown',
-        team_name: teamMap.get(profileMap.get(t.rep_id)?.team_id || '') || 'Unknown',
+      const transcripts = results.map(t => ({
+        id: t.id,
+        call_date: t.call_date,
+        account_name: t.account_name,
+        call_type: t.call_type,
+        raw_text: t.raw_text,
+        rep_id: t.rep_id,
+        analysis_status: t.analysis_status,
+        rep_name: t.rep_name,
+        team_name: t.team_name,
       })) as Transcript[];
 
       return {
         transcripts,
-        totalCount: count ?? 0,
-        totalPages: Math.ceil((count ?? 0) / pageSize),
+        totalCount,
+        totalPages: Math.ceil(totalCount / pageSize),
       };
     },
     enabled: isSelfScoped ? !!selfRepId : (!isTeamScoped || !!managerTeam),
