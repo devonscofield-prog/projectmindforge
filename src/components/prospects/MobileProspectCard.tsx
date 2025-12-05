@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Users, Calendar, ChevronRight } from 'lucide-react';
 import { ProspectStatus } from '@/api/prospects';
-import { statusLabels, statusVariants } from '@/constants/prospects';
+import { statusLabels, statusVariants, industryOptions } from '@/constants/prospects';
 import { formatCurrency } from '@/lib/formatters';
 import { HeatScoreBadge } from '@/components/ui/heat-score-badge';
 import { KeyboardEvent } from 'react';
@@ -63,8 +63,15 @@ export function MobileProspectCard({ prospect, stakeholderCount, callCount, onCl
               </Badge>
             </div>
             
+            {/* Industry badge */}
+            {prospect.industry && (
+              <Badge variant="outline" className="text-xs w-fit">
+                {industryOptions.find(i => i.value === prospect.industry)?.label ?? prospect.industry}
+              </Badge>
+            )}
+            
             {/* Stats row */}
-            <div className="flex items-center gap-4 text-sm">
+            <div className="flex items-center flex-wrap gap-3 text-sm">
               <HeatScoreBadge score={prospect.heat_score ?? null} />
               
               {prospect.active_revenue != null && prospect.active_revenue > 0 && (

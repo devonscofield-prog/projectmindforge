@@ -30,6 +30,7 @@ import { MobileProspectListSkeleton, TableSkeleton, StatCardGridSkeleton } from 
 import { PullToRefresh } from '@/components/ui/pull-to-refresh';
 import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
 import { PaginationControls } from '@/components/ui/pagination-controls';
+import { EmptyState } from '@/components/ui/empty-state';
 import { Search, Users, Calendar, DollarSign, ChevronRight, Building2, Flame, TrendingUp, RefreshCw, ArrowUp, ArrowDown } from 'lucide-react';
 import { format } from 'date-fns';
 import { type ProspectStatus, type ProspectFilters } from '@/api/prospects';
@@ -299,18 +300,19 @@ function RepProspects() {
                 </div>
               </>
             ) : filteredProspects.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="mx-auto mb-4 rounded-full bg-muted p-4 w-fit">
-                  <Building2 className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
-                </div>
-                <h3 className="text-lg font-semibold">No accounts yet</h3>
-                <p className="text-muted-foreground mt-2 max-w-sm mx-auto">
-                  {search 
+              <EmptyState
+                icon={Building2}
+                title={search ? "No matching accounts" : "No accounts yet"}
+                description={
+                  search 
                     ? `No accounts match "${search}". Try a different search term.`
                     : "Accounts are automatically created when you submit call transcripts. Submit your first call to get started."
-                  }
-                </p>
-              </div>
+                }
+                action={!search ? {
+                  label: "Submit Your First Call",
+                  onClick: () => navigate('/rep')
+                } : undefined}
+              />
             ) : (
               <>
                 {/* Mobile Card View with Pull-to-Refresh */}
