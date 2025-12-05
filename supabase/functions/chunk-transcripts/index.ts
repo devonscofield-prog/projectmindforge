@@ -479,8 +479,46 @@ async function processNERBackfillJob(
   let totalProcessed = 0;
   let totalErrors = 0;
   let shouldStop = false;
+  let lastHeartbeat = Date.now();
+  const HEARTBEAT_INTERVAL_MS = 10000; // Update every 10 seconds
+  
+  // Helper to update heartbeat
+  const updateHeartbeat = async (forceProgress = false) => {
+    const now = Date.now();
+    if (forceProgress || now - lastHeartbeat > HEARTBEAT_INTERVAL_MS) {
+      lastHeartbeat = now;
+      
+      const { count: totalChunks } = await supabase
+        .from('transcript_chunks')
+        .select('*', { count: 'exact', head: true });
+      
+      const { count: chunksWithEntities } = await supabase
+        .from('transcript_chunks')
+        .select('*', { count: 'exact', head: true })
+        .eq('extraction_status', 'completed');
+      
+      await supabase
+        .from('background_jobs')
+        .update({
+          progress: {
+            processed: chunksWithEntities || 0,
+            total: totalChunks || 0,
+            errors: totalErrors,
+            message: `Processing NER extraction...`
+          },
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', jobId);
+      
+      console.log(`[chunk-transcripts] Heartbeat: ${chunksWithEntities}/${totalChunks} chunks processed`);
+    }
+  };
   
   try {
+    // IMMEDIATELY update progress to show job is alive
+    console.log(`[chunk-transcripts] Sending initial heartbeat for job ${jobId}`);
+    await updateHeartbeat(true);
+    
     // Main processing loop
     while (!shouldStop) {
       // Check if job was cancelled
@@ -513,6 +551,8 @@ async function processNERBackfillJob(
         shouldStop = true;
         break;
       }
+      
+      console.log(`[chunk-transcripts] Processing batch of ${chunksNeedingNER.length} chunks`);
       
       // Process chunks in batches
       for (let i = 0; i < chunksNeedingNER.length; i += NER_CHUNKS_PER_API_CALL) {
@@ -567,33 +607,14 @@ async function processNERBackfillJob(
           }
         }
         
+        // Update heartbeat after each batch
+        await updateHeartbeat();
+        
         // Delay between batches
         if (i + NER_CHUNKS_PER_API_CALL < chunksNeedingNER.length) {
           await new Promise(r => setTimeout(r, NER_BATCH_DELAY_MS));
         }
       }
-      
-      // Update job progress
-      const { count: totalChunks } = await supabase
-        .from('transcript_chunks')
-        .select('*', { count: 'exact', head: true });
-      
-      const { count: chunksWithEntities } = await supabase
-        .from('transcript_chunks')
-        .select('*', { count: 'exact', head: true })
-        .eq('extraction_status', 'completed');
-      
-      await supabase
-        .from('background_jobs')
-        .update({
-          progress: {
-            processed: chunksWithEntities || 0,
-            total: totalChunks || 0,
-            errors: totalErrors
-          },
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', jobId);
       
       // Small delay before next batch
       await new Promise(r => setTimeout(r, 500));
@@ -604,6 +625,12 @@ async function processNERBackfillJob(
       .from('background_jobs')
       .update({
         status: 'completed',
+        progress: {
+          processed: totalProcessed,
+          total: totalProcessed + totalErrors,
+          errors: totalErrors,
+          message: 'Completed'
+        },
         completed_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
