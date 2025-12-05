@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
@@ -25,10 +25,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { MobileProspectListSkeleton, TableSkeleton } from '@/components/ui/skeletons';
+import { MobileProspectListSkeleton, TableSkeleton, StatCardGridSkeleton } from '@/components/ui/skeletons';
 import { PullToRefresh } from '@/components/ui/pull-to-refresh';
 import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
-import { Search, Users, Calendar, DollarSign, ChevronRight, Building2, Flame } from 'lucide-react';
+import { Search, Users, Calendar, DollarSign, ChevronRight, Building2, Flame, TrendingUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { type ProspectStatus, type ProspectFilters } from '@/api/prospects';
 import { MobileProspectCard } from '@/components/prospects/MobileProspectCard';
@@ -93,6 +93,14 @@ function RepProspects() {
       .reduce((sum, p) => sum + (p.active_revenue ?? 0), 0),
   }), [prospects]);
 
+  // Handle keyboard navigation for table rows
+  const handleRowKeyDown = (e: KeyboardEvent<HTMLTableRowElement>, prospectId: string) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      navigate(getAccountDetailUrl('rep', prospectId));
+    }
+  };
+
   return (
     <AppLayout>
       <div className="space-y-4 md:space-y-6">
@@ -107,84 +115,81 @@ function RepProspects() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-full bg-primary/10">
-                  <Building2 className="h-5 w-5 text-primary" />
+        {isLoading ? (
+          <StatCardGridSkeleton count={4} />
+        ) : (
+          <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-full bg-primary/10">
+                    <Building2 className="h-5 w-5 text-primary" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Accounts</p>
+                    <p className="text-2xl font-bold">{stats.total}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Accounts</p>
-                  <p className="text-2xl font-bold">{stats.total}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-full bg-green-500/10">
+                    <TrendingUp className="h-5 w-5 text-green-500" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Active</p>
+                    <p className="text-2xl font-bold">{stats.active}</p>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-full bg-green-500/10">
-                  <Flame className="h-5 w-5 text-green-500" />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-full bg-orange-500/10">
+                    <Flame className="h-5 w-5 text-orange-500" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Hot (8+)</p>
+                    <p className="text-2xl font-bold">{stats.hot}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Active</p>
-                  <p className="text-2xl font-bold">{stats.active}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-full bg-blue-500/10">
+                    <DollarSign className="h-5 w-5 text-blue-500" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Pipeline Value</p>
+                    <p className="text-2xl font-bold">{formatCurrency(stats.pipelineValue)}</p>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-full bg-orange-500/10">
-                  <Flame className="h-5 w-5 text-orange-500" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Hot (8+)</p>
-                  <p className="text-2xl font-bold">
-                    {prospects.filter(p => (p.heat_score ?? 0) >= 8).length}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-full bg-blue-500/10">
-                  <DollarSign className="h-5 w-5 text-blue-500" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Pipeline Value</p>
-                  <p className="text-2xl font-bold">
-                    {formatCurrency(
-                      prospects
-                        .filter(p => p.status === 'active')
-                        .reduce((sum, p) => sum + (p.active_revenue ?? 0), 0)
-                    )}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Filters */}
         <Card>
           <CardContent className="p-4">
             <div className="flex flex-col sm:flex-row gap-4">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
                 <Input
                   placeholder="Search accounts..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-9"
+                  aria-label="Search accounts"
                 />
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[160px]">
+                <SelectTrigger className="w-[160px]" aria-label="Filter by status">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -196,7 +201,7 @@ function RepProspects() {
                 </SelectContent>
               </Select>
               <Select value={sortBy} onValueChange={(v) => setSortBy(v as ProspectFilters['sortBy'])}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-[180px]" aria-label="Sort accounts by">
                   <SelectValue placeholder="Sort by" />
                 </SelectTrigger>
                 <SelectContent>
@@ -258,26 +263,32 @@ function RepProspects() {
 
                 {/* Desktop Table View */}
                 <div className="hidden md:block">
-                  <Table>
+                  <Table aria-label="Accounts table">
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Account</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Industry</TableHead>
-                        <TableHead>Heat</TableHead>
-                        <TableHead>Revenue</TableHead>
-                        <TableHead>Stakeholders</TableHead>
-                        <TableHead>Calls</TableHead>
-                        <TableHead>Last Contact</TableHead>
-                        <TableHead className="w-10"></TableHead>
+                        <TableHead scope="col">Account</TableHead>
+                        <TableHead scope="col">Status</TableHead>
+                        <TableHead scope="col">Industry</TableHead>
+                        <TableHead scope="col">Heat</TableHead>
+                        <TableHead scope="col">Revenue</TableHead>
+                        <TableHead scope="col">Stakeholders</TableHead>
+                        <TableHead scope="col">Calls</TableHead>
+                        <TableHead scope="col">Last Contact</TableHead>
+                        <TableHead scope="col" className="w-10">
+                          <span className="sr-only">Actions</span>
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredProspects.map((prospect) => (
                         <TableRow
                           key={prospect.id}
-                          className="cursor-pointer hover:bg-muted/50"
+                          className="cursor-pointer hover:bg-muted/50 focus-visible:bg-muted focus-visible:outline-none"
                           onClick={() => navigate(getAccountDetailUrl('rep', prospect.id))}
+                          onKeyDown={(e) => handleRowKeyDown(e, prospect.id)}
+                          tabIndex={0}
+                          role="link"
+                          aria-label={`View ${prospect.account_name || prospect.prospect_name}`}
                         >
                           <TableCell>
                             <div>
@@ -313,7 +324,7 @@ function RepProspects() {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1 text-muted-foreground">
-                              <Users className="h-3.5 w-3.5" />
+                              <Users className="h-3.5 w-3.5" aria-hidden="true" />
                               {stakeholderCounts[prospect.id] || 0}
                             </div>
                           </TableCell>
@@ -323,7 +334,7 @@ function RepProspects() {
                           <TableCell>
                             {prospect.last_contact_date ? (
                               <div className="flex items-center gap-1 text-muted-foreground">
-                                <Calendar className="h-3 w-3" />
+                                <Calendar className="h-3 w-3" aria-hidden="true" />
                                 {format(new Date(prospect.last_contact_date), 'MMM d, yyyy')}
                               </div>
                             ) : (
@@ -331,7 +342,7 @@ function RepProspects() {
                             )}
                           </TableCell>
                           <TableCell>
-                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                           </TableCell>
                         </TableRow>
                       ))}
