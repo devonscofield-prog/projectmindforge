@@ -59,11 +59,15 @@ const NER_BATCH_SIZE = 10;
 const BASE_DELAY_MS = 200;
 const MAX_DELAY_MS = 5000;
 const MAX_RETRIES = 3;
-const NER_CHUNKS_PER_API_CALL = 5; // Process 5 chunks in a single API call for efficiency
-const NER_BACKFILL_BATCH_SIZE = 15; // Total chunks per edge function invocation (3 API calls)
+const NER_CHUNKS_PER_API_CALL = 3; // Reduced from 5 - smaller payloads = less likely to timeout
+const NER_BACKFILL_BATCH_SIZE = 15; // Total chunks per edge function invocation (5 API calls now)
 const CHUNKING_BATCH_SIZE = 50; // For chunking transcripts
 const EMBEDDING_BATCH_SIZE = 10; // Smaller batches for embedding to respect rate limits
 const EMBEDDING_DELAY_MS = 500; // 500ms between embedding API calls to respect 40k TPM limit
+const NER_BATCH_DELAY_MS = 500; // Increased from 300ms - delay between NER batches
+const NER_ERROR_DELAY_MS = 2000; // Extra delay after an error before next batch
+const NER_RETRY_MAX = 3; // Retries per batch on server errors
+const NER_RETRY_BASE_DELAY_MS = 500; // Base delay for retry backoff
 
 // Types
 interface TranscriptChunk {
@@ -311,18 +315,73 @@ async function generateEmbedding(text: string, openaiApiKey: string, maxRetries:
   throw lastError || new Error('Embedding generation failed');
 }
 
+// Retry helper with exponential backoff for server errors (5xx)
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  options: { maxRetries?: number; baseDelay?: number; operationName?: string } = {}
+): Promise<T> {
+  const { maxRetries = NER_RETRY_MAX, baseDelay = NER_RETRY_BASE_DELAY_MS, operationName = 'operation' } = options;
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      
+      // Check if this is a retryable server error (5xx)
+      const isServerError = lastError.message.includes('500') || 
+                           lastError.message.includes('502') || 
+                           lastError.message.includes('503') || 
+                           lastError.message.includes('504') ||
+                           lastError.message.includes('Worker threw exception');
+      
+      // Don't retry client errors (4xx) except rate limits
+      const isRateLimited = lastError.message.includes('429');
+      
+      if (!isServerError && !isRateLimited) {
+        console.error(`[chunk-transcripts] ${operationName} failed with non-retryable error:`, lastError.message);
+        throw lastError;
+      }
+      
+      if (attempt === maxRetries) {
+        console.error(`[chunk-transcripts] ${operationName} failed after ${maxRetries + 1} attempts:`, lastError.message);
+        throw lastError;
+      }
+      
+      const delay = baseDelay * Math.pow(2, attempt); // 500ms -> 1000ms -> 2000ms
+      console.log(`[chunk-transcripts] ${operationName} retry ${attempt + 1}/${maxRetries} after ${delay}ms (error: ${lastError.message.slice(0, 100)})`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  
+  throw lastError || new Error(`${operationName} failed`);
+}
+
 // NER extraction using Lovable AI Gateway with tool calling (single chunk - kept for compatibility)
 async function extractEntities(
   chunkTextContent: string,
   context: { accountName?: string; repName?: string; callType?: string },
   apiKey: string
 ): Promise<NERResult> {
-  const results = await extractEntitiesBatch([{ id: 'single', text: chunkTextContent }], context, apiKey);
+  const results = await extractEntitiesBatchInternal([{ id: 'single', text: chunkTextContent }], context, apiKey);
   return results.get('single') || { entities: {}, topics: [], meddpicc_elements: [] };
 }
 
-// Batched NER extraction - processes multiple chunks in a single API call for efficiency
+// Public batched NER extraction with retry wrapper
 async function extractEntitiesBatch(
+  chunks: Array<{ id: string; text: string }>,
+  context: { accountName?: string; repName?: string; callType?: string },
+  apiKey: string
+): Promise<Map<string, NERResult>> {
+  return retryWithBackoff(
+    () => extractEntitiesBatchInternal(chunks, context, apiKey),
+    { maxRetries: NER_RETRY_MAX, baseDelay: NER_RETRY_BASE_DELAY_MS, operationName: 'NER batch extraction' }
+  );
+}
+
+// Internal batched NER extraction - processes multiple chunks in a single API call for efficiency
+async function extractEntitiesBatchInternal(
   chunks: Array<{ id: string; text: string }>,
   context: { accountName?: string; repName?: string; callType?: string },
   apiKey: string
@@ -381,7 +440,7 @@ ${chunkList}`
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('[chunk-transcripts] Batch NER API error:', response.status, errorText);
+    console.error('[chunk-transcripts] Batch NER API error:', response.status, errorText.slice(0, 500));
     throw new Error(`Batch NER API error: ${response.status}`);
   }
 
@@ -730,9 +789,17 @@ serve(async (req) => {
 
       let successCount = 0;
       let errorCount = 0;
+      let lastBatchHadError = false;
 
-      // Process chunks in batches of NER_CHUNKS_PER_API_CALL (5 chunks per API call)
+      // Process chunks in batches of NER_CHUNKS_PER_API_CALL (3 chunks per API call)
       for (let i = 0; i < chunksToProcess.length; i += NER_CHUNKS_PER_API_CALL) {
+        // Extra delay if previous batch had an error (give API time to recover)
+        if (lastBatchHadError) {
+          console.log(`[chunk-transcripts] Previous batch had error, waiting ${NER_ERROR_DELAY_MS}ms before retry...`);
+          await new Promise(r => setTimeout(r, NER_ERROR_DELAY_MS));
+          lastBatchHadError = false;
+        }
+
         const batch = chunksToProcess.slice(i, i + NER_CHUNKS_PER_API_CALL);
         const batchNumber = Math.floor(i / NER_CHUNKS_PER_API_CALL) + 1;
         const totalBatches = Math.ceil(chunksToProcess.length / NER_CHUNKS_PER_API_CALL);
@@ -748,7 +815,7 @@ serve(async (req) => {
         };
 
         try {
-          // Process batch with single API call
+          // Process batch with single API call (extractEntitiesBatch now has built-in retry logic)
           const batchInput = batch.map(chunk => ({
             id: chunk.id,
             text: chunk.chunk_text
@@ -785,7 +852,10 @@ serve(async (req) => {
           console.log(`[chunk-transcripts] Batch ${batchNumber} complete: ${batch.length} chunks processed`);
 
         } catch (error) {
-          console.error(`[chunk-transcripts] Batch ${batchNumber} failed:`, error);
+          lastBatchHadError = true;
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          console.error(`[chunk-transcripts] Batch ${batchNumber} failed after retries:`, errorMsg.slice(0, 200));
+          
           // Mark all chunks in failed batch with error
           for (const chunk of batch) {
             await supabase
@@ -796,9 +866,9 @@ serve(async (req) => {
           }
         }
 
-        // Small delay between batches to avoid rate limiting
+        // Delay between batches to avoid rate limiting (increased from 300ms to 500ms)
         if (i + NER_CHUNKS_PER_API_CALL < chunksToProcess.length) {
-          await new Promise(r => setTimeout(r, 300));
+          await new Promise(r => setTimeout(r, NER_BATCH_DELAY_MS));
         }
       }
 
