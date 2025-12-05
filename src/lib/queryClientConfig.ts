@@ -40,8 +40,11 @@ export function createQueryClient(): QueryClient {
         
         queryLogger.queryError(query.queryKey, error, duration);
         
-        // Always track errors in performance metrics
-        trackQueryPerformance(query.queryKey, duration, 'error');
+        // Extract error message for tracking
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        
+        // Always track errors in performance metrics - now with message
+        trackQueryPerformance(query.queryKey, duration, 'error', errorMessage);
       },
     }),
     mutationCache: new MutationCache({

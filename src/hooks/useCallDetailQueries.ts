@@ -30,15 +30,35 @@ export function useCallWithAnalysis(callId: string | undefined, userId: string |
   return useQuery({
     queryKey: callDetailKeys.call(callId || ''),
     queryFn: async () => {
-      if (!callId) throw new Error('Call ID is required');
+      // Defensive validation with specific error messages
+      if (!callId) {
+        log.error('Call detail query failed: Missing call ID', { userId, role });
+        throw new Error('Call ID is required');
+      }
+      if (!userId) {
+        log.error('Call detail query failed: Missing user ID', { callId, role });
+        throw new Error('User ID is required');
+      }
+      if (!role) {
+        log.error('Call detail query failed: Missing role', { callId, userId });
+        throw new Error('User role is required');
+      }
+
       const result = await getCallWithAnalysis(callId);
       
       if (!result) {
+        log.warn('Call not found', { callId, userId, role });
         throw new Error('Call not found');
       }
 
-      // Role-based access check
+      // Role-based access check with logging
       if (role === 'rep' && result.transcript.rep_id !== userId) {
+        log.warn('Unauthorized call access attempt', { 
+          callId, 
+          userId, 
+          role,
+          callOwnerId: result.transcript.rep_id 
+        });
         throw new Error('Not authorized to view this call');
       }
 
@@ -46,7 +66,16 @@ export function useCallWithAnalysis(callId: string | undefined, userId: string |
     },
     enabled: !!callId && !!userId && !!role,
     staleTime: 30 * 1000, // 30 seconds - relatively fresh for call details
-    retry: 1,
+    retry: (failureCount, error) => {
+      // Don't retry authorization or not-found errors
+      const message = error instanceof Error ? error.message : '';
+      if (message === 'Not authorized to view this call') return false;
+      if (message === 'Call not found') return false;
+      if (message === 'Call ID is required') return false;
+      if (message === 'User ID is required') return false;
+      if (message === 'User role is required') return false;
+      return failureCount < 1;
+    },
   });
 }
 
