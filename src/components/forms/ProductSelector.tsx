@@ -122,14 +122,15 @@ export function ProductSelector({ value, onChange }: ProductSelectorProps) {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <h4 className="font-semibold text-sm">{entry.productName}</h4>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeProduct(entry.productId)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeProduct(entry.productId)}
+                        aria-label={`Remove ${entry.productName}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
