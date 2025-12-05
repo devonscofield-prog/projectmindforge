@@ -1009,10 +1009,15 @@ serve(async (req) => {
     callId = call_id;
     console.log(`[analyze-call] Starting analysis for call_id: ${callId}`);
 
-    // Step 1: Read the transcript row using user's RLS context (validates access)
-    const { data: transcript, error: fetchError } = await supabaseUser
+    // Step 1: Read transcript WITH prospect in single query (validates access via RLS)
+    const { data: transcriptWithProspect, error: fetchError } = await supabaseUser
       .from('call_transcripts')
-      .select('id, rep_id, raw_text, call_date, source')
+      .select(`
+        id, rep_id, raw_text, call_date, source, prospect_id,
+        prospect:prospects(
+          id, industry, opportunity_details, ai_extracted_info, heat_score, suggested_follow_ups
+        )
+      `)
       .eq('id', callId)
       .maybeSingle();
 
@@ -1024,7 +1029,7 @@ serve(async (req) => {
       );
     }
 
-    if (!transcript) {
+    if (!transcriptWithProspect) {
       console.warn(`[analyze-call] Transcript not found or access denied for call_id: ${callId}`);
       return new Response(
         JSON.stringify({ error: 'Call transcript not found' }),
@@ -1032,7 +1037,30 @@ serve(async (req) => {
       );
     }
 
-    console.log(`[analyze-call] Transcript found for rep_id: ${transcript.rep_id}`);
+    // Cache IDs upfront to avoid redundant fetches
+    const repId = transcriptWithProspect.rep_id;
+    const prospectId = transcriptWithProspect.prospect_id;
+    // Handle prospect relation - Supabase returns array for relations, but we want single object
+    const prospectData = transcriptWithProspect.prospect;
+    const currentProspect = (Array.isArray(prospectData) ? prospectData[0] : prospectData) as {
+      id: string;
+      industry: string | null;
+      opportunity_details: Record<string, unknown> | null;
+      ai_extracted_info: Record<string, unknown> | null;
+      heat_score: number | null;
+      suggested_follow_ups: unknown[] | null;
+    } | null;
+
+    // Extract transcript data for analysis
+    const transcript: TranscriptRow = {
+      id: transcriptWithProspect.id,
+      rep_id: repId,
+      raw_text: transcriptWithProspect.raw_text,
+      call_date: transcriptWithProspect.call_date,
+      source: transcriptWithProspect.source
+    };
+
+    console.log(`[analyze-call] Transcript found for rep_id: ${repId}, prospect_id: ${prospectId || 'none'}`);
 
     // Step 2: Update analysis_status to 'processing' using service role client
     const { error: updateProcessingError } = await supabaseAdmin
@@ -1047,12 +1075,12 @@ serve(async (req) => {
 
     // Step 3: Generate analysis using real AI
     console.log('[analyze-call] Using real AI analysis');
-    const analysis = await generateRealAnalysis(transcript as TranscriptRow);
+    const analysis = await generateRealAnalysis(transcript);
     analysis.prompt_version = 'v2-real-2025-11-27';
 
     console.log('[analyze-call] Analysis generated');
 
-    // Step 5: Insert into ai_call_analysis using service role client
+    // Step 4: Insert into ai_call_analysis using service role client
     // Extract stakeholders_intel before inserting (it's not a column in the table)
     const { stakeholders_intel, ...analysisForDb } = analysis;
     
@@ -1083,7 +1111,7 @@ serve(async (req) => {
     const analysisId = analysisResult.id;
     console.log(`[analyze-call] Analysis inserted with id: ${analysisId}`);
 
-    // Step 6: Update call_transcripts.analysis_status to 'completed'
+    // Step 5: Update call_transcripts.analysis_status to 'completed'
     const { error: updateCompletedError } = await supabaseAdmin
       .from('call_transcripts')
       .update({ analysis_status: 'completed' })
@@ -1094,88 +1122,61 @@ serve(async (req) => {
       // Analysis was saved, so we still return success
     }
 
-    // Step 7: Update prospect with AI-extracted intel if available
-    if (analysis.prospect_intel || analysis.coach_output) {
+    // Step 6: CONSOLIDATED prospect update - build single update object
+    if (prospectId && currentProspect && (analysis.prospect_intel || analysis.coach_output)) {
       try {
-        // Get the prospect_id and current industry from the call transcript
-        const { data: callData } = await supabaseAdmin
-          .from('call_transcripts')
-          .select('prospect_id')
-          .eq('id', callId)
-          .single();
+        const prospectUpdates: Record<string, unknown> = {};
+        
+        // AI-extracted info
+        if (analysis.prospect_intel) {
+          prospectUpdates.ai_extracted_info = analysis.prospect_intel;
+          
+          // Auto-populate industry only if not already set
+          if (analysis.prospect_intel.industry && !currentProspect.industry) {
+            prospectUpdates.industry = analysis.prospect_intel.industry;
+            console.log(`[analyze-call] Auto-populating industry: ${analysis.prospect_intel.industry}`);
+          }
+        }
+        
+        // Suggested follow-ups from coaching
+        if (analysis.coach_output?.recommended_follow_up_questions) {
+          prospectUpdates.suggested_follow_ups = analysis.coach_output.recommended_follow_up_questions;
+        }
+        
+        // Heat score
+        if (analysis.coach_output?.heat_signature?.score) {
+          prospectUpdates.heat_score = analysis.coach_output.heat_signature.score;
+        }
 
-        if (callData?.prospect_id) {
-          // Fetch current prospect to check if industry is already set
-          const { data: currentProspect } = await supabaseAdmin
+        // Auto-populate opportunity_details with user counts if extracted
+        const userCounts = analysis.prospect_intel?.user_counts;
+        if (userCounts && (userCounts.it_users || userCounts.end_users || userCounts.ai_users)) {
+          const currentDetails = (currentProspect.opportunity_details as Record<string, unknown>) || {};
+          prospectUpdates.opportunity_details = {
+            ...currentDetails,
+            it_users_count: userCounts.it_users || currentDetails.it_users_count,
+            end_users_count: userCounts.end_users || currentDetails.end_users_count,
+            ai_users_count: userCounts.ai_users || currentDetails.ai_users_count,
+            auto_populated_from: {
+              source: 'transcript' as const,
+              source_id: callId,
+              extracted_at: new Date().toISOString(),
+            },
+          };
+          console.log('[analyze-call] Including user counts in prospect update');
+        }
+
+        // Execute single consolidated prospect update
+        if (Object.keys(prospectUpdates).length > 0) {
+          const { error: updateProspectError } = await supabaseAdmin
             .from('prospects')
-            .select('industry')
-            .eq('id', callData.prospect_id)
-            .single();
-
-          const prospectUpdates: Record<string, unknown> = {};
+            .update(prospectUpdates)
+            .eq('id', prospectId);
           
-          if (analysis.prospect_intel) {
-            prospectUpdates.ai_extracted_info = analysis.prospect_intel;
-            
-            // Auto-populate industry only if not already set
-            if (analysis.prospect_intel.industry && !currentProspect?.industry) {
-              prospectUpdates.industry = analysis.prospect_intel.industry;
-              console.log(`[analyze-call] Auto-populating industry: ${analysis.prospect_intel.industry}`);
-            }
-          }
-          
-          if (analysis.coach_output?.recommended_follow_up_questions) {
-            prospectUpdates.suggested_follow_ups = analysis.coach_output.recommended_follow_up_questions;
-          }
-          
-          if (analysis.coach_output?.heat_signature?.score) {
-            prospectUpdates.heat_score = analysis.coach_output.heat_signature.score;
-          }
-
-          if (Object.keys(prospectUpdates).length > 0) {
-            await supabaseAdmin
-              .from('prospects')
-              .update(prospectUpdates)
-              .eq('id', callData.prospect_id);
-            console.log(`[analyze-call] Updated prospect ${callData.prospect_id} with AI intel`);
-          }
-
-          // Auto-populate opportunity_details if user counts were extracted
-          if (analysis.prospect_intel?.user_counts && (analysis.prospect_intel.user_counts.it_users || analysis.prospect_intel.user_counts.end_users || analysis.prospect_intel.user_counts.ai_users)) {
-            console.log('[analyze-call] Auto-populating opportunity details with user counts');
-            
-            // Fetch current opportunity_details to merge
-            const { data: currentProspectDetails } = await supabaseAdmin
-              .from('prospects')
-              .select('opportunity_details')
-              .eq('id', callData.prospect_id)
-              .single();
-            
-            const currentDetails = (currentProspectDetails?.opportunity_details as any) || {};
-            
-            // Update prospect with extracted user counts
-            const { error: updateOpportunityError } = await supabaseAdmin
-              .from('prospects')
-              .update({
-                opportunity_details: {
-                  ...currentDetails,
-                  it_users_count: analysis.prospect_intel.user_counts.it_users || currentDetails.it_users_count,
-                  end_users_count: analysis.prospect_intel.user_counts.end_users || currentDetails.end_users_count,
-                  ai_users_count: analysis.prospect_intel.user_counts.ai_users || currentDetails.ai_users_count,
-                  auto_populated_from: {
-                    source: 'transcript' as const,
-                    source_id: callId,
-                    extracted_at: new Date().toISOString(),
-                  },
-                },
-              })
-              .eq('id', callData.prospect_id);
-            
-            if (updateOpportunityError) {
-              console.error('[analyze-call] Failed to update opportunity details:', updateOpportunityError);
-            } else {
-              console.log('[analyze-call] Successfully auto-populated opportunity details');
-            }
+          if (updateProspectError) {
+            console.error('[analyze-call] Failed to update prospect:', updateProspectError);
+          } else {
+            console.log(`[analyze-call] Updated prospect ${prospectId} with AI intel (single query)`);
           }
         }
       } catch (prospectErr) {
@@ -1184,112 +1185,116 @@ serve(async (req) => {
       }
     }
 
-    // Step 8: Process stakeholders_intel - create/update stakeholders
-    if (analysis.stakeholders_intel && analysis.stakeholders_intel.length > 0) {
+    // Step 7: BATCHED stakeholder processing
+    if (prospectId && stakeholders_intel && stakeholders_intel.length > 0) {
       try {
-        // Get the prospect_id and rep_id from the call transcript
-        const { data: callData } = await supabaseAdmin
-          .from('call_transcripts')
-          .select('prospect_id, rep_id')
-          .eq('id', callId)
-          .single();
-
-        if (callData?.prospect_id && callData?.rep_id) {
-          console.log(`[analyze-call] Processing ${analysis.stakeholders_intel.length} stakeholders`);
+        console.log(`[analyze-call] Processing ${stakeholders_intel.length} stakeholders (batched)`);
+        
+        // Single query to get all existing stakeholders for this prospect
+        const { data: existingStakeholders } = await supabaseAdmin
+          .from('stakeholders')
+          .select('id, name')
+          .eq('prospect_id', prospectId)
+          .is('deleted_at', null);
+        
+        // Create lookup map (lowercase name -> id)
+        const existingMap = new Map<string, string>();
+        if (existingStakeholders) {
+          for (const s of existingStakeholders) {
+            existingMap.set(s.name.toLowerCase(), s.id);
+          }
+        }
+        
+        // Separate into updates and inserts
+        const stakeholderUpdates: Array<{ id: string; data: Record<string, unknown> }> = [];
+        const stakeholderInserts: Array<Record<string, unknown>> = [];
+        const mentionsToInsert: Array<{ call_id: string; stakeholder_id: string; was_present: boolean; context_notes: string | null }> = [];
+        
+        for (const intel of stakeholders_intel) {
+          if (!intel.name) continue;
           
-          for (const stakeholderIntel of analysis.stakeholders_intel) {
-            if (!stakeholderIntel.name) continue;
+          const existingId = existingMap.get(intel.name.toLowerCase());
+          const baseData = {
+            job_title: intel.job_title || null,
+            influence_level: intel.influence_level || 'light_influencer',
+            champion_score: intel.champion_score || null,
+            champion_score_reasoning: intel.champion_score_reasoning || null,
+            ai_extracted_info: intel.ai_notes ? { notes: intel.ai_notes } : null,
+            last_interaction_date: new Date().toISOString().split('T')[0],
+          };
+          
+          if (existingId) {
+            stakeholderUpdates.push({ id: existingId, data: baseData });
+            // Queue mention
+            if (intel.was_present !== false) {
+              mentionsToInsert.push({
+                call_id: callId,
+                stakeholder_id: existingId,
+                was_present: intel.was_present ?? true,
+                context_notes: intel.ai_notes || null,
+              });
+            }
+          } else {
+            stakeholderInserts.push({
+              prospect_id: prospectId,
+              rep_id: repId,
+              name: intel.name,
+              ...baseData,
+              is_primary_contact: false,
+            });
+          }
+        }
+        
+        // Execute batch updates (can't truly batch updates, but at least we minimize queries)
+        for (const update of stakeholderUpdates) {
+          await supabaseAdmin
+            .from('stakeholders')
+            .update(update.data)
+            .eq('id', update.id);
+        }
+        console.log(`[analyze-call] Updated ${stakeholderUpdates.length} existing stakeholders`);
+        
+        // Batch insert new stakeholders
+        if (stakeholderInserts.length > 0) {
+          const { data: newStakeholders, error: insertStakeholdersError } = await supabaseAdmin
+            .from('stakeholders')
+            .insert(stakeholderInserts)
+            .select('id, name');
+          
+          if (insertStakeholdersError) {
+            console.error('[analyze-call] Failed to batch insert stakeholders:', insertStakeholdersError);
+          } else if (newStakeholders) {
+            console.log(`[analyze-call] Created ${newStakeholders.length} new stakeholders`);
             
-            // Check if stakeholder already exists (case-insensitive match)
-            const { data: existingStakeholder } = await supabaseAdmin
-              .from('stakeholders')
-              .select('id')
-              .eq('prospect_id', callData.prospect_id)
-              .ilike('name', stakeholderIntel.name)
-              .maybeSingle();
-
-            if (existingStakeholder) {
-              // Update existing stakeholder with new intel
-              const updates: Record<string, unknown> = {
-                last_interaction_date: new Date().toISOString().split('T')[0],
-              };
-              
-              if (stakeholderIntel.job_title) {
-                updates.job_title = stakeholderIntel.job_title;
-              }
-              if (stakeholderIntel.influence_level) {
-                updates.influence_level = stakeholderIntel.influence_level;
-              }
-              if (stakeholderIntel.champion_score) {
-                updates.champion_score = stakeholderIntel.champion_score;
-              }
-              if (stakeholderIntel.champion_score_reasoning) {
-                updates.champion_score_reasoning = stakeholderIntel.champion_score_reasoning;
-              }
-              if (stakeholderIntel.ai_notes) {
-                updates.ai_extracted_info = { notes: stakeholderIntel.ai_notes };
-              }
-
-              await supabaseAdmin
-                .from('stakeholders')
-                .update(updates)
-                .eq('id', existingStakeholder.id);
-              
-              console.log(`[analyze-call] Updated stakeholder: ${stakeholderIntel.name}`);
-
-              // Create call mention if stakeholder was present
-              if (stakeholderIntel.was_present !== false) {
-                await supabaseAdmin
-                  .from('call_stakeholder_mentions')
-                  .upsert({
-                    call_id: callId,
-                    stakeholder_id: existingStakeholder.id,
-                    was_present: stakeholderIntel.was_present ?? true,
-                    context_notes: stakeholderIntel.ai_notes || null,
-                  }, { onConflict: 'call_id,stakeholder_id' });
-              }
-            } else {
-              // Create new stakeholder
-              const { data: newStakeholder, error: createError } = await supabaseAdmin
-                .from('stakeholders')
-                .insert({
-                  prospect_id: callData.prospect_id,
-                  rep_id: callData.rep_id,
-                  name: stakeholderIntel.name,
-                  job_title: stakeholderIntel.job_title || null,
-                  influence_level: stakeholderIntel.influence_level || 'light_influencer',
-                  champion_score: stakeholderIntel.champion_score || null,
-                  champion_score_reasoning: stakeholderIntel.champion_score_reasoning || null,
-                  ai_extracted_info: stakeholderIntel.ai_notes ? { notes: stakeholderIntel.ai_notes } : null,
-                  is_primary_contact: false,
-                  last_interaction_date: new Date().toISOString().split('T')[0],
-                })
-                .select('id')
-                .single();
-
-              if (createError) {
-                console.error(`[analyze-call] Failed to create stakeholder ${stakeholderIntel.name}:`, createError);
-                continue;
-              }
-
-              console.log(`[analyze-call] Created new stakeholder: ${stakeholderIntel.name}`);
-
-              // Create call mention if stakeholder was present
-              if (newStakeholder && stakeholderIntel.was_present !== false) {
-                await supabaseAdmin
-                  .from('call_stakeholder_mentions')
-                  .insert({
-                    call_id: callId,
-                    stakeholder_id: newStakeholder.id,
-                    was_present: stakeholderIntel.was_present ?? true,
-                    context_notes: stakeholderIntel.ai_notes || null,
-                  });
+            // Queue mentions for new stakeholders
+            for (const newS of newStakeholders) {
+              const intel = stakeholders_intel.find(i => i.name?.toLowerCase() === newS.name.toLowerCase());
+              if (intel && intel.was_present !== false) {
+                mentionsToInsert.push({
+                  call_id: callId,
+                  stakeholder_id: newS.id,
+                  was_present: intel.was_present ?? true,
+                  context_notes: intel.ai_notes || null,
+                });
               }
             }
           }
-          
-          console.log(`[analyze-call] Finished processing stakeholders`);
         }
+        
+        // Batch upsert all call_stakeholder_mentions
+        if (mentionsToInsert.length > 0) {
+          const { error: mentionsError } = await supabaseAdmin
+            .from('call_stakeholder_mentions')
+            .upsert(mentionsToInsert, { onConflict: 'call_id,stakeholder_id' });
+          
+          if (mentionsError) {
+            console.error('[analyze-call] Failed to batch upsert mentions:', mentionsError);
+          } else {
+            console.log(`[analyze-call] Upserted ${mentionsToInsert.length} stakeholder mentions`);
+          }
+        }
+        
+        console.log(`[analyze-call] Finished processing stakeholders`);
       } catch (stakeholderErr) {
         console.error('[analyze-call] Failed to process stakeholders:', stakeholderErr);
         // Don't fail the whole request, analysis was saved
@@ -1298,104 +1303,65 @@ serve(async (req) => {
 
     console.log(`[analyze-call] Analysis completed successfully for call_id: ${callId}`);
 
-    // Step 9: Trigger follow-up generation in background if prospect exists
-    try {
-      const { data: callData } = await supabaseAdmin
-        .from('call_transcripts')
-        .select('prospect_id')
-        .eq('id', callId)
-        .single();
-
-      if (callData?.prospect_id) {
-        console.log(`[analyze-call] Triggering follow-up generation for prospect: ${callData.prospect_id}`);
-        
-        // Fire and forget - don't await, let it run in background
-        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-        const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-        
-        EdgeRuntime.waitUntil(
-          fetch(`${supabaseUrl}/functions/v1/generate-account-follow-ups`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${supabaseServiceKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ prospect_id: callData.prospect_id })
-          }).then(res => {
-            if (!res.ok) {
-              console.error('[analyze-call] Follow-up generation failed:', res.status);
-            } else {
-              console.log('[analyze-call] Follow-up generation triggered successfully');
-            }
-          }).catch(err => {
-            console.error('[analyze-call] Follow-up generation error:', err);
-          })
-        );
-      }
-    } catch (followUpErr) {
-      console.error('[analyze-call] Error triggering follow-up generation:', followUpErr);
-      // Don't fail the request
-    }
-
-    // Step 10: Trigger transcript chunking in background for RAG pre-indexing
-    try {
-      console.log(`[analyze-call] Triggering transcript chunking for call_id: ${callId}`);
+    // Step 8: Trigger follow-up generation in background if prospect exists (using cached prospectId)
+    if (prospectId) {
+      console.log(`[analyze-call] Triggering follow-up generation for prospect: ${prospectId}`);
       
+      // Fire and forget - don't await, let it run in background
       EdgeRuntime.waitUntil(
-        fetch(`${supabaseUrl}/functions/v1/chunk-transcripts`, {
+        fetch(`${supabaseUrl}/functions/v1/generate-account-follow-ups`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${supabaseServiceKey}`,
-            'Content-Type': 'application/json',
+            'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ transcript_ids: [callId] })
-        }).then(res => {
-          if (!res.ok) {
-            console.error('[analyze-call] Transcript chunking failed:', res.status);
-          } else {
-            console.log('[analyze-call] Transcript chunking triggered successfully');
-          }
-        }).catch(err => {
-          console.error('[analyze-call] Transcript chunking error:', err);
-        })
+          body: JSON.stringify({ prospect_id: prospectId })
+        }).catch(err => console.error('[analyze-call] Failed to trigger follow-up generation:', err))
       );
-    } catch (chunkErr) {
-      console.error('[analyze-call] Error triggering transcript chunking:', chunkErr);
-      // Don't fail the request - chunking is non-critical
     }
 
-    // Return success response
+    // Step 9: Trigger transcript chunking in background for RAG indexing (using cached callId)
+    console.log(`[analyze-call] Triggering transcript chunking for call: ${callId}`);
+    EdgeRuntime.waitUntil(
+      fetch(`${supabaseUrl}/functions/v1/chunk-transcripts`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ call_ids: [callId] })
+      }).catch(err => console.error('[analyze-call] Failed to trigger chunking:', err))
+    );
+
     return new Response(
-      JSON.stringify({
-        success: true,
-        call_id: callId,
-        analysis_id: analysisId
+      JSON.stringify({ 
+        success: true, 
+        analysis_id: analysisId,
+        message: 'Analysis completed successfully'
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
     console.error('[analyze-call] Unexpected error:', error);
-
-    // If we have a callId, try to update status to error
+    
+    // Try to update transcript status to error if we have a callId
     if (callId) {
       try {
         await supabaseAdmin
           .from('call_transcripts')
-          .update({
+          .update({ 
             analysis_status: 'error',
-            analysis_error: `Analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+            analysis_error: error instanceof Error ? error.message : 'Unexpected error during analysis'
           })
           .eq('id', callId);
-      } catch (updateErr) {
-        console.error('[analyze-call] Failed to update error status:', updateErr);
+      } catch (updateError) {
+        console.error('[analyze-call] Failed to update error status:', updateError);
       }
     }
 
     return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : 'Analysis failed'
-      }),
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Unexpected error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
