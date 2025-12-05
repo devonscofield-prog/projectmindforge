@@ -59,7 +59,9 @@ const NER_BATCH_SIZE = 10;
 const BASE_DELAY_MS = 200;
 const MAX_DELAY_MS = 5000;
 const MAX_RETRIES = 3;
-const BACKFILL_BATCH_SIZE = 50; // Increased - external API is I/O bound, not CPU bound
+const BACKFILL_BATCH_SIZE = 50; // For NER extraction
+const EMBEDDING_BATCH_SIZE = 10; // Smaller batches for embedding to respect rate limits
+const EMBEDDING_DELAY_MS = 500; // 500ms between embedding API calls to respect 40k TPM limit
 
 // Types
 interface TranscriptChunk {
@@ -239,39 +241,72 @@ function mergeWithOverlap(sections: string[]): string[] {
 }
 
 // Generate embedding using OpenAI API directly (text-embedding-3-small, 1536 dimensions)
-async function generateEmbedding(text: string, openaiApiKey: string): Promise<string> {
-  try {
-    const response = await fetch('https://api.openai.com/v1/embeddings', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'text-embedding-3-small',
-        input: text.slice(0, 8000) // API limit
-      })
-    });
+// Includes retry logic with exponential backoff for rate limit (429) errors
+async function generateEmbedding(text: string, openaiApiKey: string, maxRetries: number = 3): Promise<string> {
+  let lastError: Error | null = null;
+  let retryDelay = EMBEDDING_DELAY_MS;
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[chunk-transcripts] OpenAI Embedding API error:', response.status, errorText);
-      throw new Error(`OpenAI Embedding API error: ${response.status}`);
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const response = await fetch('https://api.openai.com/v1/embeddings', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openaiApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'text-embedding-3-small',
+          input: text.slice(0, 8000) // API limit
+        })
+      });
+
+      if (response.status === 429) {
+        const errorText = await response.text();
+        console.warn(`[chunk-transcripts] Embedding rate limited (attempt ${attempt + 1}/${maxRetries}):`, errorText);
+        
+        // Parse "Please try again in Xms" from the error message
+        const waitMatch = errorText.match(/try again in (\d+(?:\.\d+)?)(ms|s)/i);
+        if (waitMatch) {
+          const waitTime = parseFloat(waitMatch[1]);
+          retryDelay = waitMatch[2].toLowerCase() === 's' ? waitTime * 1000 : waitTime;
+          // Add a small buffer to the suggested wait time
+          retryDelay = Math.ceil(retryDelay) + 100;
+        } else {
+          // Exponential backoff if no wait time specified
+          retryDelay = Math.min(retryDelay * 2, 10000);
+        }
+        
+        console.log(`[chunk-transcripts] Waiting ${retryDelay}ms before retry...`);
+        await new Promise(r => setTimeout(r, retryDelay));
+        continue;
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[chunk-transcripts] OpenAI Embedding API error:', response.status, errorText);
+        throw new Error(`OpenAI Embedding API error: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      const embedding = data.data?.[0]?.embedding;
+      
+      if (!embedding || !Array.isArray(embedding)) {
+        throw new Error('Invalid embedding response format');
+      }
+
+      // Format as PostgreSQL vector string: [0.123, -0.456, ...]
+      return `[${embedding.join(',')}]`;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      // Only retry on rate limit errors, not other errors
+      if (!lastError.message.includes('429')) {
+        throw lastError;
+      }
     }
-
-    const data = await response.json();
-    const embedding = data.data?.[0]?.embedding;
-    
-    if (!embedding || !Array.isArray(embedding)) {
-      throw new Error('Invalid embedding response format');
-    }
-
-    // Format as PostgreSQL vector string: [0.123, -0.456, ...]
-    return `[${embedding.join(',')}]`;
-  } catch (error) {
-    console.error('[chunk-transcripts] Embedding generation failed:', error);
-    throw error;
   }
+
+  console.error('[chunk-transcripts] Embedding generation failed after all retries:', lastError);
+  throw lastError || new Error('Embedding generation failed');
 }
 
 // NER extraction using Lovable AI Gateway with tool calling
@@ -543,11 +578,12 @@ serve(async (req) => {
 
       console.log(`[chunk-transcripts] Admin ${userId} initiated backfill_embeddings`);
 
+      // Fetch smaller batch to avoid overwhelming the API
       const { data: chunksNeedingEmbeddings, error: fetchError } = await supabase
         .from('transcript_chunks')
         .select('id, chunk_text')
         .is('embedding', null)
-        .limit(BACKFILL_BATCH_SIZE);
+        .limit(EMBEDDING_BATCH_SIZE);
 
       if (fetchError) {
         console.error('[chunk-transcripts] Error fetching chunks for embedding backfill:', fetchError);
@@ -555,42 +591,36 @@ serve(async (req) => {
       }
 
       const chunksToProcess = chunksNeedingEmbeddings || [];
-      console.log(`[chunk-transcripts] Found ${chunksToProcess.length} chunks needing embeddings`);
+      console.log(`[chunk-transcripts] Found ${chunksToProcess.length} chunks needing embeddings (batch limit: ${EMBEDDING_BATCH_SIZE})`);
 
       let successCount = 0;
       let errorCount = 0;
 
-      // Process in parallel batches for speed (external API is I/O bound)
-      const PARALLEL_BATCH = 10;
-      for (let i = 0; i < chunksToProcess.length; i += PARALLEL_BATCH) {
-        const batch = chunksToProcess.slice(i, i + PARALLEL_BATCH);
-        const results = await Promise.allSettled(
-          batch.map(async (chunk) => {
-            const embedding = await generateEmbedding(chunk.chunk_text, openaiApiKey);
-            const { error: updateError } = await supabase
-              .from('transcript_chunks')
-              .update({ embedding })
-              .eq('id', chunk.id);
+      // Process SEQUENTIALLY with delays to respect OpenAI's 40k TPM rate limit
+      // Each text-embedding-3-small request uses ~500-2000 tokens depending on input size
+      // Sequential processing with delays prevents rate limit exhaustion
+      for (const chunk of chunksToProcess) {
+        try {
+          // Add delay BEFORE each API call to spread out requests
+          await new Promise(r => setTimeout(r, EMBEDDING_DELAY_MS));
+          
+          const embedding = await generateEmbedding(chunk.chunk_text, openaiApiKey);
+          const { error: updateError } = await supabase
+            .from('transcript_chunks')
+            .update({ embedding })
+            .eq('id', chunk.id);
 
-            if (updateError) {
-              throw new Error(`Update failed: ${updateError.message}`);
-            }
-            return true;
-          })
-        );
-
-        results.forEach((result, idx) => {
-          if (result.status === 'fulfilled') {
-            successCount++;
-          } else {
-            console.error(`[chunk-transcripts] Embedding failed for chunk ${batch[idx].id}:`, result.reason);
+          if (updateError) {
+            console.error(`[chunk-transcripts] Failed to save embedding for chunk ${chunk.id}:`, updateError);
             errorCount++;
+          } else {
+            successCount++;
+            console.log(`[chunk-transcripts] Embedded chunk ${successCount}/${chunksToProcess.length}`);
           }
-        });
-
-        // Small delay between parallel batches to avoid rate limits
-        if (i + PARALLEL_BATCH < chunksToProcess.length) {
-          await new Promise(r => setTimeout(r, 100));
+        } catch (error) {
+          console.error(`[chunk-transcripts] Embedding failed for chunk ${chunk.id}:`, error);
+          errorCount++;
+          // Continue processing remaining chunks even if one fails
         }
       }
 
@@ -605,6 +635,8 @@ serve(async (req) => {
         .not('embedding', 'is', null);
 
       const remaining = (totalChunks || 0) - (chunksWithEmbeddings || 0);
+
+      console.log(`[chunk-transcripts] Embedding backfill complete: ${successCount} success, ${errorCount} errors, ${remaining} remaining`);
 
       return new Response(
         JSON.stringify({
