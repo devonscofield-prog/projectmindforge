@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { GlobalActivityFeed } from '@/components/admin/GlobalActivityFeed';
 import { CallTrendsChart } from '@/components/admin/CallTrendsChart';
+import { AdminRecentCalls } from '@/components/admin/AdminRecentCalls';
 import { StatCardGridSkeleton, ChartSkeleton, ContentCardSkeleton } from '@/components/ui/skeletons';
 import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
@@ -160,6 +161,11 @@ function AdminDashboard() {
         {/* Call Trends Chart */}
         <QueryErrorBoundary>
           <CallTrendsChart />
+        </QueryErrorBoundary>
+
+        {/* Recent Calls */}
+        <QueryErrorBoundary>
+          <AdminRecentCalls />
         </QueryErrorBoundary>
 
         {/* Global Activity Feed */}
