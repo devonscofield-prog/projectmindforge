@@ -53,6 +53,7 @@ const chunkTranscriptsSchema = z.object({
   full_reindex: z.boolean().optional(),
   ner_batch: z.boolean().optional(),
   batch_size: z.number().min(1).max(50).optional(),
+  job_id: z.string().uuid().optional(),
 }).refine(
   (data) => data.backfill_all === true || data.backfill_embeddings === true || 
             data.backfill_entities === true || data.reset_all_chunks === true ||
@@ -1164,7 +1165,23 @@ serve(async (req) => {
       );
     }
 
-    const { transcript_ids, backfill_all, backfill_embeddings, backfill_entities, reset_all_chunks, full_reindex, ner_batch, batch_size } = parseResult.data;
+    const { transcript_ids, backfill_all, backfill_embeddings, backfill_entities, reset_all_chunks, full_reindex, ner_batch, batch_size, job_id } = parseResult.data;
+
+    // Helper function to update job status
+    const updateJobStatus = async (status: 'processing' | 'completed' | 'failed', error?: string) => {
+      if (!job_id) return;
+      const updates: Record<string, unknown> = { 
+        status, 
+        updated_at: new Date().toISOString() 
+      };
+      if (error) updates.error = error;
+      if (status === 'processing') updates.started_at = new Date().toISOString();
+      if (status === 'completed' || status === 'failed') updates.completed_at = new Date().toISOString();
+      await supabase.from('background_jobs').update(updates).eq('id', job_id);
+    };
+
+    // Mark job as processing if job_id provided
+    await updateJobStatus('processing');
 
     // Auth check
     const authHeader = req.headers.get('Authorization');
@@ -1821,6 +1838,9 @@ serve(async (req) => {
         totalInserted += batch.length;
       }
     }
+
+    // Mark job as completed
+    await updateJobStatus('completed');
 
     return new Response(
       JSON.stringify({
