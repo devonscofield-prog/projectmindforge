@@ -53,6 +53,7 @@ interface TranscriptSelectionBarProps {
   isResetting?: boolean;
   resetProgress?: string | null;
   embeddingsProgress?: { processed: number; total: number } | null;
+  entitiesProgress?: { processed: number; total: number } | null;
   analysisMode: { label: string; color: string; useRag: boolean };
   chatOpen: boolean;
   isAdmin?: boolean;
@@ -65,6 +66,7 @@ interface TranscriptSelectionBarProps {
   onBackfillEmbeddings?: () => void;
   onBackfillEntities?: () => void;
   onStopEmbeddingsBackfill?: () => void;
+  onStopNERBackfill?: () => void;
   onResetAndReindex?: () => void;
   onSaveClick: () => void;
   onLoadClick: () => void;
@@ -87,6 +89,7 @@ export function TranscriptSelectionBar({
   isResetting,
   resetProgress,
   embeddingsProgress,
+  entitiesProgress,
   analysisMode,
   chatOpen,
   isAdmin,
@@ -99,6 +102,7 @@ export function TranscriptSelectionBar({
   onBackfillEmbeddings,
   onBackfillEntities,
   onStopEmbeddingsBackfill,
+  onStopNERBackfill,
   onResetAndReindex,
   onSaveClick,
   onLoadClick,
@@ -315,20 +319,29 @@ export function TranscriptSelectionBar({
                 )}
                 
                 {/* NER Extraction */}
-                {globalChunkStatus?.nerPending && globalChunkStatus.nerPending > 0 && onBackfillEntities && (
+                {((globalChunkStatus?.nerPending && globalChunkStatus.nerPending > 0) || isBackfillingEntities) && onBackfillEntities && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem 
-                      onClick={onBackfillEntities}
+                      onClick={isBackfillingEntities ? onStopNERBackfill : onBackfillEntities}
                       disabled={isIndexing || isBackfilling || isBackfillingEmbeddings || isResetting}
                       className="gap-2"
                     >
-                      <Brain className={cn("h-4 w-4 text-purple-600", isBackfillingEntities && "animate-spin")} />
+                      <Brain className={cn("h-4 w-4 text-purple-600", isBackfillingEntities && "animate-pulse")} />
                       <div className="flex flex-col">
-                        <span>{isBackfillingEntities ? 'Extracting Entities...' : 'Backfill NER'}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {globalChunkStatus.nerPending.toLocaleString()} pending
+                        <span>
+                          {isBackfillingEntities 
+                            ? (entitiesProgress 
+                                ? `Extracting... ${entitiesProgress.processed}/${entitiesProgress.total} (click to stop)` 
+                                : 'Starting NER...')
+                            : 'Backfill NER'
+                          }
                         </span>
+                        {!isBackfillingEntities && globalChunkStatus?.nerPending && (
+                          <span className="text-xs text-muted-foreground">
+                            {globalChunkStatus.nerPending.toLocaleString()} pending
+                          </span>
+                        )}
                       </div>
                     </DropdownMenuItem>
                   </>

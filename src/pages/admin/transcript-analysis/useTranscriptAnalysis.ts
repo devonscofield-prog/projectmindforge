@@ -66,7 +66,9 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
   const [isResetting, setIsResetting] = useState(false);
   const [resetProgress, setResetProgress] = useState<string | null>(null);
   const [embeddingsProgress, setEmbeddingsProgress] = useState<{ processed: number; total: number } | null>(null);
+  const [entitiesProgress, setEntitiesProgress] = useState<{ processed: number; total: number } | null>(null);
   const [shouldStopBackfill, setShouldStopBackfill] = useState(false);
+  const [shouldStopNERBackfill, setShouldStopNERBackfill] = useState(false);
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -667,7 +669,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     }
   };
 
-  // Backfill NER entities handler (admin only)
+  // Backfill NER entities handler with auto-continue (admin only)
   const handleBackfillEntities = async () => {
     if (role !== 'admin') {
       toast.error('Only admins can backfill entities');
@@ -675,6 +677,8 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     }
     
     setIsBackfillingEntities(true);
+    setShouldStopNERBackfill(false);
+    setEntitiesProgress(null);
     
     try {
       const token = await getFreshToken();
@@ -683,31 +687,78 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
         return;
       }
       
-      toast.info('Starting NER entity extraction backfill (batch of 50)...');
+      toast.info('Starting auto-backfill of NER entities...');
       
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chunk-transcripts`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ backfill_entities: true }),
-      });
+      let totalProcessed = 0;
+      let remaining = 1; // Start with assumption there's work to do
+      let consecutiveErrors = 0;
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || 'Failed to backfill entities');
+      while (remaining > 0 && consecutiveErrors < 3) {
+        // Check stop flag at start of each iteration
+        if (shouldStopNERBackfill) break;
+        
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chunk-transcripts`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ backfill_entities: true }),
+        });
+        
+        if (!response.ok) {
+          consecutiveErrors++;
+          const errorText = await response.text();
+          log.error('NER backfill batch error', { error: errorText, consecutiveErrors });
+          if (consecutiveErrors >= 3) {
+            throw new Error(errorText || 'Failed to backfill NER after 3 attempts');
+          }
+          await new Promise(r => setTimeout(r, 2000)); // Wait before retry
+          continue;
+        }
+        
+        consecutiveErrors = 0;
+        const result = await response.json();
+        totalProcessed += result.success_count || 0;
+        remaining = result.remaining || 0;
+        
+        setEntitiesProgress({
+          processed: result.chunks_with_entities || 0,
+          total: result.total_chunks || 0
+        });
+        
+        log.info('NER batch complete', { 
+          batchProcessed: result.success_count, 
+          totalProcessed, 
+          remaining 
+        });
+        
+        // Small delay between batches
+        if (remaining > 0 && !shouldStopNERBackfill) {
+          await new Promise(r => setTimeout(r, 500));
+        }
       }
       
-      const result = await response.json();
-      toast.success(`NER backfill: ${result.success_count || 0} extracted, ${result.error_count || 0} failed`);
+      if (shouldStopNERBackfill) {
+        toast.info(`NER backfill stopped. Processed ${totalProcessed} entities.`);
+      } else {
+        toast.success(`NER backfill complete! ${totalProcessed} entities extracted.`);
+      }
+      
       refetchGlobalChunkStatus();
     } catch (err) {
-      log.error('Entities backfill error', { error: err });
-      toast.error(err instanceof Error ? err.message : 'Failed to backfill entities');
+      log.error('NER backfill error', { error: err });
+      toast.error(err instanceof Error ? err.message : 'Failed to backfill NER entities');
     } finally {
       setIsBackfillingEntities(false);
+      setEntitiesProgress(null);
+      setShouldStopNERBackfill(false);
     }
+  };
+
+  const stopNERBackfill = () => {
+    setShouldStopNERBackfill(true);
+    toast.info('Stopping NER backfill after current batch...');
   };
 
   const handlePresetChange = (value: string) => {
@@ -907,6 +958,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     isResetting,
     resetProgress,
     embeddingsProgress,
+    entitiesProgress,
     
     // Pagination
     currentPage,
@@ -931,6 +983,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     handleBackfillEmbeddings,
     handleBackfillEntities,
     stopEmbeddingsBackfill,
+    stopNERBackfill,
     handleResetAndReindex,
     handleLoadSelection,
   };
