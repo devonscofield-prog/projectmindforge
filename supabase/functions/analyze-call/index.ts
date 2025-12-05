@@ -1,5 +1,5 @@
 // Main handler for analyze-call edge function
-// Modularized in Phase 3 optimization
+// Modularized in Phase 3, enhanced logging in Phase 4
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -8,6 +8,7 @@ import { UUID_REGEX } from './lib/constants.ts';
 import { checkRateLimit, getCorsHeaders } from './lib/cors.ts';
 import { generateRealAnalysis } from './lib/ai-gateway.ts';
 import { updateProspectWithIntel, processStakeholdersBatched, triggerBackgroundTasks } from './lib/database-ops.ts';
+import { Logger } from './lib/logger.ts';
 import type { TranscriptRow, ProspectData } from './lib/types.ts';
 
 // Declare EdgeRuntime for Supabase Edge Functions
@@ -24,6 +25,9 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Initialize structured logger with correlation ID
+  const logger = new Logger();
+
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -31,7 +35,7 @@ serve(async (req) => {
   // Get the JWT from Authorization header
   const authHeader = req.headers.get('Authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    console.error('[analyze-call] Missing or invalid Authorization header');
+    logger.error('Missing or invalid Authorization header');
     return new Response(
       JSON.stringify({ error: 'Missing or invalid Authorization header' }),
       { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -47,10 +51,12 @@ serve(async (req) => {
   const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
   // Verify user and check rate limit
+  logger.startPhase('auth');
   const token = authHeader.replace('Bearer ', '');
   const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
   
   if (authError || !user) {
+    logger.error('Invalid authentication', { error: authError?.message });
     return new Response(
       JSON.stringify({ error: 'Invalid authentication' }),
       { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -60,7 +66,7 @@ serve(async (req) => {
   // Check rate limit
   const rateLimit = checkRateLimit(user.id);
   if (!rateLimit.allowed) {
-    console.log(`[analyze-call] Rate limit exceeded for user: ${user.id}`);
+    logger.warn('Rate limit exceeded', { userId: user.id, retryAfter: rateLimit.retryAfter });
     return new Response(
       JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
       { 
@@ -73,16 +79,18 @@ serve(async (req) => {
       }
     );
   }
+  logger.endPhase();
 
   let callId: string | null = null;
 
   try {
     // Parse and validate input
+    logger.startPhase('validation');
     const body = await req.json();
     const { call_id } = body;
 
     if (!call_id || typeof call_id !== 'string' || !UUID_REGEX.test(call_id)) {
-      console.warn('[analyze-call] Invalid call_id provided:', call_id);
+      logger.warn('Invalid call_id provided', { call_id });
       return new Response(
         JSON.stringify({ error: 'Invalid call_id' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -90,9 +98,11 @@ serve(async (req) => {
     }
 
     callId = call_id;
-    console.log(`[analyze-call] Starting analysis for call_id: ${callId}`);
+    logger.setCallId(callId);
+    logger.endPhase();
 
-    // Step 1: Read transcript WITH prospect in single query (validates access via RLS)
+    // Step 1: Read transcript WITH prospect in single query
+    logger.startPhase('fetch_transcript');
     const { data: transcriptWithProspect, error: fetchError } = await supabaseUser
       .from('call_transcripts')
       .select(`
@@ -105,7 +115,7 @@ serve(async (req) => {
       .maybeSingle();
 
     if (fetchError) {
-      console.error('[analyze-call] Error fetching transcript:', fetchError);
+      logger.error('Error fetching transcript', { error: fetchError.message });
       return new Response(
         JSON.stringify({ error: 'Failed to fetch call transcript' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -113,7 +123,7 @@ serve(async (req) => {
     }
 
     if (!transcriptWithProspect) {
-      console.warn(`[analyze-call] Transcript not found or access denied for call_id: ${callId}`);
+      logger.warn('Transcript not found or access denied');
       return new Response(
         JSON.stringify({ error: 'Call transcript not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -126,6 +136,13 @@ serve(async (req) => {
     const prospectData = transcriptWithProspect.prospect;
     const currentProspect = (Array.isArray(prospectData) ? prospectData[0] : prospectData) as ProspectData | null;
 
+    logger.setRepId(repId);
+    logger.info('Transcript fetched', { 
+      repId, 
+      prospectId: prospectId || 'none',
+      transcriptLength: transcriptWithProspect.raw_text.length
+    });
+
     const transcript: TranscriptRow = {
       id: transcriptWithProspect.id,
       rep_id: repId,
@@ -133,22 +150,29 @@ serve(async (req) => {
       call_date: transcriptWithProspect.call_date,
       source: transcriptWithProspect.source
     };
-
-    console.log(`[analyze-call] Transcript found for rep_id: ${repId}, prospect_id: ${prospectId || 'none'}`);
+    logger.endPhase();
 
     // Step 2: Update analysis_status to 'processing'
+    logger.startPhase('set_processing');
     await supabaseAdmin
       .from('call_transcripts')
       .update({ analysis_status: 'processing', analysis_error: null })
       .eq('id', callId);
+    logger.endPhase();
 
     // Step 3: Generate analysis using AI
-    console.log('[analyze-call] Using real AI analysis');
+    logger.startPhase('ai_analysis');
     const analysis = await generateRealAnalysis(transcript);
     analysis.prompt_version = 'v2-real-2025-11-27';
-    console.log('[analyze-call] Analysis generated');
+    logger.info('AI analysis completed', {
+      callNotesLength: analysis.call_notes.length,
+      stakeholdersCount: analysis.stakeholders_intel?.length || 0,
+      heatScore: analysis.coach_output?.heat_signature?.score
+    });
+    logger.endPhase();
 
     // Step 4: Insert into ai_call_analysis
+    logger.startPhase('save_analysis');
     const { stakeholders_intel, ...analysisForDb } = analysis;
     
     const { data: analysisResult, error: insertError } = await supabaseAdmin
@@ -158,7 +182,7 @@ serve(async (req) => {
       .single();
 
     if (insertError) {
-      console.error('[analyze-call] Error inserting analysis:', insertError);
+      logger.error('Error inserting analysis', { error: insertError.message });
       await supabaseAdmin
         .from('call_transcripts')
         .update({
@@ -174,36 +198,54 @@ serve(async (req) => {
     }
 
     const analysisId = analysisResult.id;
-    console.log(`[analyze-call] Analysis inserted with id: ${analysisId}`);
+    logger.info('Analysis saved', { analysisId });
+    logger.endPhase();
 
     // Step 5: Update status to 'completed'
+    logger.startPhase('set_completed');
     await supabaseAdmin
       .from('call_transcripts')
       .update({ analysis_status: 'completed' })
       .eq('id', callId);
+    logger.endPhase();
 
     // Step 6: Update prospect with AI intel (consolidated)
     if (prospectId && currentProspect && (analysis.prospect_intel || analysis.coach_output)) {
+      logger.startPhase('update_prospect');
       try {
         await updateProspectWithIntel(supabaseAdmin, prospectId, currentProspect, analysis, callId);
       } catch (prospectErr) {
-        console.error('[analyze-call] Failed to update prospect with AI intel:', prospectErr);
+        logger.error('Failed to update prospect', { error: String(prospectErr) });
       }
+      logger.endPhase();
     }
 
     // Step 7: Process stakeholders (batched)
     if (prospectId && stakeholders_intel && stakeholders_intel.length > 0) {
+      logger.startPhase('process_stakeholders');
       try {
         await processStakeholdersBatched(supabaseAdmin, prospectId, repId, callId, stakeholders_intel);
       } catch (stakeholderErr) {
-        console.error('[analyze-call] Failed to process stakeholders:', stakeholderErr);
+        logger.error('Failed to process stakeholders', { error: String(stakeholderErr) });
       }
+      logger.endPhase();
     }
 
-    console.log(`[analyze-call] Analysis completed successfully for call_id: ${callId}`);
+    // Step 8: Trigger background tasks with job tracking
+    logger.startPhase('trigger_background');
+    await triggerBackgroundTasks(
+      supabaseAdmin,
+      supabaseUrl,
+      supabaseServiceKey,
+      prospectId,
+      callId,
+      user.id,
+      EdgeRuntime.waitUntil
+    );
+    logger.endPhase();
 
-    // Step 8: Trigger background tasks
-    triggerBackgroundTasks(supabaseUrl, supabaseServiceKey, prospectId, callId, EdgeRuntime.waitUntil);
+    // Log final summary
+    logger.logSummary(true, analysisId);
 
     return new Response(
       JSON.stringify({ 
@@ -215,7 +257,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('[analyze-call] Unexpected error:', error);
+    logger.error('Unexpected error', { error: error instanceof Error ? error.message : String(error) });
     
     if (callId) {
       try {
@@ -227,9 +269,11 @@ serve(async (req) => {
           })
           .eq('id', callId);
       } catch (updateError) {
-        console.error('[analyze-call] Failed to update error status:', updateError);
+        logger.error('Failed to update error status', { error: String(updateError) });
       }
     }
+
+    logger.logSummary(false);
 
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : 'Unexpected error' }),

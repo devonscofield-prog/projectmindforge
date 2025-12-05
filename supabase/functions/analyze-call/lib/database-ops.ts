@@ -189,18 +189,52 @@ export async function processStakeholdersBatched(
 }
 
 /**
- * Trigger background tasks (follow-ups and chunking)
+ * Create background job record for tracking
  */
-export function triggerBackgroundTasks(
+export async function createBackgroundJob(
+  supabaseAdmin: SupabaseClient,
+  jobType: string,
+  createdBy: string,
+  metadata?: Record<string, unknown>
+): Promise<string | null> {
+  const { data, error } = await supabaseAdmin
+    .from('background_jobs')
+    .insert({
+      job_type: jobType,
+      status: 'pending',
+      created_by: createdBy,
+      progress: metadata ? { metadata } : null
+    })
+    .select('id')
+    .single();
+  
+  if (error) {
+    console.error(`[analyze-call] Failed to create background job: ${error.message}`);
+    return null;
+  }
+  return data?.id || null;
+}
+
+/**
+ * Trigger background tasks (follow-ups and chunking) with job tracking
+ */
+export async function triggerBackgroundTasks(
+  supabaseAdmin: SupabaseClient,
   supabaseUrl: string,
   supabaseServiceKey: string,
   prospectId: string | null,
   callId: string,
+  userId: string,
   waitUntil: (promise: Promise<unknown>) => void
-): void {
+): Promise<void> {
   // Trigger follow-up generation if prospect exists
   if (prospectId) {
-    console.log(`[analyze-call] Triggering follow-up generation for prospect: ${prospectId}`);
+    const jobId = await createBackgroundJob(supabaseAdmin, 'follow_up_generation', userId, {
+      prospect_id: prospectId,
+      triggered_by_call: callId
+    });
+    
+    console.log(`[analyze-call] Triggering follow-up generation for prospect: ${prospectId} (job: ${jobId})`);
     waitUntil(
       fetch(`${supabaseUrl}/functions/v1/generate-account-follow-ups`, {
         method: 'POST',
@@ -208,13 +242,17 @@ export function triggerBackgroundTasks(
           'Authorization': `Bearer ${supabaseServiceKey}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ prospect_id: prospectId })
+        body: JSON.stringify({ prospect_id: prospectId, job_id: jobId })
       }).catch(err => console.error('[analyze-call] Failed to trigger follow-up generation:', err))
     );
   }
 
   // Trigger transcript chunking for RAG indexing
-  console.log(`[analyze-call] Triggering transcript chunking for call: ${callId}`);
+  const chunkJobId = await createBackgroundJob(supabaseAdmin, 'transcript_chunking', userId, {
+    call_id: callId
+  });
+  
+  console.log(`[analyze-call] Triggering transcript chunking for call: ${callId} (job: ${chunkJobId})`);
   waitUntil(
     fetch(`${supabaseUrl}/functions/v1/chunk-transcripts`, {
       method: 'POST',
@@ -222,7 +260,7 @@ export function triggerBackgroundTasks(
         'Authorization': `Bearer ${supabaseServiceKey}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ call_ids: [callId] })
+      body: JSON.stringify({ call_ids: [callId], job_id: chunkJobId })
     }).catch(err => console.error('[analyze-call] Failed to trigger chunking:', err))
   );
 }
