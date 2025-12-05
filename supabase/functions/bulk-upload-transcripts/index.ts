@@ -161,55 +161,9 @@ async function processWithAdaptiveRateLimit<T, R>(
   return results;
 }
 
-// ============= Helper: Get or Create Prospect =============
-async function getOrCreateProspect(
-  supabase: SupabaseClient,
-  repId: string,
-  accountName: string,
-  stakeholderName: string,
-  salesforceLink?: string
-): Promise<{ prospectId: string | null; error?: string }> {
-  try {
-    // Try to find existing prospect by account name for this rep
-    const { data: existingProspect } = await supabase
-      .from('prospects')
-      .select('id')
-      .eq('rep_id', repId)
-      .eq('account_name', accountName)
-      .is('deleted_at', null)
-      .maybeSingle();
-
-    if (existingProspect) {
-      return { prospectId: existingProspect.id };
-    }
-
-    // Create new prospect
-    const { data: newProspect, error: createError } = await supabase
-      .from('prospects')
-      .insert({
-        rep_id: repId,
-        prospect_name: stakeholderName,
-        account_name: accountName,
-        salesforce_link: salesforceLink || null,
-        status: 'active',
-        heat_score: 5, // Default middle score
-      })
-      .select('id')
-      .single();
-
-    if (createError) {
-      console.error('[bulk-upload] Failed to create prospect:', createError);
-      return { prospectId: null, error: createError.message };
-    }
-
-    return { prospectId: newProspect.id };
-  } catch (error) {
-    console.error('[bulk-upload] Error in getOrCreateProspect:', error);
-    return { prospectId: null, error: 'Failed to get or create prospect' };
-  }
-}
-
 // ============= Helper: Insert Transcript =============
+// NOTE: Bulk uploads NEVER create accounts - transcripts are stored with metadata only
+// Account linkage must be done through individual call submission if needed
 async function insertTranscript(
   supabase: SupabaseClient,
   transcript: TranscriptInput,
@@ -439,23 +393,9 @@ serve(async (req) => {
     const insertResults: BulkUploadResponse['results'] = [];
 
     for (const transcript of transcripts) {
-      // Only create prospect if accountName is provided
-      let prospectId: string | null = null;
-      
-      if (transcript.accountName) {
-        const { prospectId: pid, error: prospectError } = await getOrCreateProspect(
-          supabase,
-          transcript.repId,
-          transcript.accountName,
-          transcript.stakeholderName || 'Unknown',
-          transcript.salesforceLink
-        );
-        prospectId = pid;
-
-        if (prospectError) {
-          console.error(`[bulk-upload] Prospect creation failed for ${transcript.fileName}: ${prospectError}`);
-        }
-      }
+      // Bulk uploads NEVER create accounts - always set prospect_id to null
+      // Account name and stakeholder name are stored as metadata only
+      const prospectId: string | null = null;
 
       // Insert transcript with appropriate analysis_status based on processing mode
       const { transcriptId, error: insertError } = await insertTranscript(
