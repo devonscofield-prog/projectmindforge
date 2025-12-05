@@ -6,6 +6,7 @@ import { ProspectStatus } from '@/api/prospects';
 import { statusLabels, statusVariants } from '@/constants/prospects';
 import { formatCurrency } from '@/lib/formatters';
 import { HeatScoreBadge } from '@/components/ui/heat-score-badge';
+import { KeyboardEvent } from 'react';
 
 interface MobileProspectCardProps {
   prospect: {
@@ -24,10 +25,23 @@ interface MobileProspectCardProps {
 }
 
 export function MobileProspectCard({ prospect, stakeholderCount, callCount, onClick }: MobileProspectCardProps) {
+  const displayName = prospect.account_name || prospect.prospect_name;
+  
+  const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onClick();
+    }
+  };
+
   return (
     <Card 
       variant="interactive"
       onClick={onClick}
+      onKeyDown={handleKeyDown}
+      role="button"
+      tabIndex={0}
+      aria-label={`View account: ${displayName}`}
     >
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-3">
@@ -36,7 +50,7 @@ export function MobileProspectCard({ prospect, stakeholderCount, callCount, onCl
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="font-medium truncate">
-                  {prospect.account_name || prospect.prospect_name}
+                  {displayName}
                 </p>
                 {prospect.account_name && prospect.prospect_name && (
                   <p className="text-xs text-muted-foreground truncate">
@@ -53,14 +67,14 @@ export function MobileProspectCard({ prospect, stakeholderCount, callCount, onCl
             <div className="flex items-center gap-4 text-sm">
               <HeatScoreBadge score={prospect.heat_score ?? null} />
               
-              {formatCurrency(prospect.active_revenue) && (
+              {prospect.active_revenue != null && prospect.active_revenue > 0 && (
                 <span className="text-green-600 font-medium">
                   {formatCurrency(prospect.active_revenue)}
                 </span>
               )}
               
               <div className="flex items-center gap-1 text-muted-foreground">
-                <Users className="h-3.5 w-3.5" />
+                <Users className="h-3.5 w-3.5" aria-hidden="true" />
                 <span>{stakeholderCount}</span>
               </div>
               
@@ -72,13 +86,13 @@ export function MobileProspectCard({ prospect, stakeholderCount, callCount, onCl
             {/* Footer row */}
             {prospect.last_contact_date && (
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Calendar className="h-3 w-3" />
+                <Calendar className="h-3 w-3" aria-hidden="true" />
                 <span>Last contact: {format(new Date(prospect.last_contact_date), 'MMM d, yyyy')}</span>
               </div>
             )}
           </div>
           
-          <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-1" />
+          <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-1" aria-hidden="true" />
         </div>
       </CardContent>
     </Card>
