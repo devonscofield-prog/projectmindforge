@@ -10,6 +10,37 @@ interface ResetRequest {
   confirmToken: string;
 }
 
+// Rate limiting: 3 attempts per hour per user (very strict for this sensitive operation)
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const RATE_LIMIT_MAX_REQUESTS = 3;
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+
+function checkRateLimit(userId: string): { allowed: boolean; retryAfter?: number } {
+  const now = Date.now();
+  
+  // Passive cleanup of expired entries
+  for (const [key, value] of rateLimitMap.entries()) {
+    if (now > value.resetTime) {
+      rateLimitMap.delete(key);
+    }
+  }
+  
+  const userLimit = rateLimitMap.get(userId);
+  
+  if (!userLimit || now > userLimit.resetTime) {
+    rateLimitMap.set(userId, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
+    return { allowed: true };
+  }
+  
+  if (userLimit.count >= RATE_LIMIT_MAX_REQUESTS) {
+    const retryAfter = Math.ceil((userLimit.resetTime - now) / 1000);
+    return { allowed: false, retryAfter };
+  }
+  
+  userLimit.count++;
+  return { allowed: true };
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -67,7 +98,27 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`Admin ${user.email} initiated database reset`);
+    // Rate limit check - strict limit for this sensitive operation
+    const rateLimit = checkRateLimit(user.id);
+    if (!rateLimit.allowed) {
+      console.log(`Rate limit exceeded for admin ${user.email} on reset-database`);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Rate limit exceeded. This operation is limited to 3 attempts per hour.',
+          retryAfter: rateLimit.retryAfter 
+        }),
+        { 
+          status: 429, 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json',
+            'Retry-After': String(rateLimit.retryAfter)
+          } 
+        }
+      );
+    }
+
+    console.log(`Admin ${user.email} initiated database reset (attempt ${rateLimitMap.get(user.id)?.count || 1}/3)`);
 
     const { newAdminEmail, confirmToken }: ResetRequest = await req.json();
 
