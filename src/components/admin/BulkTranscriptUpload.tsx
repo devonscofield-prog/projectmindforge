@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { Upload, FileText, CheckCircle2, XCircle, Loader2, Trash2, Users, Calendar, Tag, AlertTriangle, User, X, RefreshCw, ExternalLink, Link2, Zap, Search, Sparkles } from 'lucide-react';
+import { Upload, FileText, CheckCircle2, XCircle, Loader2, Trash2, Users, Calendar, Tag, AlertTriangle, User, X, RefreshCw, ExternalLink, Link2, Search, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,7 +11,6 @@ import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
-import { Switch } from '@/components/ui/switch';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   AlertDialog,
@@ -23,7 +22,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import { useBulkUpload, FileMetadata } from '@/hooks/useBulkUpload';
 import { ProcessingMode } from '@/api/bulkUpload';
@@ -56,8 +54,8 @@ export function BulkTranscriptUpload() {
   
   const { data: profiles, isLoading: profilesLoading } = useProfilesBasic();
   
-  // ============= Mode & Bulk Apply State =============
-  const [rawUploadMode, setRawUploadMode] = useState(false);
+  // ============= Bulk Apply State =============
+  // Note: Bulk uploads never create accounts - only store metadata
   const [bulkRepId, setBulkRepId] = useState('');
   const [bulkCallType, setBulkCallType] = useState<CallType>('first_demo');
   const [bulkCallTypeOther, setBulkCallTypeOther] = useState('');
@@ -123,26 +121,21 @@ export function BulkTranscriptUpload() {
   // ============= Upload Handler =============
   
   const handleUploadClick = useCallback(() => {
-    // Validate all files have required metadata
-    // In raw mode: only repId required
-    // In normal mode: repId, accountName, stakeholderName required
+    // Validate all files have required metadata - only repId is required
+    // Bulk uploads never create accounts, so account/stakeholder names are optional metadata
     const invalidFiles = extractedFiles.filter(file => {
       const meta = fileMetadata.get(file.fileName);
-      if (rawUploadMode) {
-        return !meta?.repId;
-      }
-      return !meta?.repId || !meta?.accountName?.trim() || !meta?.stakeholderName?.trim();
+      return !meta?.repId;
     });
     
     if (invalidFiles.length > 0) {
-      const requiredFields = rawUploadMode ? 'Rep' : 'Rep, Account, Stakeholder';
-      toast.error(`${invalidFiles.length} file(s) missing required fields (${requiredFields})`);
+      toast.error(`${invalidFiles.length} file(s) missing required Rep assignment`);
       return;
     }
     
     // Show confirmation dialog
     setShowConfirmDialog(true);
-  }, [extractedFiles, fileMetadata, rawUploadMode]);
+  }, [extractedFiles, fileMetadata]);
   
   const handleConfirmUpload = useCallback(() => {
     setShowConfirmDialog(false);
@@ -158,12 +151,10 @@ export function BulkTranscriptUpload() {
 
   // ============= Compute Stats =============
   
+  // Valid = has repId assigned (only required field)
   const validCount = extractedFiles.filter(f => {
     const meta = fileMetadata.get(f.fileName);
-    if (rawUploadMode) {
-      return !!meta?.repId;
-    }
-    return meta?.repId && meta?.accountName?.trim() && meta?.stakeholderName?.trim();
+    return !!meta?.repId;
   }).length;
   
   const completedCount = transcriptStatuses?.filter(s => 
@@ -326,34 +317,14 @@ export function BulkTranscriptUpload() {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="text-lg">Bulk Apply</CardTitle>
-                  <CardDescription>Apply metadata to all files at once</CardDescription>
+                  <CardDescription>
+                    Apply metadata to all files. Only Rep is required. Transcripts are indexed for search but not linked to accounts.
+                  </CardDescription>
                 </div>
-                <div className="flex items-center gap-4">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div className="flex items-center gap-2">
-                          <Zap className={cn("h-4 w-4", rawUploadMode && "text-primary")} />
-                          <Label htmlFor="raw-mode" className="text-sm cursor-pointer">
-                            Raw Mode
-                          </Label>
-                          <Switch
-                            id="raw-mode"
-                            checked={rawUploadMode}
-                            onCheckedChange={setRawUploadMode}
-                          />
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" className="max-w-xs">
-                        <p>Upload transcripts without metadata. Only Rep assignment required. Transcripts won't be linked to accounts.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                  <Button variant="outline" size="sm" onClick={clearFiles}>
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Clear All
-                  </Button>
-                </div>
+                <Button variant="outline" size="sm" onClick={clearFiles}>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Clear All
+                </Button>
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -403,7 +374,7 @@ export function BulkTranscriptUpload() {
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <Users className="h-4 w-4" />
-                    Rep {rawUploadMode && <span className="text-destructive">*</span>}
+                    Rep <span className="text-destructive">*</span>
                   </Label>
                   <Select value={bulkRepId} onValueChange={setBulkRepId}>
                     <SelectTrigger>
@@ -421,73 +392,70 @@ export function BulkTranscriptUpload() {
                   </Select>
                 </div>
                 
-                {!rawUploadMode && (
-                  <>
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <User className="h-4 w-4" />
-                        Stakeholder Name
-                      </Label>
-                      <Input
-                        value={bulkStakeholderName}
-                        onChange={e => setBulkStakeholderName(e.target.value)}
-                        placeholder="Contact name..."
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4" />
-                        Call Date
-                      </Label>
-                      <Input
-                        type="date"
-                        value={bulkCallDate}
-                        onChange={e => setBulkCallDate(e.target.value)}
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <Tag className="h-4 w-4" />
-                        Call Type
-                      </Label>
-                      <Select value={bulkCallType} onValueChange={v => setBulkCallType(v as CallType)}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {callTypeOptions.map(opt => (
-                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    {bulkCallType === 'other' && (
-                      <div className="space-y-2">
-                        <Label className="text-xs text-muted-foreground">Other Call Type</Label>
-                        <Input
-                          value={bulkCallTypeOther}
-                          onChange={e => setBulkCallTypeOther(e.target.value)}
-                          placeholder="Describe call type..."
-                        />
-                      </div>
-                    )}
-                    
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <Link2 className="h-4 w-4" />
-                        Salesforce Link
-                      </Label>
-                      <Input
-                        value={bulkSalesforceLink}
-                        onChange={e => setBulkSalesforceLink(e.target.value)}
-                        placeholder="https://..."
-                      />
-                    </div>
-                  </>
+                {/* Optional metadata fields */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2 text-muted-foreground">
+                    <User className="h-4 w-4" />
+                    Stakeholder Name (optional)
+                  </Label>
+                  <Input
+                    value={bulkStakeholderName}
+                    onChange={e => setBulkStakeholderName(e.target.value)}
+                    placeholder="Contact name..."
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2 text-muted-foreground">
+                    <Calendar className="h-4 w-4" />
+                    Call Date (optional)
+                  </Label>
+                  <Input
+                    type="date"
+                    value={bulkCallDate}
+                    onChange={e => setBulkCallDate(e.target.value)}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2 text-muted-foreground">
+                    <Tag className="h-4 w-4" />
+                    Call Type (optional)
+                  </Label>
+                  <Select value={bulkCallType} onValueChange={v => setBulkCallType(v as CallType)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {callTypeOptions.map(opt => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {bulkCallType === 'other' && (
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Other Call Type</Label>
+                    <Input
+                      value={bulkCallTypeOther}
+                      onChange={e => setBulkCallTypeOther(e.target.value)}
+                      placeholder="Describe call type..."
+                    />
+                  </div>
                 )}
+                
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2 text-muted-foreground">
+                    <Link2 className="h-4 w-4" />
+                    Salesforce Link (optional)
+                  </Label>
+                  <Input
+                    value={bulkSalesforceLink}
+                    onChange={e => setBulkSalesforceLink(e.target.value)}
+                    placeholder="https://..."
+                  />
+                </div>
                 
                 <div className="flex items-end">
                   <Button onClick={handleApplyToAll} className="w-full">
@@ -496,16 +464,15 @@ export function BulkTranscriptUpload() {
                 </div>
               </div>
               
-              {rawUploadMode && (
-                <Alert className="mt-4">
-                  <Zap className="h-4 w-4" />
-                  <AlertTitle>Raw Upload Mode</AlertTitle>
-                  <AlertDescription>
-                    Transcripts will be uploaded without account metadata. AI analysis will still run, 
-                    but transcripts won't be linked to any prospect/account until edited later.
-                  </AlertDescription>
-                </Alert>
-              )}
+              {/* Info note about bulk uploads */}
+              <Alert className="mt-4">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Note About Bulk Uploads</AlertTitle>
+                <AlertDescription>
+                  Bulk uploaded transcripts are indexed for search but not linked to accounts. 
+                  To link transcripts to accounts, submit them individually through the Call Submission form.
+                </AlertDescription>
+              </Alert>
             </CardContent>
           </Card>
 
@@ -531,9 +498,7 @@ export function BulkTranscriptUpload() {
                 <div className="divide-y">
                   {extractedFiles.map((file, index) => {
                     const meta = fileMetadata.get(file.fileName);
-                    const isValid = rawUploadMode 
-                      ? !!meta?.repId 
-                      : (meta?.repId && meta?.accountName?.trim() && meta?.stakeholderName?.trim());
+                    const isValid = !!meta?.repId; // Only repId is required
                     
                     return (
                       <div key={file.fileName} className="p-4 space-y-3">
@@ -550,7 +515,7 @@ export function BulkTranscriptUpload() {
                               <CheckCircle2 className="h-4 w-4 text-green-500" />
                             ) : (
                               <Badge variant="outline" className="text-amber-600 border-amber-300">
-                                Incomplete
+                                Needs Rep
                               </Badge>
                             )}
                             <Button
@@ -564,10 +529,7 @@ export function BulkTranscriptUpload() {
                           </div>
                         </div>
                         
-                        <div className={cn(
-                          "grid gap-3",
-                          rawUploadMode ? "grid-cols-1 md:grid-cols-1" : "grid-cols-2 md:grid-cols-5"
-                        )}>
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                           <div className="space-y-1">
                             <Label className="text-xs">Rep *</Label>
                             <Select
@@ -585,62 +547,58 @@ export function BulkTranscriptUpload() {
                             </Select>
                           </div>
                           
-                          {!rawUploadMode && (
-                            <>
-                              <div className="space-y-1">
-                                <Label className="text-xs">Account Name *</Label>
-                                <Input
-                                  className="h-8"
-                                  value={meta?.accountName || ''}
-                                  onChange={e => updateFileMetadata(file.fileName, { accountName: e.target.value })}
-                                  placeholder="Company name"
-                                />
-                              </div>
-                              
-                              <div className="space-y-1">
-                                <Label className="text-xs">Stakeholder *</Label>
-                                <Input
-                                  className="h-8"
-                                  value={meta?.stakeholderName || ''}
-                                  onChange={e => updateFileMetadata(file.fileName, { stakeholderName: e.target.value })}
-                                  placeholder="Contact name"
-                                />
-                              </div>
-                              
-                              <div className="space-y-1">
-                                <Label className="text-xs">Call Date</Label>
-                                <Input
-                                  type="date"
-                                  className="h-8"
-                                  value={meta?.callDate || ''}
-                                  onChange={e => updateFileMetadata(file.fileName, { callDate: e.target.value })}
-                                />
-                              </div>
-                              
-                              <div className="space-y-1">
-                                <Label className="text-xs">Call Type</Label>
-                                <Select
-                                  value={meta?.callType || 'first_demo'}
-                                  onValueChange={v => updateFileMetadata(file.fileName, { callType: v as CallType })}
-                                >
-                                  <SelectTrigger className="h-8">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {callTypeOptions.map(opt => (
-                                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            </>
-                          )}
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Account</Label>
+                            <Input
+                              className="h-8"
+                              value={meta?.accountName || ''}
+                              onChange={e => updateFileMetadata(file.fileName, { accountName: e.target.value })}
+                              placeholder="Company name"
+                            />
+                          </div>
+                          
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Stakeholder</Label>
+                            <Input
+                              className="h-8"
+                              value={meta?.stakeholderName || ''}
+                              onChange={e => updateFileMetadata(file.fileName, { stakeholderName: e.target.value })}
+                              placeholder="Contact name"
+                            />
+                          </div>
+                          
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Call Date</Label>
+                            <Input
+                              type="date"
+                              className="h-8"
+                              value={meta?.callDate || ''}
+                              onChange={e => updateFileMetadata(file.fileName, { callDate: e.target.value })}
+                            />
+                          </div>
+                          
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Call Type</Label>
+                            <Select
+                              value={meta?.callType || 'first_demo'}
+                              onValueChange={v => updateFileMetadata(file.fileName, { callType: v as CallType })}
+                            >
+                              <SelectTrigger className="h-8">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {callTypeOptions.map(opt => (
+                                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
                         
-                        {/* Other Call Type Input - shown when call type is 'other' (not in raw mode) */}
-                        {!rawUploadMode && meta?.callType === 'other' && (
+                        {/* Other Call Type Input */}
+                        {meta?.callType === 'other' && (
                           <div className="mt-2">
-                            <Label className="text-xs">Other Call Type Description</Label>
+                            <Label className="text-xs text-muted-foreground">Other Call Type Description</Label>
                             <Input
                               className="h-8 mt-1"
                               value={meta?.callTypeOther || ''}
@@ -650,18 +608,16 @@ export function BulkTranscriptUpload() {
                           </div>
                         )}
                         
-                        {/* Salesforce Link Input (not in raw mode) */}
-                        {!rawUploadMode && (
-                          <div className="mt-2">
-                            <Label className="text-xs">Salesforce Link</Label>
-                            <Input
-                              className="h-8 mt-1"
-                              value={meta?.salesforceLink || ''}
-                              onChange={e => updateFileMetadata(file.fileName, { salesforceLink: e.target.value })}
-                              placeholder="https://..."
-                            />
-                          </div>
-                        )}
+                        {/* Salesforce Link Input */}
+                        <div className="mt-2">
+                          <Label className="text-xs text-muted-foreground">Salesforce Link</Label>
+                          <Input
+                            className="h-8 mt-1"
+                            value={meta?.salesforceLink || ''}
+                            onChange={e => updateFileMetadata(file.fileName, { salesforceLink: e.target.value })}
+                            placeholder="https://..."
+                          />
+                        </div>
                       </div>
                     );
                   })}
@@ -716,14 +672,11 @@ export function BulkTranscriptUpload() {
             <AlertDialogDescription asChild>
               <div className="space-y-2">
                 <p>
-                  You are about to upload <strong>{validCount} transcript{validCount !== 1 ? 's' : ''}</strong>
-                  {rawUploadMode && <span className="text-primary font-medium"> in Raw Mode</span>}.
+                  You are about to upload <strong>{validCount} transcript{validCount !== 1 ? 's' : ''}</strong>.
                 </p>
-                {rawUploadMode && (
-                  <p className="text-muted-foreground">
-                    Transcripts will not be linked to accounts. You can edit them later to add metadata.
-                  </p>
-                )}
+                <p className="text-muted-foreground">
+                  Transcripts will be indexed for search but not linked to accounts.
+                </p>
                 {showTimeoutWarning && (
                   <p className="text-amber-600">
                     Note: Large uploads may take several minutes to process.
