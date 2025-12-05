@@ -44,6 +44,33 @@ export async function fetchActiveJob(jobType: string): Promise<BackgroundJob | n
   return data as BackgroundJob | null;
 }
 
+// Check if a job is stalled (no heartbeat for > 60 seconds)
+export function isJobStalled(job: BackgroundJob | null): boolean {
+  if (!job) return false;
+  if (job.status !== 'processing' && job.status !== 'pending') return false;
+  
+  const updatedAt = new Date(job.updated_at).getTime();
+  const now = Date.now();
+  const stalledThresholdMs = 60000; // 60 seconds
+  
+  return now - updatedAt > stalledThresholdMs;
+}
+
+// Cancel stalled job and return true if cancelled
+export async function cancelStalledJob(jobId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('background_jobs')
+    .update({ 
+      status: 'cancelled', 
+      error: 'Job stalled - no heartbeat detected',
+      updated_at: new Date().toISOString() 
+    })
+    .eq('id', jobId)
+    .in('status', ['pending', 'processing']);
+
+  return !error;
+}
+
 export async function cancelBackgroundJob(jobId: string): Promise<void> {
   const { error } = await supabase
     .from('background_jobs')

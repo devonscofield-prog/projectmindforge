@@ -14,7 +14,9 @@ import {
   cancelBackgroundJob, 
   startNERBackfillJob, 
   startEmbeddingsBackfillJob,
-  startFullReindexJob
+  startFullReindexJob,
+  isJobStalled,
+  cancelStalledJob
 } from '@/api/backgroundJobs';
 
 const log = createLogger('transcriptAnalysis');
@@ -411,7 +413,12 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     },
   });
 
-  // Handle NER job status changes
+  // Check if NER job is stalled (no heartbeat for > 60s)
+  const isNERJobStalled = nerJobStatus ? isJobStalled(nerJobStatus) : false;
+  const isEmbeddingsJobStalled = embeddingsJobStatus ? isJobStalled(embeddingsJobStatus) : false;
+  const isReindexJobStalled = reindexJobStatus ? isJobStalled(reindexJobStatus) : false;
+
+  // Handle NER job status changes (including stall detection)
   useEffect(() => {
     if (nerJobStatus) {
       if (nerJobStatus.status === 'completed') {
@@ -425,9 +432,12 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
         toast.info('NER backfill cancelled');
         setActiveNERJobId(null);
         refetchGlobalChunkStatus();
+      } else if (isJobStalled(nerJobStatus)) {
+        // Job is stalled - notify user
+        toast.warning('NER backfill appears stalled. Click "Backfill NER" to resume.');
       }
     }
-  }, [nerJobStatus?.status, nerJobStatus?.error, refetchGlobalChunkStatus]);
+  }, [nerJobStatus?.status, nerJobStatus?.error, nerJobStatus?.updated_at, refetchGlobalChunkStatus]);
 
   // Handle embeddings job status changes
   useEffect(() => {
