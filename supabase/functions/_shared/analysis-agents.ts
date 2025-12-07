@@ -98,22 +98,14 @@ const BEHAVIOR_SCORE_TOOL = {
             question_quality: {
               type: "object",
               properties: {
-                score: { type: "number", minimum: 0, maximum: 20, description: "Score 0-20" },
-                open_ended_count: { type: "number", description: "Number of open-ended questions" },
-                closed_count: { type: "number", description: "Number of closed questions" },
-                explanation: { type: "string", description: "Brief note on question types used" },
-                open_ended_questions: { 
-                  type: "array", 
-                  items: { type: "string" }, 
-                  description: "List of actual open-ended questions the rep asked (verbatim from transcript)" 
-                },
-                closed_questions: { 
-                  type: "array", 
-                  items: { type: "string" }, 
-                  description: "List of actual closed questions the rep asked (verbatim from transcript)" 
-                }
+                score: { type: "number", minimum: 0, maximum: 20, description: "Score 0-20 based on question leverage" },
+                explanation: { type: "string", description: "Brief note on question leverage effectiveness" },
+                average_question_length: { type: "number", description: "Average word count of Rep's sales questions" },
+                average_answer_length: { type: "number", description: "Average word count of Prospect's immediate answers" },
+                high_leverage_count: { type: "number", description: "Count of questions where prospect answer was longer than question" },
+                low_leverage_count: { type: "number", description: "Count of questions where question was longer than answer" }
               },
-              required: ["score", "open_ended_count", "closed_count", "explanation", "open_ended_questions", "closed_questions"]
+              required: ["score", "explanation", "average_question_length", "average_answer_length", "high_leverage_count", "low_leverage_count"]
             },
             monologue: {
               type: "object",
@@ -234,18 +226,26 @@ Rules:
     - context: brief description of what was happening when interruption occurred
     - severity: Minor (brief overlap), Moderate (cut off mid-thought), Severe (aggressive/repeated pattern)
 - **Monologue (0-20 pts):** Flag any single turn exceeding ~250 words. Deduct points for each violation.
-- **Question Quality (0-20 pts):** Use this EXPLICIT formula:
-  1. Tag every question as Open (Who/What/Where/When/Why/How) or Closed (Do/Is/Can/Will/Are/Did/Would/Could/Should/Has/Have)
-  2. Calculate: totalQuestions = open + closed, openRatio = open / totalQuestions
-  3. **Ratio Score (0-12 pts):** openRatio >= 70% = 12, >= 60% = 10, >= 50% = 8, >= 40% = 6, >= 30% = 4, < 30% = 2
-  4. **Volume Bonus (0-8 pts):** Reward thorough discovery:
-     - 15+ total questions = 8 pts
-     - 12-14 questions = 6 pts
-     - 9-11 questions = 4 pts
-     - 6-8 questions = 2 pts
-     - < 6 questions = 0 pts
-  5. Final score = Ratio Score + Volume Bonus (cap at 20)
-  IMPORTANT: Extract actual verbatim questions from transcript into open_ended_questions and closed_questions arrays.
+
+**QUESTION LEVERAGE ANALYSIS (0-20 pts):**
+- **Step A (Filter):** Identify all questions asked by the Rep. DISCARD "Logistical Questions" (e.g., "Can you see my screen?", "Is 2pm okay?", "Can you hear me?", "Does that make sense?", "Any questions so far?").
+- **Step B (Measure):** For the remaining "Sales Questions", calculate the word count of the Question and the word count of the Prospect's immediate Answer.
+- **Step C (Classify):**
+  - **High Leverage:** Prospect Answer word count > Rep Question word count (Rep engaged them effectively).
+  - **Low Leverage:** Rep Question word count > Prospect Answer word count (Rep lectured or led the witness).
+- **Step D (Math):**
+  - Calculate \`average_question_length\` (average word count of Rep's sales questions).
+  - Calculate \`average_answer_length\` (average word count of Prospect's immediate answers).
+  - Calculate the "Yield Ratio" = average_answer_length / average_question_length.
+  - **Score:** Award points based on Yield Ratio:
+    - Ratio >= 3.0: 20 pts (excellent leverage - prospect is talking 3x as much)
+    - Ratio >= 2.5: 17 pts
+    - Ratio >= 2.0: 14 pts (solid - prospect talking 2x as much)
+    - Ratio >= 1.5: 11 pts
+    - Ratio >= 1.0: 8 pts (baseline - equal talking)
+    - Ratio >= 0.5: 5 pts
+    - Ratio < 0.5: 2 pts (poor - rep questions longer than prospect answers)
+
 - **Talk Ratio (0-15 pts):** Score STRICTLY based on rep talk percentage:
   - 40-50%: 15 pts (ideal balance - prospect is talking more)
   - 51-55%: 12 pts
@@ -318,11 +318,11 @@ export interface BehaviorScore {
     };
     question_quality: {
       score: number;
-      open_ended_count: number;
-      closed_count: number;
       explanation: string;
-      open_ended_questions?: string[];
-      closed_questions?: string[];
+      average_question_length: number;
+      average_answer_length: number;
+      high_leverage_count: number;
+      low_leverage_count: number;
     };
     monologue: {
       score: number;
