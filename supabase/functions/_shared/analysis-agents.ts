@@ -88,9 +88,19 @@ const BEHAVIOR_SCORE_TOOL = {
                 score: { type: "number", minimum: 0, maximum: 20, description: "Score 0-20" },
                 open_ended_count: { type: "number", description: "Number of open-ended questions" },
                 closed_count: { type: "number", description: "Number of closed questions" },
-                explanation: { type: "string", description: "Brief note on question types used" }
+                explanation: { type: "string", description: "Brief note on question types used" },
+                open_ended_questions: { 
+                  type: "array", 
+                  items: { type: "string" }, 
+                  description: "List of actual open-ended questions the rep asked (verbatim from transcript)" 
+                },
+                closed_questions: { 
+                  type: "array", 
+                  items: { type: "string" }, 
+                  description: "List of actual closed questions the rep asked (verbatim from transcript)" 
+                }
               },
-              required: ["score", "open_ended_count", "closed_count", "explanation"]
+              required: ["score", "open_ended_count", "closed_count", "explanation", "open_ended_questions", "closed_questions"]
             },
             monologue: {
               type: "object",
@@ -268,7 +278,7 @@ const REFEREE_SYSTEM_PROMPT = `You are 'The Referee', a behavioral data analyst.
 Rules:
 - **Patience (0-30 pts):** Flag interruptions where a speaker starts before another finishes. Deduct points for each interruption.
 - **Monologue (0-20 pts):** Flag any single turn exceeding ~250 words. Deduct points for each violation.
-- **Question Quality (0-20 pts):** Tag every question as Open (Who/What/Where/When/Why/How) or Closed (Do/Is/Can/Will). Prefer 70%+ open-ended.
+- **Question Quality (0-20 pts):** Tag every question as Open (Who/What/Where/When/Why/How) or Closed (Do/Is/Can/Will). Prefer 70%+ open-ended. IMPORTANT: Extract the actual verbatim questions from the transcript and list them in open_ended_questions and closed_questions arrays.
 - **Talk Ratio (0-15 pts):** Score STRICTLY based on rep talk percentage:
   - 40-50%: 15 pts (ideal balance - prospect is talking more)
   - 51-55%: 12 pts
@@ -350,6 +360,8 @@ export interface BehaviorScore {
       open_ended_count: number;
       closed_count: number;
       explanation: string;
+      open_ended_questions?: string[];
+      closed_questions?: string[];
     };
     monologue: {
       score: number;

@@ -40,6 +40,8 @@ export const BehaviorScoreSchema = z.object({
       open_ended_count: z.number(),
       closed_count: z.number(),
       explanation: z.string().describe("Brief note on question types used."),
+      open_ended_questions: z.array(z.string()).optional().describe("List of open-ended questions the rep asked"),
+      closed_questions: z.array(z.string()).optional().describe("List of closed questions the rep asked"),
     }),
     monologue: z.object({
       score: z.number().min(0).max(20),
