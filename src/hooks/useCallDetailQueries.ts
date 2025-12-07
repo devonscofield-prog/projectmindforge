@@ -395,9 +395,9 @@ export function useUpdateAnalysisUserCounts(callId: string, analysisId: string |
       return result;
     },
     onSuccess: async () => {
-      // Invalidate call queries to refetch updated data
-      await queryClient.invalidateQueries({ queryKey: callDetailKeys.call(callId) });
-      await queryClient.invalidateQueries({ queryKey: callDetailKeys.analysis(callId) });
+      // Invalidate and refetch call queries to show updated data immediately
+      await queryClient.invalidateQueries({ queryKey: callDetailKeys.call(callId), refetchType: 'active' });
+      await queryClient.refetchQueries({ queryKey: callDetailKeys.call(callId) });
 
       toast({
         title: 'User counts updated',
