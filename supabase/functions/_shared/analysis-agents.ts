@@ -69,7 +69,6 @@ const BEHAVIOR_SCORE_TOOL = {
       properties: {
         overall_score: { type: "number", minimum: 0, maximum: 100, description: "Overall behavioral score 0-100" },
         grade: { type: "string", enum: ["Pass", "Fail"], description: "Pass if score >= 60, Fail otherwise" },
-        coaching_tip: { type: "string", description: "One high-impact behavioral tip based on the lowest metric" },
         metrics: {
           type: "object",
           properties: {
@@ -146,7 +145,7 @@ const BEHAVIOR_SCORE_TOOL = {
           required: ["patience", "question_quality", "monologue", "talk_listen_ratio", "next_steps"]
         }
       },
-      required: ["overall_score", "grade", "coaching_tip", "metrics"]
+      required: ["overall_score", "grade", "metrics"]
     }
   }
 };
@@ -258,8 +257,7 @@ Rules:
 - **Next Steps (0-15 pts):** Look for specific calendar dates, "I will send X" commitments, or scheduled follow-ups.
 
 Scoring:
-- Grade is "Pass" if overall_score >= 60, otherwise "Fail".
-- coaching_tip should address the lowest-scoring metric with a specific, actionable improvement.`;
+- Grade is "Pass" if overall_score >= 60, otherwise "Fail".`;
 
 const AUDITOR_SYSTEM_PROMPT = `You are a Senior Sales Auditor. Your goal is to measure Deal Health and Strategic Alignment objectively.
 
@@ -312,7 +310,6 @@ export interface CallMetadata {
 export interface BehaviorScore {
   overall_score: number;
   grade: 'Pass' | 'Fail';
-  coaching_tip: string;
   metrics: {
     patience: {
       score: number;
