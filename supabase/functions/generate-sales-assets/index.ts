@@ -36,7 +36,7 @@ const SALES_ASSETS_TOOL = {
 
 const COPYWRITER_SYSTEM_PROMPT = `You are an expert Sales Copywriter. Write a follow-up email and CRM notes.
 
-**CRITICAL:** Use the provided 'strategic_context' (specifically the 'relevance_map').
+**CRITICAL:** Use the provided 'strategic_context' (specifically the 'relevance_map' and 'critical_gaps').
 - In the email, do NOT list generic features.
 - Use explicit format: 'Because you mentioned [Pain Identified], I recommend [Feature Pitched]...'
 - Keep the tone professional but conversational.
@@ -58,6 +58,11 @@ const COPYWRITER_SYSTEM_PROMPT = `You are an expert Sales Copywriter. Write a fo
 ## Solutions Pitched
 - [List solutions and their relevance]
 
+## Actionable Gaps
+Use the 'critical_gaps' to populate this section. For each gap:
+- **[Category]**: [Description]
+  - *Ask this:* "[suggested_question]"
+
 ## Stakeholder Notes
 - [Key observations about participants]
 
@@ -65,7 +70,14 @@ const COPYWRITER_SYSTEM_PROMPT = `You are an expert Sales Copywriter. Write a fo
 - [Specific action items with owners]
 
 ## Follow-up Required
-- [Items needing attention]`;
+- [Items needing attention based on gaps identified]`;
+
+interface CriticalGap {
+  category: string;
+  description: string;
+  impact: string;
+  suggested_question: string;
+}
 
 interface StrategicContext {
   strategic_threading?: {
@@ -77,10 +89,7 @@ interface StrategicContext {
     }>;
     missed_opportunities?: string[];
   };
-  meddpicc?: {
-    overall_score?: number;
-    breakdown?: Record<string, { score: number; evidence?: string | null; missing_info?: string | null }>;
-  };
+  critical_gaps?: CriticalGap[];
 }
 
 serve(async (req) => {
@@ -145,6 +154,14 @@ serve(async (req) => {
         contextSection += '\n**MISSED OPPORTUNITIES (Pains not addressed):**\n';
         for (const missed of sc.strategic_threading.missed_opportunities) {
           contextSection += `- ${missed}\n`;
+        }
+      }
+
+      if (sc.critical_gaps && sc.critical_gaps.length > 0) {
+        contextSection += '\n**CRITICAL GAPS (Information missing from this deal):**\n';
+        for (const gap of sc.critical_gaps) {
+          contextSection += `- [${gap.impact} Impact] ${gap.category}: ${gap.description}\n`;
+          contextSection += `  → Suggested question: "${gap.suggested_question}"\n`;
         }
       }
     }
