@@ -89,3 +89,14 @@ export const StrategyAuditSchema = z.object({
 });
 
 export type StrategyAudit = z.infer<typeof StrategyAuditSchema>;
+
+// --- 4. THE COPYWRITER (Sales Assets) ---
+export const SalesAssetsSchema = z.object({
+  recap_email: z.object({
+    subject_line: z.string().describe("Email subject line"),
+    body_html: z.string().describe("HTML formatted email body"),
+  }),
+  internal_notes_markdown: z.string().describe("CRM-ready internal notes in markdown format"),
+});
+
+export type SalesAssets = z.infer<typeof SalesAssetsSchema>;
