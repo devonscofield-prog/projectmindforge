@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -42,6 +42,13 @@ export function DealHeatCard({
   const queryClient = useQueryClient();
   const [isCalculating, setIsCalculating] = useState(false);
   const [heatData, setHeatData] = useState<DealHeat | null>(existingHeatData || null);
+
+  // Sync local state with prop changes (e.g., after tab switch remount)
+  useEffect(() => {
+    if (existingHeatData) {
+      setHeatData(existingHeatData);
+    }
+  }, [existingHeatData]);
 
   const handleCalculateHeat = async () => {
     if (!strategyData || !behaviorData) {
