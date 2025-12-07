@@ -34,6 +34,12 @@ export const BehaviorScoreSchema = z.object({
       score: z.number().min(0).max(30),
       interruption_count: z.number(),
       status: z.enum(['Excellent', 'Good', 'Fair', 'Poor']),
+      interruptions: z.array(z.object({
+        interrupted_speaker: z.string().describe("Who was cut off"),
+        interrupter: z.string().describe("Who interrupted"),
+        context: z.string().describe("Brief description of what was being said"),
+        severity: z.enum(['Minor', 'Moderate', 'Severe']).describe("Minor = brief overlap, Moderate = cut off mid-thought, Severe = repeated pattern"),
+      })).optional().describe("List of interruption instances detected"),
     }),
     question_quality: z.object({
       score: z.number().min(0).max(20),

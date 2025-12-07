@@ -174,6 +174,7 @@ function MonologueAlert({ violationCount, longestTurnWords, onSeekToTimestamp }:
 export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecardProps) {
   const [questionsSheetOpen, setQuestionsSheetOpen] = useState(false);
   const [nextStepsSheetOpen, setNextStepsSheetOpen] = useState(false);
+  const [patienceSheetOpen, setPatienceSheetOpen] = useState(false);
 
   // Loading skeleton state
   if (!data) {
@@ -242,8 +243,11 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
 
       {/* Metrics Grid */}
       <div className="grid gap-4 sm:grid-cols-2">
-        {/* Patience */}
-        <Card>
+        {/* Patience - Clickable */}
+        <Card 
+          className="cursor-pointer transition-colors hover:bg-accent/50"
+          onClick={() => setPatienceSheetOpen(true)}
+        >
           <CardContent className="pt-6">
             <GaugeBar 
               value={metrics.patience.score}
@@ -252,7 +256,11 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
               sublabel={`${metrics.patience.interruption_count} interruption${metrics.patience.interruption_count !== 1 ? 's' : ''} detected`}
               icon={<Timer className="h-4 w-4" />}
             />
-            <div className="mt-2 flex justify-end">
+            <div className="mt-2 flex items-center justify-between">
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <ChevronRight className="h-3 w-3" />
+                Click to view details
+              </span>
               <Badge 
                 variant="secondary"
                 className={cn(
@@ -360,6 +368,116 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
                 </p>
               )}
             </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Patience Detail Sheet */}
+      <Sheet open={patienceSheetOpen} onOpenChange={setPatienceSheetOpen}>
+        <SheetContent className="overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <Timer className="h-5 w-5" />
+              Patience Breakdown
+            </SheetTitle>
+            <SheetDescription>
+              {metrics.patience.interruption_count === 0 
+                ? 'No interruptions detected - excellent listening skills!'
+                : `${metrics.patience.interruption_count} interruption${metrics.patience.interruption_count !== 1 ? 's' : ''} detected during the call`}
+            </SheetDescription>
+          </SheetHeader>
+          
+          <div className="mt-6 space-y-6">
+            {/* Status */}
+            <div className="flex items-center gap-3 p-4 rounded-lg border">
+              <div className={cn(
+                "flex h-12 w-12 items-center justify-center rounded-full",
+                metrics.patience.status === 'Excellent' ? "bg-green-500/20 text-green-600" :
+                metrics.patience.status === 'Good' ? "bg-green-400/20 text-green-600" :
+                metrics.patience.status === 'Fair' ? "bg-yellow-500/20 text-yellow-600" :
+                "bg-orange-500/20 text-orange-600"
+              )}>
+                {metrics.patience.status === 'Excellent' || metrics.patience.status === 'Good' ? (
+                  <CheckCircle2 className="h-6 w-6" />
+                ) : (
+                  <AlertTriangle className="h-6 w-6" />
+                )}
+              </div>
+              <div>
+                <p className="font-semibold">{metrics.patience.status}</p>
+                <p className="text-sm text-muted-foreground">
+                  Score: {metrics.patience.score}/30
+                </p>
+              </div>
+            </div>
+
+            {/* Interruptions List */}
+            {metrics.patience.interruptions && metrics.patience.interruptions.length > 0 ? (
+              <div className="space-y-3">
+                <h4 className="font-medium text-sm text-muted-foreground">Interruption Details</h4>
+                <div className="space-y-3">
+                  {metrics.patience.interruptions.map((interruption, idx) => (
+                    <div 
+                      key={idx} 
+                      className={cn(
+                        "p-3 rounded-lg border",
+                        interruption.severity === 'Severe' ? "border-destructive/50 bg-destructive/5" :
+                        interruption.severity === 'Moderate' ? "border-orange-500/50 bg-orange-500/5" :
+                        "border-yellow-500/50 bg-yellow-500/5"
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="font-medium">{interruption.interrupter}</span>
+                          <span className="text-muted-foreground">interrupted</span>
+                          <span className="font-medium">{interruption.interrupted_speaker}</span>
+                        </div>
+                        <Badge 
+                          variant="secondary"
+                          className={cn(
+                            "text-xs shrink-0",
+                            interruption.severity === 'Severe' ? "bg-destructive/20 text-destructive" :
+                            interruption.severity === 'Moderate' ? "bg-orange-500/20 text-orange-700" :
+                            "bg-yellow-500/20 text-yellow-700"
+                          )}
+                        >
+                          {interruption.severity}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{interruption.context}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : metrics.patience.interruption_count > 0 ? (
+              <p className="text-sm text-muted-foreground italic">
+                Interruption details not available for this analysis
+              </p>
+            ) : null}
+
+            {/* Tips for improvement if interruptions detected */}
+            {metrics.patience.interruption_count > 0 && (
+              <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
+                <h4 className="font-medium text-primary mb-2 flex items-center gap-2">
+                  <Sparkles className="h-4 w-4" />
+                  Improvement Tips
+                </h4>
+                <ul className="space-y-2 text-sm text-foreground/80">
+                  <li className="flex gap-2">
+                    <span className="text-primary">•</span>
+                    Wait 2 full seconds after the prospect finishes before responding
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="text-primary">•</span>
+                    Take notes while they speak to stay engaged without interrupting
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="text-primary">•</span>
+                    If you must interject, acknowledge what they were saying first
+                  </li>
+                </ul>
+              </div>
+            )}
           </div>
         </SheetContent>
       </Sheet>
