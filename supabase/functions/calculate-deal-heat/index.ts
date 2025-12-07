@@ -52,9 +52,17 @@ const DEAL_HEAT_TOOL = {
         recommended_action: { 
           type: "string", 
           description: "The single most important action to take next" 
+        },
+        estimated_close_date: {
+          type: "string",
+          description: "Best guess timeframe (e.g., 'Q1 2024', 'End of Jan', 'Late 2025'). Return 'Unknown' if no evidence."
+        },
+        close_date_evidence: {
+          type: "string",
+          description: "The specific quote or logic used to derive this date."
         }
       },
-      required: ["heat_score", "temperature", "trend", "key_factors", "winning_probability", "recommended_action"]
+      required: ["heat_score", "temperature", "trend", "key_factors", "winning_probability", "recommended_action", "estimated_close_date", "close_date_evidence"]
     }
   }
 };
@@ -73,12 +81,22 @@ const ACTUARY_SYSTEM_PROMPT = `You are a Deal Desk Actuary. Your job is to calcu
 - **Timing (25%):** Is there a specific timeline/compelling event?
 - **Momentum (20%):** Is there a firm Next Step on the calendar?
 
+**TIMEFRAME FORENSICS:**
+Scrutinize the transcript for timing clues to estimate a Closing Timeframe.
+- **Explicit:** "We need to sign by Dec 31st." -> "End of Dec"
+- **Implicit:** "Our contract with X expires in April." -> "March/April"
+- **Project-Based:** "We have a new class starting in two weeks." -> "Within 2 weeks"
+- **Fiscal:** "We need to spend this budget before Q4." -> "End of Q3"
+
+If absolutely NO timing clues exist, return "Unknown" for estimated_close_date.
+
 **OUTPUT:**
 Generate a 0-100 \`heat_score\` and explain the \`key_factors\`.
 - Be Conservative. A "Warm" conversation is not a "Hot" deal.
 - If \`critical_gaps\` contains "Budget" or "Authority", cap the score at 60.
 - Temperature thresholds: Hot >= 75, Warm >= 50, Lukewarm >= 25, Cold < 25
-- Trend: Based on whether momentum indicators are strengthening or weakening`;
+- Trend: Based on whether momentum indicators are strengthening or weakening
+- Always provide estimated_close_date and close_date_evidence based on timing clues found`;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
