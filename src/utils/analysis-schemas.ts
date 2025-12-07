@@ -100,3 +100,19 @@ export const SalesAssetsSchema = z.object({
 });
 
 export type SalesAssets = z.infer<typeof SalesAssetsSchema>;
+
+// --- 5. DEAL HEAT (Deal Temperature Analysis) ---
+export const DealHeatSchema = z.object({
+  heat_score: z.number().min(0).max(100).describe("Overall deal heat score 0-100"),
+  temperature: z.enum(['Hot', 'Warm', 'Lukewarm', 'Cold']).describe("Deal temperature category"),
+  trend: z.enum(['Heating Up', 'Cooling Down', 'Stagnant']).describe("Direction the deal is trending"),
+  key_factors: z.array(z.object({
+    factor: z.string().describe("The factor influencing deal heat (e.g., 'Urgency', 'Authority', 'Budget')"),
+    impact: z.enum(['Positive', 'Negative']).describe("Whether this factor helps or hurts the deal"),
+    reasoning: z.string().describe("Brief explanation of why this factor has this impact"),
+  })).describe("Key factors influencing the deal temperature"),
+  winning_probability: z.string().describe("Estimated probability of winning (e.g., 'Low (20%)', 'Medium (50%)')"),
+  recommended_action: z.string().describe("The single most important action to take next"),
+});
+
+export type DealHeat = z.infer<typeof DealHeatSchema>;

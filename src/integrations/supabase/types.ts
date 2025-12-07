@@ -295,6 +295,7 @@ export type Database = {
           created_at: string
           deal_advancement_score: number | null
           deal_gaps: Json | null
+          deal_heat_analysis: Json | null
           deal_tags: string[] | null
           deleted_at: string | null
           deleted_by: string | null
@@ -329,6 +330,7 @@ export type Database = {
           created_at?: string
           deal_advancement_score?: number | null
           deal_gaps?: Json | null
+          deal_heat_analysis?: Json | null
           deal_tags?: string[] | null
           deleted_at?: string | null
           deleted_by?: string | null
@@ -363,6 +365,7 @@ export type Database = {
           created_at?: string
           deal_advancement_score?: number | null
           deal_gaps?: Json | null
+          deal_heat_analysis?: Json | null
           deal_tags?: string[] | null
           deleted_at?: string | null
           deleted_by?: string | null
