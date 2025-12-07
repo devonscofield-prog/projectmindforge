@@ -1,6 +1,7 @@
 // AI Gateway integration for call analysis
 
 import type { TranscriptRow, AnalysisResult, CoachOutput, ProspectIntel, StakeholderIntel } from './types.ts';
+import { isValidProspectIntel } from './types.ts';
 import { ANALYSIS_SYSTEM_PROMPT, ANALYSIS_TOOL_SCHEMA, AI_GATEWAY_TIMEOUT_MS, REQUIRED_RECAP_LINKS } from './constants.ts';
 import { calculateMaxTokens, validateCallNotes, validateRecapEmailLinks } from './validation.ts';
 import type { Logger } from './logger.ts';
@@ -191,8 +192,17 @@ View sample courses here:
     throw new Error('AI analysis coach_output must be a valid object');
   }
 
-  // Extract prospect_intel (optional but expected)
-  const prospectIntel = analysisData.prospect_intel as ProspectIntel | undefined;
+  // Extract and validate prospect_intel (optional but expected)
+  let prospectIntel: ProspectIntel | undefined = undefined;
+  if (analysisData.prospect_intel) {
+    if (isValidProspectIntel(analysisData.prospect_intel)) {
+      prospectIntel = analysisData.prospect_intel as ProspectIntel;
+    } else {
+      logger.warn('Invalid prospect_intel structure, skipping', { 
+        received: JSON.stringify(analysisData.prospect_intel).substring(0, 200) 
+      });
+    }
+  }
   
   // Extract stakeholders_intel (optional)
   const stakeholdersIntel = analysisData.stakeholders_intel as StakeholderIntel[] | undefined;

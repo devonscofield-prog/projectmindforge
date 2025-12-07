@@ -186,12 +186,24 @@ serve(async (req) => {
     };
     logger.endPhase();
 
-    // Step 2: Update analysis_status to 'processing'
+    // Step 2: Update analysis_status to 'processing' (with retry)
     logger.startPhase('set_processing');
-    await supabaseAdmin
-      .from('call_transcripts')
-      .update({ analysis_status: 'processing', analysis_error: null })
-      .eq('id', callId);
+    const setProcessingWithRetry = async (retries = 1): Promise<void> => {
+      const { error } = await supabaseAdmin
+        .from('call_transcripts')
+        .update({ analysis_status: 'processing', analysis_error: null })
+        .eq('id', callId);
+      
+      if (error && retries > 0) {
+        logger.warn('Retrying set_processing', { error: error.message, retriesLeft: retries });
+        await new Promise(resolve => setTimeout(resolve, 500));
+        return setProcessingWithRetry(retries - 1);
+      }
+      if (error) {
+        throw new Error(`Failed to set processing status: ${error.message}`);
+      }
+    };
+    await setProcessingWithRetry();
     logger.endPhase();
 
     // Step 3: Generate analysis using AI
