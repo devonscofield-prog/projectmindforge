@@ -18,6 +18,7 @@ import { CallProductsSummary } from '@/components/calls/CallProductsSummary';
 import { EditCallDetailsDialog } from '@/components/calls/EditCallDetailsDialog';
 import { BehaviorScorecard } from '@/components/analysis/BehaviorScorecard';
 import { StrategicRelevanceMap } from '@/components/analysis/StrategicRelevanceMap';
+import { SalesAssetsGenerator } from '@/components/calls/SalesAssetsGenerator';
 import { CallType, callTypeLabels } from '@/constants/callTypes';
 import { format } from 'date-fns';
 import { getDashboardUrl, getCallHistoryUrl } from '@/lib/routes';
@@ -321,6 +322,16 @@ function CallDetailPage() {
         
         {analysis?.analysis_strategy && (
           <StrategicRelevanceMap data={analysis.analysis_strategy} />
+        )}
+
+        {/* Sales Assets Generator - Follow-up Email & Notes */}
+        {transcript.analysis_status === 'completed' && (
+          <SalesAssetsGenerator
+            transcript={transcript.raw_text}
+            strategicContext={analysis?.analysis_strategy || null}
+            accountName={transcript.account_name}
+            stakeholderName={transcript.primary_stakeholder_name}
+          />
         )}
 
         {/* Analysis Results - Uses shared component with ownership info */}
