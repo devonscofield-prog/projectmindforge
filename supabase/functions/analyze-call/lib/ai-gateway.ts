@@ -96,8 +96,16 @@ export async function generateRealAnalysis(
   try {
     analysisData = JSON.parse(toolCall.function.arguments);
   } catch (parseError) {
-    logger.error('Failed to parse tool arguments', { arguments: toolCall.function.arguments.substring(0, 500) });
-    throw new Error('Failed to parse AI analysis response');
+    const argsStr = toolCall.function.arguments || '';
+    const argsLength = argsStr.length;
+    logger.error('Failed to parse tool arguments', { 
+      arguments_start: argsStr.substring(0, 500),
+      arguments_end: argsLength > 500 ? argsStr.substring(argsLength - 500) : '(shown above)',
+      arguments_length: argsLength,
+      transcript_length: transcriptLength,
+      parse_error: parseError instanceof Error ? parseError.message : String(parseError)
+    });
+    throw new Error(`Failed to parse AI analysis response (${argsLength} chars, transcript: ${transcriptLength} chars)`);
   }
 
   // Validate all required fields
