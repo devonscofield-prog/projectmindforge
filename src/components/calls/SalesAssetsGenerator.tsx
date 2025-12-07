@@ -32,8 +32,8 @@ interface SalesAssetsGeneratorProps {
   stakeholderName?: string | null;
 }
 
-// MEDDPICC elements that generate checklist items
-const CHECKLIST_ELEMENTS = [
+// MEDDPICC elements that generate checklist items - must match schema keys
+const CHECKLIST_ELEMENTS: { key: keyof StrategyAudit['meddpicc']['breakdown']; label: string }[] = [
   { key: 'metrics', label: 'Verify Metrics/ROI expectations' },
   { key: 'economic_buyer', label: 'Confirm Economic Buyer identity' },
   { key: 'decision_criteria', label: 'Clarify Decision Criteria' },
@@ -42,9 +42,7 @@ const CHECKLIST_ELEMENTS = [
   { key: 'implicate_pain', label: 'Quantify Pain Impact' },
   { key: 'champion', label: 'Identify/Develop Champion' },
   { key: 'competition', label: 'Understand Competitive Landscape' },
-] as const;
-
-type MEDDPICCKey = typeof CHECKLIST_ELEMENTS[number]['key'];
+];
 
 export function SalesAssetsGenerator({ 
   transcript, 
