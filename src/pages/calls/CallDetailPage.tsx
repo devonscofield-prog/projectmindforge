@@ -34,7 +34,8 @@ import {
   DollarSign,
   Building,
   User,
-  Pencil
+  Pencil,
+  Users
 } from 'lucide-react';
 
 function CallDetailPage() {
@@ -274,6 +275,19 @@ function CallDetailPage() {
                       Open Link
                       <ExternalLink className="h-3 w-3" />
                     </a>
+                  </div>
+                </div>
+              )}
+
+              {/* Manager on Call */}
+              {transcript.manager_id && (
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-primary" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Manager Present</p>
+                    <Badge variant="outline" className="border-primary/50 text-primary">
+                      Manager on Call
+                    </Badge>
                   </div>
                 </div>
               )}

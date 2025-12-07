@@ -1,9 +1,10 @@
 import { format } from 'date-fns';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle, AlertCircle, Clock, ChevronRight, Flame } from 'lucide-react';
+import { CheckCircle, AlertCircle, Clock, ChevronRight, Flame, Users } from 'lucide-react';
 import { CallType, callTypeLabels } from '@/constants/callTypes';
 import { cn } from '@/lib/utils';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 
 interface MobileCallCardProps {
   call: {
@@ -16,6 +17,7 @@ interface MobileCallCardProps {
     potential_revenue?: number | null;
     analysis_status: string;
     heat_score?: number | null;
+    manager_id?: string | null;
   };
   onClick: () => void;
 }
@@ -66,6 +68,16 @@ export function MobileCallCard({ call, onClick }: MobileCallCardProps) {
               <p className="font-medium truncate">
                 {call.account_name || call.primary_stakeholder_name || 'Unknown'}
               </p>
+              {call.manager_id && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Users className="h-4 w-4 text-primary shrink-0" />
+                    </TooltipTrigger>
+                    <TooltipContent>Manager was on this call</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
               {getStatusBadge(call.analysis_status)}
             </div>
             

@@ -45,6 +45,7 @@ export interface Transcript {
   analysis_status: TranscriptAnalysisStatus;
   rep_name?: string;
   team_name?: string;
+  manager_id?: string | null;
 }
 
 export interface TranscriptFilters {

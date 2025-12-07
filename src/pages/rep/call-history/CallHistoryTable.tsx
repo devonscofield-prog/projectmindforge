@@ -27,7 +27,9 @@ import {
   ChevronsRight,
   Flame,
   Mic,
+  Users,
 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { PAGE_SIZE_OPTIONS, SortColumn } from './constants';
 
 interface CallHistoryTableProps {
@@ -209,8 +211,20 @@ export function CallHistoryTable({
                       className="cursor-pointer hover:bg-muted/50"
                       onClick={() => navigate(`/calls/${t.id}`)}
                     >
-                      <TableCell className="font-medium">
-                        {format(new Date(t.call_date), 'MMM d, yyyy')}
+                    <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          {format(new Date(t.call_date), 'MMM d, yyyy')}
+                          {t.manager_id && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Users className="h-4 w-4 text-primary shrink-0" />
+                                </TooltipTrigger>
+                                <TooltipContent>Manager was on this call</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>{t.primary_stakeholder_name || '-'}</TableCell>
                       <TableCell>{t.account_name || '-'}</TableCell>
