@@ -282,6 +282,10 @@ export type Database = {
       }
       ai_call_analysis: {
         Row: {
+          analysis_behavior: Json | null
+          analysis_metadata: Json | null
+          analysis_pipeline_version: string | null
+          analysis_strategy: Json | null
           call_effectiveness_score: number | null
           call_id: string
           call_notes: string | null
@@ -312,6 +316,10 @@ export type Database = {
           trend_indicators: Json | null
         }
         Insert: {
+          analysis_behavior?: Json | null
+          analysis_metadata?: Json | null
+          analysis_pipeline_version?: string | null
+          analysis_strategy?: Json | null
           call_effectiveness_score?: number | null
           call_id: string
           call_notes?: string | null
@@ -342,6 +350,10 @@ export type Database = {
           trend_indicators?: Json | null
         }
         Update: {
+          analysis_behavior?: Json | null
+          analysis_metadata?: Json | null
+          analysis_pipeline_version?: string | null
+          analysis_strategy?: Json | null
           call_effectiveness_score?: number | null
           call_id?: string
           call_notes?: string | null
