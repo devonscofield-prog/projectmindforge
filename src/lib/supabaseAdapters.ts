@@ -212,10 +212,11 @@ export function toStakeholderMention(row: CallStakeholderMentionRow): Stakeholde
 /**
  * Converts a Supabase call transcript row to a CallTranscript domain object.
  */
-export function toCallTranscript(row: CallTranscriptRow): CallTranscript {
+export function toCallTranscript(row: CallTranscriptRow, repName?: string | null): CallTranscript {
   return {
     id: row.id,
     rep_id: row.rep_id,
+    rep_name: repName ?? null,
     manager_id: row.manager_id,
     call_date: row.call_date,
     source: row.source,

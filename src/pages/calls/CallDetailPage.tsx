@@ -224,6 +224,17 @@ function CallDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {/* Sales Rep */}
+              {transcript.rep_name && (
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4 text-primary" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Sales Rep</p>
+                    <p className="font-medium">{transcript.rep_name}</p>
+                  </div>
+                </div>
+              )}
+
               {/* Primary Stakeholder Name */}
               {transcript.primary_stakeholder_name && (
                 <div className="flex items-center gap-2">
