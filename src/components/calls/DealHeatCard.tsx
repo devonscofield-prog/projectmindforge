@@ -69,6 +69,8 @@ export function DealHeatCard({
 
       // Extract deal_heat from response
       const result = data.deal_heat as DealHeat;
+      const wasSaved = data.saved === true;
+      
       setHeatData(result);
       onHeatCalculated?.(result);
 
@@ -76,8 +78,11 @@ export function DealHeatCard({
       queryClient.invalidateQueries({ queryKey: ['call-with-analysis', callId] });
 
       toast({
-        title: 'Deal Heat Calculated',
-        description: `Score: ${result.heat_score}/100 (${result.temperature})`,
+        title: wasSaved ? 'Deal Heat Calculated & Saved' : 'Deal Heat Calculated',
+        description: wasSaved 
+          ? `Score: ${result.heat_score}/100 (${result.temperature})`
+          : `Score: ${result.heat_score}/100 - Note: Save failed, please recalculate`,
+        variant: wasSaved ? 'default' : 'destructive',
       });
     } catch (err) {
       console.error('Error calculating deal heat:', err);
