@@ -215,9 +215,12 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
       {/* Talk Ratio - Hero Visual */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Mic className="h-4 w-4" />
-            Talk vs Listen Ratio
+          <CardTitle className="text-base flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Mic className="h-4 w-4" />
+              Talk vs Listen Ratio
+            </div>
+            <span className="text-sm font-bold">{metrics.talk_listen_ratio.score}/15</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -300,6 +303,7 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
                 <div className="flex items-center gap-2">
                   <ListChecks className="h-4 w-4 text-muted-foreground" />
                   <span className="font-medium">Next Steps</span>
+                  <span className="text-sm font-bold text-muted-foreground">{metrics.next_steps.score}/15</span>
                 </div>
                 <p className="text-sm text-muted-foreground line-clamp-1">
                   {metrics.next_steps.details || (metrics.next_steps.secured ? 'Commitment secured' : 'No clear next steps')}
