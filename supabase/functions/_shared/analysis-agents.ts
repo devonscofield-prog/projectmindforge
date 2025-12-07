@@ -215,7 +215,18 @@ const REFEREE_SYSTEM_PROMPT = `You are 'The Referee', a behavioral data analyst.
 Rules:
 - **Patience (0-30 pts):** Flag interruptions where a speaker starts before another finishes. Deduct points for each interruption.
 - **Monologue (0-20 pts):** Flag any single turn exceeding ~250 words. Deduct points for each violation.
-- **Question Quality (0-20 pts):** Tag every question as Open (Who/What/Where/When/Why/How) or Closed (Do/Is/Can/Will). Prefer 70%+ open-ended. IMPORTANT: Extract the actual verbatim questions from the transcript and list them in open_ended_questions and closed_questions arrays.
+- **Question Quality (0-20 pts):** Use this EXPLICIT formula:
+  1. Tag every question as Open (Who/What/Where/When/Why/How) or Closed (Do/Is/Can/Will/Are/Did/Would/Could/Should/Has/Have)
+  2. Calculate: totalQuestions = open + closed, openRatio = open / totalQuestions
+  3. **Ratio Score (0-12 pts):** openRatio >= 70% = 12, >= 60% = 10, >= 50% = 8, >= 40% = 6, >= 30% = 4, < 30% = 2
+  4. **Volume Bonus (0-8 pts):** Reward thorough discovery:
+     - 15+ total questions = 8 pts
+     - 12-14 questions = 6 pts
+     - 9-11 questions = 4 pts
+     - 6-8 questions = 2 pts
+     - < 6 questions = 0 pts
+  5. Final score = Ratio Score + Volume Bonus (cap at 20)
+  IMPORTANT: Extract actual verbatim questions from transcript into open_ended_questions and closed_questions arrays.
 - **Talk Ratio (0-15 pts):** Score STRICTLY based on rep talk percentage:
   - 40-50%: 15 pts (ideal balance - prospect is talking more)
   - 51-55%: 12 pts
