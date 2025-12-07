@@ -205,7 +205,7 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
     );
   }
 
-  const { overall_score, grade, metrics, coaching_tip } = data;
+  const { overall_score, grade, metrics } = data;
   const isPassing = grade === 'Pass';
 
   // Calculate question ratio
@@ -604,23 +604,6 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
         </SheetContent>
       </Sheet>
 
-      {/* Coaching Corner - Distinct "Quote of the Day" Style */}
-      <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-primary/10 via-primary/5 to-accent/10 p-6 border border-primary/20">
-        <div className="absolute top-0 right-0 opacity-10">
-          <Sparkles className="h-24 w-24 text-primary" />
-        </div>
-        <div className="relative z-10">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20">
-              <Sparkles className="h-4 w-4 text-primary" />
-            </div>
-            <h4 className="font-semibold text-primary">Coach's Corner</h4>
-          </div>
-          <blockquote className="text-base italic text-foreground/90 leading-relaxed">
-            "{coaching_tip}"
-          </blockquote>
-        </div>
-      </div>
     </div>
   );
 }

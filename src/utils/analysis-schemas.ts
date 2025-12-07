@@ -28,7 +28,6 @@ export type CallMetadata = z.infer<typeof CallMetadataSchema>;
 export const BehaviorScoreSchema = z.object({
   overall_score: z.number().min(0).max(100),
   grade: z.enum(['Pass', 'Fail']),
-  coaching_tip: z.string().describe("One high-impact behavioral tip based on the lowest metric."),
   metrics: z.object({
     patience: z.object({
       score: z.number().min(0).max(30),
