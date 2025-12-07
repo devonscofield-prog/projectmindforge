@@ -1,7 +1,15 @@
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import { 
   AlertTriangle, 
   CheckCircle2, 
@@ -11,7 +19,8 @@ import {
   Mic,
   ListChecks,
   Sparkles,
-  Play
+  Play,
+  ChevronRight
 } from 'lucide-react';
 import type { BehaviorScore } from '@/utils/analysis-schemas';
 import { cn } from '@/lib/utils';
@@ -163,6 +172,8 @@ function MonologueAlert({ violationCount, longestTurnWords, onSeekToTimestamp }:
 }
 
 export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecardProps) {
+  const [questionsSheetOpen, setQuestionsSheetOpen] = useState(false);
+
   // Loading skeleton state
   if (!data) {
     return (
@@ -256,8 +267,11 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
           </CardContent>
         </Card>
 
-        {/* Questions */}
-        <Card>
+        {/* Questions - Clickable */}
+        <Card 
+          className="cursor-pointer transition-colors hover:bg-accent/50"
+          onClick={() => setQuestionsSheetOpen(true)}
+        >
           <CardContent className="pt-6">
             <GaugeBar 
               value={metrics.question_quality.score}
@@ -266,7 +280,11 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
               sublabel={`${metrics.question_quality.open_ended_count} open • ${metrics.question_quality.closed_count} closed`}
               icon={<HelpCircle className="h-4 w-4" />}
             />
-            <div className="mt-2 flex justify-end">
+            <div className="mt-2 flex items-center justify-between">
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <ChevronRight className="h-3 w-3" />
+                Click to view questions
+              </span>
               <Badge 
                 variant="secondary"
                 className={cn(
@@ -281,6 +299,69 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
           </CardContent>
         </Card>
       </div>
+
+      {/* Questions Detail Sheet */}
+      <Sheet open={questionsSheetOpen} onOpenChange={setQuestionsSheetOpen}>
+        <SheetContent className="overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <HelpCircle className="h-5 w-5" />
+              Question Quality Breakdown
+            </SheetTitle>
+            <SheetDescription>
+              {metrics.question_quality.explanation}
+            </SheetDescription>
+          </SheetHeader>
+          
+          <div className="mt-6 space-y-6">
+            {/* Open-Ended Questions */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Badge className="bg-green-500/20 text-green-700 hover:bg-green-500/30">
+                  Open-Ended ({metrics.question_quality.open_ended_count})
+                </Badge>
+              </div>
+              {metrics.question_quality.open_ended_questions && metrics.question_quality.open_ended_questions.length > 0 ? (
+                <ul className="space-y-2">
+                  {metrics.question_quality.open_ended_questions.map((question, idx) => (
+                    <li key={idx} className="flex gap-2 text-sm">
+                      <span className="text-green-600 shrink-0">•</span>
+                      <span className="text-foreground/90">{question}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">
+                  Question details not available for this analysis
+                </p>
+              )}
+            </div>
+
+            {/* Closed Questions */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Badge className="bg-orange-500/20 text-orange-700 hover:bg-orange-500/30">
+                  Closed ({metrics.question_quality.closed_count})
+                </Badge>
+              </div>
+              {metrics.question_quality.closed_questions && metrics.question_quality.closed_questions.length > 0 ? (
+                <ul className="space-y-2">
+                  {metrics.question_quality.closed_questions.map((question, idx) => (
+                    <li key={idx} className="flex gap-2 text-sm">
+                      <span className="text-orange-600 shrink-0">•</span>
+                      <span className="text-foreground/90">{question}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">
+                  Question details not available for this analysis
+                </p>
+              )}
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Next Steps - Compact */}
       <Card>
