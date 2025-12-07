@@ -16,7 +16,8 @@ import {
   Target,
   Quote,
   Package,
-  Minus
+  Minus,
+  HelpCircle
 } from 'lucide-react';
 import type { StrategyAudit } from '@/utils/analysis-schemas';
 import { cn } from '@/lib/utils';
@@ -25,40 +26,26 @@ interface StrategicRelevanceMapProps {
   data: StrategyAudit | null | undefined;
 }
 
-// MEDDPICC element configuration
-const MEDDPICC_ELEMENTS = [
-  { key: 'metrics', label: 'Metrics', letter: 'M', description: 'Quantifiable outcomes' },
-  { key: 'economic_buyer', label: 'Economic Buyer', letter: 'E', description: 'Decision maker identified' },
-  { key: 'decision_criteria', label: 'Decision Criteria', letter: 'D', description: 'Evaluation criteria' },
-  { key: 'decision_process', label: 'Decision Process', letter: 'D', description: 'Buying process' },
-  { key: 'paper_process', label: 'Paper Process', letter: 'P', description: 'Procurement steps' },
-  { key: 'implicate_pain', label: 'Implicate Pain', letter: 'I', description: 'Business impact' },
-  { key: 'champion', label: 'Champion', letter: 'C', description: 'Internal advocate' },
-  { key: 'competition', label: 'Competition', letter: 'C', description: 'Alternatives' },
-] as const;
-
-type MEDDPICCKey = keyof StrategyAudit['meddpicc']['breakdown'];
-
-function getScoreState(score: number): 'empty' | 'weak' | 'fair' | 'good' | 'strong' {
-  if (score >= 80) return 'strong';
-  if (score >= 60) return 'good';
-  if (score >= 40) return 'fair';
-  if (score >= 20) return 'weak';
-  return 'empty';
+// Impact color mapping
+function getImpactStyles(impact: 'High' | 'Medium' | 'Low') {
+  switch (impact) {
+    case 'High':
+      return 'bg-destructive/10 border-destructive/50 text-destructive';
+    case 'Medium':
+      return 'bg-yellow-500/10 border-yellow-500/50 text-yellow-700 dark:text-yellow-400';
+    case 'Low':
+      return 'bg-muted border-muted-foreground/30 text-muted-foreground';
+  }
 }
 
-function getScoreStyles(state: ReturnType<typeof getScoreState>) {
-  switch (state) {
-    case 'strong':
-      return 'bg-green-500 text-white border-green-600';
-    case 'good':
-      return 'bg-green-400/80 text-white border-green-500';
-    case 'fair':
-      return 'bg-yellow-400/80 text-yellow-900 border-yellow-500';
-    case 'weak':
-      return 'bg-orange-400/50 text-orange-900 border-orange-500/50';
-    case 'empty':
-      return 'bg-muted/50 text-muted-foreground border-muted';
+function getImpactBadgeVariant(impact: 'High' | 'Medium' | 'Low') {
+  switch (impact) {
+    case 'High':
+      return 'destructive' as const;
+    case 'Medium':
+      return 'secondary' as const;
+    case 'Low':
+      return 'outline' as const;
   }
 }
 
@@ -150,85 +137,41 @@ function RelevanceBridge({ painIdentified, featurePitched, isRelevant, reasoning
   );
 }
 
-// MEDDPICC Card with Tooltip
-interface MEDDPICCCardProps {
-  letter: string;
-  label: string;
+// Critical Gap Card
+interface CriticalGapCardProps {
+  category: string;
   description: string;
-  score: number;
-  evidence?: string;
-  missingInfo?: string;
+  impact: 'High' | 'Medium' | 'Low';
+  suggestedQuestion: string;
 }
 
-function MEDDPICCCard({ letter, label, description, score, evidence, missingInfo }: MEDDPICCCardProps) {
-  const state = getScoreState(score);
-  const styles = getScoreStyles(state);
-  
-  const hasDetails = evidence || missingInfo;
-  
-  const cardContent = (
-    <div 
-      className={cn(
-        "relative flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all",
-        styles,
-        hasDetails && "cursor-pointer hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-      )}
-      tabIndex={hasDetails ? 0 : undefined}
-      role={hasDetails ? "button" : undefined}
-      aria-label={hasDetails ? `${label}: ${score}%. Click for details.` : `${label}: ${score}%`}
-    >
-      {/* Letter Badge */}
-      <span className="text-2xl font-bold" aria-hidden="true">{letter}</span>
-      
-      {/* Label */}
-      <span className="text-xs font-medium mt-1 text-center">{label}</span>
-      
-      {/* Score */}
-      <span className={cn(
-        "text-xs mt-2 px-2 py-0.5 rounded-full",
-        state === 'strong' || state === 'good' 
-          ? "bg-white/20" 
-          : "bg-foreground/10"
-      )}>
-        {score}%
-      </span>
-    </div>
-  );
-
-  if (!hasDetails) {
-    return cardContent;
-  }
-
+function CriticalGapCard({ category, description, impact, suggestedQuestion }: CriticalGapCardProps) {
   return (
-    <TooltipProvider delayDuration={200}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          {cardContent}
-        </TooltipTrigger>
-        <TooltipContent 
-          side="bottom" 
-          className="max-w-sm p-4 space-y-3"
-          sideOffset={8}
-        >
-          <div className="font-medium">{label}</div>
-          <p className="text-xs text-muted-foreground">{description}</p>
-          
-          {evidence && (
-            <div>
-              <p className="text-xs font-medium text-green-600 mb-1">Evidence Found:</p>
-              <p className="text-sm text-muted-foreground">{evidence}</p>
-            </div>
-          )}
-          
-          {missingInfo && score < 80 && (
-            <div>
-              <p className="text-xs font-medium text-destructive mb-1">Still Missing:</p>
-              <p className="text-sm text-muted-foreground">{missingInfo}</p>
-            </div>
-          )}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <div className={cn(
+      "p-4 rounded-xl border-2 space-y-3",
+      getImpactStyles(impact)
+    )}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Badge variant={getImpactBadgeVariant(impact)} className="text-xs">
+            {impact} Impact
+          </Badge>
+          <span className="font-semibold text-sm">{category}</span>
+        </div>
+      </div>
+      
+      <p className="text-sm">{description}</p>
+      
+      <div className="pt-2 border-t border-current/10">
+        <div className="flex items-start gap-2">
+          <HelpCircle className="h-4 w-4 shrink-0 mt-0.5 opacity-70" />
+          <div>
+            <p className="text-xs font-medium opacity-70 mb-1">Ask This:</p>
+            <p className="text-sm italic">"{suggestedQuestion}"</p>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -250,9 +193,9 @@ export function StrategicRelevanceMap({ data }: StrategicRelevanceMapProps) {
                 <Skeleton key={i} className="h-24 w-full" />
               ))}
             </div>
-            <div className="grid grid-cols-4 gap-3 sm:grid-cols-8">
-              {[...Array(8)].map((_, i) => (
-                <Skeleton key={i} className="h-24 rounded-xl" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[...Array(4)].map((_, i) => (
+                <Skeleton key={i} className="h-32 rounded-xl" />
               ))}
             </div>
           </CardContent>
@@ -261,8 +204,9 @@ export function StrategicRelevanceMap({ data }: StrategicRelevanceMapProps) {
     );
   }
 
-  const { strategic_threading, meddpicc } = data;
+  const { strategic_threading, critical_gaps } = data;
   const isPassing = strategic_threading.grade === 'Pass';
+  const highImpactGaps = critical_gaps.filter(g => g.impact === 'High');
 
   return (
     <div className="space-y-6">
@@ -332,71 +276,45 @@ export function StrategicRelevanceMap({ data }: StrategicRelevanceMapProps) {
         </CardContent>
       </Card>
 
-      {/* MEDDPICC Evidence Board */}
+      {/* Critical Gaps */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>MEDDPICC Evidence Board</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5" />
+                Critical Deal Gaps
+              </CardTitle>
               <p className="text-sm text-muted-foreground mt-1">
-                Tap or hover for details • Based on verbal evidence
+                Key information blocking deal progress
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <span className={cn(
-                "text-2xl font-bold",
-                meddpicc.overall_score >= 70 ? "text-green-600" :
-                meddpicc.overall_score >= 40 ? "text-yellow-600" : "text-destructive"
-              )}>
-                {meddpicc.overall_score}
-              </span>
-              <span className="text-sm text-muted-foreground">/ 100</span>
-            </div>
+            {highImpactGaps.length > 0 && (
+              <Badge variant="destructive">
+                {highImpactGaps.length} High Impact
+              </Badge>
+            )}
           </div>
         </CardHeader>
         <CardContent>
-          {/* Grid of 8 cards */}
-          <div className="grid grid-cols-4 gap-3 sm:grid-cols-8">
-            {MEDDPICC_ELEMENTS.map((element) => {
-              const breakdown = meddpicc.breakdown[element.key];
-              
-              return (
-                <MEDDPICCCard
-                  key={element.key}
-                  letter={element.letter}
-                  label={element.label}
-                  description={element.description}
-                  score={breakdown.score}
-                  evidence={breakdown.evidence ?? undefined}
-                  missingInfo={breakdown.missing_info ?? undefined}
+          {critical_gaps.length === 0 ? (
+            <div className="flex items-center justify-center py-8 text-muted-foreground">
+              <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" />
+              No critical gaps identified
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+              {critical_gaps.map((gap, index) => (
+                <CriticalGapCard
+                  key={index}
+                  category={gap.category}
+                  description={gap.description}
+                  impact={gap.impact}
+                  suggestedQuestion={gap.suggested_question}
                 />
-              );
-            })}
-          </div>
-
-          {/* Legend */}
-          <div className="flex flex-wrap items-center justify-center gap-4 mt-6 pt-4 border-t">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <div className="h-3 w-3 rounded bg-green-500" />
-              <span>Strong (80+)</span>
+              ))}
             </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <div className="h-3 w-3 rounded bg-green-400/80" />
-              <span>Good (60-79)</span>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <div className="h-3 w-3 rounded bg-yellow-400/80" />
-              <span>Fair (40-59)</span>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <div className="h-3 w-3 rounded bg-orange-400/50" />
-              <span>Weak (20-39)</span>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <div className="h-3 w-3 rounded bg-muted/50 border" />
-              <span>Not Covered (0-19)</span>
-            </div>
-          </div>
+          )}
         </CardContent>
       </Card>
     </div>

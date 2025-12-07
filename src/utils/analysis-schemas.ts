@@ -75,19 +75,12 @@ export const StrategyAuditSchema = z.object({
     })),
     missed_opportunities: z.array(z.string()).describe("Pains mentioned that were ignored"),
   }),
-  meddpicc: z.object({
-    overall_score: z.number().min(0).max(100),
-    breakdown: z.object({
-      metrics: z.object({ score: z.number(), evidence: z.string().nullable(), missing_info: z.string().nullable() }),
-      economic_buyer: z.object({ score: z.number(), evidence: z.string().nullable(), missing_info: z.string().nullable() }),
-      decision_criteria: z.object({ score: z.number(), evidence: z.string().nullable(), missing_info: z.string().nullable() }),
-      decision_process: z.object({ score: z.number(), evidence: z.string().nullable(), missing_info: z.string().nullable() }),
-      paper_process: z.object({ score: z.number(), evidence: z.string().nullable(), missing_info: z.string().nullable() }),
-      implicate_pain: z.object({ score: z.number(), evidence: z.string().nullable(), missing_info: z.string().nullable() }),
-      champion: z.object({ score: z.number(), evidence: z.string().nullable(), missing_info: z.string().nullable() }),
-      competition: z.object({ score: z.number(), evidence: z.string().nullable(), missing_info: z.string().nullable() }),
-    }),
-  }),
+  critical_gaps: z.array(z.object({
+    category: z.enum(['Budget', 'Authority', 'Need', 'Timeline', 'Competition', 'Technical']),
+    description: z.string().describe("Specific description of what is missing in this deal"),
+    impact: z.enum(['High', 'Medium', 'Low']),
+    suggested_question: z.string().describe("The exact question the rep should ask to close this gap"),
+  })).describe("Identify 3-5 critical pieces of information blocking the deal."),
 });
 
 export type StrategyAudit = z.infer<typeof StrategyAuditSchema>;

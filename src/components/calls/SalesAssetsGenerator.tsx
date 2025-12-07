@@ -32,18 +32,6 @@ interface SalesAssetsGeneratorProps {
   stakeholderName?: string | null;
 }
 
-// MEDDPICC elements that generate checklist items - must match schema keys
-const CHECKLIST_ELEMENTS: { key: keyof StrategyAudit['meddpicc']['breakdown']; label: string }[] = [
-  { key: 'metrics', label: 'Verify Metrics/ROI expectations' },
-  { key: 'economic_buyer', label: 'Confirm Economic Buyer identity' },
-  { key: 'decision_criteria', label: 'Clarify Decision Criteria' },
-  { key: 'decision_process', label: 'Verify Decision Process' },
-  { key: 'paper_process', label: 'Understand Paper Process/Procurement' },
-  { key: 'implicate_pain', label: 'Quantify Pain Impact' },
-  { key: 'champion', label: 'Identify/Develop Champion' },
-  { key: 'competition', label: 'Understand Competitive Landscape' },
-];
-
 export function SalesAssetsGenerator({ 
   transcript, 
   strategicContext,
@@ -60,18 +48,19 @@ export function SalesAssetsGenerator({
   const [copiedNotes, setCopiedNotes] = useState(false);
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
 
-  // Generate checklist based on MEDDPICC gaps
+  // Generate checklist based on critical gaps with High impact
   const checklistItems = useMemo(() => {
-    if (!strategicContext?.meddpicc?.breakdown) return [];
+    if (!strategicContext?.critical_gaps) return [];
     
-    return CHECKLIST_ELEMENTS.filter(element => {
-      const score = strategicContext.meddpicc.breakdown[element.key]?.score ?? 0;
-      return score < 60; // Show items that need attention
-    }).map(element => ({
-      id: element.key,
-      label: element.label,
-      score: strategicContext.meddpicc.breakdown[element.key]?.score ?? 0,
-    }));
+    return strategicContext.critical_gaps
+      .filter(gap => gap.impact === 'High' || gap.impact === 'Medium')
+      .map((gap, index) => ({
+        id: `gap-${index}`,
+        label: gap.description,
+        category: gap.category,
+        impact: gap.impact,
+        suggestedQuestion: gap.suggested_question,
+      }));
   }, [strategicContext]);
 
   // User counts from metadata
@@ -327,7 +316,7 @@ export function SalesAssetsGenerator({
 
       {/* Right Column - Context & Checklist (1/3 width) */}
       <div className="space-y-6">
-        {/* Pre-Send Checklist */}
+        {/* Pre-Send Checklist - Based on Critical Gaps */}
         {checklistItems.length > 0 && (
           <Card className="border-yellow-500/30 bg-yellow-500/5">
             <CardHeader className="pb-3">
@@ -336,7 +325,7 @@ export function SalesAssetsGenerator({
                 Pre-Send Checklist
               </CardTitle>
               <p className="text-xs text-muted-foreground">
-                Verify these gaps before sending
+                Address these gaps before sending
               </p>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -355,23 +344,25 @@ export function SalesAssetsGenerator({
                     <label 
                       htmlFor={item.id}
                       className={cn(
-                        "text-sm cursor-pointer",
+                        "text-sm cursor-pointer block",
                         checkedItems.has(item.id) && "line-through text-muted-foreground"
                       )}
                     >
                       {item.label}
                     </label>
-                    <Badge 
-                      variant="outline" 
-                      className={cn(
-                        "text-xs mt-1",
-                        item.score < 30 
-                          ? "border-destructive/50 text-destructive" 
-                          : "border-yellow-500/50 text-yellow-600"
-                      )}
-                    >
-                      Score: {item.score}%
-                    </Badge>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge 
+                        variant="outline" 
+                        className={cn(
+                          "text-xs",
+                          item.impact === 'High' 
+                            ? "border-destructive/50 text-destructive" 
+                            : "border-yellow-500/50 text-yellow-600"
+                        )}
+                      >
+                        {item.category}
+                      </Badge>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -438,7 +429,7 @@ export function SalesAssetsGenerator({
             {strategicContext && (
               <div className="pt-2">
                 <Badge variant="outline" className="text-xs">
-                  MEDDPICC: {strategicContext.meddpicc.overall_score}%
+                  Threading: {strategicContext.strategic_threading.score}%
                 </Badge>
               </div>
             )}
