@@ -97,13 +97,13 @@ export function CallHistoryTable({
         variant="outline" 
         className={cn(
           "gap-1",
-          heatScore >= 7 && "border-orange-500 text-orange-600 dark:border-orange-400 dark:text-orange-400",
-          heatScore >= 4 && heatScore < 7 && "border-yellow-500 text-yellow-600 dark:border-yellow-400 dark:text-yellow-400",
-          heatScore < 4 && "border-blue-500 text-blue-600 dark:border-blue-400 dark:text-blue-400"
+          heatScore >= 70 && "border-orange-500 text-orange-600 dark:border-orange-400 dark:text-orange-400",
+          heatScore >= 40 && heatScore < 70 && "border-yellow-500 text-yellow-600 dark:border-yellow-400 dark:text-yellow-400",
+          heatScore < 40 && "border-blue-500 text-blue-600 dark:border-blue-400 dark:text-blue-400"
         )}
       >
         <Flame className="h-3 w-3" />
-        {heatScore}/10
+        {heatScore}
       </Badge>
     );
   };

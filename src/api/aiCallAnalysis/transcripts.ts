@@ -265,11 +265,11 @@ export async function listCallTranscriptsForRepWithFilters(
     return { data: [], count: 0 };
   }
 
-  // Fetch heat scores from ai_call_analysis for all transcripts
+  // Fetch heat scores from ai_call_analysis (preferring new deal_heat_analysis over legacy coach_output)
   const callIds = transcripts.map(t => t.id);
   const { data: analyses, error: analysisError } = await supabase
     .from('ai_call_analysis')
-    .select('call_id, coach_output')
+    .select('call_id, deal_heat_analysis, coach_output')
     .in('call_id', callIds);
 
   if (analysisError) {
@@ -280,12 +280,19 @@ export async function listCallTranscriptsForRepWithFilters(
     };
   }
 
-  // Create a map of call_id -> heat_score
+  // Create a map of call_id -> heat_score (prefer new deal_heat_analysis, fallback to legacy)
   const heatMap = new Map<string, number | null>();
   analyses?.forEach(a => {
-    const coachOutput = toCoachOutput(a.coach_output);
-    const heatScore = coachOutput?.heat_signature?.score ?? null;
-    heatMap.set(a.call_id, heatScore);
+    // Prefer new deal_heat_analysis (0-100 scale)
+    const dealHeat = a.deal_heat_analysis as { heat_score?: number } | null;
+    if (dealHeat?.heat_score != null) {
+      heatMap.set(a.call_id, dealHeat.heat_score);
+    } else {
+      // Fallback to legacy coach_output.heat_signature.score (0-10 scale, convert to 0-100)
+      const coachOutput = toCoachOutput(a.coach_output);
+      const legacyScore = coachOutput?.heat_signature?.score ?? null;
+      heatMap.set(a.call_id, legacyScore != null ? legacyScore * 10 : null);
+    }
   });
 
   // Merge heat scores into transcripts
@@ -294,17 +301,17 @@ export async function listCallTranscriptsForRepWithFilters(
     heat_score: heatMap.get(t.id) ?? null,
   }));
 
-  // Apply heat range filter if specified
+  // Apply heat range filter if specified (using 0-100 scale)
   if (filters.heatRange) {
     transcriptsWithHeat = transcriptsWithHeat.filter(t => {
       const score = t.heat_score;
       switch (filters.heatRange) {
         case 'hot':
-          return score !== null && score >= 7;
+          return score !== null && score >= 70;
         case 'warm':
-          return score !== null && score >= 4 && score < 7;
+          return score !== null && score >= 40 && score < 70;
         case 'cold':
-          return score === null || score < 4;
+          return score === null || score < 40;
         default:
           return true;
       }
