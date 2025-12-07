@@ -7,7 +7,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { UUID_REGEX } from './lib/constants.ts';
 import { checkRateLimit, getCorsHeaders } from './lib/cors.ts';
 import { generateRealAnalysis } from './lib/ai-gateway.ts';
-import { updateProspectWithIntel, processStakeholdersBatched, triggerBackgroundTasks } from './lib/database-ops.ts';
+import { updateProspectWithIntel, processStakeholdersBatched, triggerBackgroundTasks, recoverStaleBackgroundJobs } from './lib/database-ops.ts';
 import { Logger } from './lib/logger.ts';
 import type { TranscriptRow, ProspectData } from './lib/types.ts';
 
@@ -81,14 +81,23 @@ serve(async (req) => {
   }
   logger.endPhase();
 
-  // Auto-recover stuck transcripts (once per invocation, non-blocking)
+  // Auto-recover stuck transcripts and stale background jobs (once per invocation, non-blocking)
   (async () => {
     try {
       const { data } = await supabaseAdmin.rpc('recover_stuck_processing_transcripts');
       if (data && data.length > 0) {
         logger.info('Recovered stuck transcripts', { count: data.length });
       }
-    } catch { /* Silent failure for cleanup */ }
+    } catch (recoveryErr) {
+      logger.warn('Failed to run stuck transcript recovery', { error: String(recoveryErr) });
+    }
+    
+    // Also recover stale background jobs
+    try {
+      await recoverStaleBackgroundJobs(supabaseAdmin, logger);
+    } catch (jobRecoveryErr) {
+      logger.warn('Failed to recover stale background jobs', { error: String(jobRecoveryErr) });
+    }
   })();
 
   let callId: string | null = null;

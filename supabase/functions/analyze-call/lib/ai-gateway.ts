@@ -1,7 +1,7 @@
 // AI Gateway integration for call analysis
 
 import type { TranscriptRow, AnalysisResult, CoachOutput, ProspectIntel, StakeholderIntel } from './types.ts';
-import { isValidProspectIntel, isValidCoachOutput } from './types.ts';
+import { isValidProspectIntel, isValidCoachOutput, isValidStakeholderIntel } from './types.ts';
 import { ANALYSIS_SYSTEM_PROMPT, ANALYSIS_TOOL_SCHEMA, AI_GATEWAY_TIMEOUT_MS, REQUIRED_RECAP_LINKS } from './constants.ts';
 import { calculateMaxTokens, validateCallNotes, validateRecapEmailLinks } from './validation.ts';
 import type { Logger } from './logger.ts';
@@ -206,8 +206,30 @@ View sample courses here:
     }
   }
   
-  // Extract stakeholders_intel (optional)
-  const stakeholdersIntel = analysisData.stakeholders_intel as StakeholderIntel[] | undefined;
+  // Extract and validate stakeholders_intel (optional) - filter out invalid entries
+  let stakeholdersIntel: StakeholderIntel[] | undefined = undefined;
+  if (Array.isArray(analysisData.stakeholders_intel)) {
+    const rawStakeholders = analysisData.stakeholders_intel as unknown[];
+    const validStakeholders: StakeholderIntel[] = [];
+    let invalidCount = 0;
+    
+    for (const stakeholder of rawStakeholders) {
+      if (isValidStakeholderIntel(stakeholder)) {
+        validStakeholders.push(stakeholder);
+      } else {
+        invalidCount++;
+      }
+    }
+    
+    if (invalidCount > 0) {
+      logger.warn('Filtered out invalid stakeholders', { 
+        invalidCount, 
+        validCount: validStakeholders.length 
+      });
+    }
+    
+    stakeholdersIntel = validStakeholders.length > 0 ? validStakeholders : undefined;
+  }
 
   // Build the result object with analysis metadata for debugging
   const result: AnalysisResult = {
@@ -273,7 +295,9 @@ View sample courses here:
           retry_count: retryCount
         }
       })
-    }).catch(() => {}); // Silent failure for metrics
+    }).catch((err) => {
+      console.error('[analyze-call] Failed to insert AI metrics:', err instanceof Error ? err.message : String(err));
+    });
   }
 
   return result;
