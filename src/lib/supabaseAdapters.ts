@@ -100,10 +100,12 @@ export function isCallMetadata(value: unknown): value is CallMetadata {
 
 /**
  * Type guard for StrategyAudit (Analysis 2.0)
+ * Supports both legacy MEDDPICC and new critical_gaps format
  */
 export function isStrategyAudit(value: unknown): value is StrategyAudit {
   if (!isObject(value)) return false;
-  return 'strategic_threading' in value && 'meddpicc' in value;
+  // Must have strategic_threading, and either meddpicc (legacy) or critical_gaps (v2)
+  return 'strategic_threading' in value && ('meddpicc' in value || 'critical_gaps' in value);
 }
 
 /**
