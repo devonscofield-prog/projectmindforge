@@ -17,7 +17,8 @@ import type { ProductEntry } from '@/api/aiCallAnalysis';
 import { updateProspect } from '@/api/prospects';
 import { CallType, callTypeOptions } from '@/constants/callTypes';
 import { format } from 'date-fns';
-import { Send, Loader2, FileText, Pencil, BarChart3 } from 'lucide-react';
+import { Send, Loader2, FileText, Pencil, BarChart3, Users } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AccountCombobox } from '@/components/forms/AccountCombobox';
 import { StakeholderCombobox } from '@/components/forms/StakeholderCombobox';
@@ -53,6 +54,7 @@ function RepDashboard() {
   const [callType, setCallType] = useState<CallType>('first_demo');
   const [callTypeOther, setCallTypeOther] = useState('');
   const [selectedProducts, setSelectedProducts] = useState<ProductEntry[]>([]);
+  const [managerOnCall, setManagerOnCall] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Auto-focus "Specify Call Type" input when "Other" is selected
@@ -207,6 +209,7 @@ function RepDashboard() {
           quantity: p.quantity,
           promotionNotes: p.promotionNotes,
         })) : undefined,
+        managerOnCall,
       });
 
       // Check for rate limit error in analyze response
@@ -362,7 +365,7 @@ function RepDashboard() {
                         required 
                       />
                     </div>
-                    <div className="space-y-2">
+                      <div className="space-y-2">
                       <Label htmlFor="callType">Call Type *</Label>
                       <Select value={callType} onValueChange={v => setCallType(v as CallType)} disabled={isSubmitting}>
                         <SelectTrigger id="callType">
@@ -375,6 +378,20 @@ function RepDashboard() {
                         </SelectContent>
                       </Select>
                     </div>
+                  </div>
+
+                  {/* Manager on Call Checkbox */}
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="managerOnCall" 
+                      checked={managerOnCall} 
+                      onCheckedChange={(checked) => setManagerOnCall(checked === true)}
+                      disabled={isSubmitting}
+                    />
+                    <Label htmlFor="managerOnCall" className="text-sm font-normal flex items-center gap-1.5 cursor-pointer">
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                      Manager was on this call
+                    </Label>
                   </div>
 
                   {/* Other Call Type Input (conditional) */}

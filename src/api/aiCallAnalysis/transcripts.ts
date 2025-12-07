@@ -34,7 +34,28 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
     potentialRevenue,
     rawText,
     prospectId: existingProspectId,
+    managerOnCall,
   } = params;
+
+  // If manager was on the call, look up the rep's team manager
+  let managerId: string | null = null;
+  if (managerOnCall) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('team_id')
+      .eq('id', repId)
+      .maybeSingle();
+    
+    if (profile?.team_id) {
+      const { data: team } = await supabase
+        .from('teams')
+        .select('manager_id')
+        .eq('id', profile.team_id)
+        .maybeSingle();
+      
+      managerId = team?.manager_id || null;
+    }
+  }
 
   // Insert new call transcript
   const { data: transcript, error: insertError } = await supabase
@@ -52,6 +73,7 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
       potential_revenue: potentialRevenue ?? null,
       call_type: callType,
       call_type_other: callType === 'other' ? callTypeOther : null,
+      manager_id: managerId,
     })
     .select()
     .single();
