@@ -2,9 +2,9 @@
  * analyze-call Edge Function - Analysis 2.0 Pipeline
  * 
  * Multi-agent analysis system:
- * - Agent 1: The Clerk (metadata extraction)
- * - Agent 2: The Referee (behavioral scoring)
- * - Agent 3: The Auditor (strategy audit) - TODO: Next step
+ * - Agent 1: The Clerk (metadata extraction) - gemini-2.5-flash
+ * - Agent 2: The Referee (behavioral scoring) - gemini-2.5-flash
+ * - Agent 3: The Auditor (strategy audit) - gemini-2.5-pro
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -12,7 +12,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 import { UUID_REGEX } from './lib/constants.ts';
 import { getCorsHeaders } from './lib/cors.ts';
-import { analyzeCallMetadata, analyzeCallBehavior } from '../_shared/analysis-agents.ts';
+import { 
+  analyzeCallMetadata, 
+  analyzeCallBehavior, 
+  analyzeCallStrategy 
+} from '../_shared/analysis-agents.ts';
 
 serve(async (req) => {
   const origin = req.headers.get('Origin');
@@ -103,16 +107,18 @@ serve(async (req) => {
 
     const startTime = Date.now();
 
-    // Run Agent 1 (Clerk) and Agent 2 (Referee) in PARALLEL
-    console.log('[analyze-call] Running Clerk and Referee agents in parallel...');
+    // Run ALL THREE agents in PARALLEL
+    console.log('[analyze-call] Running Clerk, Referee, and Auditor agents in parallel...');
     
-    const [metadataResult, behaviorResult] = await Promise.all([
+    const [metadataResult, behaviorResult, strategyResult] = await Promise.all([
       analyzeCallMetadata(transcript.raw_text),
       analyzeCallBehavior(transcript.raw_text),
+      analyzeCallStrategy(transcript.raw_text),
     ]);
 
     const analysisTime = Date.now() - startTime;
-    console.log(`[analyze-call] Agents completed in ${analysisTime}ms`);
+    console.log(`[analyze-call] All agents completed in ${analysisTime}ms`);
+    console.log(`[analyze-call] Scores - Behavior: ${behaviorResult.overall_score}, Threading: ${strategyResult.strategic_threading.score}, MEDDPICC: ${strategyResult.meddpicc.overall_score}`);
 
     // Check if an analysis record already exists for this call
     const { data: existingAnalysis } = await supabaseAdmin
@@ -128,6 +134,7 @@ serve(async (req) => {
         .update({
           analysis_metadata: metadataResult,
           analysis_behavior: behaviorResult,
+          analysis_strategy: strategyResult,
           analysis_pipeline_version: 'v2',
           // Keep legacy call_summary populated for backward compatibility
           call_summary: metadataResult.summary,
@@ -145,10 +152,11 @@ serve(async (req) => {
         .insert({
           call_id: call_id,
           rep_id: transcript.rep_id,
-          model_name: 'google/gemini-2.5-flash',
+          model_name: 'google/gemini-2.5-flash,google/gemini-2.5-pro',
           call_summary: metadataResult.summary,
           analysis_metadata: metadataResult,
           analysis_behavior: behaviorResult,
+          analysis_strategy: strategyResult,
           analysis_pipeline_version: 'v2',
         });
 
@@ -176,6 +184,7 @@ serve(async (req) => {
         analysis_version: 'v2',
         metadata: metadataResult,
         behavior: behaviorResult,
+        strategy: strategyResult,
         processing_time_ms: analysisTime,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
