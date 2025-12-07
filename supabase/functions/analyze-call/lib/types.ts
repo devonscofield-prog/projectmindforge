@@ -97,7 +97,17 @@ export function isValidProspectIntel(value: unknown): value is ProspectIntel {
 }
 
 /**
+ * Validate a single MEDDPICC element has score and justification
+ */
+function isValidMEDDPICCElement(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false;
+  const elem = value as Record<string, unknown>;
+  return typeof elem.score === 'number' && typeof elem.justification === 'string';
+}
+
+/**
  * Type guard to validate CoachOutput structure at runtime
+ * Enhanced to validate all 8 MEDDPICC elements and score ranges
  */
 export function isValidCoachOutput(value: unknown): value is CoachOutput {
   if (!value || typeof value !== 'object') return false;
@@ -109,6 +119,17 @@ export function isValidCoachOutput(value: unknown): value is CoachOutput {
   if (!scores.meddpicc || typeof scores.meddpicc !== 'object') return false;
   if (!scores.gap_selling || typeof scores.gap_selling !== 'object') return false;
   if (!scores.active_listening || typeof scores.active_listening !== 'object') return false;
+  
+  // Validate all 8 MEDDPICC elements exist with score and justification
+  const meddpicc = scores.meddpicc as Record<string, unknown>;
+  const requiredElements = ['metrics', 'economic_buyer', 'decision_criteria', 'decision_process', 
+                           'paper_process', 'identify_pain', 'champion', 'competition'];
+  for (const elem of requiredElements) {
+    if (!isValidMEDDPICCElement(meddpicc[elem])) return false;
+  }
+  
+  // Validate overall_score is a number between 0-100
+  if (typeof meddpicc.overall_score !== 'number' || meddpicc.overall_score < 0 || meddpicc.overall_score > 100) return false;
   
   // Validate heat_signature exists with score
   if (!coach.heat_signature || typeof coach.heat_signature !== 'object') return false;
@@ -122,6 +143,33 @@ export function isValidCoachOutput(value: unknown): value is CoachOutput {
   if (!Array.isArray(coach.active_listening_improvements)) return false;
   if (!Array.isArray(coach.critical_info_missing)) return false;
   if (!Array.isArray(coach.recommended_follow_up_questions)) return false;
+  
+  return true;
+
+}
+
+const VALID_INFLUENCE_LEVELS = ['light_influencer', 'heavy_influencer', 'secondary_dm', 'final_dm'];
+
+/**
+ * Type guard to validate StakeholderIntel structure at runtime
+ */
+export function isValidStakeholderIntel(value: unknown): value is StakeholderIntel {
+  if (!value || typeof value !== 'object') return false;
+  const stakeholder = value as Record<string, unknown>;
+  
+  // name is required and must be non-empty string
+  if (typeof stakeholder.name !== 'string' || stakeholder.name.trim().length === 0) return false;
+  
+  // influence_level must be valid enum if present
+  if (stakeholder.influence_level !== undefined && 
+      !VALID_INFLUENCE_LEVELS.includes(stakeholder.influence_level as string)) return false;
+  
+  // Validate optional fields have correct types if present
+  if (stakeholder.job_title !== undefined && typeof stakeholder.job_title !== 'string') return false;
+  if (stakeholder.champion_score !== undefined && typeof stakeholder.champion_score !== 'number') return false;
+  if (stakeholder.champion_score_reasoning !== undefined && typeof stakeholder.champion_score_reasoning !== 'string') return false;
+  if (stakeholder.was_present !== undefined && typeof stakeholder.was_present !== 'boolean') return false;
+  if (stakeholder.ai_notes !== undefined && typeof stakeholder.ai_notes !== 'string') return false;
   
   return true;
 }

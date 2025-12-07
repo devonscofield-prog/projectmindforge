@@ -152,7 +152,7 @@ export async function processStakeholdersBatched(
     }
   }
   
-  // Execute batch updates using Promise.all for parallelization (better than sequential)
+  // Execute batch updates using Promise.allSettled for parallelization with detailed error logging
   if (stakeholderUpdates.length > 0) {
     const updatePromises = stakeholderUpdates.map(update =>
       supabaseAdmin
@@ -162,7 +162,16 @@ export async function processStakeholdersBatched(
     );
     
     const results = await Promise.allSettled(updatePromises);
-    const failedCount = results.filter(r => r.status === 'rejected').length;
+    let failedCount = 0;
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        failedCount++;
+        logger?.error('Stakeholder update failed', { 
+          stakeholderId: stakeholderUpdates[index].id,
+          error: result.reason instanceof Error ? result.reason.message : String(result.reason)
+        });
+      }
+    });
     if (failedCount > 0) {
       logger?.warn('Some stakeholder updates failed', { failed: failedCount, total: stakeholderUpdates.length });
     }
@@ -320,6 +329,11 @@ export async function triggerBackgroundTasks(
       logger
     );
     
+    // Set job to processing BEFORE starting async work
+    if (jobId) {
+      await updateBackgroundJobStatus(supabaseAdmin, jobId, 'processing', undefined, undefined, logger);
+    }
+    
     logger?.info('Triggering follow-up generation', { prospectId, jobId });
     waitUntil(
       fetch(`${supabaseUrl}/functions/v1/generate-account-follow-ups`, {
@@ -359,6 +373,11 @@ export async function triggerBackgroundTasks(
     logger
   );
   
+  // Set job to processing BEFORE starting async work
+  if (chunkJobId) {
+    await updateBackgroundJobStatus(supabaseAdmin, chunkJobId, 'processing', undefined, undefined, logger);
+  }
+  
   logger?.info('Triggering transcript chunking', { callId, jobId: chunkJobId });
   waitUntil(
     fetch(`${supabaseUrl}/functions/v1/chunk-transcripts`, {
@@ -387,4 +406,36 @@ export async function triggerBackgroundTasks(
       }
     })
   );
+}
+
+/**
+ * Mark stale background jobs as failed (stuck for >30 minutes)
+ */
+export async function recoverStaleBackgroundJobs(
+  supabaseAdmin: SupabaseClient,
+  logger?: Logger
+): Promise<number> {
+  const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  
+  const { data, error } = await supabaseAdmin
+    .from('background_jobs')
+    .update({ 
+      status: 'failed', 
+      error: 'Timed out after 30 minutes',
+      completed_at: new Date().toISOString()
+    })
+    .in('status', ['pending', 'processing'])
+    .lt('created_at', thirtyMinutesAgo)
+    .select('id');
+  
+  if (error) {
+    logger?.error('Failed to recover stale jobs', { error: error.message });
+    return 0;
+  }
+  
+  const count = data?.length || 0;
+  if (count > 0) {
+    logger?.info('Recovered stale background jobs', { count });
+  }
+  return count;
 }
