@@ -81,6 +81,16 @@ serve(async (req) => {
   }
   logger.endPhase();
 
+  // Auto-recover stuck transcripts (once per invocation, non-blocking)
+  (async () => {
+    try {
+      const { data } = await supabaseAdmin.rpc('recover_stuck_processing_transcripts');
+      if (data && data.length > 0) {
+        logger.info('Recovered stuck transcripts', { count: data.length });
+      }
+    } catch { /* Silent failure for cleanup */ }
+  })();
+
   let callId: string | null = null;
 
   try {
@@ -217,23 +227,39 @@ serve(async (req) => {
     });
     logger.endPhase();
 
-    // Step 4: Insert into ai_call_analysis
+    // Step 4: Insert into ai_call_analysis (with retry)
     logger.startPhase('save_analysis');
     const { stakeholders_intel, ...analysisForDb } = analysis;
     
-    const { data: analysisResult, error: insertError } = await supabaseAdmin
-      .from('ai_call_analysis')
-      .insert(analysisForDb)
-      .select('id')
-      .single();
-
-    if (insertError) {
-      logger.error('Error inserting analysis', { error: insertError.message });
+    const insertAnalysisWithRetry = async (retries = 1): Promise<{ id: string }> => {
+      const { data, error } = await supabaseAdmin
+        .from('ai_call_analysis')
+        .insert(analysisForDb)
+        .select('id')
+        .single();
+      
+      if (error && retries > 0) {
+        logger.warn('Retrying analysis insert', { error: error.message, retriesLeft: retries });
+        await new Promise(resolve => setTimeout(resolve, 500));
+        return insertAnalysisWithRetry(retries - 1);
+      }
+      if (error) {
+        throw error;
+      }
+      return data;
+    };
+    
+    let analysisResult: { id: string };
+    try {
+      analysisResult = await insertAnalysisWithRetry();
+    } catch (insertError) {
+      const errorMessage = insertError instanceof Error ? insertError.message : String(insertError);
+      logger.error('Error inserting analysis', { error: errorMessage });
       await supabaseAdmin
         .from('call_transcripts')
         .update({
           analysis_status: 'error',
-          analysis_error: `Analysis failed: ${insertError.message}`
+          analysis_error: `Analysis failed: ${errorMessage}`
         })
         .eq('id', callId);
 
@@ -304,7 +330,8 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    logger.error('Unexpected error', { error: error instanceof Error ? error.message : String(error) });
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('Unexpected error', { error: errorMessage });
     
     if (callId) {
       try {
@@ -312,7 +339,7 @@ serve(async (req) => {
           .from('call_transcripts')
           .update({ 
             analysis_status: 'error',
-            analysis_error: error instanceof Error ? error.message : 'Unexpected error during analysis'
+            analysis_error: errorMessage
           })
           .eq('id', callId);
       } catch (updateError) {
@@ -322,8 +349,13 @@ serve(async (req) => {
 
     logger.logSummary(false);
 
+    // Sanitize error message for client - don't expose internal details
+    const clientError = errorMessage.includes('Rate limit') || errorMessage.includes('timed out') || errorMessage.includes('Payment required')
+      ? errorMessage
+      : 'Analysis failed. Please try again.';
+
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unexpected error' }),
+      JSON.stringify({ error: clientError }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

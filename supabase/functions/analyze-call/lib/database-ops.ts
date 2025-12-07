@@ -335,6 +335,10 @@ export async function triggerBackgroundTasks(
           const errText = await res.text().catch(() => 'Unknown error');
           throw new Error(`HTTP ${res.status}: ${errText}`);
         }
+        // Mark job as completed on success
+        if (jobId) {
+          await updateBackgroundJobStatus(supabaseAdmin, jobId, 'completed', undefined, undefined, logger);
+        }
       })
       .catch(async (err) => {
         logger?.error('Failed to trigger follow-up generation', { error: String(err) });
@@ -369,6 +373,10 @@ export async function triggerBackgroundTasks(
       if (!res.ok) {
         const errText = await res.text().catch(() => 'Unknown error');
         throw new Error(`HTTP ${res.status}: ${errText}`);
+      }
+      // Mark job as completed on success
+      if (chunkJobId) {
+        await updateBackgroundJobStatus(supabaseAdmin, chunkJobId, 'completed', undefined, undefined, logger);
       }
     })
     .catch(async (err) => {
