@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
-import { Plus, AlertCircle, Loader2, Phone, Calendar, Sparkles, ExternalLink, ChevronDown, Brain, Search, RefreshCw } from 'lucide-react';
+import { Plus, AlertCircle, Loader2, Phone, Calendar, Sparkles, ExternalLink, ChevronDown, Brain, Search, RefreshCw, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { format, subDays, isAfter } from 'date-fns';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
@@ -31,6 +31,7 @@ import { AICoachingSnapshot } from '@/components/AICoachingSnapshot';
 import { CallType, callTypeLabels } from '@/constants/callTypes';
 
 type TimeframeFilter = '7d' | '30d' | '90d' | 'all';
+type ManagerFilter = 'all' | 'with_me' | 'without_me';
 
 // Helper functions for display
 const getCallDisplayName = (t: CallTranscript) => {
@@ -78,6 +79,7 @@ export default function RepDetail() {
 
   // Call History state
   const [timeframe, setTimeframe] = useState<TimeframeFilter>('30d');
+  const [managerFilter, setManagerFilter] = useState<ManagerFilter>('all');
   const [callSearch, setCallSearch] = useState('');
 
   // AI Coaching Snapshot collapsed state (collapsed by default)
@@ -97,7 +99,7 @@ export default function RepDetail() {
   // Combined loading state for critical data
   const loading = isLoadingProfile;
 
-  // Filter transcripts by timeframe and search
+  // Filter transcripts by timeframe, search, and manager presence
   const filteredTranscripts = useMemo(() => {
     let results = transcripts;
     
@@ -113,6 +115,13 @@ export default function RepDetail() {
       results = results.filter(t => isAfter(new Date(t.call_date), cutoffDate));
     }
     
+    // Manager filter - filter by whether the manager (current user) was on the call
+    if (managerFilter === 'with_me' && user) {
+      results = results.filter(t => t.manager_id === user.id);
+    } else if (managerFilter === 'without_me' && user) {
+      results = results.filter(t => !t.manager_id || t.manager_id !== user.id);
+    }
+    
     // Search filter (account name or stakeholder name)
     if (callSearch.trim()) {
       const searchLower = callSearch.toLowerCase();
@@ -123,7 +132,7 @@ export default function RepDetail() {
     }
     
     return results;
-  }, [transcripts, timeframe, callSearch]);
+  }, [transcripts, timeframe, managerFilter, callSearch, user]);
 
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -443,14 +452,44 @@ export default function RepDetail() {
                       </Button>
                     </div>
                   </div>
-                  <div className="relative max-w-sm">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search by account or stakeholder..."
-                      value={callSearch}
-                      onChange={(e) => setCallSearch(e.target.value)}
-                      className="pl-9"
-                    />
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <div className="relative max-w-sm flex-1">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search by account or stakeholder..."
+                        value={callSearch}
+                        onChange={(e) => setCallSearch(e.target.value)}
+                        className="pl-9"
+                      />
+                    </div>
+                    {/* Manager presence filter */}
+                    <div className="inline-flex rounded-lg border bg-muted p-1">
+                      <Button
+                        variant={managerFilter === 'all' ? 'secondary' : 'ghost'}
+                        size="sm"
+                        onClick={() => setManagerFilter('all')}
+                        className="px-3 text-xs"
+                      >
+                        All Calls
+                      </Button>
+                      <Button
+                        variant={managerFilter === 'with_me' ? 'secondary' : 'ghost'}
+                        size="sm"
+                        onClick={() => setManagerFilter('with_me')}
+                        className="px-3 text-xs"
+                      >
+                        <Users className="h-3 w-3 mr-1" />
+                        I was on
+                      </Button>
+                      <Button
+                        variant={managerFilter === 'without_me' ? 'secondary' : 'ghost'}
+                        size="sm"
+                        onClick={() => setManagerFilter('without_me')}
+                        className="px-3 text-xs"
+                      >
+                        I wasn't on
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </CardHeader>
@@ -481,6 +520,18 @@ export default function RepDetail() {
                             <div className="flex items-center gap-2">
                               <Calendar className="h-4 w-4 text-muted-foreground" />
                               {format(new Date(transcript.call_date), 'MMM d, yyyy')}
+                              {transcript.manager_id && (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Users className="h-4 w-4 text-primary" />
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      {transcript.manager_id === user?.id ? 'You were on this call' : 'Manager was on this call'}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell className="max-w-[200px] truncate">

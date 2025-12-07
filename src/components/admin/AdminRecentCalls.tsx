@@ -159,18 +159,30 @@ export function AdminRecentCalls() {
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium truncate">
-                        {call.account_name || 'Unknown Account'}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
-                        <User className="h-3 w-3 shrink-0" />
-                        <span className="truncate">{call.rep_name}</span>
-                      </div>
-                      <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                        <Clock className="h-3 w-3 shrink-0" />
-                        <span>{format(new Date(call.call_date), 'MMM d, yyyy')}</span>
-                        <span>•</span>
-                        <span>{callTypeLabels[call.call_type || ''] || call.call_type || 'Unknown'}</span>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-medium truncate">
+                            {call.account_name || 'Unknown Account'}
+                          </p>
+                          {call.manager_id && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Users className="h-3 w-3 text-primary shrink-0" />
+                                </TooltipTrigger>
+                                <TooltipContent>Manager was on this call</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
+                          <User className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{call.rep_name}</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                          <Clock className="h-3 w-3 shrink-0" />
+                          <span>{format(new Date(call.call_date), 'MMM d, yyyy')}</span>
+                          <span>•</span>
+                          <span>{callTypeLabels[call.call_type || ''] || call.call_type || 'Unknown'}</span>
                       </div>
                     </div>
                     <Badge variant={status.variant} className="shrink-0">
