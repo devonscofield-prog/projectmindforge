@@ -78,7 +78,21 @@ const BEHAVIOR_SCORE_TOOL = {
               properties: {
                 score: { type: "number", minimum: 0, maximum: 30, description: "Score 0-30" },
                 interruption_count: { type: "number", description: "Number of interruptions detected" },
-                status: { type: "string", enum: ["Excellent", "Good", "Fair", "Poor"] }
+                status: { type: "string", enum: ["Excellent", "Good", "Fair", "Poor"] },
+                interruptions: {
+                  type: "array",
+                  description: "List of interruption instances detected",
+                  items: {
+                    type: "object",
+                    properties: {
+                      interrupted_speaker: { type: "string", description: "Who was cut off" },
+                      interrupter: { type: "string", description: "Who interrupted" },
+                      context: { type: "string", description: "Brief description of what was being said" },
+                      severity: { type: "string", enum: ["Minor", "Moderate", "Severe"], description: "Minor = brief overlap, Moderate = cut off mid-thought, Severe = repeated pattern" }
+                    },
+                    required: ["interrupted_speaker", "interrupter", "context", "severity"]
+                  }
+                }
               },
               required: ["score", "interruption_count", "status"]
             },
@@ -213,7 +227,13 @@ Rules:
 const REFEREE_SYSTEM_PROMPT = `You are 'The Referee', a behavioral data analyst. Analyze the transcript for conversational dynamics.
 
 Rules:
-- **Patience (0-30 pts):** Flag interruptions where a speaker starts before another finishes. Deduct points for each interruption.
+- **Patience (0-30 pts):** Flag interruptions where a speaker starts before another finishes.
+  - Deduct 5 points per Minor interruption, 10 per Moderate, 15 per Severe
+  - IMPORTANT: Extract each interruption into the 'interruptions' array with:
+    - interrupted_speaker: who was cut off
+    - interrupter: who interrupted  
+    - context: brief description of what was happening when interruption occurred
+    - severity: Minor (brief overlap), Moderate (cut off mid-thought), Severe (aggressive/repeated pattern)
 - **Monologue (0-20 pts):** Flag any single turn exceeding ~250 words. Deduct points for each violation.
 - **Question Quality (0-20 pts):** Use this EXPLICIT formula:
   1. Tag every question as Open (Who/What/Where/When/Why/How) or Closed (Do/Is/Can/Will/Are/Did/Would/Could/Should/Has/Have)
