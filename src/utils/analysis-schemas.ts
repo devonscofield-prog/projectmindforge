@@ -42,11 +42,12 @@ export const BehaviorScoreSchema = z.object({
     }),
     question_quality: z.object({
       score: z.number().min(0).max(20),
-      open_ended_count: z.number(),
-      closed_count: z.number(),
-      explanation: z.string().describe("Brief note on question types used."),
-      open_ended_questions: z.array(z.string()).optional().describe("List of open-ended questions the rep asked"),
-      closed_questions: z.array(z.string()).optional().describe("List of closed questions the rep asked"),
+      explanation: z.string().describe("Brief note on question leverage effectiveness."),
+      // Question Leverage Metrics
+      average_question_length: z.number().describe("Average word count of Rep's questions"),
+      average_answer_length: z.number().describe("Average word count of Prospect's immediate answers"),
+      high_leverage_count: z.number().describe("Count of questions that triggered long answers"),
+      low_leverage_count: z.number().describe("Count of questions that triggered 1-word answers"),
     }),
     monologue: z.object({
       score: z.number().min(0).max(20),
