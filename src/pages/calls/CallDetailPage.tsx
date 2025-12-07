@@ -19,6 +19,7 @@ import { EditCallDetailsDialog } from '@/components/calls/EditCallDetailsDialog'
 import { BehaviorScorecard } from '@/components/analysis/BehaviorScorecard';
 import { StrategicRelevanceMap } from '@/components/analysis/StrategicRelevanceMap';
 import { SalesAssetsGenerator } from '@/components/calls/SalesAssetsGenerator';
+import { CallAnalysisLayout } from '@/components/calls/CallAnalysisLayout';
 import { CallType, callTypeLabels } from '@/constants/callTypes';
 import { format } from 'date-fns';
 import { getDashboardUrl, getCallHistoryUrl } from '@/lib/routes';
@@ -315,26 +316,25 @@ function CallDetailPage() {
         {/* Products Summary */}
         <CallProductsSummary callId={id!} prospectId={transcript.prospect_id} isOwner={isOwner} />
 
-        {/* Analysis 2.0 Components */}
-        {analysis?.analysis_behavior && (
-          <BehaviorScorecard data={analysis.analysis_behavior} />
-        )}
-        
-        {analysis?.analysis_strategy && (
-          <StrategicRelevanceMap data={analysis.analysis_strategy} />
-        )}
-
-        {/* Sales Assets Generator - Follow-up Email & Notes */}
-        {transcript.analysis_status === 'completed' && (
-          <SalesAssetsGenerator
-            transcript={transcript.raw_text}
-            strategicContext={analysis?.analysis_strategy || null}
-            accountName={transcript.account_name}
-            stakeholderName={transcript.primary_stakeholder_name}
+        {/* Coaching Cockpit - Analysis 2.0 Layout */}
+        {transcript.analysis_status === 'completed' && analysis && (
+          <CallAnalysisLayout
+            transcript={transcript}
+            analysis={analysis}
+            behaviorContent={<BehaviorScorecard data={analysis.analysis_behavior} />}
+            strategyContent={<StrategicRelevanceMap data={analysis.analysis_strategy} />}
+            recapContent={
+              <SalesAssetsGenerator
+                transcript={transcript.raw_text}
+                strategicContext={analysis.analysis_strategy || null}
+                accountName={transcript.account_name}
+                stakeholderName={transcript.primary_stakeholder_name}
+              />
+            }
           />
         )}
 
-        {/* Analysis Results - Uses shared component with ownership info */}
+        {/* Legacy Analysis Results - for error/pending states */}
         <CallAnalysisResultsView 
           call={transcript} 
           analysis={analysis} 
