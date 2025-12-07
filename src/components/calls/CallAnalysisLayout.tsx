@@ -20,10 +20,13 @@ import {
   BehaviorScoreSchema, 
   StrategyAuditSchema, 
   CallMetadataSchema,
+  DealHeatSchema,
   type BehaviorScore, 
   type StrategyAudit, 
-  type CallMetadata 
+  type CallMetadata,
+  type DealHeat
 } from '@/utils/analysis-schemas';
+import { DealHeatCard } from './DealHeatCard';
 
 interface CallAnalysisLayoutProps {
   transcript: CallTranscript;
@@ -135,9 +138,9 @@ export function CallAnalysisLayout({
   onEditUserCounts,
 }: CallAnalysisLayoutProps) {
   // Defensive JSON parsing with Zod validation
-  const { behaviorData, strategyData, metadataData, parseError } = useMemo(() => {
+  const { behaviorData, strategyData, metadataData, dealHeatData, parseError } = useMemo(() => {
     if (!analysis) {
-      return { behaviorData: null, strategyData: null, metadataData: null, parseError: null };
+      return { behaviorData: null, strategyData: null, metadataData: null, dealHeatData: null, parseError: null };
     }
 
     try {
@@ -153,6 +156,10 @@ export function CallAnalysisLayout({
         ? CallMetadataSchema.safeParse(analysis.analysis_metadata)
         : { success: false, data: null };
 
+      const dealHeatResult = analysis.deal_heat_analysis 
+        ? DealHeatSchema.safeParse(analysis.deal_heat_analysis)
+        : { success: false, data: null };
+
       // Log validation errors for debugging but don't crash
       if (!behaviorResult.success && analysis.analysis_behavior) {
         console.warn('BehaviorScore validation failed:', 'error' in behaviorResult ? behaviorResult.error : 'unknown');
@@ -164,6 +171,7 @@ export function CallAnalysisLayout({
       const behavior = behaviorResult.success ? behaviorResult.data : null;
       const strategy = strategyResult.success ? strategyResult.data : null;
       const metadata = metadataResult.success ? metadataResult.data : null;
+      const dealHeat = dealHeatResult.success ? dealHeatResult.data : null;
 
       // If both critical schemas failed but data exists, that's a parse error
       const hasCriticalError = analysis.analysis_behavior && analysis.analysis_strategy 
@@ -173,6 +181,7 @@ export function CallAnalysisLayout({
         behaviorData: behavior as BehaviorScore | null, 
         strategyData: strategy as StrategyAudit | null, 
         metadataData: metadata as CallMetadata | null,
+        dealHeatData: dealHeat as DealHeat | null,
         parseError: hasCriticalError ? 'Analysis data could not be parsed' : null
       };
     } catch (err) {
@@ -181,6 +190,7 @@ export function CallAnalysisLayout({
         behaviorData: null, 
         strategyData: null, 
         metadataData: null, 
+        dealHeatData: null,
         parseError: 'Unexpected error parsing analysis data' 
       };
     }
@@ -342,7 +352,15 @@ export function CallAnalysisLayout({
           {behaviorContent}
         </TabsContent>
         
-        <TabsContent value="strategy" className="mt-6">
+        <TabsContent value="strategy" className="mt-6 space-y-6">
+          <DealHeatCard
+            transcript={transcript.raw_text}
+            strategyData={strategyData}
+            behaviorData={behaviorData}
+            metadataData={metadataData}
+            existingHeatData={dealHeatData}
+            callId={transcript.id}
+          />
           {strategyContent}
         </TabsContent>
         

@@ -29,6 +29,7 @@ import type {
   BehaviorScore,
   CallMetadata,
   StrategyAudit,
+  DealHeat,
 } from '@/api/aiCallAnalysis/types';
 import type { UserActivityLog, UserActivityType } from '@/api/userActivityLogs';
 import { parseJsonField, isObject, isString, isStringArray, isNumber } from './typeUtils';
@@ -106,6 +107,14 @@ export function isStrategyAudit(value: unknown): value is StrategyAudit {
   if (!isObject(value)) return false;
   // Must have strategic_threading, and either meddpicc (legacy) or critical_gaps (v2)
   return 'strategic_threading' in value && ('meddpicc' in value || 'critical_gaps' in value);
+}
+
+/**
+ * Type guard for DealHeat (Analysis 2.0)
+ */
+export function isDealHeat(value: unknown): value is DealHeat {
+  if (!isObject(value)) return false;
+  return 'heat_score' in value && 'temperature' in value && 'key_factors' in value;
 }
 
 /**
@@ -276,6 +285,7 @@ export function toCallAnalysis(row: AiCallAnalysisRow): CallAnalysis {
     analysis_metadata: parseJsonField<CallMetadata>(row.analysis_metadata, isCallMetadata),
     analysis_behavior: parseJsonField<BehaviorScore>(row.analysis_behavior, isBehaviorScore),
     analysis_strategy: parseJsonField<StrategyAudit>(row.analysis_strategy, isStrategyAudit),
+    deal_heat_analysis: parseJsonField<DealHeat>(row.deal_heat_analysis, isDealHeat),
   };
 }
 
