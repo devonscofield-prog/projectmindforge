@@ -228,9 +228,10 @@ export function StrategicRelevanceMap({ data }: StrategicRelevanceMapProps) {
     );
   }
 
-  const { strategic_threading, critical_gaps } = data;
-  const isPassing = strategic_threading.grade === 'Pass';
-  const highImpactGaps = critical_gaps.filter(g => g.impact === 'High');
+  const { strategic_threading, critical_gaps = [] } = data;
+  const isPassing = strategic_threading?.grade === 'Pass';
+  const safeGaps = Array.isArray(critical_gaps) ? critical_gaps : [];
+  const highImpactGaps = safeGaps.filter(g => g.impact === 'High');
 
   return (
     <div className="space-y-6">
@@ -321,14 +322,15 @@ export function StrategicRelevanceMap({ data }: StrategicRelevanceMapProps) {
           </div>
         </CardHeader>
         <CardContent>
-          {critical_gaps.length === 0 ? (
-            <div className="flex items-center justify-center py-8 text-muted-foreground">
-              <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" />
-              No critical gaps identified
+          {safeGaps.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+              <CheckCircle2 className="h-5 w-5 mb-2 text-green-500" />
+              <p>No critical gaps identified</p>
+              <p className="text-xs mt-1">(or this call was analyzed with a previous version)</p>
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
-              {critical_gaps.map((gap, index) => (
+              {safeGaps.map((gap, index) => (
                 <CriticalGapCard
                   key={index}
                   category={gap.category}
