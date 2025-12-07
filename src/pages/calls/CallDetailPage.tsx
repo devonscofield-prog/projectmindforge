@@ -327,6 +327,7 @@ function CallDetailPage() {
               <SalesAssetsGenerator
                 transcript={transcript.raw_text}
                 strategicContext={analysis.analysis_strategy || null}
+                callMetadata={analysis.analysis_metadata || null}
                 accountName={transcript.account_name}
                 stakeholderName={transcript.primary_stakeholder_name}
               />
