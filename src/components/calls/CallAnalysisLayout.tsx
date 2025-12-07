@@ -352,7 +352,7 @@ export function CallAnalysisLayout({
           {behaviorContent}
         </TabsContent>
         
-        <TabsContent value="strategy" className="mt-6 space-y-6">
+        <TabsContent value="strategy" forceMount className={cn("mt-6 space-y-6", "data-[state=inactive]:hidden")}>
           <DealHeatCard
             transcript={transcript.raw_text}
             strategyData={strategyData}
