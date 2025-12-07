@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { getCallWithAnalysis, getAnalysisForCall, retryCallAnalysis, deleteFailedTranscript, updateCallTranscript, type UpdateCallTranscriptParams } from '@/api/aiCallAnalysis';
+import { getCallWithAnalysis, getAnalysisForCall, retryCallAnalysis, deleteFailedTranscript, updateCallTranscript, updateAnalysisUserCounts, type UpdateCallTranscriptParams } from '@/api/aiCallAnalysis';
 import { 
   getCallProducts, 
   updateCallProduct, 
@@ -370,6 +370,45 @@ export function useUpdateCallTranscript(callId: string) {
       toast({
         title: 'Update Failed',
         description: error.message || 'Failed to update call details.',
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
+/**
+ * Hook to update analysis user counts
+ */
+export function useUpdateAnalysisUserCounts(callId: string, analysisId: string | undefined) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ itUsers, endUsers }: { itUsers: number | null; endUsers: number | null }) => {
+      if (!analysisId) {
+        throw new Error('No analysis to update');
+      }
+      const result = await updateAnalysisUserCounts(analysisId, { it_users: itUsers, end_users: endUsers });
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update user counts');
+      }
+      return result;
+    },
+    onSuccess: async () => {
+      // Invalidate call queries to refetch updated data
+      await queryClient.invalidateQueries({ queryKey: callDetailKeys.call(callId) });
+      await queryClient.invalidateQueries({ queryKey: callDetailKeys.analysis(callId) });
+
+      toast({
+        title: 'User counts updated',
+        description: 'The user counts have been corrected successfully.',
+      });
+    },
+    onError: (error) => {
+      log.error('Error updating user counts', { callId, analysisId, error });
+      toast({
+        title: 'Update Failed',
+        description: error.message || 'Failed to update user counts.',
         variant: 'destructive',
       });
     },

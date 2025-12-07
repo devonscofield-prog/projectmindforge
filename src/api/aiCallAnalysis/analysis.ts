@@ -234,3 +234,50 @@ export async function getAiScoreStatsForReps(repIds: string[]): Promise<Map<stri
 
   return result;
 }
+
+/**
+ * Updates user counts in analysis metadata.
+ * @param analysisId - The analysis ID
+ * @param userCounts - Updated user counts
+ * @returns Success status
+ */
+export async function updateAnalysisUserCounts(
+  analysisId: string,
+  userCounts: { it_users: number | null; end_users: number | null }
+): Promise<{ success: boolean; error?: string }> {
+  // First fetch current metadata
+  const { data: current, error: fetchError } = await supabase
+    .from('ai_call_analysis')
+    .select('analysis_metadata')
+    .eq('id', analysisId)
+    .single();
+
+  if (fetchError) {
+    log.error('Failed to fetch analysis metadata', { analysisId, error: fetchError });
+    return { success: false, error: fetchError.message };
+  }
+
+  // Merge user counts into existing metadata
+  const currentMetadata = (current?.analysis_metadata || {}) as Record<string, unknown>;
+  const updatedMetadata = {
+    ...currentMetadata,
+    user_counts: {
+      ...(currentMetadata.user_counts as Record<string, unknown> || {}),
+      it_users: userCounts.it_users,
+      end_users: userCounts.end_users,
+    },
+  };
+
+  const { error: updateError } = await supabase
+    .from('ai_call_analysis')
+    .update({ analysis_metadata: updatedMetadata })
+    .eq('id', analysisId);
+
+  if (updateError) {
+    log.error('Failed to update analysis user counts', { analysisId, error: updateError });
+    return { success: false, error: updateError.message };
+  }
+
+  log.info('Updated analysis user counts', { analysisId, userCounts });
+  return { success: true };
+}

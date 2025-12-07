@@ -16,6 +16,7 @@ import { CallAnalysis, CallTranscript } from '@/api/aiCallAnalysis';
 import { CallAnalysisResultsView } from '@/components/calls/CallAnalysisResultsView';
 import { CallProductsSummary } from '@/components/calls/CallProductsSummary';
 import { EditCallDetailsDialog } from '@/components/calls/EditCallDetailsDialog';
+import { EditUserCountsDialog } from '@/components/calls/EditUserCountsDialog';
 import { BehaviorScorecard } from '@/components/analysis/BehaviorScorecard';
 import { StrategicRelevanceMap } from '@/components/analysis/StrategicRelevanceMap';
 import { SalesAssetsGenerator } from '@/components/calls/SalesAssetsGenerator';
@@ -26,7 +27,8 @@ import { getDashboardUrl, getCallHistoryUrl } from '@/lib/routes';
 import { getCallDetailBreadcrumbs } from '@/lib/breadcrumbConfig';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 import { formatCurrency } from '@/lib/formatters';
-import { useCallWithAnalysis, useAnalysisPolling, callDetailKeys, useRetryAnalysis, useDeleteFailedCall, useUpdateCallTranscript } from '@/hooks/useCallDetailQueries';
+import { useCallWithAnalysis, useAnalysisPolling, callDetailKeys, useRetryAnalysis, useDeleteFailedCall, useUpdateCallTranscript, useUpdateAnalysisUserCounts } from '@/hooks/useCallDetailQueries';
+import type { CallMetadata } from '@/utils/analysis-schemas';
 import { 
   ArrowLeft, 
   Calendar, 
@@ -78,9 +80,20 @@ function CallDetailPage() {
   const retryMutation = useRetryAnalysis(id || '');
   const deleteMutation = useDeleteFailedCall(id || '', role);
   const updateMutation = useUpdateCallTranscript(id || '');
+  const updateUserCountsMutation = useUpdateAnalysisUserCounts(id || '', analysis?.id);
 
-  // Edit dialog state
+  // Edit dialog states
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isUserCountsDialogOpen, setIsUserCountsDialogOpen] = useState(false);
+
+  // Extract current user counts from analysis metadata
+  const currentUserCounts = useMemo(() => {
+    const metadata = analysis?.analysis_metadata as CallMetadata | null;
+    return {
+      itUsers: metadata?.user_counts?.it_users ?? null,
+      endUsers: metadata?.user_counts?.end_users ?? null,
+    };
+  }, [analysis?.analysis_metadata]);
 
   const getBackPath = () => getCallHistoryUrl(role);
 
@@ -321,6 +334,8 @@ function CallDetailPage() {
           <CallAnalysisLayout
             transcript={transcript}
             analysis={analysis}
+            canEdit={isOwner || isManager}
+            onEditUserCounts={() => setIsUserCountsDialogOpen(true)}
             behaviorContent={<BehaviorScorecard data={analysis.analysis_behavior} />}
             strategyContent={<StrategicRelevanceMap data={analysis.analysis_strategy} />}
             recapContent={
@@ -358,6 +373,21 @@ function CallDetailPage() {
             });
           }}
           isSaving={updateMutation.isPending}
+        />
+
+        {/* Edit User Counts Dialog */}
+        <EditUserCountsDialog
+          open={isUserCountsDialogOpen}
+          onOpenChange={setIsUserCountsDialogOpen}
+          currentItUsers={currentUserCounts.itUsers}
+          currentEndUsers={currentUserCounts.endUsers}
+          onSave={(itUsers, endUsers) => {
+            updateUserCountsMutation.mutate(
+              { itUsers, endUsers },
+              { onSuccess: () => setIsUserCountsDialogOpen(false) }
+            );
+          }}
+          isSaving={updateUserCountsMutation.isPending}
         />
       </div>
     </AppLayout>

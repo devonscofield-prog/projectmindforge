@@ -63,6 +63,7 @@ export {
   editRecapEmail,
   getCallCountsLast30DaysForReps,
   getAiScoreStatsForReps,
+  updateAnalysisUserCounts,
 } from './analysis';
 
 // Re-export coaching functions
