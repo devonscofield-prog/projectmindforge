@@ -118,7 +118,7 @@ serve(async (req) => {
 
     const analysisTime = Date.now() - startTime;
     console.log(`[analyze-call] All agents completed in ${analysisTime}ms`);
-    console.log(`[analyze-call] Scores - Behavior: ${behaviorResult.overall_score}, Threading: ${strategyResult.strategic_threading.score}, MEDDPICC: ${strategyResult.meddpicc.overall_score}`);
+    console.log(`[analyze-call] Scores - Behavior: ${behaviorResult.overall_score}, Threading: ${strategyResult.strategic_threading.score}, Critical Gaps: ${strategyResult.critical_gaps.length}`);
 
     // Check if an analysis record already exists for this call
     const { data: existingAnalysis } = await supabaseAdmin

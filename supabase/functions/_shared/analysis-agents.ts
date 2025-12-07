@@ -141,7 +141,7 @@ const STRATEGY_AUDIT_TOOL = {
   type: "function",
   function: {
     name: "audit_call_strategy",
-    description: "Audit the strategic alignment and MEDDPICC qualification of a sales call",
+    description: "Audit the strategic alignment and identify critical gaps in a sales call",
     parameters: {
       type: "object",
       properties: {
@@ -171,93 +171,30 @@ const STRATEGY_AUDIT_TOOL = {
           },
           required: ["score", "grade", "relevance_map", "missed_opportunities"]
         },
-        meddpicc: {
-          type: "object",
-          properties: {
-            overall_score: { type: "number", minimum: 0, maximum: 100, description: "Overall MEDDPICC score 0-100" },
-            breakdown: {
-              type: "object",
-              properties: {
-                metrics: {
-                  type: "object",
-                  properties: {
-                    score: { type: "number", minimum: 0, maximum: 10, description: "Score 0-10" },
-                    evidence: { type: "string", description: "Quote or evidence from transcript, null if none" },
-                    missing_info: { type: "string", description: "What information is still needed, null if complete" }
-                  },
-                  required: ["score"]
-                },
-                economic_buyer: {
-                  type: "object",
-                  properties: {
-                    score: { type: "number", minimum: 0, maximum: 10 },
-                    evidence: { type: "string" },
-                    missing_info: { type: "string" }
-                  },
-                  required: ["score"]
-                },
-                decision_criteria: {
-                  type: "object",
-                  properties: {
-                    score: { type: "number", minimum: 0, maximum: 10 },
-                    evidence: { type: "string" },
-                    missing_info: { type: "string" }
-                  },
-                  required: ["score"]
-                },
-                decision_process: {
-                  type: "object",
-                  properties: {
-                    score: { type: "number", minimum: 0, maximum: 10 },
-                    evidence: { type: "string" },
-                    missing_info: { type: "string" }
-                  },
-                  required: ["score"]
-                },
-                paper_process: {
-                  type: "object",
-                  properties: {
-                    score: { type: "number", minimum: 0, maximum: 10 },
-                    evidence: { type: "string" },
-                    missing_info: { type: "string" }
-                  },
-                  required: ["score"]
-                },
-                implicate_pain: {
-                  type: "object",
-                  properties: {
-                    score: { type: "number", minimum: 0, maximum: 10 },
-                    evidence: { type: "string" },
-                    missing_info: { type: "string" }
-                  },
-                  required: ["score"]
-                },
-                champion: {
-                  type: "object",
-                  properties: {
-                    score: { type: "number", minimum: 0, maximum: 10 },
-                    evidence: { type: "string" },
-                    missing_info: { type: "string" }
-                  },
-                  required: ["score"]
-                },
-                competition: {
-                  type: "object",
-                  properties: {
-                    score: { type: "number", minimum: 0, maximum: 10 },
-                    evidence: { type: "string" },
-                    missing_info: { type: "string" }
-                  },
-                  required: ["score"]
-                }
+        critical_gaps: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              category: { 
+                type: "string", 
+                enum: ["Budget", "Authority", "Need", "Timeline", "Competition", "Technical"],
+                description: "The category of information gap"
               },
-              required: ["metrics", "economic_buyer", "decision_criteria", "decision_process", "paper_process", "implicate_pain", "champion", "competition"]
-            }
+              description: { type: "string", description: "Specific description of what is missing in this deal" },
+              impact: { 
+                type: "string", 
+                enum: ["High", "Medium", "Low"],
+                description: "How dangerous this gap is to the deal"
+              },
+              suggested_question: { type: "string", description: "The exact question the rep should ask to close this gap" }
+            },
+            required: ["category", "description", "impact", "suggested_question"]
           },
-          required: ["overall_score", "breakdown"]
+          description: "3-5 critical pieces of information blocking the deal"
         }
       },
-      required: ["strategic_threading", "meddpicc"]
+      required: ["strategic_threading", "critical_gaps"]
     }
   }
 };
@@ -304,25 +241,21 @@ const AUDITOR_SYSTEM_PROMPT = `You are a Senior Sales Auditor. Your goal is to m
 4. Score (0-100) based on the ratio of Relevant vs. Irrelevant pitches.
 5. Grade is "Pass" if score >= 60, otherwise "Fail".
 
-**PHASE 2: MEDDPICC SCORING**
-Grade the qualification rigor based ONLY on verbal evidence in the text.
-Scoring per element (0-10):
-- 0: Not discussed at all.
-- 1-3: Vague / Assumed without confirmation.
-- 4-7: Discussed but not quantified or confirmed.
-- 8-10: Explicitly confirmed with specific details.
+**PHASE 2: CRITICAL GAP SCANNER**
+Instead of grading a framework, identify the 3-5 most dangerous 'Unknowns' in this deal based on the transcript.
 
-MEDDPICC Elements:
-- **Metrics**: Quantifiable business outcomes the prospect wants to achieve.
-- **Economic Buyer**: The person with budget authority identified.
-- **Decision Criteria**: What factors will drive their decision.
-- **Decision Process**: Timeline and steps to make a decision.
-- **Paper Process**: Legal, procurement, or approval requirements.
-- **Implicate Pain**: Business pain made explicit and urgent.
-- **Champion**: Internal advocate who will push the deal.
-- **Competition**: Understanding of alternatives they're considering.
+Rules for identifying gaps:
+- **Missing Logic**: If they discussed a '2027 contract expiry', a Critical Gap is 'Did not ask about early cancellation terms.'
+- **Missing Stakeholders**: If they mentioned a 'Boss' or manager, did we get the Boss's name? Their role in the decision?
+- **Missing Budget Info**: If price was discussed, do we know the actual budget range or approval process?
+- **Missing Timeline Details**: If a deadline was mentioned, do we know WHY that deadline matters?
+- **Missing Competition Intel**: If they're evaluating alternatives, do we know which ones and what they like about them?
+- **Missing Technical Requirements**: If they mentioned integrations or requirements, do we have specifics?
 
-Calculate overall_score as: (sum of all 8 element scores / 80) * 100`;
+Categories: Budget, Authority, Need, Timeline, Competition, Technical
+Impact levels: High (deal-blocking), Medium (creates friction), Low (nice to know)
+
+For each gap, provide a specific 'suggested_question' - the exact question the rep should ask to close the gap.`;
 
 export interface CallMetadata {
   summary: string;
@@ -392,19 +325,12 @@ export interface StrategyAudit {
     }>;
     missed_opportunities: string[];
   };
-  meddpicc: {
-    overall_score: number;
-    breakdown: {
-      metrics: { score: number; evidence: string | null; missing_info: string | null };
-      economic_buyer: { score: number; evidence: string | null; missing_info: string | null };
-      decision_criteria: { score: number; evidence: string | null; missing_info: string | null };
-      decision_process: { score: number; evidence: string | null; missing_info: string | null };
-      paper_process: { score: number; evidence: string | null; missing_info: string | null };
-      implicate_pain: { score: number; evidence: string | null; missing_info: string | null };
-      champion: { score: number; evidence: string | null; missing_info: string | null };
-      competition: { score: number; evidence: string | null; missing_info: string | null };
-    };
-  };
+  critical_gaps: Array<{
+    category: 'Budget' | 'Authority' | 'Need' | 'Timeline' | 'Competition' | 'Technical';
+    description: string;
+    impact: 'High' | 'Medium' | 'Low';
+    suggested_question: string;
+  }>;
 }
 
 interface CallLovableAIOptions {
