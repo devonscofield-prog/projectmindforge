@@ -113,6 +113,8 @@ export const DealHeatSchema = z.object({
   })).describe("Key factors influencing the deal temperature"),
   winning_probability: z.string().describe("Estimated probability of winning (e.g., 'Low (20%)', 'Medium (50%)')"),
   recommended_action: z.string().describe("The single most important action to take next"),
+  estimated_close_date: z.string().describe("Best guess timeframe (e.g., 'Q1 2024', 'End of Jan', 'Late 2025'). Return 'Unknown' if no evidence."),
+  close_date_evidence: z.string().describe("The specific quote or logic used to derive this date."),
 });
 
 export type DealHeat = z.infer<typeof DealHeatSchema>;
