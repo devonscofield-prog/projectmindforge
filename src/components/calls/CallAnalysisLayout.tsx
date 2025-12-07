@@ -9,11 +9,19 @@ import {
   Clock,
   Mic,
   Target,
-  Mail
+  Mail,
+  AlertTriangle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CallAnalysis, CallTranscript } from '@/api/aiCallAnalysis';
-import type { BehaviorScore, StrategyAudit, CallMetadata } from '@/utils/analysis-schemas';
+import { 
+  BehaviorScoreSchema, 
+  StrategyAuditSchema, 
+  CallMetadataSchema,
+  type BehaviorScore, 
+  type StrategyAudit, 
+  type CallMetadata 
+} from '@/utils/analysis-schemas';
 
 interface CallAnalysisLayoutProps {
   transcript: CallTranscript;
@@ -120,10 +128,57 @@ export function CallAnalysisLayout({
   strategyContent,
   recapContent,
 }: CallAnalysisLayoutProps) {
-  // Extract scores and metadata
-  const behaviorData = analysis?.analysis_behavior as BehaviorScore | null;
-  const strategyData = analysis?.analysis_strategy as StrategyAudit | null;
-  const metadataData = analysis?.analysis_metadata as CallMetadata | null;
+  // Defensive JSON parsing with Zod validation
+  const { behaviorData, strategyData, metadataData, parseError } = useMemo(() => {
+    if (!analysis) {
+      return { behaviorData: null, strategyData: null, metadataData: null, parseError: null };
+    }
+
+    try {
+      const behaviorResult = analysis.analysis_behavior 
+        ? BehaviorScoreSchema.safeParse(analysis.analysis_behavior)
+        : { success: false, data: null };
+      
+      const strategyResult = analysis.analysis_strategy 
+        ? StrategyAuditSchema.safeParse(analysis.analysis_strategy)
+        : { success: false, data: null };
+      
+      const metadataResult = analysis.analysis_metadata 
+        ? CallMetadataSchema.safeParse(analysis.analysis_metadata)
+        : { success: false, data: null };
+
+      // Log validation errors for debugging but don't crash
+      if (!behaviorResult.success && analysis.analysis_behavior) {
+        console.warn('BehaviorScore validation failed:', 'error' in behaviorResult ? behaviorResult.error : 'unknown');
+      }
+      if (!strategyResult.success && analysis.analysis_strategy) {
+        console.warn('StrategyAudit validation failed:', 'error' in strategyResult ? strategyResult.error : 'unknown');
+      }
+
+      const behavior = behaviorResult.success ? behaviorResult.data : null;
+      const strategy = strategyResult.success ? strategyResult.data : null;
+      const metadata = metadataResult.success ? metadataResult.data : null;
+
+      // If both critical schemas failed but data exists, that's a parse error
+      const hasCriticalError = analysis.analysis_behavior && analysis.analysis_strategy 
+        && !behavior && !strategy;
+
+      return { 
+        behaviorData: behavior as BehaviorScore | null, 
+        strategyData: strategy as StrategyAudit | null, 
+        metadataData: metadata as CallMetadata | null,
+        parseError: hasCriticalError ? 'Analysis data could not be parsed' : null
+      };
+    } catch (err) {
+      console.error('Error parsing analysis data:', err);
+      return { 
+        behaviorData: null, 
+        strategyData: null, 
+        metadataData: null, 
+        parseError: 'Unexpected error parsing analysis data' 
+      };
+    }
+  }, [analysis]);
   
   const behaviorScore = behaviorData?.overall_score ?? 0;
   const strategyScore = strategyData?.strategic_threading?.score ?? 0;
@@ -140,8 +195,26 @@ export function CallAnalysisLayout({
   }, [metadataData]);
 
   // Display names
-  const repName = transcript.rep_id ? 'Sales Rep' : 'Unknown Rep'; // Could be enhanced with actual rep lookup
   const prospectName = transcript.account_name || transcript.primary_stakeholder_name || 'Unknown Prospect';
+
+  // Show error state if parsing failed completely
+  if (parseError) {
+    return (
+      <Card className="border-destructive">
+        <CardContent className="py-8">
+          <div className="flex items-center gap-3 text-destructive">
+            <AlertTriangle className="h-8 w-8" />
+            <div>
+              <h3 className="font-semibold text-lg">Analysis Data Error</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                {parseError}. Please try re-analyzing this call.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   // If no analysis yet, show skeleton
   if (!analysis || !behaviorData || !strategyData) {

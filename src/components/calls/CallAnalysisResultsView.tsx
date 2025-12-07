@@ -1,7 +1,6 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, AlertTriangle, RefreshCw, Trash2, Sparkles } from 'lucide-react';
+import { Loader2, AlertTriangle, RefreshCw, Trash2 } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -145,40 +144,7 @@ export function CallAnalysisResultsView({
     );
   }
 
-  // ============================================================
-  // ANALYSIS 2.0 PLACEHOLDER
-  // The legacy analysis rendering has been removed.
-  // This component will be rebuilt with the new data structure.
-  // ============================================================
-  return (
-    <Card className="border-dashed border-2 border-primary/30">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-primary" />
-          Analysis 2.0 Coming Soon
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          <p className="text-muted-foreground">
-            We're upgrading our call analysis system. The new analysis view will be available shortly.
-          </p>
-          
-          {/* Basic summary from existing data (if available) */}
-          {analysis.call_summary && (
-            <div className="bg-muted/30 rounded-lg p-4">
-              <h4 className="font-medium mb-2">Call Summary</h4>
-              <p className="text-sm text-muted-foreground">{analysis.call_summary}</p>
-            </div>
-          )}
-          
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="outline">Model: {analysis.model_name}</Badge>
-            <Badge variant="outline">Version: {analysis.prompt_version}</Badge>
-            {isManager && <Badge variant="secondary">Read-only</Badge>}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
+  // Analysis completed - the CallAnalysisLayout component handles rendering
+  // This component should not be reached for completed analyses
+  return null;
 }
