@@ -1,8 +1,8 @@
 import { CallType } from '@/constants/callTypes';
-import type { BehaviorScore, CallMetadata, StrategyAudit } from '@/utils/analysis-schemas';
+import type { BehaviorScore, CallMetadata, StrategyAudit, DealHeat } from '@/utils/analysis-schemas';
 
 // Re-export for convenience
-export type { BehaviorScore, CallMetadata, StrategyAudit } from '@/utils/analysis-schemas';
+export type { BehaviorScore, CallMetadata, StrategyAudit, DealHeat } from '@/utils/analysis-schemas';
 
 // ============= ANALYSIS TIER TYPES =============
 export type AnalysisTier = 'direct' | 'sampled' | 'hierarchical';
@@ -186,6 +186,7 @@ export interface CallAnalysis {
   analysis_metadata: CallMetadata | null;
   analysis_behavior: BehaviorScore | null;
   analysis_strategy: StrategyAudit | null;
+  deal_heat_analysis: DealHeat | null;
 }
 
 // ============= AI SCORE STATS =============
