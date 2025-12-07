@@ -269,7 +269,14 @@ Rules:
 - **Patience (0-30 pts):** Flag interruptions where a speaker starts before another finishes. Deduct points for each interruption.
 - **Monologue (0-20 pts):** Flag any single turn exceeding ~250 words. Deduct points for each violation.
 - **Question Quality (0-20 pts):** Tag every question as Open (Who/What/Where/When/Why/How) or Closed (Do/Is/Can/Will). Prefer 70%+ open-ended.
-- **Talk Ratio (0-15 pts):** Estimate the % split between rep and prospect. Ideal is 40-50% rep talk time.
+- **Talk Ratio (0-15 pts):** Score STRICTLY based on rep talk percentage:
+  - 40-50%: 15 pts (ideal balance - prospect is talking more)
+  - 51-55%: 12 pts
+  - 56-60%: 9 pts
+  - 61-65%: 6 pts
+  - 66-70%: 3 pts
+  - 71%+: 0 pts (talking way too much to be effective)
+  - <40%: Deduct proportionally (rep may not be engaging enough)
 - **Next Steps (0-15 pts):** Look for specific calendar dates, "I will send X" commitments, or scheduled follow-ups.
 
 Scoring:
