@@ -167,13 +167,18 @@ function MEDDPICCCard({ letter, label, description, score, evidence, missingInfo
   const hasDetails = evidence || missingInfo;
   
   const cardContent = (
-    <div className={cn(
-      "relative flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all",
-      styles,
-      hasDetails && "cursor-pointer hover:scale-105"
-    )}>
+    <div 
+      className={cn(
+        "relative flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all",
+        styles,
+        hasDetails && "cursor-pointer hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      )}
+      tabIndex={hasDetails ? 0 : undefined}
+      role={hasDetails ? "button" : undefined}
+      aria-label={hasDetails ? `${label}: ${score}%. Click for details.` : `${label}: ${score}%`}
+    >
       {/* Letter Badge */}
-      <span className="text-2xl font-bold">{letter}</span>
+      <span className="text-2xl font-bold" aria-hidden="true">{letter}</span>
       
       {/* Label */}
       <span className="text-xs font-medium mt-1 text-center">{label}</span>
@@ -206,6 +211,7 @@ function MEDDPICCCard({ letter, label, description, score, evidence, missingInfo
           sideOffset={8}
         >
           <div className="font-medium">{label}</div>
+          <p className="text-xs text-muted-foreground">{description}</p>
           
           {evidence && (
             <div>
@@ -214,7 +220,7 @@ function MEDDPICCCard({ letter, label, description, score, evidence, missingInfo
             </div>
           )}
           
-          {missingInfo && score < 70 && (
+          {missingInfo && score < 80 && (
             <div>
               <p className="text-xs font-medium text-destructive mb-1">Still Missing:</p>
               <p className="text-sm text-muted-foreground">{missingInfo}</p>
@@ -333,7 +339,7 @@ export function StrategicRelevanceMap({ data }: StrategicRelevanceMapProps) {
             <div>
               <CardTitle>MEDDPICC Evidence Board</CardTitle>
               <p className="text-sm text-muted-foreground mt-1">
-                Hover for details • Based on verbal evidence
+                Tap or hover for details • Based on verbal evidence
               </p>
             </div>
             <div className="flex items-center gap-2">
