@@ -70,6 +70,32 @@ export interface ProspectIntel {
   };
 }
 
+/**
+ * Type guard to validate ProspectIntel structure at runtime
+ */
+export function isValidProspectIntel(value: unknown): value is ProspectIntel {
+  if (!value || typeof value !== 'object') return false;
+  const intel = value as Record<string, unknown>;
+  
+  // All fields are optional, but if present they should be correct types
+  if (intel.business_context !== undefined && typeof intel.business_context !== 'string') return false;
+  if (intel.current_state !== undefined && typeof intel.current_state !== 'string') return false;
+  if (intel.industry !== undefined && typeof intel.industry !== 'string') return false;
+  if (intel.pain_points !== undefined && !Array.isArray(intel.pain_points)) return false;
+  if (intel.competitors_mentioned !== undefined && !Array.isArray(intel.competitors_mentioned)) return false;
+  
+  // Validate user_counts if present
+  if (intel.user_counts !== undefined) {
+    if (typeof intel.user_counts !== 'object' || intel.user_counts === null) return false;
+    const counts = intel.user_counts as Record<string, unknown>;
+    if (counts.it_users !== undefined && typeof counts.it_users !== 'number') return false;
+    if (counts.end_users !== undefined && typeof counts.end_users !== 'number') return false;
+    if (counts.ai_users !== undefined && typeof counts.ai_users !== 'number') return false;
+  }
+  
+  return true;
+}
+
 export interface StakeholderIntel {
   name: string;
   job_title?: string;
