@@ -210,27 +210,61 @@ serve(async (req) => {
 
     console.log(`[${correlationId}] Deal heat calculated: ${dealHeat.heat_score} (${dealHeat.temperature})`);
 
-    // Save to database
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
+    // Save to database with robust error handling
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-    const { error: updateError } = await supabaseClient
-      .from('ai_call_analysis')
-      .update({ deal_heat_analysis: dealHeat })
-      .eq('call_id', call_id);
-
-    if (updateError) {
-      console.error(`[${correlationId}] Failed to save deal heat to database:`, updateError);
-      // Still return the result even if save fails
-    } else {
-      console.log(`[${correlationId}] Deal heat saved to database for call ${call_id}`);
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error(`[${correlationId}] Missing Supabase environment variables - URL: ${!!supabaseUrl}, KEY: ${!!supabaseServiceKey}`);
+      // Still return the result even if we can't save
+      return new Response(
+        JSON.stringify({ deal_heat: dealHeat, saved: false, error: 'Database not configured' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    return new Response(
-      JSON.stringify({ deal_heat: dealHeat }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    console.log(`[${correlationId}] Attempting to save deal heat for call_id: ${call_id}`);
+    
+    try {
+      const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
+
+      // Use select() to verify rows were updated
+      const { data: updateData, error: updateError } = await supabaseClient
+        .from('ai_call_analysis')
+        .update({ deal_heat_analysis: dealHeat })
+        .eq('call_id', call_id)
+        .select('call_id, deal_heat_analysis');
+
+      if (updateError) {
+        console.error(`[${correlationId}] Database update error:`, JSON.stringify(updateError));
+        return new Response(
+          JSON.stringify({ deal_heat: dealHeat, saved: false, error: updateError.message }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (!updateData || updateData.length === 0) {
+        console.error(`[${correlationId}] No rows updated for call_id: ${call_id} - record may not exist`);
+        return new Response(
+          JSON.stringify({ deal_heat: dealHeat, saved: false, error: 'No matching record found' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      console.log(`[${correlationId}] Successfully saved deal heat for ${updateData.length} row(s). Verified heat_score: ${updateData[0]?.deal_heat_analysis?.heat_score}`);
+      
+      return new Response(
+        JSON.stringify({ deal_heat: dealHeat, saved: true }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } catch (dbError) {
+      console.error(`[${correlationId}] Database operation exception:`, dbError);
+      return new Response(
+        JSON.stringify({ deal_heat: dealHeat, saved: false, error: dbError instanceof Error ? dbError.message : 'Database error' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
 
   } catch (error) {
     console.error(`[${correlationId}] Error:`, error);
