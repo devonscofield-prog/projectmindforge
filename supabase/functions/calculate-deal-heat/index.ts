@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -88,13 +89,21 @@ serve(async (req) => {
   console.log(`[${correlationId}] calculate-deal-heat: Starting request`);
 
   try {
-    const { transcript, strategy_data, behavior_data, metadata } = await req.json();
+    const { transcript, strategy_data, behavior_data, metadata, call_id } = await req.json();
 
     // Validate inputs
     if (!transcript) {
       console.error(`[${correlationId}] Missing transcript`);
       return new Response(
         JSON.stringify({ error: 'transcript is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!call_id) {
+      console.error(`[${correlationId}] Missing call_id`);
+      return new Response(
+        JSON.stringify({ error: 'call_id is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -200,6 +209,23 @@ serve(async (req) => {
     }
 
     console.log(`[${correlationId}] Deal heat calculated: ${dealHeat.heat_score} (${dealHeat.temperature})`);
+
+    // Save to database
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
+
+    const { error: updateError } = await supabaseClient
+      .from('ai_call_analysis')
+      .update({ deal_heat_analysis: dealHeat })
+      .eq('call_id', call_id);
+
+    if (updateError) {
+      console.error(`[${correlationId}] Failed to save deal heat to database:`, updateError);
+      // Still return the result even if save fails
+    } else {
+      console.log(`[${correlationId}] Deal heat saved to database for call ${call_id}`);
+    }
 
     return new Response(
       JSON.stringify({ deal_heat: dealHeat }),

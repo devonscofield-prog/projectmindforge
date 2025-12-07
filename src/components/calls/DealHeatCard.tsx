@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useQueryClient } from '@tanstack/react-query';
 import { 
   Flame, 
   TrendingUp, 
@@ -38,6 +39,7 @@ export function DealHeatCard({
   onHeatCalculated,
 }: DealHeatCardProps) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [isCalculating, setIsCalculating] = useState(false);
   const [heatData, setHeatData] = useState<DealHeat | null>(existingHeatData || null);
 
@@ -65,9 +67,13 @@ export function DealHeatCard({
 
       if (error) throw error;
 
-      const result = data as DealHeat;
+      // Extract deal_heat from response
+      const result = data.deal_heat as DealHeat;
       setHeatData(result);
       onHeatCalculated?.(result);
+
+      // Invalidate query cache to reflect persisted data
+      queryClient.invalidateQueries({ queryKey: ['call-with-analysis', callId] });
 
       toast({
         title: 'Deal Heat Calculated',
