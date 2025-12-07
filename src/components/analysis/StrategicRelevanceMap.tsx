@@ -37,7 +37,7 @@ const MEDDPICC_ELEMENTS = [
   { key: 'competition', label: 'Competition', letter: 'C', description: 'Alternatives' },
 ] as const;
 
-type MEDDPICCKey = typeof MEDDPICC_ELEMENTS[number]['key'];
+type MEDDPICCKey = keyof StrategyAudit['meddpicc']['breakdown'];
 
 function getScoreState(score: number): 'empty' | 'weak' | 'fair' | 'good' | 'strong' {
   if (score >= 80) return 'strong';
