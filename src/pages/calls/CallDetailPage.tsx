@@ -16,6 +16,7 @@ import { CallAnalysis, CallTranscript } from '@/api/aiCallAnalysis';
 import { CallAnalysisResultsView } from '@/components/calls/CallAnalysisResultsView';
 import { CallProductsSummary } from '@/components/calls/CallProductsSummary';
 import { EditCallDetailsDialog } from '@/components/calls/EditCallDetailsDialog';
+import { BehaviorScorecard } from '@/components/analysis/BehaviorScorecard';
 import { CallType, callTypeLabels } from '@/constants/callTypes';
 import { format } from 'date-fns';
 import { getDashboardUrl, getCallHistoryUrl } from '@/lib/routes';
@@ -311,6 +312,11 @@ function CallDetailPage() {
 
         {/* Products Summary */}
         <CallProductsSummary callId={id!} prospectId={transcript.prospect_id} isOwner={isOwner} />
+
+        {/* Behavior Scorecard (Analysis 2.0) */}
+        {analysis?.analysis_behavior && (
+          <BehaviorScorecard data={analysis.analysis_behavior} />
+        )}
 
         {/* Analysis Results - Uses shared component with ownership info */}
         <CallAnalysisResultsView 

@@ -1,4 +1,8 @@
 import { CallType } from '@/constants/callTypes';
+import type { BehaviorScore, CallMetadata, StrategyAudit } from '@/utils/analysis-schemas';
+
+// Re-export for convenience
+export type { BehaviorScore, CallMetadata, StrategyAudit } from '@/utils/analysis-schemas';
 
 // ============= ANALYSIS TIER TYPES =============
 export type AnalysisTier = 'direct' | 'sampled' | 'hierarchical';
@@ -144,10 +148,9 @@ export interface CoachOutput {
   };
 }
 
-// ============= CALL ANALYSIS (LEGACY) =============
-/** 
- * @deprecated Part of Analysis 1.0 - will be replaced in 2.0
- * Retained for reading existing database records only.
+// ============= CALL ANALYSIS =============
+/**
+ * Combined analysis result including legacy fields and new Analysis 2.0 fields.
  */
 export interface CallAnalysis {
   id: string;
@@ -157,6 +160,7 @@ export interface CallAnalysis {
   prompt_version: string;
   confidence: number | null;
   call_summary: string;
+  // Legacy skill scores (deprecated, set to 0 for new analyses)
   discovery_score: number | null;
   objection_handling_score: number | null;
   rapport_communication_score: number | null;
@@ -173,8 +177,14 @@ export interface CallAnalysis {
   call_notes: string | null;
   recap_email_draft: string | null;
   raw_json: Record<string, unknown> | null;
+  /** @deprecated Use analysis_metadata, analysis_behavior, analysis_strategy instead */
   coach_output?: CoachOutput | null;
   created_at: string;
+  // Analysis 2.0 fields
+  analysis_pipeline_version: string | null;
+  analysis_metadata: CallMetadata | null;
+  analysis_behavior: BehaviorScore | null;
+  analysis_strategy: StrategyAudit | null;
 }
 
 // ============= AI SCORE STATS =============
