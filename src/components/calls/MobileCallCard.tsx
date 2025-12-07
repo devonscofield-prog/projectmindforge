@@ -93,12 +93,12 @@ export function MobileCallCard({ call, onClick }: MobileCallCardProps) {
               {call.heat_score != null && (
                 <span className={cn(
                   "flex items-center gap-1 font-medium",
-                  call.heat_score >= 7 && "text-orange-600 dark:text-orange-400",
-                  call.heat_score >= 4 && call.heat_score < 7 && "text-yellow-600 dark:text-yellow-400",
-                  call.heat_score < 4 && "text-blue-600 dark:text-blue-400"
+                  call.heat_score >= 70 && "text-orange-600 dark:text-orange-400",
+                  call.heat_score >= 40 && call.heat_score < 70 && "text-yellow-600 dark:text-yellow-400",
+                  call.heat_score < 40 && "text-blue-600 dark:text-blue-400"
                 )}>
                   <Flame className="h-3 w-3" />
-                  {call.heat_score}/10
+                  {call.heat_score}
                 </span>
               )}
               {formatCurrency(call.potential_revenue) && (
