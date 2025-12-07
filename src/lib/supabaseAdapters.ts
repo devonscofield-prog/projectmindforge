@@ -26,6 +26,9 @@ import type {
   CallTranscript,
   CoachOutput,
   CoachingTrendAnalysis,
+  BehaviorScore,
+  CallMetadata,
+  StrategyAudit,
 } from '@/api/aiCallAnalysis/types';
 import type { UserActivityLog, UserActivityType } from '@/api/userActivityLogs';
 import { parseJsonField, isObject, isString, isStringArray, isNumber } from './typeUtils';
@@ -77,6 +80,30 @@ export function isCoachOutput(value: unknown): value is CoachOutput {
   if (!isObject(value)) return false;
   // Check for key structural properties
   return 'framework_scores' in value || 'heat_signature' in value;
+}
+
+/**
+ * Type guard for BehaviorScore (Analysis 2.0)
+ */
+export function isBehaviorScore(value: unknown): value is BehaviorScore {
+  if (!isObject(value)) return false;
+  return 'overall_score' in value && 'grade' in value && 'metrics' in value;
+}
+
+/**
+ * Type guard for CallMetadata (Analysis 2.0)
+ */
+export function isCallMetadata(value: unknown): value is CallMetadata {
+  if (!isObject(value)) return false;
+  return 'summary' in value && 'participants' in value;
+}
+
+/**
+ * Type guard for StrategyAudit (Analysis 2.0)
+ */
+export function isStrategyAudit(value: unknown): value is StrategyAudit {
+  if (!isObject(value)) return false;
+  return 'strategic_threading' in value && 'meddpicc' in value;
 }
 
 /**
@@ -241,6 +268,11 @@ export function toCallAnalysis(row: AiCallAnalysisRow): CallAnalysis {
     raw_json: row.raw_json as Record<string, unknown> | null,
     coach_output: parseJsonField<CoachOutput>(row.coach_output, isCoachOutput),
     created_at: row.created_at,
+    // Analysis 2.0 fields
+    analysis_pipeline_version: row.analysis_pipeline_version,
+    analysis_metadata: parseJsonField<CallMetadata>(row.analysis_metadata, isCallMetadata),
+    analysis_behavior: parseJsonField<BehaviorScore>(row.analysis_behavior, isBehaviorScore),
+    analysis_strategy: parseJsonField<StrategyAudit>(row.analysis_strategy, isStrategyAudit),
   };
 }
 

@@ -1,0 +1,1 @@
+export { BehaviorScorecard } from './BehaviorScorecard';
