@@ -151,7 +151,14 @@ interface BehaviorScore {
   coaching_tip?: string;
   metrics?: {
     patience?: { score: number; interruption_count: number };
-    question_quality?: { score: number; open_ended_count: number; closed_count: number };
+    question_quality?: { 
+      score: number; 
+      explanation: string;
+      average_question_length: number;
+      average_answer_length: number;
+      high_leverage_count: number;
+      low_leverage_count: number;
+    };
     monologue?: { score: number; violation_count: number; longest_turn_word_count: number };
     talk_listen_ratio?: { score: number; rep_talk_percentage: number };
     next_steps?: { score: number; secured: boolean; details: string };
