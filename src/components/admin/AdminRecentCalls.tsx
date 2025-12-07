@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Phone, ArrowRight, User, Building2, Clock } from 'lucide-react';
+import { Phone, ArrowRight, User, Building2, Clock, Users } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { format } from 'date-fns';
 import { useIsMobile } from '@/hooks/use-mobile';
 
@@ -19,6 +20,7 @@ interface RecentCall {
   rep_id: string;
   rep_name: string;
   team_name: string;
+  manager_id?: string | null;
 }
 
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
@@ -202,7 +204,19 @@ export function AdminRecentCalls() {
                       className="border-b last:border-0 hover:bg-accent/50 cursor-pointer transition-colors"
                     >
                       <td className="py-3 text-sm">
-                        {format(new Date(call.call_date), 'MMM d, yyyy')}
+                        <div className="flex items-center gap-2">
+                          {format(new Date(call.call_date), 'MMM d, yyyy')}
+                          {call.manager_id && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Users className="h-4 w-4 text-primary shrink-0" />
+                                </TooltipTrigger>
+                                <TooltipContent>Manager was on this call</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                        </div>
                       </td>
                       <td className="py-3">
                         <div className="flex items-center gap-2">

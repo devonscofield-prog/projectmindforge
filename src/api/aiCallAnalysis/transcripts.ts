@@ -480,6 +480,7 @@ export interface UpdateCallTranscriptParams {
   salesforce_demo_link?: string | null;
   potential_revenue?: number | null;
   notes?: string | null;
+  manager_id?: string | null;
 }
 
 export async function updateCallTranscript(

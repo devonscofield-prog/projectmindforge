@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -22,7 +23,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CallTranscript, UpdateCallTranscriptParams } from '@/api/aiCallAnalysis';
 import { callTypeOptions, CallType } from '@/constants/callTypes';
 import { format } from 'date-fns';
-import { AlertTriangle, Loader2 } from 'lucide-react';
+import { AlertTriangle, Loader2, Users } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface EditCallDetailsDialogProps {
   open: boolean;
@@ -47,6 +49,8 @@ export function EditCallDetailsDialog({
   const [salesforceLink, setSalesforceLink] = useState('');
   const [potentialRevenue, setPotentialRevenue] = useState('');
   const [notes, setNotes] = useState('');
+  const [managerOnCall, setManagerOnCall] = useState(false);
+  const [managerId, setManagerId] = useState<string | null>(null);
 
   const originalAccountName = transcript.account_name || '';
 
@@ -61,8 +65,36 @@ export function EditCallDetailsDialog({
       setSalesforceLink(transcript.salesforce_demo_link || '');
       setPotentialRevenue(transcript.potential_revenue?.toString() || '');
       setNotes(transcript.notes || '');
+      setManagerOnCall(!!transcript.manager_id);
+      setManagerId(transcript.manager_id);
     }
   }, [open, transcript]);
+
+  // Lookup manager when checkbox is toggled on
+  useEffect(() => {
+    async function lookupManager() {
+      if (managerOnCall && !managerId) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('team_id')
+          .eq('id', transcript.rep_id)
+          .maybeSingle();
+        
+        if (profile?.team_id) {
+          const { data: team } = await supabase
+            .from('teams')
+            .select('manager_id')
+            .eq('id', profile.team_id)
+            .maybeSingle();
+          
+          setManagerId(team?.manager_id || null);
+        }
+      } else if (!managerOnCall) {
+        setManagerId(null);
+      }
+    }
+    lookupManager();
+  }, [managerOnCall, managerId, transcript.rep_id]);
 
   const accountNameChanged = accountName.trim() !== originalAccountName.trim();
 
@@ -76,6 +108,7 @@ export function EditCallDetailsDialog({
       salesforce_demo_link: salesforceLink.trim() || null,
       potential_revenue: potentialRevenue ? parseFloat(potentialRevenue) : null,
       notes: notes.trim() || null,
+      manager_id: managerOnCall ? managerId : null,
     };
 
     onSave(updates);
@@ -143,6 +176,19 @@ export function EditCallDetailsDialog({
               />
             </div>
           )}
+
+          {/* Manager on Call Checkbox */}
+          <div className="flex items-center space-x-2">
+            <Checkbox 
+              id="managerOnCall" 
+              checked={managerOnCall} 
+              onCheckedChange={(checked) => setManagerOnCall(checked === true)}
+            />
+            <Label htmlFor="managerOnCall" className="text-sm font-normal flex items-center gap-1.5 cursor-pointer">
+              <Users className="h-4 w-4 text-muted-foreground" />
+              Manager was on this call
+            </Label>
+          </div>
 
           {/* Primary Stakeholder */}
           <div className="space-y-2">

@@ -7,8 +7,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { PaginationControls } from '@/components/ui/pagination-controls';
 import { EmptyState } from '@/components/ui/empty-state';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { MessageSquare, FileText, Loader2, AlertCircle, CheckCircle, Clock, SkipForward } from 'lucide-react';
+import { MessageSquare, FileText, Loader2, AlertCircle, CheckCircle, Clock, SkipForward, Users } from 'lucide-react';
 import { CALL_TYPES, Transcript } from './constants';
 
 interface TranscriptTableProps {
@@ -150,7 +151,19 @@ export function TranscriptTable({
                       />
                     </td>
                     <td className="p-3 text-sm">
-                      {format(new Date(transcript.call_date), 'MMM d, yyyy')}
+                      <div className="flex items-center gap-2">
+                        {format(new Date(transcript.call_date), 'MMM d, yyyy')}
+                        {transcript.manager_id && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Users className="h-4 w-4 text-primary shrink-0" />
+                              </TooltipTrigger>
+                              <TooltipContent>Manager was on this call</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                      </div>
                     </td>
                     <td className="p-3 text-sm font-medium">
                       {transcript.account_name || 'Unknown'}

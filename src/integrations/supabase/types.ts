@@ -1837,6 +1837,7 @@ export type Database = {
           call_date: string
           call_type: string
           id: string
+          manager_id: string
           raw_text: string
           rep_id: string
           rep_name: string
