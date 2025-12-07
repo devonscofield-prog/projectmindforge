@@ -50,6 +50,7 @@ export interface CreateCallTranscriptParams {
 export interface CallTranscript {
   id: string;
   rep_id: string;
+  rep_name: string | null;
   manager_id: string | null;
   call_date: string;
   source: string;

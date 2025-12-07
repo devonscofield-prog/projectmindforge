@@ -180,7 +180,7 @@ export async function listCallTranscriptsForRep(repId: string): Promise<CallTran
     throw new Error(`Failed to list call transcripts: ${error.message}`);
   }
 
-  return (data || []).map(toCallTranscript);
+  return (data || []).map(row => toCallTranscript(row));
 }
 
 /**
@@ -259,7 +259,7 @@ export async function listCallTranscriptsForRepWithFilters(
     throw new Error(`Failed to list call transcripts: ${error.message}`);
   }
 
-  const transcripts = (data || []).map(toCallTranscript);
+  const transcripts = (data || []).map(row => toCallTranscript(row));
 
   if (transcripts.length === 0) {
     return { data: [], count: 0 };
@@ -346,10 +346,13 @@ export async function getCallWithAnalysis(callId: string): Promise<{
   transcript: CallTranscript;
   analysis: CallAnalysis | null;
 } | null> {
-  // Fetch transcript
+  // Fetch transcript with rep profile
   const { data: transcript, error: transcriptError } = await supabase
     .from('call_transcripts')
-    .select('*')
+    .select(`
+      *,
+      rep:profiles!call_transcripts_rep_id_fkey(id, name)
+    `)
     .eq('id', callId)
     .maybeSingle();
 
@@ -373,8 +376,11 @@ export async function getCallWithAnalysis(callId: string): Promise<{
     log.error('Analysis fetch error', { callId, error: analysisError });
   }
 
+  // Extract rep name from joined data
+  const repName = (transcript.rep as { id: string; name: string } | null)?.name ?? null;
+
   return {
-    transcript: toCallTranscript(transcript),
+    transcript: toCallTranscript(transcript, repName),
     analysis: analysis ? toCallAnalysis(analysis) : null,
   };
 }
