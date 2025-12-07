@@ -94,7 +94,15 @@ export interface AnalyzeCallResponse {
   isRateLimited?: boolean;
 }
 
-// ============= MEDDPICC TYPES =============
+// ============================================================
+// LEGACY TYPES - ANALYSIS 2.0 CLEANUP
+// 
+// These types are retained for backward compatibility with
+// existing database records. They will be replaced by new
+// modular types in the Analysis 2.0 implementation.
+// ============================================================
+
+// ============= MEDDPICC TYPES (LEGACY) =============
 export interface MEDDPICCElement {
   score: number;
   justification: string;
@@ -113,7 +121,8 @@ export interface MEDDPICCScores {
   summary: string;
 }
 
-// ============= COACH OUTPUT TYPES =============
+// ============= COACH OUTPUT TYPES (LEGACY) =============
+/** @deprecated Part of Analysis 1.0 - will be replaced in 2.0 */
 export interface CoachOutput {
   call_type: string | null;
   duration_minutes: number | null;
@@ -121,13 +130,11 @@ export interface CoachOutput {
     meddpicc: MEDDPICCScores;
     gap_selling: { score: number; summary: string };
     active_listening: { score: number; summary: string };
-    // Legacy BANT field for backward compatibility with old analyses
     bant?: { score: number; summary: string };
   };
   meddpicc_improvements: string[];
   gap_selling_improvements: string[];
   active_listening_improvements: string[];
-  // Legacy BANT improvements for backward compatibility
   bant_improvements?: string[];
   critical_info_missing: Array<{ info: string; missed_opportunity: string }> | string[];
   recommended_follow_up_questions: Array<{ question: string; timing_example: string }> | string[];
@@ -137,6 +144,11 @@ export interface CoachOutput {
   };
 }
 
+// ============= CALL ANALYSIS (LEGACY) =============
+/** 
+ * @deprecated Part of Analysis 1.0 - will be replaced in 2.0
+ * Retained for reading existing database records only.
+ */
 export interface CallAnalysis {
   id: string;
   call_id: string;
