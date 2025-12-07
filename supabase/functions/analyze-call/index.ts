@@ -101,17 +101,18 @@ serve(async (req) => {
     logger.setCallId(callId);
     logger.endPhase();
 
-    // Step 1: Read transcript WITH prospect in single query
+    // Step 1: Read transcript WITH prospect in single query (exclude soft-deleted)
     logger.startPhase('fetch_transcript');
     const { data: transcriptWithProspect, error: fetchError } = await supabaseUser
       .from('call_transcripts')
       .select(`
-        id, rep_id, raw_text, call_date, source, prospect_id,
+        id, rep_id, raw_text, call_date, source, prospect_id, analysis_status,
         prospect:prospects(
           id, industry, opportunity_details, ai_extracted_info, heat_score, suggested_follow_ups
         )
       `)
       .eq('id', callId)
+      .is('deleted_at', null)
       .maybeSingle();
 
     if (fetchError) {
@@ -128,6 +129,39 @@ serve(async (req) => {
         JSON.stringify({ error: 'Call transcript not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Idempotency check: prevent duplicate analysis
+    const currentStatus = transcriptWithProspect.analysis_status;
+    if (currentStatus === 'processing') {
+      logger.warn('Transcript already being processed', { callId, status: currentStatus });
+      return new Response(
+        JSON.stringify({ error: 'Analysis already in progress for this transcript', status: currentStatus }),
+        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    if (currentStatus === 'completed') {
+      // Check if analysis already exists
+      const { data: existingAnalysis } = await supabaseUser
+        .from('ai_call_analysis')
+        .select('id')
+        .eq('call_id', callId)
+        .is('deleted_at', null)
+        .maybeSingle();
+      
+      if (existingAnalysis) {
+        logger.info('Transcript already analyzed', { callId, analysisId: existingAnalysis.id });
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            analysis_id: existingAnalysis.id, 
+            message: 'Analysis already exists',
+            already_analyzed: true 
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     // Cache IDs upfront

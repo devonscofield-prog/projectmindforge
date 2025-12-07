@@ -152,14 +152,22 @@ export async function processStakeholdersBatched(
     }
   }
   
-  // Execute batch updates (can't truly batch updates, but at least we minimize queries)
-  for (const update of stakeholderUpdates) {
-    await supabaseAdmin
-      .from('stakeholders')
-      .update(update.data)
-      .eq('id', update.id);
+  // Execute batch updates using Promise.all for parallelization (better than sequential)
+  if (stakeholderUpdates.length > 0) {
+    const updatePromises = stakeholderUpdates.map(update =>
+      supabaseAdmin
+        .from('stakeholders')
+        .update(update.data)
+        .eq('id', update.id)
+    );
+    
+    const results = await Promise.allSettled(updatePromises);
+    const failedCount = results.filter(r => r.status === 'rejected').length;
+    if (failedCount > 0) {
+      logger?.warn('Some stakeholder updates failed', { failed: failedCount, total: stakeholderUpdates.length });
+    }
+    logger?.info('Updated existing stakeholders', { count: stakeholderUpdates.length - failedCount });
   }
-  logger?.info('Updated existing stakeholders', { count: stakeholderUpdates.length });
   
   // Batch insert new stakeholders
   if (stakeholderInserts.length > 0) {
@@ -321,7 +329,20 @@ export async function triggerBackgroundTasks(
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ prospect_id: prospectId, job_id: jobId })
-      }).catch(err => logger?.error('Failed to trigger follow-up generation', { error: String(err) }))
+      })
+      .then(async (res) => {
+        if (!res.ok) {
+          const errText = await res.text().catch(() => 'Unknown error');
+          throw new Error(`HTTP ${res.status}: ${errText}`);
+        }
+      })
+      .catch(async (err) => {
+        logger?.error('Failed to trigger follow-up generation', { error: String(err) });
+        // Update job status to failed
+        if (jobId) {
+          await updateBackgroundJobStatus(supabaseAdmin, jobId, 'failed', undefined, String(err), logger);
+        }
+      })
     );
   }
 
@@ -343,6 +364,19 @@ export async function triggerBackgroundTasks(
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ call_ids: [callId], job_id: chunkJobId })
-    }).catch(err => logger?.error('Failed to trigger chunking', { error: String(err) }))
+    })
+    .then(async (res) => {
+      if (!res.ok) {
+        const errText = await res.text().catch(() => 'Unknown error');
+        throw new Error(`HTTP ${res.status}: ${errText}`);
+      }
+    })
+    .catch(async (err) => {
+      logger?.error('Failed to trigger chunking', { error: String(err) });
+      // Update job status to failed
+      if (chunkJobId) {
+        await updateBackgroundJobStatus(supabaseAdmin, chunkJobId, 'failed', undefined, String(err), logger);
+      }
+    })
   );
 }
