@@ -43,7 +43,14 @@ interface BehaviorScore {
   coaching_tip: string;
   metrics: {
     patience: { score: number; interruption_count: number; status: string };
-    question_quality: { score: number; open_ended_count: number; closed_count: number; explanation: string };
+    question_quality: { 
+      score: number; 
+      explanation: string;
+      average_question_length: number;
+      average_answer_length: number;
+      high_leverage_count: number;
+      low_leverage_count: number;
+    };
     monologue: { score: number; longest_turn_word_count: number; violation_count: number };
     talk_listen_ratio: { score: number; rep_talk_percentage: number };
     next_steps: { score: number; secured: boolean; details: string };
@@ -342,7 +349,9 @@ function formatCallsForPrompt(calls: CallData[]): string {
       
       if (behavior.metrics) {
         summary += `- Patience Score: ${behavior.metrics.patience?.score ?? 'N/A'}/30 (${behavior.metrics.patience?.interruption_count ?? 0} interruptions)\n`;
-        summary += `- Question Quality: ${behavior.metrics.question_quality?.score ?? 'N/A'}/20 (${behavior.metrics.question_quality?.open_ended_count ?? 0} open, ${behavior.metrics.question_quality?.closed_count ?? 0} closed)\n`;
+        const qm = behavior.metrics.question_quality;
+        const yieldRatio = qm?.average_question_length ? (qm.average_answer_length / qm.average_question_length).toFixed(1) : 'N/A';
+        summary += `- Question Yield: ${qm?.average_answer_length ?? 0} words per answer vs ${qm?.average_question_length ?? 0} words per question (${yieldRatio}:1 ratio, ${qm?.high_leverage_count ?? 0} high leverage, ${qm?.low_leverage_count ?? 0} low leverage)\n`;
         summary += `- Monologue Score: ${behavior.metrics.monologue?.score ?? 'N/A'}/20 (${behavior.metrics.monologue?.violation_count ?? 0} violations, longest: ${behavior.metrics.monologue?.longest_turn_word_count ?? 0} words)\n`;
         summary += `- Talk Ratio: ${behavior.metrics.talk_listen_ratio?.rep_talk_percentage ?? 'N/A'}% rep talk time\n`;
         summary += `- Next Steps: ${behavior.metrics.next_steps?.secured ? '✓ SECURED' : '✗ NOT SECURED'}\n`;
