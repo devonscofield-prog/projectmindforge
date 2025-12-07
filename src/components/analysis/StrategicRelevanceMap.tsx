@@ -146,29 +146,53 @@ interface CriticalGapCardProps {
 }
 
 function CriticalGapCard({ category, description, impact, suggestedQuestion }: CriticalGapCardProps) {
+  const handleCopy = () => {
+    navigator.clipboard.writeText(suggestedQuestion);
+  };
+
   return (
     <div className={cn(
       "p-4 rounded-xl border-2 space-y-3",
       getImpactStyles(impact)
     )}>
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Badge variant={getImpactBadgeVariant(impact)} className="text-xs">
-            {impact} Impact
-          </Badge>
-          <span className="font-semibold text-sm">{category}</span>
+      {/* Top Line: Category + Description */}
+      <div className="flex items-start gap-3">
+        <AlertTriangle className={cn(
+          "h-5 w-5 shrink-0 mt-0.5",
+          impact === 'High' && "text-destructive",
+          impact === 'Medium' && "text-yellow-500",
+          impact === 'Low' && "text-muted-foreground"
+        )} />
+        <div className="flex-1">
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <span className="font-bold text-sm">{category}</span>
+            <Badge variant={getImpactBadgeVariant(impact)} className="text-xs">
+              {impact}
+            </Badge>
+          </div>
+          <p className="text-sm">{description}</p>
         </div>
       </div>
       
-      <p className="text-sm">{description}</p>
-      
-      <div className="pt-2 border-t border-current/10">
+      {/* Bottom Line: Suggested Question - Styled as copyable tip box */}
+      <div 
+        onClick={handleCopy}
+        className={cn(
+          "group relative p-3 rounded-lg cursor-pointer transition-all",
+          "bg-background/50 border border-dashed hover:border-solid hover:bg-background",
+          "dark:bg-background/30"
+        )}
+        title="Click to copy"
+      >
         <div className="flex items-start gap-2">
-          <HelpCircle className="h-4 w-4 shrink-0 mt-0.5 opacity-70" />
-          <div>
-            <p className="text-xs font-medium opacity-70 mb-1">Ask This:</p>
-            <p className="text-sm italic">"{suggestedQuestion}"</p>
+          <span className="text-lg shrink-0">💡</span>
+          <div className="flex-1">
+            <p className="text-xs font-medium text-muted-foreground mb-1">Ask this:</p>
+            <p className="text-sm font-medium italic">"{suggestedQuestion}"</p>
           </div>
+          <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+            Click to copy
+          </span>
         </div>
       </div>
     </div>
@@ -276,17 +300,17 @@ export function StrategicRelevanceMap({ data }: StrategicRelevanceMapProps) {
         </CardContent>
       </Card>
 
-      {/* Critical Gaps */}
+      {/* Deal Hazards & Gaps */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5" />
-                Critical Deal Gaps
+                <AlertTriangle className="h-5 w-5 text-yellow-500" />
+                ⚠️ Deal Hazards & Gaps
               </CardTitle>
               <p className="text-sm text-muted-foreground mt-1">
-                Key information blocking deal progress
+                Critical unknowns that could derail this deal
               </p>
             </div>
             {highImpactGaps.length > 0 && (
