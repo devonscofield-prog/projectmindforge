@@ -208,10 +208,13 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
   const { overall_score, grade, metrics } = data;
   const isPassing = grade === 'Pass';
 
-  // Calculate question ratio
-  const totalQuestions = metrics.question_quality.open_ended_count + metrics.question_quality.closed_count;
-  const openRatio = totalQuestions > 0 
-    ? Math.round((metrics.question_quality.open_ended_count / totalQuestions) * 100)
+  // Calculate leverage ratio
+  const leverageRatio = metrics.question_quality.average_answer_length > 0 
+    ? (metrics.question_quality.average_answer_length / Math.max(metrics.question_quality.average_question_length, 1)).toFixed(1)
+    : '0';
+  const totalQuestions = metrics.question_quality.high_leverage_count + metrics.question_quality.low_leverage_count;
+  const highLeveragePercent = totalQuestions > 0 
+    ? Math.round((metrics.question_quality.high_leverage_count / totalQuestions) * 100)
     : 0;
 
   return (
@@ -285,24 +288,24 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
             <GaugeBar 
               value={metrics.question_quality.score}
               max={20}
-              label="Question Quality"
-              sublabel={`${metrics.question_quality.open_ended_count} open • ${metrics.question_quality.closed_count} closed`}
+              label="Question Leverage"
+              sublabel={`Avg Q: ${metrics.question_quality.average_question_length} words → Avg A: ${metrics.question_quality.average_answer_length} words`}
               icon={<HelpCircle className="h-4 w-4" />}
             />
             <div className="mt-2 flex items-center justify-between">
               <span className="text-xs text-muted-foreground flex items-center gap-1">
                 <ChevronRight className="h-3 w-3" />
-                Click to view questions
+                Click to view details
               </span>
               <Badge 
                 variant="secondary"
                 className={cn(
-                  openRatio >= 60 ? 'bg-green-500/20 text-green-700' :
-                  openRatio >= 40 ? 'bg-yellow-500/20 text-yellow-700' : 
+                  highLeveragePercent >= 60 ? 'bg-green-500/20 text-green-700' :
+                  highLeveragePercent >= 40 ? 'bg-yellow-500/20 text-yellow-700' : 
                   'bg-orange-500/20 text-orange-700'
                 )}
               >
-                {openRatio}% Open-Ended
+                {leverageRatio}x Leverage
               </Badge>
             </div>
           </CardContent>
@@ -315,7 +318,7 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
               <HelpCircle className="h-5 w-5" />
-              Question Quality Breakdown
+              Question Leverage Breakdown
             </SheetTitle>
             <SheetDescription>
               {metrics.question_quality.explanation}
@@ -323,50 +326,57 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
           </SheetHeader>
           
           <div className="mt-6 space-y-6">
-            {/* Open-Ended Questions */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Badge className="bg-green-500/20 text-green-700 hover:bg-green-500/30">
-                  Open-Ended ({metrics.question_quality.open_ended_count})
-                </Badge>
+            {/* Leverage Stats */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 rounded-lg border bg-card">
+                <p className="text-xs text-muted-foreground">Avg Question Length</p>
+                <p className="text-2xl font-bold">{metrics.question_quality.average_question_length} <span className="text-sm font-normal text-muted-foreground">words</span></p>
               </div>
-              {metrics.question_quality.open_ended_questions && metrics.question_quality.open_ended_questions.length > 0 ? (
-                <ul className="space-y-2">
-                  {metrics.question_quality.open_ended_questions.map((question, idx) => (
-                    <li key={idx} className="flex gap-2 text-sm">
-                      <span className="text-green-600 shrink-0">•</span>
-                      <span className="text-foreground/90">{question}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-muted-foreground italic">
-                  Question details not available for this analysis
-                </p>
-              )}
+              <div className="p-4 rounded-lg border bg-card">
+                <p className="text-xs text-muted-foreground">Avg Answer Length</p>
+                <p className="text-2xl font-bold">{metrics.question_quality.average_answer_length} <span className="text-sm font-normal text-muted-foreground">words</span></p>
+              </div>
             </div>
 
-            {/* Closed Questions */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Badge className="bg-orange-500/20 text-orange-700 hover:bg-orange-500/30">
-                  Closed ({metrics.question_quality.closed_count})
+            {/* Leverage Ratio */}
+            <div className="p-4 rounded-lg border bg-primary/5">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-medium">Leverage Ratio</span>
+                <Badge className={cn(
+                  "text-lg px-3",
+                  parseFloat(leverageRatio) >= 3 ? "bg-green-500" :
+                  parseFloat(leverageRatio) >= 2 ? "bg-yellow-500" :
+                  "bg-orange-500"
+                )}>
+                  {leverageRatio}x
                 </Badge>
               </div>
-              {metrics.question_quality.closed_questions && metrics.question_quality.closed_questions.length > 0 ? (
-                <ul className="space-y-2">
-                  {metrics.question_quality.closed_questions.map((question, idx) => (
-                    <li key={idx} className="flex gap-2 text-sm">
-                      <span className="text-orange-600 shrink-0">•</span>
-                      <span className="text-foreground/90">{question}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-muted-foreground italic">
-                  Question details not available for this analysis
-                </p>
-              )}
+              <p className="text-sm text-muted-foreground">
+                For every word you ask, the prospect speaks {leverageRatio} words. Higher is better!
+              </p>
+            </div>
+
+            {/* High vs Low Leverage */}
+            <div className="space-y-3">
+              <h4 className="font-medium text-sm text-muted-foreground">Question Impact</h4>
+              <div className="flex items-center gap-3 p-3 rounded-lg border border-green-500/30 bg-green-500/5">
+                <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+                <div>
+                  <p className="font-medium text-green-700 dark:text-green-400">
+                    {metrics.question_quality.high_leverage_count} High-Leverage Questions
+                  </p>
+                  <p className="text-xs text-muted-foreground">Triggered detailed, long responses</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3 rounded-lg border border-orange-500/30 bg-orange-500/5">
+                <XCircle className="h-5 w-5 text-orange-600 shrink-0" />
+                <div>
+                  <p className="font-medium text-orange-700 dark:text-orange-400">
+                    {metrics.question_quality.low_leverage_count} Low-Leverage Questions
+                  </p>
+                  <p className="text-xs text-muted-foreground">Received 1-word or brief answers</p>
+                </div>
+              </div>
             </div>
           </div>
         </SheetContent>
