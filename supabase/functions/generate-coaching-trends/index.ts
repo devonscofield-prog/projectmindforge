@@ -36,16 +36,52 @@ function checkRateLimit(userId: string): { allowed: boolean; retryAfter?: number
   return { allowed: true };
 }
 
+// Analysis 2.0 types for behavioral and strategy data
+interface BehaviorScore {
+  overall_score: number;
+  grade: 'Pass' | 'Fail';
+  coaching_tip: string;
+  metrics: {
+    patience: { score: number; interruption_count: number; status: string };
+    question_quality: { score: number; open_ended_count: number; closed_count: number; explanation: string };
+    monologue: { score: number; longest_turn_word_count: number; violation_count: number };
+    talk_listen_ratio: { score: number; rep_talk_percentage: number };
+    next_steps: { score: number; secured: boolean; details: string };
+  };
+}
+
+interface StrategyAudit {
+  strategic_threading: {
+    score: number;
+    grade: 'Pass' | 'Fail';
+    relevance_map: Array<{
+      pain_identified: string;
+      feature_pitched: string;
+      is_relevant: boolean;
+      reasoning: string;
+    }>;
+    missed_opportunities: string[];
+  };
+  meddpicc: {
+    overall_score: number;
+    breakdown: Record<string, { score: number; evidence?: string | null; missing_info?: string | null }>;
+  };
+}
+
 interface CallData {
   date: string;
+  // Analysis 2.0 fields
+  analysis_behavior?: BehaviorScore | null;
+  analysis_strategy?: StrategyAudit | null;
+  // Legacy fields (fallback)
   framework_scores: {
-    meddpicc?: { overall_score: number; summary: string }; // New MEDDPICC
-    bant?: { score: number; summary: string }; // Legacy BANT
+    meddpicc?: { overall_score: number; summary: string };
+    bant?: { score: number; summary: string };
     gap_selling: { score: number; summary: string };
     active_listening: { score: number; summary: string };
   } | null;
-  meddpicc_improvements?: string[]; // New MEDDPICC
-  bant_improvements?: string[]; // Legacy BANT
+  meddpicc_improvements?: string[];
+  bant_improvements?: string[];
   gap_selling_improvements: string[];
   active_listening_improvements: string[];
   critical_info_missing: Array<{ info: string; missed_opportunity: string }> | string[];
@@ -58,15 +94,19 @@ interface ChunkSummary {
   dateRange: { from: string; to: string };
   callCount: number;
   avgScores: {
-    meddpicc: number | null; // New MEDDPICC
-    bant?: number | null; // Legacy BANT
+    meddpicc: number | null;
+    bant?: number | null;
     gapSelling: number | null;
     activeListening: number | null;
     heat: number | null;
+    // Analysis 2.0 aggregate scores
+    patienceAvg?: number | null;
+    strategicThreadingAvg?: number | null;
+    monologueViolationsTotal?: number;
   };
   dominantTrends: {
-    meddpicc: 'improving' | 'stable' | 'declining'; // New MEDDPICC
-    bant?: 'improving' | 'stable' | 'declining'; // Legacy BANT
+    meddpicc: 'improving' | 'stable' | 'declining';
+    bant?: 'improving' | 'stable' | 'declining';
     gapSelling: 'improving' | 'stable' | 'declining';
     activeListening: 'improving' | 'stable' | 'declining';
   };
@@ -92,19 +132,26 @@ type TrendAnalysisRequest = DirectAnalysisRequest | HierarchicalAnalysisRequest;
 
 const TREND_ANALYSIS_SYSTEM_PROMPT = `You are an expert sales coaching analyst. Your job is to analyze a collection of call analyses from a sales rep and identify TRENDS in their performance over time.
 
-Focus your analysis on these specific areas:
-1. **MEDDPICC Framework** - Are they getting better at qualifying Metrics, Economic Buyer, Decision Criteria, Decision Process, Paper Process, Identify Pain, Champion, and Competition?
-2. **Gap Selling** - Are they improving at identifying current state vs future state gaps and quantifying business impact?
-3. **Active Listening** - Are they asking better follow-up questions and acknowledging prospect concerns?
-4. **Critical Information Gathering** - What types of information are they consistently missing? Is this improving or getting worse?
-5. **Follow-up Question Quality** - Are the recommended follow-ups showing repeated patterns that indicate systemic issues?
+**ANALYSIS 2.0 METRICS (Primary - use when available):**
+1. **Patience Score** (from Behavior analysis) - Are they interrupting less? Lower interruption counts = better patience.
+2. **Strategic Threading Score** (from Strategy analysis) - Are they connecting prospect pains to relevant solutions? Higher = better alignment.
+3. **Monologue Violations** (from Behavior analysis) - How many times did they talk too long without letting prospect respond?
+4. **MEDDPICC Score** (from Strategy analysis) - How well are they qualifying deals?
+5. **Next Steps Secured** (from Behavior analysis) - Are they consistently securing specific next steps?
 
-For each area, you must:
+**LEGACY METRICS (Fallback - use when Analysis 2.0 not available):**
+- Gap Selling score - current state vs future state gap identification
+- Active Listening score - follow-up questions and acknowledgment
+- Critical Information Missing patterns
+
+For each metric, you must:
 - Identify whether performance is IMPROVING, STABLE, or DECLINING
 - Provide specific evidence from the calls
 - Give actionable recommendations
 
-Be direct and specific. Don't use vague language. If something is declining, say so clearly.`;
+Be direct and specific. Don't use vague language. If something is declining, say so clearly.
+
+**CRITICAL:** The Analysis 2.0 metrics (Patience, Strategic Threading, Monologue Violations) are OBJECTIVE numbers calculated from the transcript, not subjective scores. Track these numbers precisely over time.`;
 
 const HIERARCHICAL_SYNTHESIS_PROMPT = `You are an expert sales coaching analyst. Your job is to SYNTHESIZE multiple chunk summaries into a comprehensive trend analysis.
 
@@ -113,15 +160,16 @@ You are receiving pre-analyzed summaries of call batches, organized chronologica
 2. Note how patterns evolved over time (early chunks vs recent chunks)
 3. Aggregate the most common issues and improvements
 4. Provide actionable recommendations based on the full picture
+5. Track Analysis 2.0 metrics: Patience Score, Strategic Threading Score, Monologue Violations
 
 Focus on the big picture while noting specific evidence from the chunk summaries.`;
 
-// Tool schema for structured output - MEDDPICC replaces BANT
+// Tool schema for structured output - Updated for Analysis 2.0
 const TREND_ANALYSIS_TOOL = {
   type: 'function',
   function: {
     name: 'provide_trend_analysis',
-    description: 'Provide structured trend analysis of the sales rep coaching data',
+    description: 'Provide structured trend analysis of the sales rep coaching data using Analysis 2.0 metrics',
     parameters: {
       type: 'object',
       properties: {
@@ -141,6 +189,50 @@ const TREND_ANALYSIS_TOOL = {
         trendAnalysis: {
           type: 'object',
           properties: {
+            // Analysis 2.0: Patience Score (from Behavior)
+            patience: {
+              type: 'object',
+              properties: {
+                trend: { type: 'string', enum: ['improving', 'stable', 'declining'] },
+                startingAvg: { type: 'number', description: 'Average patience score from first half (0-30)' },
+                endingAvg: { type: 'number', description: 'Average patience score from second half (0-30)' },
+                avgInterruptions: { type: 'number', description: 'Average interruption count per call' },
+                keyInsight: { type: 'string', description: 'One sentence insight about patience trend' },
+                evidence: { type: 'array', items: { type: 'string' }, description: 'Specific examples from calls' },
+                recommendation: { type: 'string', description: 'Specific actionable advice' }
+              },
+              required: ['trend', 'startingAvg', 'endingAvg', 'avgInterruptions', 'keyInsight', 'evidence', 'recommendation']
+            },
+            // Analysis 2.0: Strategic Threading Score (from Strategy)
+            strategicThreading: {
+              type: 'object',
+              properties: {
+                trend: { type: 'string', enum: ['improving', 'stable', 'declining'] },
+                startingAvg: { type: 'number', description: 'Average strategic threading score from first half (0-100)' },
+                endingAvg: { type: 'number', description: 'Average strategic threading score from second half (0-100)' },
+                avgRelevanceRatio: { type: 'number', description: 'Average % of pitches that were relevant to pains' },
+                avgMissedOpportunities: { type: 'number', description: 'Average missed opportunities per call' },
+                keyInsight: { type: 'string' },
+                evidence: { type: 'array', items: { type: 'string' } },
+                recommendation: { type: 'string' }
+              },
+              required: ['trend', 'startingAvg', 'endingAvg', 'avgRelevanceRatio', 'avgMissedOpportunities', 'keyInsight', 'evidence', 'recommendation']
+            },
+            // Analysis 2.0: Monologue Violations (from Behavior)
+            monologueViolations: {
+              type: 'object',
+              properties: {
+                trend: { type: 'string', enum: ['improving', 'stable', 'declining'] },
+                totalViolations: { type: 'number', description: 'Total monologue violations across all calls' },
+                avgPerCall: { type: 'number', description: 'Average violations per call' },
+                avgLongestTurn: { type: 'number', description: 'Average longest turn word count' },
+                keyInsight: { type: 'string' },
+                evidence: { type: 'array', items: { type: 'string' } },
+                recommendation: { type: 'string' }
+              },
+              required: ['trend', 'totalViolations', 'avgPerCall', 'avgLongestTurn', 'keyInsight', 'evidence', 'recommendation']
+            },
+            // MEDDPICC (from Strategy)
             meddpicc: {
               type: 'object',
               properties: {
@@ -153,6 +245,7 @@ const TREND_ANALYSIS_TOOL = {
               },
               required: ['trend', 'startingAvg', 'endingAvg', 'keyInsight', 'evidence', 'recommendation']
             },
+            // Legacy: Gap Selling (fallback)
             gapSelling: {
               type: 'object',
               properties: {
@@ -165,6 +258,7 @@ const TREND_ANALYSIS_TOOL = {
               },
               required: ['trend', 'startingAvg', 'endingAvg', 'keyInsight', 'evidence', 'recommendation']
             },
+            // Legacy: Active Listening (fallback)
             activeListening: {
               type: 'object',
               properties: {
@@ -178,7 +272,7 @@ const TREND_ANALYSIS_TOOL = {
               required: ['trend', 'startingAvg', 'endingAvg', 'keyInsight', 'evidence', 'recommendation']
             }
           },
-          required: ['meddpicc', 'gapSelling', 'activeListening']
+          required: ['patience', 'strategicThreading', 'monologueViolations', 'meddpicc', 'gapSelling', 'activeListening']
         },
         patternAnalysis: {
           type: 'object',
@@ -240,9 +334,46 @@ function formatCallsForPrompt(calls: CallData[]): string {
     const callNum = idx + 1;
     let summary = `\n### Call ${callNum} (${call.date})\n`;
     
-    if (call.framework_scores) {
-      summary += `Framework Scores:\n`;
-      // Prefer MEDDPICC, fall back to BANT for legacy data
+    // === ANALYSIS 2.0 METRICS (Primary) ===
+    if (call.analysis_behavior) {
+      const behavior = call.analysis_behavior;
+      summary += `**Behavior Analysis (Analysis 2.0):**\n`;
+      summary += `- Overall Behavior Score: ${behavior.overall_score}/100 (${behavior.grade})\n`;
+      
+      if (behavior.metrics) {
+        summary += `- Patience Score: ${behavior.metrics.patience?.score ?? 'N/A'}/30 (${behavior.metrics.patience?.interruption_count ?? 0} interruptions)\n`;
+        summary += `- Question Quality: ${behavior.metrics.question_quality?.score ?? 'N/A'}/20 (${behavior.metrics.question_quality?.open_ended_count ?? 0} open, ${behavior.metrics.question_quality?.closed_count ?? 0} closed)\n`;
+        summary += `- Monologue Score: ${behavior.metrics.monologue?.score ?? 'N/A'}/20 (${behavior.metrics.monologue?.violation_count ?? 0} violations, longest: ${behavior.metrics.monologue?.longest_turn_word_count ?? 0} words)\n`;
+        summary += `- Talk Ratio: ${behavior.metrics.talk_listen_ratio?.rep_talk_percentage ?? 'N/A'}% rep talk time\n`;
+        summary += `- Next Steps: ${behavior.metrics.next_steps?.secured ? '✓ SECURED' : '✗ NOT SECURED'}\n`;
+      }
+      
+      if (behavior.coaching_tip) {
+        summary += `- Coaching Tip: ${behavior.coaching_tip}\n`;
+      }
+    }
+    
+    if (call.analysis_strategy) {
+      const strategy = call.analysis_strategy;
+      summary += `**Strategy Analysis (Analysis 2.0):**\n`;
+      summary += `- Strategic Threading Score: ${strategy.strategic_threading?.score ?? 'N/A'}/100 (${strategy.strategic_threading?.grade || 'N/A'})\n`;
+      summary += `- MEDDPICC Score: ${strategy.meddpicc?.overall_score ?? 'N/A'}/100\n`;
+      
+      // Count relevance stats
+      if (strategy.strategic_threading?.relevance_map) {
+        const relevant = strategy.strategic_threading.relevance_map.filter(r => r.is_relevant).length;
+        const total = strategy.strategic_threading.relevance_map.length;
+        summary += `- Pitch Relevance: ${relevant}/${total} solutions matched pains\n`;
+      }
+      
+      if (strategy.strategic_threading?.missed_opportunities?.length) {
+        summary += `- Missed Opportunities: ${strategy.strategic_threading.missed_opportunities.length} pains not addressed\n`;
+      }
+    }
+    
+    // === LEGACY METRICS (Fallback) ===
+    if (!call.analysis_behavior && !call.analysis_strategy && call.framework_scores) {
+      summary += `**Framework Scores (Legacy):**\n`;
       if (call.framework_scores.meddpicc) {
         summary += `- MEDDPICC: ${call.framework_scores.meddpicc.overall_score ?? 'N/A'}/100 - ${call.framework_scores.meddpicc.summary || 'No summary'}\n`;
       } else if (call.framework_scores.bant) {
@@ -256,31 +387,33 @@ function formatCallsForPrompt(calls: CallData[]): string {
       summary += `Heat Score: ${call.heat_score}/10\n`;
     }
 
-    // Prefer MEDDPICC improvements, fall back to BANT for legacy
-    if (call.meddpicc_improvements?.length) {
-      summary += `MEDDPICC Improvements Needed: ${call.meddpicc_improvements.join('; ')}\n`;
-    } else if (call.bant_improvements?.length) {
-      summary += `BANT Improvements Needed (legacy): ${call.bant_improvements.join('; ')}\n`;
-    }
-    if (call.gap_selling_improvements?.length) {
-      summary += `Gap Selling Improvements Needed: ${call.gap_selling_improvements.join('; ')}\n`;
-    }
-    if (call.active_listening_improvements?.length) {
-      summary += `Active Listening Improvements Needed: ${call.active_listening_improvements.join('; ')}\n`;
-    }
+    // Legacy improvements (only if no Analysis 2.0)
+    if (!call.analysis_behavior && !call.analysis_strategy) {
+      if (call.meddpicc_improvements?.length) {
+        summary += `MEDDPICC Improvements Needed: ${call.meddpicc_improvements.join('; ')}\n`;
+      } else if (call.bant_improvements?.length) {
+        summary += `BANT Improvements Needed (legacy): ${call.bant_improvements.join('; ')}\n`;
+      }
+      if (call.gap_selling_improvements?.length) {
+        summary += `Gap Selling Improvements Needed: ${call.gap_selling_improvements.join('; ')}\n`;
+      }
+      if (call.active_listening_improvements?.length) {
+        summary += `Active Listening Improvements Needed: ${call.active_listening_improvements.join('; ')}\n`;
+      }
 
-    if (call.critical_info_missing?.length) {
-      const missing = call.critical_info_missing.map(item => 
-        typeof item === 'object' ? item.info : item
-      ).join('; ');
-      summary += `Critical Info Missing: ${missing}\n`;
-    }
+      if (call.critical_info_missing?.length) {
+        const missing = call.critical_info_missing.map(item => 
+          typeof item === 'object' ? item.info : item
+        ).join('; ');
+        summary += `Critical Info Missing: ${missing}\n`;
+      }
 
-    if (call.follow_up_questions?.length) {
-      const questions = call.follow_up_questions.map(item => 
-        typeof item === 'object' ? item.question : item
-      ).join('; ');
-      summary += `Recommended Follow-ups: ${questions}\n`;
+      if (call.follow_up_questions?.length) {
+        const questions = call.follow_up_questions.map(item => 
+          typeof item === 'object' ? item.question : item
+        ).join('; ');
+        summary += `Recommended Follow-ups: ${questions}\n`;
+      }
     }
 
     return summary;

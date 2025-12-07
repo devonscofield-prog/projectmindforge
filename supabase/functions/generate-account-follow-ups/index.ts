@@ -89,15 +89,21 @@ const generateFollowUpsSchema = z.object({
   job_id: z.string().uuid().optional()
 });
 
-// Sales veteran system prompt for generating follow-up steps
+// Sales veteran system prompt for generating follow-up steps - Updated for Analysis 2.0
 const FOLLOW_UP_SYSTEM_PROMPT = `You are a 20-year B2B/SaaS sales veteran and strategic account coach. You've closed hundreds of enterprise deals ranging from $50K to $5M ARR. You understand exactly what separates good follow-up from great follow-up that actually advances deals.
 
 Your task is to analyze ALL call data for an account and generate 3-7 specific, actionable follow-up STEPS (not questions). Each step should be something the rep can execute TODAY to move the deal forward measurably.
 
+**CRITICAL: USE THE RELEVANCE MAP**
+You will receive a "Relevance Map" showing pain-to-solution connections from each call. Use this strategically:
+- If the rep pitched a solution that was marked 'Relevant' (matched a pain), the follow-up should be to send a PROPOSAL for that solution with specific ROI examples.
+- If there are 'Missed Opportunities' (pains the prospect mentioned but rep didn't address), the follow-up should be to CLARIFY that pain and pitch the appropriate solution.
+- For 'Irrelevant' pitches (spray and pray), suggest a follow-up to re-qualify the prospect's actual needs before continuing.
+
 GUIDELINES FOR GREAT FOLLOW-UP STEPS:
 1. Be SPECIFIC - not "follow up with stakeholder" but "Schedule 30-min call with IT Director John to address security concerns raised in last call"
 2. Be ACTIONABLE - concrete actions, not vague suggestions
-3. Address GAPS - fill in missing MEDDPICC qualification info, address unresolved objections, expand stakeholder coverage
+3. Address GAPS - use the MEDDPICC scores to identify qualification gaps (low scores = missing info)
 4. Consider TIMING - prioritize based on deal stage and urgency signals
 5. Think MULTI-THREADING - always look for ways to engage more stakeholders
 
@@ -118,6 +124,40 @@ For each follow-up step, provide:
 
 Be direct. Be specific. Think like someone whose commission depends on this deal closing.`;
 
+// Updated interfaces for Analysis 2.0
+interface RelevanceMapItem {
+  pain_identified: string;
+  feature_pitched: string;
+  is_relevant: boolean;
+  reasoning: string;
+}
+
+interface StrategyAudit {
+  strategic_threading?: {
+    score?: number;
+    grade?: 'Pass' | 'Fail';
+    relevance_map?: RelevanceMapItem[];
+    missed_opportunities?: string[];
+  };
+  meddpicc?: {
+    overall_score?: number;
+    breakdown?: Record<string, { score: number; evidence?: string | null; missing_info?: string | null }>;
+  };
+}
+
+interface BehaviorScore {
+  overall_score?: number;
+  grade?: 'Pass' | 'Fail';
+  coaching_tip?: string;
+  metrics?: {
+    patience?: { score: number; interruption_count: number };
+    question_quality?: { score: number; open_ended_count: number; closed_count: number };
+    monologue?: { score: number; violation_count: number; longest_turn_word_count: number };
+    talk_listen_ratio?: { score: number; rep_talk_percentage: number };
+    next_steps?: { score: number; secured: boolean; details: string };
+  };
+}
+
 interface CallData {
   id: string;
   call_date: string;
@@ -133,6 +173,9 @@ interface CallData {
     };
     strengths?: Array<{ area: string; example: string }>;
     opportunities?: Array<{ area: string; example: string }>;
+    // Analysis 2.0 fields
+    analysis_strategy?: StrategyAudit;
+    analysis_behavior?: BehaviorScore;
   };
 }
 
@@ -266,14 +309,14 @@ serve(async (req) => {
       throw new Error('Failed to fetch call transcripts');
     }
 
-    // Fetch analyses for all calls
+    // Fetch analyses for all calls - include Analysis 2.0 fields
     const callIds = (calls || []).map(c => c.id);
     let analyses: Record<string, any> = {};
     
     if (callIds.length > 0) {
       const { data: analysisData } = await supabase
         .from('ai_call_analysis')
-        .select('call_id, call_summary, deal_gaps, coach_output, strengths, opportunities')
+        .select('call_id, call_summary, deal_gaps, coach_output, strengths, opportunities, analysis_strategy, analysis_behavior')
         .in('call_id', callIds);
       
       if (analysisData) {
@@ -555,17 +598,83 @@ Potential Revenue: ${prospect.potential_revenue ? `$${prospect.potential_revenue
       if (call.analysis.call_summary) {
         prompt += `Summary: ${call.analysis.call_summary}\n`;
       }
-      if (call.analysis.deal_gaps?.critical_missing_info?.length) {
-        prompt += `Missing Info: ${call.analysis.deal_gaps.critical_missing_info.join(', ')}\n`;
+      
+      // === ANALYSIS 2.0: Strategic Context ===
+      if (call.analysis.analysis_strategy) {
+        const strategy = call.analysis.analysis_strategy as StrategyAudit;
+        
+        // Strategic Threading Score
+        if (strategy.strategic_threading) {
+          prompt += `Strategic Threading Score: ${strategy.strategic_threading.score ?? 'N/A'}/100 (${strategy.strategic_threading.grade || 'N/A'})\n`;
+          
+          // Relevance Map - CRITICAL for follow-up generation
+          if (strategy.strategic_threading.relevance_map?.length) {
+            prompt += `\n**RELEVANCE MAP (Pain-to-Solution Connections):**\n`;
+            for (const mapping of strategy.strategic_threading.relevance_map) {
+              const status = mapping.is_relevant ? '✓ RELEVANT' : '✗ IRRELEVANT';
+              prompt += `- Pain: "${mapping.pain_identified}" → Solution: "${mapping.feature_pitched}" [${status}]\n`;
+              if (!mapping.is_relevant) {
+                prompt += `  Reason: ${mapping.reasoning}\n`;
+              }
+            }
+          }
+          
+          // Missed Opportunities - CRITICAL for follow-up generation
+          if (strategy.strategic_threading.missed_opportunities?.length) {
+            prompt += `\n**MISSED OPPORTUNITIES (Pains NOT addressed):**\n`;
+            for (const missed of strategy.strategic_threading.missed_opportunities) {
+              prompt += `- ${missed}\n`;
+            }
+          }
+        }
+        
+        // MEDDPICC Breakdown
+        if (strategy.meddpicc) {
+          prompt += `\nMEDDPICC Score: ${strategy.meddpicc.overall_score ?? 'N/A'}/100\n`;
+          
+          if (strategy.meddpicc.breakdown) {
+            const lowScoreElements: string[] = [];
+            for (const [element, data] of Object.entries(strategy.meddpicc.breakdown)) {
+              if (data.score < 5 && data.missing_info) {
+                lowScoreElements.push(`${element}: ${data.missing_info}`);
+              }
+            }
+            if (lowScoreElements.length > 0) {
+              prompt += `MEDDPICC Gaps (low scores): ${lowScoreElements.join('; ')}\n`;
+            }
+          }
+        }
       }
-      if (call.analysis.deal_gaps?.unresolved_objections?.length) {
-        prompt += `Unresolved Objections: ${call.analysis.deal_gaps.unresolved_objections.join(', ')}\n`;
+      
+      // === ANALYSIS 2.0: Behavioral Context ===
+      if (call.analysis.analysis_behavior) {
+        const behavior = call.analysis.analysis_behavior as BehaviorScore;
+        prompt += `Behavior Score: ${behavior.overall_score ?? 'N/A'}/100 (${behavior.grade || 'N/A'})\n`;
+        
+        if (behavior.metrics?.next_steps) {
+          const nextSteps = behavior.metrics.next_steps;
+          prompt += `Next Steps: ${nextSteps.secured ? '✓ SECURED' : '✗ NOT SECURED'} - ${nextSteps.details}\n`;
+        }
+        
+        if (behavior.coaching_tip) {
+          prompt += `Coaching Tip: ${behavior.coaching_tip}\n`;
+        }
       }
-      if (call.analysis.coach_output?.heat_signature) {
-        prompt += `Heat: ${call.analysis.coach_output.heat_signature.score}/10 - ${call.analysis.coach_output.heat_signature.explanation}\n`;
-      }
-      if (call.analysis.opportunities?.length) {
-        prompt += `Improvement Areas: ${call.analysis.opportunities.map(o => o.area).join(', ')}\n`;
+      
+      // === Legacy Fields (fallback) ===
+      if (!call.analysis.analysis_strategy) {
+        if (call.analysis.deal_gaps?.critical_missing_info?.length) {
+          prompt += `Missing Info: ${call.analysis.deal_gaps.critical_missing_info.join(', ')}\n`;
+        }
+        if (call.analysis.deal_gaps?.unresolved_objections?.length) {
+          prompt += `Unresolved Objections: ${call.analysis.deal_gaps.unresolved_objections.join(', ')}\n`;
+        }
+        if (call.analysis.coach_output?.heat_signature) {
+          prompt += `Heat: ${call.analysis.coach_output.heat_signature.score}/10 - ${call.analysis.coach_output.heat_signature.explanation}\n`;
+        }
+        if (call.analysis.opportunities?.length) {
+          prompt += `Improvement Areas: ${call.analysis.opportunities.map((o: any) => o.area).join(', ')}\n`;
+        }
       }
     }
     
@@ -632,7 +741,14 @@ Potential Revenue: ${prospect.potential_revenue ? `$${prospect.potential_revenue
   }
 
   prompt += `\n## YOUR TASK
-Based on ALL the above context, generate 3-7 specific, actionable follow-up steps that will advance this deal. Think like your commission depends on it. Be specific, be strategic, prioritize what matters most RIGHT NOW.`;
+Based on ALL the above context, especially the RELEVANCE MAP and MISSED OPPORTUNITIES, generate 3-7 specific, actionable follow-up steps that will advance this deal. 
+
+REMEMBER:
+- For RELEVANT pain-solution matches: Suggest sending proposals with ROI examples
+- For MISSED OPPORTUNITIES: Suggest calls to clarify those pains
+- For low MEDDPICC scores: Suggest discovery to fill those gaps
+
+Think like your commission depends on it. Be specific, be strategic, prioritize what matters most RIGHT NOW.`;
 
   return prompt;
 }
