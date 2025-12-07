@@ -40,6 +40,7 @@ export interface CreateCallTranscriptParams {
   prospectId?: string;
   stakeholderId?: string;
   products?: Omit<ProductEntry, 'productName'>[];
+  managerOnCall?: boolean;
 }
 
 export interface CallTranscript {
