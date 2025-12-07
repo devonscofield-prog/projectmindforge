@@ -279,33 +279,82 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
           </CardContent>
         </Card>
 
-        {/* Questions - Clickable */}
+        {/* Questions - Conversation Yield Chart */}
         <Card 
           className="cursor-pointer transition-colors hover:bg-accent/50"
           onClick={() => setQuestionsSheetOpen(true)}
         >
           <CardContent className="pt-6">
-            <GaugeBar 
-              value={metrics.question_quality.score}
-              max={20}
-              label="Question Leverage"
-              sublabel={`Avg Q: ${metrics.question_quality.average_question_length} words → Avg A: ${metrics.question_quality.average_answer_length} words`}
-              icon={<HelpCircle className="h-4 w-4" />}
-            />
-            <div className="mt-2 flex items-center justify-between">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Question Leverage</span>
+              </div>
+              <span className="text-sm font-bold">{metrics.question_quality.score}/20</span>
+            </div>
+            
+            {/* Conversation Yield Visual */}
+            <div className="space-y-3">
+              {/* Yield Ratio Label */}
+              <div 
+                className="flex items-center justify-center gap-2"
+                title={`For every 1 word you asked, the prospect spoke ${leverageRatio} words.`}
+              >
+                <span className="text-2xl font-bold">1 : {leverageRatio}</span>
+                <span className="text-sm text-muted-foreground">Yield</span>
+              </div>
+              
+              {/* Horizontal Bars */}
+              <div className="space-y-2">
+                {/* Question Bar (Gray) */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground w-16 shrink-0">Avg Q</span>
+                  <div className="flex-1 h-5 bg-secondary rounded overflow-hidden">
+                    <div 
+                      className="h-full bg-muted-foreground/50 rounded transition-all"
+                      style={{ 
+                        width: `${Math.min((metrics.question_quality.average_question_length / Math.max(metrics.question_quality.average_question_length, metrics.question_quality.average_answer_length)) * 100, 100)}%` 
+                      }}
+                    />
+                  </div>
+                  <span className="text-xs font-medium w-12 text-right">{metrics.question_quality.average_question_length}w</span>
+                </div>
+                
+                {/* Answer Bar (Conditional Color) */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground w-16 shrink-0">Avg A</span>
+                  <div className="flex-1 h-5 bg-secondary rounded overflow-hidden">
+                    <div 
+                      className={cn(
+                        "h-full rounded transition-all",
+                        metrics.question_quality.average_answer_length < metrics.question_quality.average_question_length 
+                          ? "bg-orange-500" 
+                          : "bg-green-500"
+                      )}
+                      style={{ 
+                        width: `${Math.min((metrics.question_quality.average_answer_length / Math.max(metrics.question_quality.average_question_length, metrics.question_quality.average_answer_length)) * 100, 100)}%` 
+                      }}
+                    />
+                  </div>
+                  <span className="text-xs font-medium w-12 text-right">{metrics.question_quality.average_answer_length}w</span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="mt-3 flex items-center justify-between">
               <span className="text-xs text-muted-foreground flex items-center gap-1">
                 <ChevronRight className="h-3 w-3" />
-                Click to view details
+                Click for details
               </span>
               <Badge 
                 variant="secondary"
                 className={cn(
-                  highLeveragePercent >= 60 ? 'bg-green-500/20 text-green-700' :
-                  highLeveragePercent >= 40 ? 'bg-yellow-500/20 text-yellow-700' : 
+                  parseFloat(leverageRatio) >= 2 ? 'bg-green-500/20 text-green-700' :
+                  parseFloat(leverageRatio) >= 1 ? 'bg-yellow-500/20 text-yellow-700' : 
                   'bg-orange-500/20 text-orange-700'
                 )}
               >
-                {leverageRatio}x Leverage
+                {parseFloat(leverageRatio) >= 2 ? 'Good Yield' : parseFloat(leverageRatio) >= 1 ? 'Fair Yield' : 'Low Yield'}
               </Badge>
             </div>
           </CardContent>
