@@ -1,7 +1,7 @@
 // AI Gateway integration for call analysis
 
 import type { TranscriptRow, AnalysisResult, CoachOutput, ProspectIntel, StakeholderIntel } from './types.ts';
-import { isValidProspectIntel } from './types.ts';
+import { isValidProspectIntel, isValidCoachOutput } from './types.ts';
 import { ANALYSIS_SYSTEM_PROMPT, ANALYSIS_TOOL_SCHEMA, AI_GATEWAY_TIMEOUT_MS, REQUIRED_RECAP_LINKS } from './constants.ts';
 import { calculateMaxTokens, validateCallNotes, validateRecapEmailLinks } from './validation.ts';
 import type { Logger } from './logger.ts';
@@ -185,12 +185,14 @@ View sample courses here:
     logger.info('Links auto-appended to recap_email_draft');
   }
 
-  // Validate coach_output structure
-  const coachOutput = analysisData.coach_output as CoachOutput;
-  if (!coachOutput || typeof coachOutput !== 'object') {
-    logger.error('coach_output is not a valid object');
-    throw new Error('AI analysis coach_output must be a valid object');
+  // Validate coach_output structure with type guard
+  if (!isValidCoachOutput(analysisData.coach_output)) {
+    logger.error('coach_output failed validation', { 
+      received: JSON.stringify(analysisData.coach_output).substring(0, 500) 
+    });
+    throw new Error('AI analysis coach_output structure is invalid');
   }
+  const coachOutput = analysisData.coach_output as CoachOutput;
 
   // Extract and validate prospect_intel (optional but expected)
   let prospectIntel: ProspectIntel | undefined = undefined;
@@ -246,10 +248,33 @@ View sample courses here:
     stakeholders_intel: stakeholdersIntel
   };
 
-  logger.info('AI analysis completed', {
-    callNotesLength: (callNotes as string).length,
-    stakeholdersCount: stakeholdersIntel?.length || 0,
-    heatScore: coachOutput?.heat_signature?.score
-  });
+  // Track AI performance metrics (fire-and-forget)
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (supabaseUrl && supabaseServiceKey) {
+    fetch(`${supabaseUrl}/rest/v1/performance_metrics`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${supabaseServiceKey}`,
+        'apikey': supabaseServiceKey,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({
+        metric_type: 'ai_gateway_call',
+        metric_name: 'analyze-call',
+        duration_ms: aiDurationMs,
+        status: 'success',
+        metadata: {
+          model: 'google/gemini-2.5-flash',
+          transcript_length: transcriptLength,
+          max_tokens: maxTokens,
+          finish_reason: finishReason,
+          retry_count: retryCount
+        }
+      })
+    }).catch(() => {}); // Silent failure for metrics
+  }
+
   return result;
 }

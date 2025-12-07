@@ -96,6 +96,36 @@ export function isValidProspectIntel(value: unknown): value is ProspectIntel {
   return true;
 }
 
+/**
+ * Type guard to validate CoachOutput structure at runtime
+ */
+export function isValidCoachOutput(value: unknown): value is CoachOutput {
+  if (!value || typeof value !== 'object') return false;
+  const coach = value as Record<string, unknown>;
+  
+  // Validate framework_scores exists and has required properties
+  if (!coach.framework_scores || typeof coach.framework_scores !== 'object') return false;
+  const scores = coach.framework_scores as Record<string, unknown>;
+  if (!scores.meddpicc || typeof scores.meddpicc !== 'object') return false;
+  if (!scores.gap_selling || typeof scores.gap_selling !== 'object') return false;
+  if (!scores.active_listening || typeof scores.active_listening !== 'object') return false;
+  
+  // Validate heat_signature exists with score
+  if (!coach.heat_signature || typeof coach.heat_signature !== 'object') return false;
+  const heat = coach.heat_signature as Record<string, unknown>;
+  if (typeof heat.score !== 'number') return false;
+  if (typeof heat.explanation !== 'string') return false;
+  
+  // Validate required arrays exist
+  if (!Array.isArray(coach.meddpicc_improvements)) return false;
+  if (!Array.isArray(coach.gap_selling_improvements)) return false;
+  if (!Array.isArray(coach.active_listening_improvements)) return false;
+  if (!Array.isArray(coach.critical_info_missing)) return false;
+  if (!Array.isArray(coach.recommended_follow_up_questions)) return false;
+  
+  return true;
+}
+
 export interface StakeholderIntel {
   name: string;
   job_title?: string;
