@@ -1,10 +1,10 @@
 /**
- * analyze-call Edge Function - Stage 1 of Analysis 2.0
+ * analyze-call Edge Function - Analysis 2.0 Pipeline
  * 
- * This function has been cleared for the Analysis 2.0 upgrade.
- * The legacy analysis logic has been removed.
- * 
- * TODO: Implement new modular analysis pipeline here.
+ * Multi-agent analysis system:
+ * - Agent 1: The Clerk (metadata extraction)
+ * - Agent 2: The Referee (behavioral scoring)
+ * - Agent 3: The Auditor (strategy audit) - TODO: Next step
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -12,6 +12,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 import { UUID_REGEX } from './lib/constants.ts';
 import { getCorsHeaders } from './lib/cors.ts';
+import { analyzeCallMetadata, analyzeCallBehavior } from '../_shared/analysis-agents.ts';
 
 serve(async (req) => {
   const origin = req.headers.get('Origin');
@@ -23,7 +24,6 @@ serve(async (req) => {
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
   // Get the JWT from Authorization header
@@ -35,7 +35,7 @@ serve(async (req) => {
     );
   }
 
-  // Create service role client for bypassing RLS when writing
+  // Create service role client for bypassing RLS
   const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
   // Verify user
@@ -61,35 +61,156 @@ serve(async (req) => {
       );
     }
 
-    // ============================================================
-    // ANALYSIS 2.0 - PLACEHOLDER
-    // 
-    // The legacy "God Prompt" analysis logic has been removed.
-    // New modular analysis pipeline will be implemented here.
-    // 
-    // For now, return a placeholder response indicating the
-    // analysis system is being upgraded.
-    // ============================================================
+    console.log(`[analyze-call] Starting Analysis 2.0 for call_id: ${call_id}, user: ${user.id}`);
 
-    console.log(`[analyze-call] Analysis 2.0 placeholder - call_id: ${call_id}, user: ${user.id}`);
+    // Fetch the transcript
+    const { data: transcript, error: fetchError } = await supabaseAdmin
+      .from('call_transcripts')
+      .select('id, raw_text, rep_id, account_name, analysis_status')
+      .eq('id', call_id)
+      .is('deleted_at', null)
+      .maybeSingle();
+
+    if (fetchError) {
+      console.error('[analyze-call] Failed to fetch transcript:', fetchError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch transcript' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!transcript) {
+      return new Response(
+        JSON.stringify({ error: 'Transcript not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Check if already being processed (idempotency)
+    if (transcript.analysis_status === 'processing') {
+      console.log('[analyze-call] Already processing, skipping');
+      return new Response(
+        JSON.stringify({ error: 'Analysis already in progress', call_id }),
+        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Update status to processing
+    await supabaseAdmin
+      .from('call_transcripts')
+      .update({ analysis_status: 'processing', analysis_error: null })
+      .eq('id', call_id);
+
+    const startTime = Date.now();
+
+    // Run Agent 1 (Clerk) and Agent 2 (Referee) in PARALLEL
+    console.log('[analyze-call] Running Clerk and Referee agents in parallel...');
+    
+    const [metadataResult, behaviorResult] = await Promise.all([
+      analyzeCallMetadata(transcript.raw_text),
+      analyzeCallBehavior(transcript.raw_text),
+    ]);
+
+    const analysisTime = Date.now() - startTime;
+    console.log(`[analyze-call] Agents completed in ${analysisTime}ms`);
+
+    // Check if an analysis record already exists for this call
+    const { data: existingAnalysis } = await supabaseAdmin
+      .from('ai_call_analysis')
+      .select('id')
+      .eq('call_id', call_id)
+      .maybeSingle();
+
+    if (existingAnalysis) {
+      // Update existing record
+      const { error: updateError } = await supabaseAdmin
+        .from('ai_call_analysis')
+        .update({
+          analysis_metadata: metadataResult,
+          analysis_behavior: behaviorResult,
+          analysis_pipeline_version: 'v2',
+          // Keep legacy call_summary populated for backward compatibility
+          call_summary: metadataResult.summary,
+        })
+        .eq('id', existingAnalysis.id);
+
+      if (updateError) {
+        console.error('[analyze-call] Failed to update analysis:', updateError);
+        throw new Error('Failed to save analysis results');
+      }
+    } else {
+      // Insert new record
+      const { error: insertError } = await supabaseAdmin
+        .from('ai_call_analysis')
+        .insert({
+          call_id: call_id,
+          rep_id: transcript.rep_id,
+          model_name: 'google/gemini-2.5-flash',
+          call_summary: metadataResult.summary,
+          analysis_metadata: metadataResult,
+          analysis_behavior: behaviorResult,
+          analysis_pipeline_version: 'v2',
+        });
+
+      if (insertError) {
+        console.error('[analyze-call] Failed to insert analysis:', insertError);
+        throw new Error('Failed to save analysis results');
+      }
+    }
+
+    // Update transcript status to completed
+    await supabaseAdmin
+      .from('call_transcripts')
+      .update({ 
+        analysis_status: 'completed',
+        analysis_version: 'v2'
+      })
+      .eq('id', call_id);
+
+    console.log(`[analyze-call] Analysis 2.0 complete for call_id: ${call_id}`);
 
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: 'Analysis system is being upgraded to 2.0. Please try again later.',
+      JSON.stringify({
+        success: true,
         call_id: call_id,
-        upgrade_in_progress: true
+        analysis_version: 'v2',
+        metadata: metadataResult,
+        behavior: behaviorResult,
+        processing_time_ms: analysisTime,
       }),
-      { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('[analyze-call] Error:', errorMessage);
 
+    // Try to update transcript status to error
+    try {
+      const body = await req.clone().json();
+      if (body.call_id && UUID_REGEX.test(body.call_id)) {
+        await supabaseAdmin
+          .from('call_transcripts')
+          .update({ 
+            analysis_status: 'error',
+            analysis_error: errorMessage 
+          })
+          .eq('id', body.call_id);
+      }
+    } catch (e) {
+      console.error('[analyze-call] Failed to update error status:', e);
+    }
+
+    // Return appropriate error response
+    const isRateLimit = errorMessage.includes('Rate limit');
+    const isCredits = errorMessage.includes('credits');
+
     return new Response(
-      JSON.stringify({ error: 'Analysis failed. Please try again.' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: errorMessage }),
+      { 
+        status: isRateLimit ? 429 : isCredits ? 402 : 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
     );
   }
 });
