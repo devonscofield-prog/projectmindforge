@@ -1,6 +1,7 @@
 import { ReactNode, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { 
@@ -10,7 +11,8 @@ import {
   Mic,
   Target,
   Mail,
-  AlertTriangle
+  AlertTriangle,
+  Pencil
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CallAnalysis, CallTranscript } from '@/api/aiCallAnalysis';
@@ -29,6 +31,8 @@ interface CallAnalysisLayoutProps {
   behaviorContent: ReactNode;
   strategyContent: ReactNode;
   recapContent: ReactNode;
+  canEdit?: boolean;
+  onEditUserCounts?: () => void;
 }
 
 interface CircularScoreProps {
@@ -127,6 +131,8 @@ export function CallAnalysisLayout({
   behaviorContent,
   strategyContent,
   recapContent,
+  canEdit = false,
+  onEditUserCounts,
 }: CallAnalysisLayoutProps) {
   // Defensive JSON parsing with Zod validation
   const { behaviorData, strategyData, metadataData, parseError } = useMemo(() => {
@@ -266,16 +272,42 @@ export function CallAnalysisLayout({
 
             {/* Key Stats Row */}
             <div className="mt-6 grid gap-4 sm:grid-cols-3">
-              <StatCard 
-                icon={<Monitor className="h-5 w-5" />}
-                label="IT Users"
-                value={stats.itUsers}
-              />
-              <StatCard 
-                icon={<Users className="h-5 w-5" />}
-                label="End Users"
-                value={stats.endUsers}
-              />
+              <div className="relative">
+                <StatCard 
+                  icon={<Monitor className="h-5 w-5" />}
+                  label="IT Users"
+                  value={stats.itUsers}
+                />
+                {canEdit && onEditUserCounts && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute top-1 right-1 h-6 w-6 opacity-60 hover:opacity-100"
+                    onClick={onEditUserCounts}
+                    aria-label="Edit user counts"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
+              <div className="relative">
+                <StatCard 
+                  icon={<Users className="h-5 w-5" />}
+                  label="End Users"
+                  value={stats.endUsers}
+                />
+                {canEdit && onEditUserCounts && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute top-1 right-1 h-6 w-6 opacity-60 hover:opacity-100"
+                    onClick={onEditUserCounts}
+                    aria-label="Edit user counts"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
               <StatCard 
                 icon={<Clock className="h-5 w-5" />}
                 label="Duration"
