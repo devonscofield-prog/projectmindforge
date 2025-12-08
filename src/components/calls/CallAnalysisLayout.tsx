@@ -330,20 +330,25 @@ export function CallAnalysisLayout({
 
       {/* Tabbed Interface */}
       <Tabs defaultValue="behavior" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="behavior" className="flex items-center gap-2">
             <Mic className="h-4 w-4" />
-            <span className="hidden sm:inline">Behavior & Mechanics</span>
+            <span className="hidden sm:inline">Behavior</span>
             <span className="sm:hidden">Behavior</span>
           </TabsTrigger>
           <TabsTrigger value="strategy" className="flex items-center gap-2">
             <Target className="h-4 w-4" />
-            <span className="hidden sm:inline">Strategy & Threading</span>
+            <span className="hidden sm:inline">Strategy</span>
             <span className="sm:hidden">Strategy</span>
+          </TabsTrigger>
+          <TabsTrigger value="hazards" className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4" />
+            <span className="hidden sm:inline">Deal Hazards</span>
+            <span className="sm:hidden">Hazards</span>
           </TabsTrigger>
           <TabsTrigger value="recap" className="flex items-center gap-2">
             <Mail className="h-4 w-4" />
-            <span className="hidden sm:inline">Recap & Actions</span>
+            <span className="hidden sm:inline">Recap</span>
             <span className="sm:hidden">Recap</span>
           </TabsTrigger>
         </TabsList>
@@ -352,7 +357,11 @@ export function CallAnalysisLayout({
           {behaviorContent}
         </TabsContent>
         
-        <TabsContent value="strategy" forceMount className={cn("mt-6 space-y-6", "data-[state=inactive]:hidden")}>
+        <TabsContent value="strategy" className="mt-6">
+          {strategyContent}
+        </TabsContent>
+        
+        <TabsContent value="hazards" forceMount className={cn("mt-6", "data-[state=inactive]:hidden")}>
           <DealHeatCard
             transcript={transcript.raw_text}
             strategyData={strategyData}
@@ -361,7 +370,6 @@ export function CallAnalysisLayout({
             existingHeatData={dealHeatData}
             callId={transcript.id}
           />
-          {strategyContent}
         </TabsContent>
         
         <TabsContent value="recap" className="mt-6">
