@@ -21,6 +21,8 @@ import { BehaviorScorecard } from '@/components/analysis/BehaviorScorecard';
 import { PainToPitchAlignment, CriticalGapsPanel } from '@/components/analysis/StrategicRelevanceMap';
 import { SalesAssetsGenerator } from '@/components/calls/SalesAssetsGenerator';
 import { CallAnalysisLayout } from '@/components/calls/CallAnalysisLayout';
+import { TranscriptViewer } from '@/components/calls/TranscriptViewer';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { CallType, callTypeLabels } from '@/constants/callTypes';
 import { format } from 'date-fns';
 import { getDashboardUrl, getCallHistoryUrl } from '@/lib/routes';
@@ -41,7 +43,9 @@ import {
   Building,
   User,
   Pencil,
-  Users
+  Users,
+  ChevronDown,
+  ScrollText
 } from 'lucide-react';
 
 function CallDetailPage() {
@@ -86,6 +90,7 @@ function CallDetailPage() {
   // Edit dialog states
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isUserCountsDialogOpen, setIsUserCountsDialogOpen] = useState(false);
+  const [isTranscriptOpen, setIsTranscriptOpen] = useState(false);
 
   // Extract current user counts from analysis metadata
   const currentUserCounts = useMemo(() => {
@@ -377,6 +382,28 @@ function CallDetailPage() {
           isRetrying={retryMutation.isPending}
           isDeleting={deleteMutation.isPending}
         />
+
+        {/* Raw Transcript Section - Collapsible at bottom */}
+        <Collapsible open={isTranscriptOpen} onOpenChange={setIsTranscriptOpen}>
+          <Card>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <ScrollText className="h-5 w-5" />
+                    📜 Raw Transcript
+                  </span>
+                  <ChevronDown className={`h-5 w-5 transition-transform duration-200 ${isTranscriptOpen ? 'rotate-180' : ''}`} />
+                </CardTitle>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent>
+                <TranscriptViewer transcriptText={transcript.raw_text} />
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
 
         {/* Edit Call Details Dialog */}
         <EditCallDetailsDialog
