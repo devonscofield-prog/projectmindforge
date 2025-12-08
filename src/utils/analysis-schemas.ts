@@ -48,6 +48,8 @@ export const BehaviorScoreSchema = z.object({
       average_answer_length: z.number().describe("Average word count of Prospect's immediate answers"),
       high_leverage_count: z.number().describe("Count of questions that triggered long answers"),
       low_leverage_count: z.number().describe("Count of questions that triggered 1-word answers"),
+      high_leverage_examples: z.array(z.string()).describe("List of 2-3 specific questions from the call that triggered long, detailed answers."),
+      low_leverage_examples: z.array(z.string()).describe("List of 2-3 specific questions that were closed-ended, leading, or resulted in 1-word answers."),
     }),
     monologue: z.object({
       score: z.number().min(0).max(20),
