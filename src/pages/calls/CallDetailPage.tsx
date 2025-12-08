@@ -22,7 +22,9 @@ import { PainToPitchAlignment, CriticalGapsPanel } from '@/components/analysis/S
 import { SalesAssetsGenerator } from '@/components/calls/SalesAssetsGenerator';
 import { CallAnalysisLayout } from '@/components/calls/CallAnalysisLayout';
 import { TranscriptViewer } from '@/components/calls/TranscriptViewer';
+import { CoachingCard } from '@/components/calls/coaching';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Skeleton } from '@/components/ui/skeleton';
 import { CallType, callTypeLabels } from '@/constants/callTypes';
 import { format } from 'date-fns';
 import { getDashboardUrl, getCallHistoryUrl } from '@/lib/routes';
@@ -342,6 +344,29 @@ function CallDetailPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* AI Coaching Synthesis Card - First Thing User Sees */}
+        {(transcript.analysis_status === 'pending' || transcript.analysis_status === 'processing') && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                Generating Coaching Insights...
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <div className="grid grid-cols-2 gap-4">
+                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-24 w-full" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        {transcript.analysis_status === 'completed' && analysis?.analysis_coaching && (
+          <CoachingCard data={analysis.analysis_coaching} />
+        )}
 
         {/* Products Summary */}
         <CallProductsSummary callId={id!} prospectId={transcript.prospect_id} isOwner={isOwner} />
