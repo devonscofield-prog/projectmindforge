@@ -18,6 +18,7 @@ import {
   SpySchema,
   CoachSchema,
   SpeakerLabelerSchema,
+  SentinelSchema,
 } from './agent-schemas.ts';
 import {
   CENSUS_PROMPT,
@@ -31,6 +32,7 @@ import {
   SPY_PROMPT,
   COACH_PROMPT,
   SPEAKER_LABELER_PROMPT,
+  SENTINEL_PROMPT,
 } from './agent-prompts.ts';
 
 // ============= AGENT CONFIGURATION TYPE =============
@@ -150,10 +152,21 @@ const DEFAULT_SPEAKER_LABELER = {
   detection_confidence: 'low' as const,
 };
 
+const DEFAULT_SENTINEL = {
+  detected_call_type: 'full_cycle_sales' as const, // Safe default
+  confidence: 'low' as const,
+  detection_signals: [],
+  scoring_hints: {
+    discovery_expectation: 'moderate' as const,
+    monologue_tolerance: 'moderate' as const,
+    talk_ratio_ideal: 45,
+  },
+};
+
 // ============= AGENT REGISTRY =============
 
 export const AGENT_REGISTRY: AgentConfig[] = [
-  // Phase 0 Agent (pre-processing)
+  // Phase 0 Agents (pre-processing - run in parallel)
   {
     id: 'speaker_labeler',
     name: 'The Speaker Labeler',
@@ -166,6 +179,20 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     options: { model: 'google/gemini-2.5-flash', maxTokens: 4096 }, // Compact line_labels output
     isCritical: false, // Falls back to raw transcript if fails
     default: DEFAULT_SPEAKER_LABELER,
+    phase: 0,
+  },
+  {
+    id: 'sentinel',
+    name: 'The Sentinel',
+    description: 'Classify call type (full_cycle, reconnect, group_demo, etc.) to calibrate downstream scoring',
+    schema: SentinelSchema,
+    systemPrompt: SENTINEL_PROMPT,
+    userPromptTemplate: (t) => `Classify this sales call transcript by type:\n\n${t}`,
+    toolName: 'classify_call_type',
+    toolDescription: 'Classify the type of sales call to calibrate downstream agent scoring',
+    options: { model: 'google/gemini-2.5-flash', maxTokens: 1024 }, // Fast, simple classification task
+    isCritical: false, // Falls back to full_cycle_sales if fails
+    default: DEFAULT_SENTINEL,
     phase: 0,
   },
   // Phase 1 Agents (run in parallel)
@@ -322,10 +349,17 @@ export function getAgent(id: string): AgentConfig | undefined {
 }
 
 /**
- * Get Phase 0 agent (pre-processing - Speaker Labeler)
+ * Get all Phase 0 agents (pre-processing - Speaker Labeler + Sentinel)
  */
-export function getPhase0Agent(): AgentConfig | undefined {
-  return AGENT_REGISTRY.find(a => a.phase === 0);
+export function getPhase0Agents(): AgentConfig[] {
+  return AGENT_REGISTRY.filter(a => a.phase === 0);
+}
+
+/**
+ * Get Phase 0 agent by ID
+ */
+export function getPhase0Agent(id: string): AgentConfig | undefined {
+  return AGENT_REGISTRY.find(a => a.phase === 0 && a.id === id);
 }
 
 /**
