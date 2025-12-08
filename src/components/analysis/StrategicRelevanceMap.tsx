@@ -1,13 +1,15 @@
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { 
   ArrowRight, 
   CheckCircle2, 
@@ -17,13 +19,42 @@ import {
   Quote,
   Package,
   Minus,
-  HelpCircle
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Check,
+  Lightbulb,
+  TrendingUp
 } from 'lucide-react';
 import type { StrategyAudit } from '@/utils/analysis-schemas';
 import { cn } from '@/lib/utils';
 
 interface StrategicRelevanceMapProps {
   data: StrategyAudit | null | undefined;
+}
+
+// Severity color mapping
+function getSeverityStyles(severity: 'High' | 'Medium' | 'Low' | undefined) {
+  switch (severity) {
+    case 'High':
+      return 'border-l-destructive bg-destructive/5';
+    case 'Medium':
+      return 'border-l-yellow-500 bg-yellow-500/5';
+    case 'Low':
+      return 'border-l-muted-foreground/30 bg-muted/30';
+    default:
+      return 'border-l-blue-500 bg-blue-50/50 dark:bg-blue-950/20';
+  }
+}
+
+function getSeverityBadge(severity: 'High' | 'Medium' | 'Low' | undefined) {
+  if (!severity) return null;
+  const variants = {
+    High: 'destructive' as const,
+    Medium: 'secondary' as const,
+    Low: 'outline' as const,
+  };
+  return <Badge variant={variants[severity]} className="text-xs">{severity}</Badge>;
 }
 
 // Impact color mapping
@@ -55,22 +86,30 @@ interface RelevanceBridgeProps {
   featurePitched: string;
   isRelevant: boolean;
   reasoning?: string;
+  painSeverity?: 'High' | 'Medium' | 'Low';
+  painType?: 'Explicit' | 'Implicit';
 }
 
-function RelevanceBridge({ painIdentified, featurePitched, isRelevant, reasoning }: RelevanceBridgeProps) {
+function RelevanceBridge({ painIdentified, featurePitched, isRelevant, reasoning, painSeverity, painType }: RelevanceBridgeProps) {
   return (
     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 p-4 rounded-xl border bg-card">
       {/* Pain Card */}
       <div className={cn(
         "flex-1 rounded-lg p-4 border-l-4",
-        isRelevant 
-          ? "bg-blue-50/50 dark:bg-blue-950/20 border-l-blue-500" 
-          : "bg-muted/50 border-l-muted-foreground/30"
+        getSeverityStyles(painSeverity)
       )}>
         <div className="flex items-start gap-3">
-          <Quote className="h-4 w-4 text-blue-500 shrink-0 mt-1" />
-          <div>
-            <p className="text-xs font-medium text-muted-foreground mb-1">Pain Identified</p>
+          <Quote className="h-4 w-4 text-muted-foreground shrink-0 mt-1" />
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <p className="text-xs font-medium text-muted-foreground">Pain Identified</p>
+              {getSeverityBadge(painSeverity)}
+              {painType && (
+                <Badge variant="outline" className="text-xs">
+                  {painType}
+                </Badge>
+              )}
+            </div>
             <p className="text-sm italic">"{painIdentified}"</p>
           </div>
         </div>
@@ -116,23 +155,84 @@ function RelevanceBridge({ painIdentified, featurePitched, isRelevant, reasoning
         </div>
       </div>
 
-      {/* Reasoning (for mismatches) */}
+      {/* Reasoning (shown inline for misaligned items) */}
       {!isRelevant && reasoning && (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 sm:relative sm:bottom-auto sm:left-auto sm:translate-x-0">
-                <Badge variant="outline" className="text-xs border-destructive/50 text-destructive cursor-help">
-                  Why?
-                </Badge>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="max-w-xs">
-              <p className="text-sm">{reasoning}</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <div className="w-full sm:w-auto sm:max-w-[200px] mt-2 sm:mt-0">
+          <div className="p-2 rounded-lg bg-destructive/10 border border-destructive/20">
+            <p className="text-xs text-destructive">{reasoning}</p>
+          </div>
+        </div>
       )}
+    </div>
+  );
+}
+
+// Missed Opportunity Card (new structured format)
+interface MissedOpportunityCardProps {
+  pain: string;
+  severity: 'High' | 'Medium';
+  suggestedPitch: string;
+  talkTrack: string;
+}
+
+function MissedOpportunityCard({ pain, severity, suggestedPitch, talkTrack }: MissedOpportunityCardProps) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(talkTrack);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className={cn(
+      "p-4 rounded-xl border-2 space-y-3",
+      severity === 'High' 
+        ? "border-destructive/50 bg-destructive/5" 
+        : "border-yellow-500/50 bg-yellow-500/5"
+    )}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <AlertTriangle className={cn(
+              "h-4 w-4",
+              severity === 'High' ? "text-destructive" : "text-yellow-500"
+            )} />
+            <Badge variant={severity === 'High' ? 'destructive' : 'secondary'} className="text-xs">
+              {severity} Priority
+            </Badge>
+          </div>
+          <p className="text-sm font-medium">{pain}</p>
+        </div>
+      </div>
+      
+      <div className="flex items-start gap-2 text-sm text-muted-foreground">
+        <TrendingUp className="h-4 w-4 shrink-0 mt-0.5" />
+        <span><strong>Pitch:</strong> {suggestedPitch}</span>
+      </div>
+
+      <div 
+        onClick={handleCopy}
+        className={cn(
+          "group relative p-3 rounded-lg cursor-pointer transition-all",
+          "bg-background/50 border border-dashed hover:border-solid hover:bg-background",
+          "dark:bg-background/30"
+        )}
+        title="Click to copy"
+      >
+        <div className="flex items-start gap-2">
+          <Lightbulb className="h-4 w-4 text-yellow-500 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-xs font-medium text-muted-foreground mb-1">Talk Track (click to copy)</p>
+            <p className="text-sm italic">"{talkTrack}"</p>
+          </div>
+          {copied ? (
+            <Check className="h-4 w-4 text-green-500" />
+          ) : (
+            <Copy className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -146,8 +246,12 @@ interface CriticalGapCardProps {
 }
 
 function CriticalGapCard({ category, description, impact, suggestedQuestion }: CriticalGapCardProps) {
+  const [copied, setCopied] = useState(false);
+
   const handleCopy = () => {
     navigator.clipboard.writeText(suggestedQuestion);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -190,9 +294,62 @@ function CriticalGapCard({ category, description, impact, suggestedQuestion }: C
             <p className="text-xs font-medium text-muted-foreground mb-1">Ask this:</p>
             <p className="text-sm font-medium italic">"{suggestedQuestion}"</p>
           </div>
-          <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
-            Click to copy
-          </span>
+          {copied ? (
+            <Check className="h-4 w-4 text-green-500" />
+          ) : (
+            <Copy className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Score Breakdown Component
+interface ScoreBreakdownProps {
+  breakdown: {
+    high_pains_addressed: number;
+    high_pains_total: number;
+    medium_pains_addressed?: number;
+    medium_pains_total?: number;
+    spray_and_pray_count: number;
+  };
+}
+
+function ScoreBreakdown({ breakdown }: ScoreBreakdownProps) {
+  const highPercent = breakdown.high_pains_total > 0 
+    ? (breakdown.high_pains_addressed / breakdown.high_pains_total) * 100 
+    : 100;
+  const mediumPercent = (breakdown.medium_pains_total ?? 0) > 0 
+    ? ((breakdown.medium_pains_addressed ?? 0) / (breakdown.medium_pains_total ?? 1)) * 100 
+    : 100;
+
+  return (
+    <div className="grid grid-cols-3 gap-4 p-4 rounded-lg bg-muted/30 border">
+      <div className="text-center">
+        <div className="text-2xl font-bold text-destructive">
+          {breakdown.high_pains_addressed}/{breakdown.high_pains_total}
+        </div>
+        <div className="text-xs text-muted-foreground">High Priority Addressed</div>
+        <Progress value={highPercent} className="h-1.5 mt-2" />
+      </div>
+      <div className="text-center">
+        <div className="text-2xl font-bold text-yellow-600">
+          {breakdown.medium_pains_addressed ?? 0}/{breakdown.medium_pains_total ?? 0}
+        </div>
+        <div className="text-xs text-muted-foreground">Medium Priority Addressed</div>
+        <Progress value={mediumPercent} className="h-1.5 mt-2" />
+      </div>
+      <div className="text-center">
+        <div className={cn(
+          "text-2xl font-bold",
+          breakdown.spray_and_pray_count > 0 ? "text-destructive" : "text-green-600"
+        )}>
+          {breakdown.spray_and_pray_count}
+        </div>
+        <div className="text-xs text-muted-foreground">Spray & Pray Pitches</div>
+        <div className="text-xs mt-2">
+          {breakdown.spray_and_pray_count === 0 ? "✓ None" : "⚠️ -5 pts each"}
         </div>
       </div>
     </div>
@@ -201,6 +358,8 @@ function CriticalGapCard({ category, description, impact, suggestedQuestion }: C
 
 // Exported component for Pain-to-Pitch Alignment (Strategy tab)
 export function PainToPitchAlignment({ data }: StrategicRelevanceMapProps) {
+  const [showAll, setShowAll] = useState(false);
+
   if (!data) {
     return (
       <Card>
@@ -219,6 +378,27 @@ export function PainToPitchAlignment({ data }: StrategicRelevanceMapProps) {
 
   const { strategic_threading } = data;
   const isPassing = strategic_threading?.grade === 'Pass';
+  
+  // Sort relevance map: High severity first, then misaligned items
+  const sortedRelevanceMap = [...(strategic_threading.relevance_map || [])].sort((a, b) => {
+    const severityOrder = { High: 0, Medium: 1, Low: 2 };
+    const aSev = severityOrder[a.pain_severity || 'Low'];
+    const bSev = severityOrder[b.pain_severity || 'Low'];
+    if (aSev !== bSev) return aSev - bSev;
+    // Then sort by relevance (irrelevant first for coaching)
+    return (a.is_relevant ? 1 : 0) - (b.is_relevant ? 1 : 0);
+  });
+  
+  const displayedItems = showAll ? sortedRelevanceMap : sortedRelevanceMap.slice(0, 5);
+  const hasMore = sortedRelevanceMap.length > 5;
+
+  // Parse missed opportunities (can be strings or structured objects)
+  const missedOpportunities = strategic_threading.missed_opportunities || [];
+  const structuredMissed = missedOpportunities.filter(
+    (item): item is { pain: string; severity: 'High' | 'Medium'; suggested_pitch: string; talk_track: string } => 
+      typeof item === 'object' && 'pain' in item
+  );
+  const legacyMissed = missedOpportunities.filter((item): item is string => typeof item === 'string');
 
   return (
     <Card>
@@ -245,27 +425,85 @@ export function PainToPitchAlignment({ data }: StrategicRelevanceMapProps) {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {strategic_threading.relevance_map.length === 0 ? (
+        {/* Strategic Summary Banner */}
+        {strategic_threading.strategic_summary && (
+          <Alert className="border-primary/30 bg-primary/5">
+            <Target className="h-4 w-4" />
+            <AlertDescription className="text-sm font-medium">
+              {strategic_threading.strategic_summary}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Score Breakdown */}
+        {strategic_threading.score_breakdown && (
+          <ScoreBreakdown breakdown={strategic_threading.score_breakdown} />
+        )}
+
+        {/* Relevance Map */}
+        {sortedRelevanceMap.length === 0 ? (
           <div className="flex items-center justify-center py-8 text-muted-foreground">
             <Minus className="h-4 w-4 mr-2" />
             No pain-to-pitch mappings identified
           </div>
         ) : (
           <div className="space-y-3">
-            {strategic_threading.relevance_map.map((item, index) => (
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-medium text-muted-foreground">
+                Pain → Solution Connections ({sortedRelevanceMap.length})
+              </h4>
+              {hasMore && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowAll(!showAll)}
+                  className="text-xs"
+                >
+                  {showAll ? (
+                    <>Show Less <ChevronUp className="h-3 w-3 ml-1" /></>
+                  ) : (
+                    <>Show All ({sortedRelevanceMap.length}) <ChevronDown className="h-3 w-3 ml-1" /></>
+                  )}
+                </Button>
+              )}
+            </div>
+            {displayedItems.map((item, index) => (
               <RelevanceBridge
                 key={index}
                 painIdentified={item.pain_identified}
                 featurePitched={item.feature_pitched}
                 isRelevant={item.is_relevant}
                 reasoning={item.reasoning}
+                painSeverity={item.pain_severity}
+                painType={item.pain_type}
               />
             ))}
           </div>
         )}
 
-        {/* Missed Opportunities */}
-        {strategic_threading.missed_opportunities.length > 0 && (
+        {/* Missed Opportunities - Structured Format */}
+        {structuredMissed.length > 0 && (
+          <div className="mt-6 space-y-3">
+            <h4 className="text-sm font-semibold flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-yellow-500" />
+              Missed Opportunities ({structuredMissed.length})
+            </h4>
+            <div className="grid gap-3 md:grid-cols-2">
+              {structuredMissed.map((opportunity, index) => (
+                <MissedOpportunityCard
+                  key={index}
+                  pain={opportunity.pain}
+                  severity={opportunity.severity}
+                  suggestedPitch={opportunity.suggested_pitch}
+                  talkTrack={opportunity.talk_track}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Legacy Missed Opportunities (fallback for old data) */}
+        {legacyMissed.length > 0 && structuredMissed.length === 0 && (
           <Alert className="border-yellow-500/50 bg-yellow-500/10 mt-6">
             <AlertTriangle className="h-4 w-4 text-yellow-600" />
             <AlertTitle className="text-yellow-700 dark:text-yellow-400">
@@ -273,7 +511,7 @@ export function PainToPitchAlignment({ data }: StrategicRelevanceMapProps) {
             </AlertTitle>
             <AlertDescription>
               <ul className="mt-2 space-y-1">
-                {strategic_threading.missed_opportunities.map((opportunity, index) => (
+                {legacyMissed.map((opportunity, index) => (
                   <li key={index} className="text-sm text-yellow-600 dark:text-yellow-300 flex items-start gap-2">
                     <span className="text-yellow-500 shrink-0">•</span>
                     {opportunity}
