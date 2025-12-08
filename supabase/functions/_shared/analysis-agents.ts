@@ -245,6 +245,46 @@ const DEAL_GAPS_TOOL = {
   }
 };
 
+// Tool for The Negotiator - objection handling analysis
+const OBJECTION_HANDLING_TOOL = {
+  type: "function",
+  function: {
+    name: "analyze_objection_handling",
+    description: "Analyze how the rep handled objections and pushback during the sales call",
+    parameters: {
+      type: "object",
+      properties: {
+        score: { type: "number", minimum: 0, maximum: 100, description: "Overall objection handling score 0-100" },
+        grade: { type: "string", enum: ["Pass", "Fail"], description: "Pass if score >= 60" },
+        objections_detected: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              objection: { type: "string", description: "The prospect's specific objection (e.g., 'Too expensive')" },
+              category: { 
+                type: "string", 
+                enum: ["Price", "Competitor", "Authority", "Need", "Timing", "Feature"],
+                description: "Category of the objection"
+              },
+              rep_response: { type: "string", description: "Summary of how the rep answered" },
+              handling_rating: { 
+                type: "string", 
+                enum: ["Great", "Okay", "Bad"],
+                description: "Quality of the rep's response"
+              },
+              coaching_tip: { type: "string", description: "Specific feedback on this interaction" }
+            },
+            required: ["objection", "category", "rep_response", "handling_rating", "coaching_tip"]
+          },
+          description: "List of objections detected and how they were handled"
+        }
+      },
+      required: ["score", "grade", "objections_detected"]
+    }
+  }
+};
+
 const CLERK_SYSTEM_PROMPT = `You are 'The Clerk', a strictly factual executive assistant. Your job is to extract participants, logistics, and data from a sales call transcript.
 
 Rules:
@@ -418,6 +458,48 @@ Return ONLY the critical_gaps array with 3-5 items.
 - Impact: High (deal-blocking), Medium (creates friction), Low (nice to know)
 - suggested_question: The EXACT question the rep should ask to close this gap.`;
 
+// The Negotiator - dedicated agent for objection handling analysis
+const NEGOTIATOR_SYSTEM_PROMPT = `You are 'The Negotiator', a Sales Objection Coach. Your ONLY job is to find moments of friction and grade the Rep's response.
+
+**1. DETECTION**
+- Scan for "Pushback" signals from the Prospect:
+  - Price objections: "Too expensive", "Over our budget", "Can you do better on price?"
+  - Competitor objections: "We use [Competitor]", "We're also looking at [Vendor]", "How are you different from...?"
+  - Authority objections: "I need to ask my boss", "I can't make this decision alone", "Let me check with the team"
+  - Need objections: "We don't really need this", "Not sure this is a priority", "We're fine with our current solution"
+  - Timing objections: "Not right now", "Maybe next quarter", "We're in a budget freeze"
+  - Feature objections: "Does it have...?", "We need X capability", "That's a dealbreaker"
+
+- **If NO objections are found:** Return score 100 (Perfect call with no friction) and empty objections_detected array.
+
+**2. GRADING (The LAER Framework)**
+For each objection detected, evaluate if the Rep:
+- **L**isten: Did they let the prospect finish and acknowledge they heard?
+- **A**cknowledge: Did they validate the concern ("That's a fair point", "I understand")
+- **E**xplore: Did they ask clarifying questions to understand the root cause?
+- **R**espond: Did they address the concern with relevant value or evidence?
+
+**RATING CRITERIA:**
+- **Great:** Rep demonstrated 3-4 of LAER elements. Validated the concern AND pivoted to value. Made the prospect feel heard.
+- **Okay:** Rep demonstrated 1-2 of LAER elements. Addressed the concern but missed opportunities to explore or validate.
+- **Bad:** Rep argued, interrupted, ignored the objection, or gave a defensive/dismissive response.
+
+**3. SCORING**
+- Start at 100
+- For each objection with "Bad" handling: -20 points
+- For each objection with "Okay" handling: -10 points
+- For each objection with "Great" handling: -0 points
+- Minimum score: 0
+
+**4. COACHING TIPS**
+For each objection, provide ONE specific, actionable tip:
+- What exactly should the rep have said differently?
+- What question should they have asked?
+- How could they have reframed the objection?
+
+**OUTPUT:**
+Return the score, grade (Pass if >= 60), and the objections_detected array.`;
+
 export interface CallMetadata {
   summary: string;
   topics: string[];
@@ -517,8 +599,23 @@ export interface DealGaps {
   }>;
 }
 
+// Objection handling (from The Negotiator)
+export interface ObjectionHandling {
+  objection_handling: {
+    score: number;
+    grade: 'Pass' | 'Fail';
+    objections_detected: Array<{
+      objection: string;
+      category: 'Price' | 'Competitor' | 'Authority' | 'Need' | 'Timing' | 'Feature';
+      rep_response: string;
+      handling_rating: 'Great' | 'Okay' | 'Bad';
+      coaching_tip: string;
+    }>;
+  };
+}
+
 // Combined interface for backward compatibility
-export interface StrategyAudit extends StrategicThreading, DealGaps {}
+export interface StrategyAudit extends StrategicThreading, DealGaps, ObjectionHandling {}
 
 interface CallLovableAIOptions {
   model?: string;
@@ -726,4 +823,29 @@ export async function analyzeQuestionLeverage(transcript: string): Promise<Quest
   
   console.log('[analyzeQuestionLeverage] Analysis complete, score:', result.score, ', yield_ratio:', result.yield_ratio);
   return result as QuestionLeverage;
+}
+
+/**
+ * Agent 6: The Negotiator - Analyze objection handling
+ * Uses gemini-2.5-pro for reasoning-heavy judgment of response quality
+ */
+export async function analyzeObjections(transcript: string): Promise<ObjectionHandling> {
+  console.log('[analyzeObjections] Starting objection handling analysis with Pro model...');
+  
+  const userPrompt = `Analyze this sales call transcript for objections and pushback. Identify how the rep handled each moment of friction:\n\n${transcript}`;
+  
+  const result = await callLovableAI(
+    NEGOTIATOR_SYSTEM_PROMPT,
+    userPrompt,
+    OBJECTION_HANDLING_TOOL,
+    'analyze_objection_handling',
+    {
+      model: 'google/gemini-2.5-pro',
+      temperature: 0.1, // Low temperature for consistent judgment
+      maxTokens: 4096,
+    }
+  );
+  
+  console.log('[analyzeObjections] Analysis complete, score:', result.score, ', objections found:', result.objections_detected?.length || 0);
+  return { objection_handling: result } as ObjectionHandling;
 }
