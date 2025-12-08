@@ -45,6 +45,7 @@ export interface CreateCallTranscriptParams {
   stakeholderId?: string;
   products?: Omit<ProductEntry, 'productName'>[];
   managerOnCall?: boolean;
+  additionalSpeakers?: string[];
 }
 
 export interface CallTranscript {

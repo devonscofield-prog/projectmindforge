@@ -55,6 +55,8 @@ function RepDashboard() {
   const [callTypeOther, setCallTypeOther] = useState('');
   const [selectedProducts, setSelectedProducts] = useState<ProductEntry[]>([]);
   const [managerOnCall, setManagerOnCall] = useState(false);
+  const [additionalSpeakersEnabled, setAdditionalSpeakersEnabled] = useState(false);
+  const [additionalSpeakersText, setAdditionalSpeakersText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Auto-focus "Specify Call Type" input when "Other" is selected
@@ -210,6 +212,9 @@ function RepDashboard() {
           promotionNotes: p.promotionNotes,
         })) : undefined,
         managerOnCall,
+        additionalSpeakers: additionalSpeakersEnabled && additionalSpeakersText.trim() 
+          ? additionalSpeakersText.split(',').map(s => s.trim()).filter(Boolean)
+          : undefined,
       });
 
       // Check for rate limit error in analyze response
@@ -392,6 +397,31 @@ function RepDashboard() {
                       <Users className="h-4 w-4 text-muted-foreground" />
                       Manager was on this call
                     </Label>
+                  </div>
+
+                  {/* Additional Speakers Checkbox + Input */}
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox 
+                        id="additionalSpeakers" 
+                        checked={additionalSpeakersEnabled} 
+                        onCheckedChange={(checked) => setAdditionalSpeakersEnabled(checked === true)}
+                        disabled={isSubmitting}
+                      />
+                      <Label htmlFor="additionalSpeakers" className="text-sm font-normal flex items-center gap-1.5 cursor-pointer">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        Additional speakers on this call
+                      </Label>
+                    </div>
+                    {additionalSpeakersEnabled && (
+                      <Input 
+                        placeholder="Enter names separated by commas (e.g., John Smith, Sarah Jones)"
+                        value={additionalSpeakersText}
+                        onChange={e => setAdditionalSpeakersText(e.target.value)}
+                        disabled={isSubmitting}
+                        className="text-sm"
+                      />
+                    )}
                   </div>
 
                   {/* Other Call Type Input (conditional) */}

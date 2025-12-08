@@ -180,6 +180,18 @@ export const CoachSchema = z.object({
   grade_reasoning: z.string(),
 });
 
+// The Speaker Labeler - pre-processing agent
+export const SpeakerLabelerSchema = z.object({
+  labeled_transcript: z.string(),
+  speaker_mapping: z.array(z.object({
+    original_name: z.string(),
+    role: z.enum(['REP', 'PROSPECT', 'MANAGER', 'OTHER']),
+    display_label: z.string(),
+  })),
+  speaker_count: z.number(),
+  detection_confidence: z.enum(['high', 'medium', 'low']),
+});
+
 // ============= INFERRED TYPES =============
 
 export type CensusOutput = z.infer<typeof CensusSchema>;
@@ -192,6 +204,7 @@ export type NegotiatorOutput = z.infer<typeof NegotiatorSchema>;
 export type ProfilerOutput = z.infer<typeof ProfilerSchema>;
 export type SpyOutput = z.infer<typeof SpySchema>;
 export type CoachOutput = z.infer<typeof CoachSchema>;
+export type SpeakerLabelerOutput = z.infer<typeof SpeakerLabelerSchema>;
 
 // ============= COMBINED TYPES FOR BACKWARD COMPATIBILITY =============
 

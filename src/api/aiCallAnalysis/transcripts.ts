@@ -74,6 +74,7 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
       call_type: callType,
       call_type_other: callType === 'other' ? callTypeOther : null,
       manager_id: managerId,
+      additional_speakers: params.additionalSpeakers || [],
     })
     .select()
     .single();
