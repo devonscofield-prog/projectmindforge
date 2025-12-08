@@ -19,7 +19,16 @@ const AGENT_TIMEOUT_MS = {
   'google/gemini-2.5-pro': 30000,    // 30s for pro models (reduced from 45s)
 } as const;
 
-export function getAgentTimeout(model: 'google/gemini-2.5-flash' | 'google/gemini-2.5-pro'): number {
+// Agent-specific timeout overrides (some agents need longer due to output size)
+const AGENT_TIMEOUT_OVERRIDES: Record<string, number> = {
+  'speaker_labeler': 25000,  // 25s - must output full labeled transcript
+} as const;
+
+export function getAgentTimeout(model: 'google/gemini-2.5-flash' | 'google/gemini-2.5-pro', agentId?: string): number {
+  // Check for agent-specific override first
+  if (agentId && AGENT_TIMEOUT_OVERRIDES[agentId]) {
+    return AGENT_TIMEOUT_OVERRIDES[agentId];
+  }
   return AGENT_TIMEOUT_MS[model] || 15000;
 }
 
@@ -98,8 +107,8 @@ async function callLovableAI<T extends z.ZodTypeAny>(
 
   let lastError: Error | null = null;
   
-  // Use per-agent timeout instead of global timeout (P1 optimization)
-  const agentTimeoutMs = getAgentTimeout(config.options.model);
+  // Use per-agent timeout with optional agent-specific override (P1 optimization)
+  const agentTimeoutMs = getAgentTimeout(config.options.model, config.id);
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     if (attempt > 0) {

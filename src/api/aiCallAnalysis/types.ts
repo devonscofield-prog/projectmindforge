@@ -69,6 +69,7 @@ export interface CallTranscript {
   call_type: CallType | null;
   call_type_other: string | null;
   prospect_id: string | null;
+  additional_speakers: string[] | null;
 }
 
 export interface CallTranscriptWithHeat extends CallTranscript {
