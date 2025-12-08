@@ -1,9 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { User, Check, X } from 'lucide-react';
+import { User, Check, X, Quote, Mail, Copy } from 'lucide-react';
 import type { PsychologyProfile } from '@/utils/analysis-schemas';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 interface ProspectPersonaCardProps {
   psychology: PsychologyProfile | null;
@@ -58,6 +60,19 @@ export function ProspectPersonaCard({ psychology }: ProspectPersonaCardProps) {
           </div>
         </div>
 
+        {/* Evidence Quote */}
+        {psychology.evidence_quote && (
+          <div className="rounded-lg bg-muted/30 p-3 border-l-2 border-primary/50">
+            <p className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-1">
+              <Quote className="h-3 w-3" />
+              Evidence
+            </p>
+            <p className="text-sm italic text-muted-foreground">
+              "{psychology.evidence_quote}"
+            </p>
+          </div>
+        )}
+
         {/* Communication Style */}
         <div className="rounded-lg bg-muted/50 p-3 space-y-2">
           <p className="text-sm font-medium">Communication Style</p>
@@ -66,6 +81,32 @@ export function ProspectPersonaCard({ psychology }: ProspectPersonaCardProps) {
             <p><span className="font-medium text-foreground">Preference:</span> {psychology.communication_style.preference}</p>
           </div>
         </div>
+
+        {/* Suggested Email Subject */}
+        {psychology.suggested_email_subject && (
+          <div className="rounded-lg bg-primary/5 p-3 space-y-2">
+            <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+              <Mail className="h-3 w-3" />
+              Suggested Email Subject
+            </p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium flex-1 truncate">
+                {psychology.suggested_email_subject}
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0 shrink-0"
+                onClick={() => {
+                  navigator.clipboard.writeText(psychology.suggested_email_subject);
+                  toast.success('Subject copied to clipboard');
+                }}
+              >
+                <Copy className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        )}
 
         <Separator />
 
