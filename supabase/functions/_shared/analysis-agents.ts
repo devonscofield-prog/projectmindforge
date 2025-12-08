@@ -4,9 +4,13 @@
  * Agent 1: The Clerk - Metadata & Facts extraction
  * Agent 2: The Referee - Behavioral scoring
  * Agent 3: The Auditor - Strategy & MEDDPICC analysis
+ * Agent 4: The Interrogator - Question leverage analysis
  */
 
 const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+
+// Timeout for AI Gateway calls (55s to leave buffer before 60s edge function timeout)
+const AI_GATEWAY_TIMEOUT_MS = 55000;
 
 // Tool schemas for structured output extraction
 const CALL_METADATA_TOOL = {
@@ -373,6 +377,7 @@ export interface CallMetadata {
   };
 }
 
+// Base BehaviorScore from The Referee (without question_quality - added separately)
 export interface BehaviorScore {
   overall_score: number;
   grade: 'Pass' | 'Fail';
@@ -381,16 +386,12 @@ export interface BehaviorScore {
       score: number;
       interruption_count: number;
       status: 'Excellent' | 'Good' | 'Fair' | 'Poor';
-    };
-    question_quality: {
-      score: number;
-      explanation: string;
-      average_question_length: number;
-      average_answer_length: number;
-      high_leverage_count: number;
-      low_leverage_count: number;
-      high_leverage_examples: string[];
-      low_leverage_examples: string[];
+      interruptions?: Array<{
+        interrupted_speaker: string;
+        interrupter: string;
+        context: string;
+        severity: 'Minor' | 'Moderate' | 'Severe';
+      }>;
     };
     monologue: {
       score: number;
@@ -406,6 +407,13 @@ export interface BehaviorScore {
       secured: boolean;
       details: string;
     };
+  };
+}
+
+// Merged interface that includes question_quality from The Interrogator
+export interface MergedBehaviorScore extends Omit<BehaviorScore, 'metrics'> {
+  metrics: BehaviorScore['metrics'] & {
+    question_quality: QuestionLeverage;
   };
 }
 
@@ -482,14 +490,32 @@ async function callLovableAI(
     requestBody.temperature = temperature;
   }
 
-  const response = await fetch(LOVABLE_AI_URL, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(requestBody),
-  });
+  // Create AbortController with timeout protection
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort();
+  }, AI_GATEWAY_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(LOVABLE_AI_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+      signal: controller.signal,
+    });
+  } catch (fetchError) {
+    clearTimeout(timeoutId);
+    if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+      throw new Error(`AI Gateway timeout after ${AI_GATEWAY_TIMEOUT_MS / 1000}s`);
+    }
+    throw fetchError;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     const errorText = await response.text();
