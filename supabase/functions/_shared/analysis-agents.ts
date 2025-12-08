@@ -246,6 +246,15 @@ Rules:
     - Ratio >= 0.5: 5 pts
     - Ratio < 0.5: 2 pts (poor - rep questions longer than prospect answers)
 
+**EDGE CASE HANDLING:**
+- If NO sales questions remain after filtering (e.g., only logistical questions found):
+  - Return \`score: 0\`
+  - Return \`average_question_length: 0\`
+  - Return \`average_answer_length: 0\`
+  - Return \`high_leverage_count: 0\`
+  - Return \`low_leverage_count: 0\`
+  - Return \`explanation: "No qualifying sales questions detected."\`
+
 - **Talk Ratio (0-15 pts):** Score STRICTLY based on rep talk percentage:
   - 40-50%: 15 pts (ideal balance - prospect is talking more)
   - 51-55%: 12 pts
