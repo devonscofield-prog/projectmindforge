@@ -117,9 +117,11 @@ export const StrategyAuditSchema = z.object({
     usage_status: z.enum(['Current Vendor', 'Past Vendor', 'Evaluating', 'Mentioned']),
     strengths_mentioned: z.array(z.string()).describe("Positive things said about the competitor"),
     weaknesses_mentioned: z.array(z.string()).describe("Negative things said about the competitor"),
-    threat_level: z.enum(['High', 'Medium', 'Low']),
-    churn_risk: z.enum(['High', 'Medium', 'Low']).describe("Likelihood they will switch from this competitor"),
+    evidence_quote: z.string().optional().describe("Verbatim quote from transcript proving this competitor intel"),
+    competitive_position: z.enum(['Winning', 'Losing', 'Neutral', 'At Risk']).optional().describe("Our position relative to this competitor"),
+    positioning_strategy: z.string().optional().describe("1-2 sentences: how to de-position this competitor"),
     silver_bullet_question: z.string().describe("A specific 'Trap Setting' question to de-position this competitor"),
+    question_timing: z.string().optional().describe("When to use the silver bullet question"),
   })).optional().describe("Competitive intelligence gathered from the call"),
 });
 
@@ -180,9 +182,11 @@ export const CompetitiveIntelSchema = z.object({
     usage_status: z.enum(['Current Vendor', 'Past Vendor', 'Evaluating', 'Mentioned']),
     strengths_mentioned: z.array(z.string()).describe("Positive things said about the competitor"),
     weaknesses_mentioned: z.array(z.string()).describe("Negative things said about the competitor"),
-    threat_level: z.enum(['High', 'Medium', 'Low']),
-    churn_risk: z.enum(['High', 'Medium', 'Low']).describe("Likelihood they will switch from this competitor"),
+    evidence_quote: z.string().describe("Verbatim quote from transcript proving this competitor intel"),
+    competitive_position: z.enum(['Winning', 'Losing', 'Neutral', 'At Risk']).describe("Our position relative to this competitor"),
+    positioning_strategy: z.string().describe("1-2 sentences: how to de-position this competitor based on their weakness"),
     silver_bullet_question: z.string().describe("A specific 'Trap Setting' question to de-position this competitor"),
+    question_timing: z.string().describe("When to use the silver bullet question"),
   })),
 });
 
