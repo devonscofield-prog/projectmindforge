@@ -38,12 +38,20 @@ setInterval(() => {
 function getCorsHeaders(origin?: string | null): Record<string, string> {
   const allowedOrigins = ['https://lovable.dev', 'https://www.lovable.dev'];
   const devPatterns = [/^https?:\/\/localhost(:\d+)?$/, /^https:\/\/[a-z0-9-]+\.lovableproject\.com$/, /^https:\/\/[a-z0-9-]+\.lovable\.app$/];
+  
+  // Allow custom domain from environment variable
+  const customDomain = Deno.env.get('CUSTOM_DOMAIN');
+  if (customDomain) {
+    allowedOrigins.push(`https://${customDomain}`);
+    allowedOrigins.push(`https://www.${customDomain}`);
+  }
+  
   const requestOrigin = origin || '';
   const isAllowed = allowedOrigins.includes(requestOrigin) || devPatterns.some(pattern => pattern.test(requestOrigin));
   return {
     'Access-Control-Allow-Origin': isAllowed ? requestOrigin : allowedOrigins[0],
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
   };
 }
 

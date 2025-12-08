@@ -11,6 +11,13 @@ function getCorsHeaders(origin?: string | null): Record<string, string> {
     'https://lovableproject.com',
   ];
 
+  // Allow custom domain from environment variable
+  const customDomain = Deno.env.get('CUSTOM_DOMAIN');
+  if (customDomain) {
+    allowedOrigins.push(`https://${customDomain}`);
+    allowedOrigins.push(`https://www.${customDomain}`);
+  }
+
   const isAllowed = origin && (
     allowedOrigins.includes(origin) ||
     origin.endsWith('.lovable.dev') ||

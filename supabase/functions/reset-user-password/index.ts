@@ -99,11 +99,17 @@ Deno.serve(async (req) => {
     }
 
     // Generate password reset link (recovery type, not magiclink)
+    // Use custom domain from env if available, otherwise fall back to lovableproject.com
+    const customDomain = Deno.env.get('CUSTOM_DOMAIN');
+    const defaultRedirect = customDomain 
+      ? `https://${customDomain}/auth`
+      : `${supabaseUrl.replace('.supabase.co', '.lovableproject.com')}/auth`;
+    
     const { data: resetData, error: resetError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'recovery',
       email: userData.user.email!,
       options: {
-        redirectTo: redirectTo || `${supabaseUrl.replace('.supabase.co', '.lovableproject.com')}/auth`
+        redirectTo: redirectTo || defaultRedirect
       }
     });
 
