@@ -103,9 +103,19 @@ const BEHAVIOR_SCORE_TOOL = {
                 average_question_length: { type: "number", description: "Average word count of Rep's sales questions" },
                 average_answer_length: { type: "number", description: "Average word count of Prospect's immediate answers" },
                 high_leverage_count: { type: "number", description: "Count of questions where prospect answer was longer than question" },
-                low_leverage_count: { type: "number", description: "Count of questions where question was longer than answer" }
+                low_leverage_count: { type: "number", description: "Count of questions where question was longer than answer" },
+                high_leverage_examples: { 
+                  type: "array", 
+                  items: { type: "string" },
+                  description: "List of 2-3 specific questions from the call that triggered long, detailed answers"
+                },
+                low_leverage_examples: { 
+                  type: "array", 
+                  items: { type: "string" },
+                  description: "List of 2-3 specific questions that were closed-ended, leading, or resulted in 1-word answers"
+                }
               },
-              required: ["score", "explanation", "average_question_length", "average_answer_length", "high_leverage_count", "low_leverage_count"]
+              required: ["score", "explanation", "average_question_length", "average_answer_length", "high_leverage_count", "low_leverage_count", "high_leverage_examples", "low_leverage_examples"]
             },
             monologue: {
               type: "object",
@@ -246,6 +256,11 @@ Rules:
     - Ratio >= 0.5: 5 pts
     - Ratio < 0.5: 2 pts (poor - rep questions longer than prospect answers)
 
+**5. EXAMPLE EXTRACTION:**
+- Identify the top 2-3 **"High Leverage"** questions (where the Rep asked a short/clear question and got a massive answer).
+- Identify the top 2-3 **"Low Leverage"** questions (where the Rep lectured, asked a leading "Yes/No" question, or got a 1-word response).
+- **Format:** Return exact quotes of the Rep's question only.
+
 **EDGE CASE HANDLING:**
 - If NO sales questions remain after filtering (e.g., only logistical questions found):
   - Return \`score: 0\`
@@ -253,6 +268,8 @@ Rules:
   - Return \`average_answer_length: 0\`
   - Return \`high_leverage_count: 0\`
   - Return \`low_leverage_count: 0\`
+  - Return \`high_leverage_examples: []\`
+  - Return \`low_leverage_examples: []\`
   - Return \`explanation: "No qualifying sales questions detected."\`
 
 - **Talk Ratio (0-15 pts):** Score STRICTLY based on rep talk percentage:
@@ -332,6 +349,8 @@ export interface BehaviorScore {
       average_answer_length: number;
       high_leverage_count: number;
       low_leverage_count: number;
+      high_leverage_examples: string[];
+      low_leverage_examples: string[];
     };
     monologue: {
       score: number;
