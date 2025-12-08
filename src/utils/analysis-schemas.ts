@@ -229,23 +229,22 @@ export const CoachingSynthesisSchema = z.object({
 export type CoachingSynthesis = z.infer<typeof CoachingSynthesisSchema>;
 
 // --- 9. THE SENTINEL (Call Classification) ---
+// NOTE: Enum values must match backend (agent-schemas.ts) exactly
 export const CallClassificationSchema = z.object({
   detected_call_type: z.enum([
-    'full_cycle_sales', 
-    'discovery_only', 
-    'demo_only', 
-    'closing_call', 
-    'reconnect', 
-    'check_in', 
-    'group_demo', 
-    'internal_roleplay',
-    'unknown'
+    'full_cycle_sales',     // Discovery → Pitch → Pricing → Close attempt
+    'reconnect',            // Follow-up meeting, internal feedback discussion
+    'group_demo',           // Demo to multiple stakeholders/team
+    'technical_deep_dive',  // Heavy Q&A on integration, APIs, security
+    'executive_alignment',  // Strategic discussion with decision-maker
+    'pricing_negotiation',  // Focus on pricing, discounts, contract terms
+    'unknown'               // Cannot reliably classify
   ]).describe("The detected type of sales call"),
-  confidence: z.enum(['High', 'Medium', 'Low']).describe("Confidence level in the classification"),
+  confidence: z.enum(['high', 'medium', 'low']).describe("Confidence level in the classification"),
   detection_signals: z.array(z.string()).describe("Key signals that led to this classification"),
   scoring_hints: z.object({
     discovery_expectation: z.enum(['heavy', 'moderate', 'light', 'none']).describe("How much discovery is expected for this call type"),
-    monologue_tolerance: z.enum(['strict', 'lenient']).describe("Whether long monologues are acceptable"),
+    monologue_tolerance: z.enum(['strict', 'moderate', 'lenient']).describe("Whether long monologues are acceptable"),
     talk_ratio_ideal: z.number().describe("Ideal rep talk percentage for this call type"),
   }),
 });

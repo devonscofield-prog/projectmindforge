@@ -321,10 +321,10 @@ export function CallAnalysisLayout({
                         <Badge 
                           variant="outline" 
                           className={cn(
-                            "text-xs",
-                            callClassificationData.confidence === 'High' && "border-green-500/50 bg-green-500/10 text-green-700 dark:text-green-400",
-                            callClassificationData.confidence === 'Medium' && "border-yellow-500/50 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400",
-                            callClassificationData.confidence === 'Low' && "border-muted-foreground/50"
+                            "text-xs capitalize",
+                            callClassificationData.confidence === 'high' && "border-green-500/50 bg-green-500/10 text-green-700 dark:text-green-400",
+                            callClassificationData.confidence === 'medium' && "border-yellow-500/50 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400",
+                            callClassificationData.confidence === 'low' && "border-muted-foreground/50"
                           )}
                         >
                           {callClassificationData.detected_call_type.replace(/_/g, ' ')}

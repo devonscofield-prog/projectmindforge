@@ -109,12 +109,16 @@ function buildStrategistPrompt(
     contextParts.push(`Call Type: ${callType}`);
     
     // Adjust expectations based on call type
-    if (callType === 'reconnect' || callType === 'check_in') {
-      contextParts.push(`NOTE: This is a ${callType} call. These calls often have fewer new pains to uncover - focus on relationship continuity and progress on known issues.`);
+    if (callType === 'reconnect') {
+      contextParts.push(`NOTE: This is a RECONNECT call. These calls often have fewer new pains to uncover - focus on relationship continuity and progress on known issues.`);
     } else if (callType === 'group_demo') {
-      contextParts.push(`NOTE: This is a group demo. Focus on how well the rep tailored the presentation to the audience's stated needs.`);
-    } else if (callType === 'closing_call') {
-      contextParts.push(`NOTE: This is a closing call. Strategic alignment should focus on addressing final concerns and confirming value fit.`);
+      contextParts.push(`NOTE: This is a GROUP DEMO. Focus on how well the rep tailored the presentation to the audience's stated needs.`);
+    } else if (callType === 'pricing_negotiation') {
+      contextParts.push(`NOTE: This is a PRICING NEGOTIATION call. Strategic alignment should focus on addressing price objections and confirming value fit to justify investment.`);
+    } else if (callType === 'executive_alignment') {
+      contextParts.push(`NOTE: This is an EXECUTIVE ALIGNMENT call. Focus on high-level business value mapping, not tactical feature discussions.`);
+    } else if (callType === 'technical_deep_dive') {
+      contextParts.push(`NOTE: This is a TECHNICAL DEEP DIVE. Expect heavy feature discussion - focus on whether technical concerns map to previously identified business needs.`);
     }
   }
   
@@ -156,12 +160,37 @@ function buildBehaviorPrompt(transcript: string, callSummary?: string, scoringHi
   return basePrompt;
 }
 
-function buildSkepticPrompt(transcript: string, missedOpportunities?: Array<{ pain: string; severity: string; suggested_pitch: string }>): string {
+function buildSkepticPrompt(
+  transcript: string, 
+  missedOpportunities?: Array<{ pain: string; severity: string; suggested_pitch: string }>,
+  callType?: string,
+  scoringHints?: SentinelOutput['scoring_hints']
+): string {
   const basePrompt = `Analyze this sales call transcript. Find the 3-5 most dangerous UNKNOWNS or MISSING INFORMATION that could block this deal:\n\n${transcript}`;
+  
+  const contextParts: string[] = [];
   
   if (missedOpportunities && missedOpportunities.length > 0) {
     const painsList = missedOpportunities.map(o => `- ${o.pain} (${o.severity})`).join('\n');
-    return `${basePrompt}\n\n--- CONTEXT ---\nThe rep already missed these specific pains:\n${painsList}\n\nFocus your gap analysis on UNKNOWNS regarding Budget, Authority, and Timeline.`;
+    contextParts.push(`The rep already missed these specific pains:\n${painsList}\n\nFocus your gap analysis on UNKNOWNS regarding Budget, Authority, and Timeline.`);
+  }
+  
+  if (callType) {
+    if (callType === 'reconnect') {
+      contextParts.push(`NOTE: This is a RECONNECT call. Many gaps may already be known from prior conversations. Focus on NEW unknowns or changes in buyer situation, not rehashing previously covered ground.`);
+    } else if (callType === 'technical_deep_dive') {
+      contextParts.push(`NOTE: This is a TECHNICAL DEEP DIVE. Focus on technical gaps (integration, security, compliance) rather than business gaps that were likely covered earlier.`);
+    } else if (callType === 'pricing_negotiation') {
+      contextParts.push(`NOTE: This is a PRICING NEGOTIATION. Focus on gaps related to Budget, Authority, and competitive alternatives that could derail the deal at this stage.`);
+    }
+  }
+  
+  if (scoringHints?.discovery_expectation === 'none' || scoringHints?.discovery_expectation === 'light') {
+    contextParts.push(`IMPORTANT: This call type has ${scoringHints.discovery_expectation} discovery expectation. Identify fewer gaps (2-3 max) unless critical issues are present.`);
+  }
+  
+  if (contextParts.length > 0) {
+    return `${basePrompt}\n\n--- CONTEXT ---\n${contextParts.join('\n\n')}`;
   }
   return basePrompt;
 }
@@ -169,7 +198,8 @@ function buildSkepticPrompt(transcript: string, missedOpportunities?: Array<{ pa
 function buildNegotiatorPrompt(
   transcript: string, 
   competitorNames?: string[], 
-  pitchedFeatures?: string[]
+  pitchedFeatures?: string[],
+  callType?: string
 ): string {
   const basePrompt = `Analyze this sales call transcript for objections and pushback. Identify how the rep handled each moment of friction:\n\n${transcript}`;
   
@@ -181,6 +211,16 @@ function buildNegotiatorPrompt(
   
   if (pitchedFeatures && pitchedFeatures.length > 0) {
     contextParts.push(`The rep pitched these features: ${pitchedFeatures.join(', ')}.`);
+  }
+  
+  if (callType) {
+    if (callType === 'pricing_negotiation') {
+      contextParts.push(`NOTE: This is a PRICING NEGOTIATION call. Expect and prioritize PRICE objections. Score price objection handling with extra weight.`);
+    } else if (callType === 'technical_deep_dive') {
+      contextParts.push(`NOTE: This is a TECHNICAL DEEP DIVE. Expect more FEATURE and TECHNICAL objections. Price objections are less common in this context.`);
+    } else if (callType === 'reconnect') {
+      contextParts.push(`NOTE: This is a RECONNECT call. Objections may be about timing, priority shifts, or internal blockers rather than product features.`);
+    }
   }
   
   if (contextParts.length > 0) {
@@ -617,11 +657,21 @@ export async function runAnalysisPipeline(
   const competitorNames = spyResult.success 
     ? spy.competitive_intel.map(c => c.competitor_name) 
     : undefined;
-  const negotiatorPrompt = buildNegotiatorPrompt(processedTranscript, competitorNames, undefined);
+  const negotiatorPrompt = buildNegotiatorPrompt(
+    processedTranscript, 
+    competitorNames, 
+    undefined,
+    callClassification?.detected_call_type
+  );
 
   // Fire Skeptic async (non-blocking) - P1 optimization
   // This runs independently and we'll await it before Coach
-  const skepticPrompt = buildSkepticPrompt(processedTranscript, undefined); // No context needed for P1
+  const skepticPrompt = buildSkepticPrompt(
+    processedTranscript, 
+    undefined, // missed opportunities - populated after strategist runs
+    callClassification?.detected_call_type,
+    callClassification?.scoring_hints
+  );
   pendingSkepticResult = executeAgentWithPrompt(skepticConfig, skepticPrompt, supabase, callId);
   console.log('[Pipeline] Skeptic fired async (non-blocking)');
 
