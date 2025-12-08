@@ -30,7 +30,7 @@ import {
   type QuestionLeverage,
   type StrategicThreading,
   type DealGaps,
-  type ObjectionHandling,
+  type ObjectionHandlingData,
   type StrategyAudit,
   type MergedBehaviorScore,
   type PsychologyProfile,
@@ -77,17 +77,16 @@ const DEFAULT_GAPS: DealGaps = {
   critical_gaps: [],
 };
 
-const DEFAULT_OBJECTIONS: ObjectionHandling = {
-  objection_handling: {
-    score: 100,
-    grade: 'Pass',
-    objections_detected: [],
-  },
+// Flat default for objection handling (wrapping happens during merge)
+const DEFAULT_OBJECTIONS: ObjectionHandlingData = {
+  score: 100,
+  grade: 'Pass',
+  objections_detected: [],
 };
 
 const DEFAULT_PSYCHOLOGY: PsychologyProfile = {
   prospect_persona: 'Unknown',
-  disc_profile: 'C - Compliance',
+  disc_profile: 'Unknown' as any, // Explicitly unknown when analysis fails
   communication_style: {
     tone: 'Unknown',
     preference: 'Unknown',
@@ -384,8 +383,8 @@ serve(async (req) => {
         const result = await analyzeObjections(transcript.raw_text);
         await logPerformance(supabaseAdmin, 'agent_negotiator_objections', performance.now() - start, 'success', { 
           call_id: targetCallId,
-          objections_count: result.objection_handling.objections_detected.length,
-          score: result.objection_handling.score,
+          objections_count: result.objections_detected.length,
+          score: result.score,
         });
         return result;
       } catch (err) {
@@ -478,7 +477,8 @@ serve(async (req) => {
     }
 
     // Objections agent (The Negotiator) - use fallback on failure
-    let objectionsResult: ObjectionHandling;
+    // Returns flat ObjectionHandlingData, wrapped during merge
+    let objectionsResult: ObjectionHandlingData;
     if (objectionsSettled.status === 'rejected') {
       const error = objectionsSettled.reason instanceof Error ? objectionsSettled.reason.message : String(objectionsSettled.reason);
       console.warn('[analyze-call] Objections agent failed, using defaults:', error);
@@ -500,10 +500,11 @@ serve(async (req) => {
     }
 
     // Combine strategy threading, gaps, and objections into full StrategyAudit for storage
+    // Wrap flat objectionsResult in objection_handling key here
     const strategyResult: StrategyAudit = {
       ...strategyThreading,
       ...gapsResult,
-      ...objectionsResult,
+      objection_handling: objectionsResult,
     };
 
     const pipelineDuration = performance.now() - pipelineStartTime;

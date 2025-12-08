@@ -647,25 +647,28 @@ export interface DealGaps {
   }>;
 }
 
-// Objection handling (from The Negotiator)
+// Objection handling data (flat structure returned by The Negotiator)
+export interface ObjectionHandlingData {
+  score: number;
+  grade: 'Pass' | 'Fail';
+  objections_detected: Array<{
+    objection: string;
+    category: 'Price' | 'Competitor' | 'Authority' | 'Need' | 'Timing' | 'Feature';
+    rep_response: string;
+    handling_rating: 'Great' | 'Okay' | 'Bad';
+    coaching_tip: string;
+  }>;
+}
+
+// Objection handling wrapped (for StrategyAudit compatibility)
 export interface ObjectionHandling {
-  objection_handling: {
-    score: number;
-    grade: 'Pass' | 'Fail';
-    objections_detected: Array<{
-      objection: string;
-      category: 'Price' | 'Competitor' | 'Authority' | 'Need' | 'Timing' | 'Feature';
-      rep_response: string;
-      handling_rating: 'Great' | 'Okay' | 'Bad';
-      coaching_tip: string;
-    }>;
-  };
+  objection_handling: ObjectionHandlingData;
 }
 
 // Psychology profile (from The Profiler)
 export interface PsychologyProfile {
   prospect_persona: string;
-  disc_profile: 'D - Dominance' | 'I - Influence' | 'S - Steadiness' | 'C - Compliance';
+  disc_profile: 'D - Dominance' | 'I - Influence' | 'S - Steadiness' | 'C - Compliance' | 'Unknown';
   communication_style: {
     tone: string;
     preference: string;
@@ -890,8 +893,9 @@ export async function analyzeQuestionLeverage(transcript: string): Promise<Quest
 /**
  * Agent 6: The Negotiator - Analyze objection handling
  * Uses gemini-2.5-pro for reasoning-heavy judgment of response quality
+ * Returns FLAT ObjectionHandlingData - wrapping happens in analyze-call/index.ts
  */
-export async function analyzeObjections(transcript: string): Promise<ObjectionHandling> {
+export async function analyzeObjections(transcript: string): Promise<ObjectionHandlingData> {
   console.log('[analyzeObjections] Starting objection handling analysis with Pro model...');
   
   const userPrompt = `Analyze this sales call transcript for objections and pushback. Identify how the rep handled each moment of friction:\n\n${transcript}`;
@@ -909,7 +913,7 @@ export async function analyzeObjections(transcript: string): Promise<ObjectionHa
   );
   
   console.log('[analyzeObjections] Analysis complete, score:', result.score, ', objections found:', result.objections_detected?.length || 0);
-  return { objection_handling: result } as ObjectionHandling;
+  return result as ObjectionHandlingData;
 }
 
 // The Profiler system prompt
