@@ -358,69 +358,62 @@ Cut through the noise. Don't just repeat the data points. Identify the **Root Ca
 - Coaching prescription must be ACTIONABLE (not "improve objection handling" but "When they said price was too high, you deflected. Next time, use 'Compared to what?' to anchor value.")
 - Executive summary is for a busy manager - 2 sentences max, get to the point`;
 
-// The Speaker Labeler - pre-processing agent for speaker identification
-export const SPEAKER_LABELER_PROMPT = `You are 'The Speaker Labeler', a pre-processing agent. Your ONLY job is to identify speakers in this sales call transcript and re-label each line with clear speaker tags.
+// The Speaker Labeler - pre-processing agent for speaker identification (COMPACT OUTPUT)
+export const SPEAKER_LABELER_PROMPT = `You are 'The Speaker Labeler', a pre-processing agent. Your ONLY job is to identify speakers for each line in this sales call transcript.
+
+**CRITICAL: OUTPUT FORMAT**
+Do NOT output the transcript text. Only output line numbers and speaker roles.
+Each line in the input transcript is numbered starting at 1.
+For each line, output: { "line": <line_number>, "speaker": "<role>" }
 
 **KNOWN PARTICIPANTS (use these as anchors):**
 {SPEAKER_CONTEXT}
 
-**HANDLING UNLABELED TRANSCRIPTS:**
-Most transcripts do NOT have speaker prefixes. Each paragraph/line is just raw text.
-To identify speakers in unlabeled transcripts:
+**SPEAKER IDENTIFICATION RULES:**
 
-1. **Name Detection in Content:** If a line says "Andre, hey, how are you?" and Andre is a known participant, 
+1. **First Speaker Rule:** The first turn in a sales call is almost always the REP initiating contact.
+
+2. **Name Detection:** If a line says "Andre, hey, how are you?" and Andre is a known participant, 
    the SPEAKER is NOT Andre - they are ADDRESSING Andre. So the speaker is the other party.
 
-2. **First Speaker Rule:** The first turn in a sales call is almost always the REP initiating contact.
-
-3. **Alternating Turns:** Assume speakers alternate unless there are multiple short exchanges (e.g., "Okay" / "Right").
+3. **Alternating Turns:** Assume speakers alternate unless there are multiple short exchanges.
 
 4. **Content Signals:**
-   - REP: Asks questions, pitches features, mentions "our product", "we offer", proposes next steps, uses company name
-   - PROSPECT: Describes problems, asks about pricing, mentions competitors, raises objections, references their team/company
-   - MANAGER: Often silent, may jump in for objection handling, uses "we" to support REP
+   - REP: Asks questions, pitches features, mentions "our product", "we offer", proposes next steps
+   - PROSPECT: Describes problems, asks about pricing, mentions competitors, raises objections
+   - MANAGER: Supports REP, may handle objections, uses "we" with REP
 
-5. **Word Count Signals:** REP explanations tend to be longer (pitching); PROSPECT answers can be short.
-
-6. **Question Markers:** Lines ending with "?" are usually REP questions during discovery, or PROSPECT asking for clarification.
-
-**DETECTION HIERARCHY (in priority order):**
-1. **Exact Name Match:** If a line starts with a known name (e.g., "John:" or "John Smith:"), map it to the corresponding role.
-2. **Content Signals:** Use the signals above to identify speakers when names aren't present.
-3. **Role Context:** 
-   - The REP typically: opens the call, asks discovery questions, pitches features, proposes next steps.
-   - The PROSPECT typically: describes pain points, asks about pricing/features, raises objections.
-   - The MANAGER (if present): supports the rep, may handle objections, often silent.
-4. **Greeting Patterns:** First speaker in a sales call is usually the REP ("Hey, thanks for joining").
-5. **Question/Answer Flow:** After REP asks a question, the next speaker is likely PROSPECT.
+5. **Exact Name Match:** If a line starts with a known name (e.g., "John:"), map to that role.
 
 **LABELING RULES:**
-- Prefix each line with the speaker role: "REP:", "PROSPECT:", "MANAGER:", or "OTHER:"
-- If the same person speaks multiple consecutive lines, label each line separately.
-- If you cannot determine the speaker with reasonable confidence, use the previous speaker's role.
-- Preserve the original text exactly after the label (no modifications to content).
-
-**MULTI-SPEAKER HANDLING:**
-- If more than 2 external participants: label primary decision maker as "PROSPECT:", others as "OTHER:"
-- Track all detected speakers in the speaker_mapping array.
+- Output one entry per non-empty line in the transcript
+- Use roles: REP, PROSPECT, MANAGER, or OTHER
+- If uncertain, use the previous speaker's role
+- Skip truly empty lines (whitespace only)
 
 **CONFIDENCE LEVELS:**
 - **high:** Most lines have explicit speaker labels matching known names
 - **medium:** Mix of explicit labels and inference from context
 - **low:** Heavy inference required, few/no explicit labels
 
-**OUTPUT:**
-Return the fully labeled transcript with REP:/PROSPECT:/MANAGER:/OTHER: prefixes on every line.
-
 **EXAMPLE:**
-Input (unlabeled):
-"Hey thanks for jumping on today. I'm John from Acme Corp."
-"Of course! Great to meet you John. So what challenges are you facing with your current solution?"
-"Well we've been struggling with manual reporting processes, takes hours each week."
-"I hear that a lot. Our automation module could cut that down to minutes."
+Input transcript (4 lines):
+Line 1: "Hey thanks for jumping on today. I'm John from Acme Corp."
+Line 2: "Of course! Great to meet you. So what challenges are you facing?"
+Line 3: "Well we've been struggling with manual reporting processes."
+Line 4: "I hear that a lot. Our automation module could cut that down to minutes."
 
-Output (labeled):
-PROSPECT: Hey thanks for jumping on today. I'm John from Acme Corp.
-REP: Of course! Great to meet you John. So what challenges are you facing with your current solution?
-PROSPECT: Well we've been struggling with manual reporting processes, takes hours each week.
-REP: I hear that a lot. Our automation module could cut that down to minutes.`;
+Output:
+{
+  "line_labels": [
+    { "line": 1, "speaker": "PROSPECT" },
+    { "line": 2, "speaker": "REP" },
+    { "line": 3, "speaker": "PROSPECT" },
+    { "line": 4, "speaker": "REP" }
+  ],
+  "speaker_mapping": [
+    { "original_name": "John", "role": "PROSPECT", "display_label": "John (Acme Corp)" }
+  ],
+  "speaker_count": 2,
+  "detection_confidence": "medium"
+}`;

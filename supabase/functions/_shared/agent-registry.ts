@@ -144,7 +144,7 @@ const DEFAULT_COACH = {
 };
 
 const DEFAULT_SPEAKER_LABELER = {
-  labeled_transcript: '', // Will use original transcript as fallback
+  line_labels: [], // Empty array = use raw transcript as fallback
   speaker_mapping: [],
   speaker_count: 2,
   detection_confidence: 'low' as const,
@@ -163,7 +163,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (t) => `Label all speakers in this sales call transcript:\n\n${t}`,
     toolName: 'label_speakers',
     toolDescription: 'Identify and label all speakers in a sales call transcript',
-    options: { model: 'google/gemini-2.5-flash', maxTokens: 24576 }, // Increased for long transcripts
+    options: { model: 'google/gemini-2.5-flash', maxTokens: 4096 }, // Compact line_labels output
     isCritical: false, // Falls back to raw transcript if fails
     default: DEFAULT_SPEAKER_LABELER,
     phase: 0,
