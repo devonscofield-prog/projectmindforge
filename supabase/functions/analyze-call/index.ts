@@ -27,6 +27,7 @@ import {
   analyzeDealGaps,
   analyzeObjections,
   analyzePsychology,
+  analyzeCompetitors,
   type CallCensus,
   type CallHistory,
   type CallMetadata,
@@ -35,6 +36,7 @@ import {
   type StrategicThreading,
   type DealGaps,
   type ObjectionHandlingData,
+  type CompetitiveIntel,
   type StrategyAudit,
   type MergedBehaviorScore,
   type PsychologyProfile,
@@ -99,6 +101,10 @@ const DEFAULT_PSYCHOLOGY: PsychologyProfile = {
     do: [],
     dont: [],
   },
+};
+
+const DEFAULT_COMPETITORS: CompetitiveIntel = {
+  competitive_intel: [],
 };
 
 /**
@@ -301,8 +307,8 @@ serve(async (req) => {
     const analysisWarnings: string[] = [];
     const transcriptLength = transcript.raw_text.length;
 
-    // Run ALL EIGHT agents in PARALLEL with graceful error recovery and performance tracking
-    console.log('[analyze-call] Running all 8 agents in parallel: Census, Historian, Referee, Interrogator, Strategist, Skeptic, Negotiator, Profiler...');
+    // Run ALL NINE agents in PARALLEL with graceful error recovery and performance tracking
+    console.log('[analyze-call] Running all 9 agents in parallel: Census, Historian, Referee, Interrogator, Strategist, Skeptic, Negotiator, Profiler, Spy...');
 
     // Wrap each agent with timing
     const timedCensus = async () => {
@@ -452,8 +458,26 @@ serve(async (req) => {
         throw err;
       }
     };
+
+    const timedCompetitors = async () => {
+      const start = performance.now();
+      try {
+        const result = await analyzeCompetitors(transcript.raw_text);
+        await logPerformance(supabaseAdmin, 'agent_spy_competitors', performance.now() - start, 'success', { 
+          call_id: targetCallId,
+          competitors_found: result.competitive_intel.length,
+        });
+        return result;
+      } catch (err) {
+        await logPerformance(supabaseAdmin, 'agent_spy_competitors', performance.now() - start, 'error', { 
+          call_id: targetCallId, 
+          error: err instanceof Error ? err.message : String(err),
+        });
+        throw err;
+      }
+    };
     
-    const [censusSettled, historySettled, behaviorSettled, questionSettled, strategySettled, gapsSettled, objectionsSettled, psychologySettled] = await Promise.allSettled([
+    const [censusSettled, historySettled, behaviorSettled, questionSettled, strategySettled, gapsSettled, objectionsSettled, psychologySettled, competitorsSettled] = await Promise.allSettled([
       timedCensus(),
       timedHistory(),
       timedBehavior(),
@@ -462,6 +486,7 @@ serve(async (req) => {
       timedGaps(),
       timedObjections(),
       timedPsychology(),
+      timedCompetitors(),
     ]);
 
     // Census is CRITICAL - if it fails, the whole analysis fails (need structured data)
@@ -550,11 +575,23 @@ serve(async (req) => {
       psychologyResult = psychologySettled.value;
     }
 
-    // Combine strategy threading, gaps, and objections into full StrategyAudit for storage
+    // Competitors agent (The Spy) - use fallback on failure
+    let competitorsResult: CompetitiveIntel;
+    if (competitorsSettled.status === 'rejected') {
+      const error = competitorsSettled.reason instanceof Error ? competitorsSettled.reason.message : String(competitorsSettled.reason);
+      console.warn('[analyze-call] Competitors agent failed, using defaults:', error);
+      analysisWarnings.push(`Competitive intelligence failed: ${error}`);
+      competitorsResult = DEFAULT_COMPETITORS;
+    } else {
+      competitorsResult = competitorsSettled.value;
+    }
+
+    // Combine strategy threading, gaps, objections, and competitors into full StrategyAudit for storage
     // Wrap flat objectionsResult in objection_handling key here
     const strategyResult: StrategyAudit = {
       ...strategyThreading,
       ...gapsResult,
+      ...competitorsResult,
       objection_handling: objectionsResult,
     };
 

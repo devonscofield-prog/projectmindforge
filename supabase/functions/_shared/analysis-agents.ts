@@ -9,6 +9,7 @@
  * Agent 5: The Skeptic - Deal gaps analysis
  * Agent 6: The Negotiator - Objection handling analysis
  * Agent 7: The Profiler - Prospect psychology profiling
+ * Agent 8: The Spy - Competitive intelligence analysis
  */
 
 import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
@@ -134,6 +135,16 @@ const DealGapsValidation = z.object({
     description: z.string(),
     impact: z.enum(['High', 'Medium', 'Low']),
     suggested_question: z.string(),
+  })),
+});
+
+const CompetitiveIntelValidation = z.object({
+  competitive_intel: z.array(z.object({
+    competitor_name: z.string(),
+    usage_status: z.enum(['Current Vendor', 'Past Vendor', 'Evaluating', 'Mentioned']),
+    strengths_mentioned: z.array(z.string()),
+    weaknesses_mentioned: z.array(z.string()),
+    threat_level: z.enum(['High', 'Medium', 'Low']),
   })),
 });
 
@@ -454,6 +465,52 @@ const OBJECTION_HANDLING_TOOL = {
   }
 };
 
+// Tool for The Spy - competitive intelligence analysis
+const COMPETITIVE_INTEL_TOOL = {
+  type: "function",
+  function: {
+    name: "analyze_competitors",
+    description: "Extract competitive intelligence from a sales call transcript",
+    parameters: {
+      type: "object",
+      properties: {
+        competitive_intel: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              competitor_name: { type: "string", description: "Name of the competitor, vendor, or incumbent mentioned" },
+              usage_status: { 
+                type: "string", 
+                enum: ["Current Vendor", "Past Vendor", "Evaluating", "Mentioned"],
+                description: "Their relationship with this competitor"
+              },
+              strengths_mentioned: {
+                type: "array",
+                items: { type: "string" },
+                description: "Positive things said about the competitor (e.g., 'great support', 'easy to use')"
+              },
+              weaknesses_mentioned: {
+                type: "array",
+                items: { type: "string" },
+                description: "Negative things said about the competitor (e.g., 'too expensive', 'poor reporting')"
+              },
+              threat_level: {
+                type: "string",
+                enum: ["High", "Medium", "Low"],
+                description: "How much of a threat this competitor is to winning this deal"
+              }
+            },
+            required: ["competitor_name", "usage_status", "strengths_mentioned", "weaknesses_mentioned", "threat_level"]
+          },
+          description: "All competitors, vendors, or incumbents mentioned in the call"
+        }
+      },
+      required: ["competitive_intel"]
+    }
+  }
+}
+
 // Tool for The Profiler - psychological profiling of prospect
 const PSYCHOLOGY_PROFILE_TOOL = {
   type: "function",
@@ -729,6 +786,44 @@ For each objection, provide ONE specific, actionable tip:
 **OUTPUT:**
 Return the score, grade (Pass if >= 60), and the objections_detected array.`;
 
+// The Spy - competitive intelligence system prompt
+const SPY_SYSTEM_PROMPT = `You are 'The Spy'. Scan the transcript for mentions of other vendors, tools, or incumbents.
+
+**Goal:** Build a Battlecard for this specific deal.
+
+**DETECTION:**
+- Look for explicit competitor mentions: "We use KnowBe4", "We're also looking at Proofpoint"
+- Look for implied incumbents: "Our current solution", "What we have now", "We're evaluating options"
+- Look for vendor categories: "security awareness training", "phishing simulation", "LMS"
+
+**ANALYSIS:**
+For each competitor detected, determine:
+
+1. **Usage Status:**
+   - Current Vendor: They are using this competitor now
+   - Past Vendor: They used to use this competitor
+   - Evaluating: They are actively considering this competitor
+   - Mentioned: Competitor came up in conversation but no clear relationship
+
+2. **Strengths (be nuanced):**
+   - If they say "We love X's support" → that's a strength
+   - If they say "X is easy to use" → that's a strength
+   - If they say "We've been with X for years" → implies reliability (strength)
+
+3. **Weaknesses (be nuanced):**
+   - If they say "X is expensive" → that's a weakness
+   - If they say "We struggle with X's reporting" → that's a weakness
+   - If they say "X doesn't integrate well" → that's a weakness
+   - If they're looking to switch → implies dissatisfaction (find the reason)
+
+4. **Threat Level:**
+   - High: They love the competitor OR are actively evaluating them
+   - Medium: Competitor was mentioned but not favorably
+   - Low: Competitor has clear weaknesses or they're looking to leave
+
+**OUTPUT:**
+Return ALL competitors mentioned with full analysis. If NO competitors are mentioned, return an empty competitive_intel array.`;
+
 // Output from The Census
 export interface CallCensus {
   logistics: {
@@ -887,8 +982,19 @@ export interface PsychologyProfile {
   };
 }
 
+// Competitive intel (from The Spy)
+export interface CompetitiveIntel {
+  competitive_intel: Array<{
+    competitor_name: string;
+    usage_status: 'Current Vendor' | 'Past Vendor' | 'Evaluating' | 'Mentioned';
+    strengths_mentioned: string[];
+    weaknesses_mentioned: string[];
+    threat_level: 'High' | 'Medium' | 'Low';
+  }>;
+}
+
 // Combined interface for backward compatibility
-export interface StrategyAudit extends StrategicThreading, DealGaps, ObjectionHandling {}
+export interface StrategyAudit extends StrategicThreading, DealGaps, ObjectionHandling, CompetitiveIntel {}
 
 interface CallLovableAIOptions {
   model?: string;
@@ -1226,4 +1332,30 @@ export async function analyzePsychology(transcript: string): Promise<PsychologyP
   
   console.log('[analyzePsychology] Profiling complete, persona:', result.prospect_persona, ', DISC:', result.disc_profile);
   return result as PsychologyProfile;
+}
+
+/**
+ * Agent 8: The Spy - Analyze competitive intelligence
+ * Uses gemini-2.5-pro for reasoning-heavy detection of implied strengths/weaknesses
+ */
+export async function analyzeCompetitors(transcript: string): Promise<CompetitiveIntel> {
+  console.log('[analyzeCompetitors] Starting competitive intelligence analysis with Pro model...');
+  
+  const userPrompt = `Analyze this sales call transcript for competitive intelligence. Find ALL mentions of other vendors, tools, or incumbents and build a battlecard:\n\n${transcript}`;
+  
+  const result = await callLovableAI(
+    SPY_SYSTEM_PROMPT,
+    userPrompt,
+    COMPETITIVE_INTEL_TOOL,
+    'analyze_competitors',
+    {
+      model: 'google/gemini-2.5-pro',
+      temperature: 0.2,
+      maxTokens: 4096,
+      validationSchema: CompetitiveIntelValidation,
+    }
+  );
+  
+  console.log('[analyzeCompetitors] Analysis complete, found', result.competitive_intel?.length || 0, 'competitors');
+  return result as CompetitiveIntel;
 }
