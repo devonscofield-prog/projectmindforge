@@ -27,7 +27,7 @@ import { getDashboardUrl, getCallHistoryUrl } from '@/lib/routes';
 import { getCallDetailBreadcrumbs } from '@/lib/breadcrumbConfig';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 import { formatCurrency } from '@/lib/formatters';
-import { useCallWithAnalysis, useAnalysisPolling, callDetailKeys, useRetryAnalysis, useDeleteFailedCall, useUpdateCallTranscript, useUpdateAnalysisUserCounts } from '@/hooks/useCallDetailQueries';
+import { useCallWithAnalysis, useAnalysisPolling, callDetailKeys, useRetryAnalysis, useDeleteFailedCall, useUpdateCallTranscript, useUpdateAnalysisUserCounts, useReanalyzeCall } from '@/hooks/useCallDetailQueries';
 import type { CallMetadata } from '@/utils/analysis-schemas';
 import { 
   ArrowLeft, 
@@ -76,11 +76,12 @@ function CallDetailPage() {
   const isOwner = transcript?.rep_id === user?.id;
   const isManager = role === 'manager' || role === 'admin';
 
-  // Retry, delete, and update mutations
+  // Retry, delete, update, and reanalyze mutations
   const retryMutation = useRetryAnalysis(id || '');
   const deleteMutation = useDeleteFailedCall(id || '', role);
   const updateMutation = useUpdateCallTranscript(id || '');
   const updateUserCountsMutation = useUpdateAnalysisUserCounts(id || '', analysis?.id);
+  const reanalyzeMutation = useReanalyzeCall(id || '');
 
   // Edit dialog states
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -347,6 +348,8 @@ function CallDetailPage() {
             analysis={analysis}
             canEdit={isOwner || isManager}
             onEditUserCounts={() => setIsUserCountsDialogOpen(true)}
+            onReanalyze={() => reanalyzeMutation.mutate()}
+            isReanalyzing={reanalyzeMutation.isPending}
             behaviorContent={<BehaviorScorecard data={analysis.analysis_behavior} />}
             strategyContent={<PainToPitchAlignment data={analysis.analysis_strategy} />}
             hazardsContent={<CriticalGapsPanel data={analysis.analysis_strategy} />}

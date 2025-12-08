@@ -71,3 +71,6 @@ verify_jwt = true
 
 [functions.calculate-deal-heat]
 verify_jwt = true
+
+[functions.reanalyze-call]
+verify_jwt = true
