@@ -72,14 +72,27 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Verify permission: rep owns the call OR user is admin
-    if (userRole !== 'admin' && call.rep_id !== user.id) {
-      console.warn(`[reanalyze-call] Unauthorized attempt by ${user.id} for call owned by ${call.rep_id}`);
+    // Check if manager is authorized to manage this rep's calls
+    let isManagerOfRep = false;
+    if (userRole === 'manager' && call.rep_id !== user.id) {
+      const { data: isManager } = await supabase
+        .rpc('is_manager_of_user', { 
+          _manager_id: user.id, 
+          _rep_id: call.rep_id 
+        });
+      isManagerOfRep = isManager === true;
+    }
+
+    // Verify permission: rep owns the call OR user is admin OR manager of the rep
+    if (userRole !== 'admin' && call.rep_id !== user.id && !isManagerOfRep) {
+      console.warn(`[reanalyze-call] Unauthorized attempt by ${user.id} (role: ${userRole}) for call owned by ${call.rep_id}`);
       return new Response(
         JSON.stringify({ error: 'Not authorized to reanalyze this call' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    console.log(`[reanalyze-call] Authorized: user=${user.id}, role=${userRole}, isManagerOfRep=${isManagerOfRep}`);
 
     // Check if already processing
     if (call.analysis_status === 'processing') {
