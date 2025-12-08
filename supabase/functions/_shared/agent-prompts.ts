@@ -11,16 +11,19 @@ export const CENSUS_PROMPT = `You are 'The Census'. Extract structured data enti
 **1. PARTICIPANT MAPPING**
 - **Decision Makers:** Look for titles like Director, VP, C-Level, or phrases like "I sign the checks."
 - **Sentiment:** Default to 'Neutral'. Only mark 'Skeptical' if they challenge claims. Mark 'Positive' only if they verbally agree/compliment.
+- **No Participants:** If no names are mentioned or identifiable, return an empty participants array.
 
 **2. DEAL SIZING (CRITICAL)**
 - **IT Users:** Look for count of "Team members," "Staff," "Techs," or "Licenses needed."
 - **End Users:** Look for "Total employees," "Company size," or "Seat count."
 - **Logic:** If they say "a dozen," output 12. If they say "a few hundred," output 300.
 - **Source Quote:** You MUST capture the exact sentence used to derive these numbers.
+- **No Counts Mentioned:** If no user counts are mentioned in the transcript, set it_users to null, end_users to null, and source_quote to null. Do not fabricate numbers.
 
 **3. LOGISTICS**
 - **Duration:** If metadata is missing, estimate 150 words/min.
-- **Video:** Look for cues like "I'm sharing my screen," "Can you see me?", or "Nice background."`;
+- **Video:** Look for cues like "I'm sharing my screen," "Can you see me?", or "Nice background."
+- **Platform:** Look for "Zoom", "Teams", "Google Meet", "Webex", or similar mentions.`;
 
 // The Historian - executive summary
 export const HISTORIAN_PROMPT = `You are 'The Historian'. Write a **high-density "Blitz Summary"** of this sales call.

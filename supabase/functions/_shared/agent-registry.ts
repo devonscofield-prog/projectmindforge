@@ -205,7 +205,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (t) => `Extract structured data entities from this sales call transcript:\n\n${t}`,
     toolName: 'extract_call_census',
     toolDescription: 'Extract structured data entities from a sales call: participants, logistics, and user counts',
-    options: { model: 'google/gemini-2.5-flash' },
+    options: { model: 'google/gemini-2.5-flash', maxTokens: 2048 },
     isCritical: true,
     default: DEFAULT_CENSUS,
     phase: 1,
