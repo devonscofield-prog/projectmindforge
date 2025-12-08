@@ -12,7 +12,8 @@ import {
   Target,
   Mail,
   AlertTriangle,
-  Pencil
+  Pencil,
+  RefreshCw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CallAnalysis, CallTranscript } from '@/api/aiCallAnalysis';
@@ -40,6 +41,8 @@ interface CallAnalysisLayoutProps {
   recapContent: ReactNode;
   canEdit?: boolean;
   onEditUserCounts?: () => void;
+  onReanalyze?: () => void;
+  isReanalyzing?: boolean;
 }
 
 interface CircularScoreProps {
@@ -141,6 +144,8 @@ export function CallAnalysisLayout({
   recapContent,
   canEdit = false,
   onEditUserCounts,
+  onReanalyze,
+  isReanalyzing = false,
 }: CallAnalysisLayoutProps) {
   // Defensive JSON parsing with Zod validation
   const { behaviorData, strategyData, metadataData, dealHeatData, psychologyData, parseError } = useMemo(() => {
@@ -281,10 +286,24 @@ export function CallAnalysisLayout({
             <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
               {/* Left: Names + Persona */}
               <div className="space-y-4 lg:max-w-sm">
-                <div className="space-y-1">
-                  <h2 className="text-xl font-semibold">{prospectName}</h2>
-                  <p className="text-muted-foreground text-sm">Coaching Analysis</p>
-              </div>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <h2 className="text-xl font-semibold">{prospectName}</h2>
+                    <p className="text-muted-foreground text-sm">Coaching Analysis</p>
+                  </div>
+                  {canEdit && onReanalyze && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={onReanalyze}
+                      disabled={isReanalyzing}
+                      className="shrink-0"
+                    >
+                      <RefreshCw className={cn("h-4 w-4 mr-2", isReanalyzing && "animate-spin")} />
+                      {isReanalyzing ? 'Reanalyzing...' : 'Re-run Analysis'}
+                    </Button>
+                  )}
+                </div>
               
               {/* Right: Big Scores */}
               <div className="flex justify-center gap-8 lg:gap-12">

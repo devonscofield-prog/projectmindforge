@@ -8,6 +8,7 @@ import {
   insertCallProducts,
   updateProspectActiveRevenue 
 } from '@/api/callProducts';
+import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { createLogger } from '@/lib/logger';
 import { getCallHistoryUrl } from '@/lib/routes';
@@ -409,6 +410,59 @@ export function useUpdateAnalysisUserCounts(callId: string, analysisId: string |
       toast({
         title: 'Update Failed',
         description: error.message || 'Failed to update user counts.',
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
+/**
+ * Hook to reanalyze a call using the 7-agent pipeline
+ * Clears existing analysis and triggers fresh analysis
+ */
+export function useReanalyzeCall(callId: string) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('reanalyze-call', {
+        body: { call_id: callId },
+      });
+
+      if (error) {
+        throw new Error(error.message || 'Failed to start reanalysis');
+      }
+
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+
+      return data;
+    },
+    onSuccess: async () => {
+      // Invalidate queries to trigger refetch and show processing state
+      await queryClient.invalidateQueries({ queryKey: callDetailKeys.call(callId) });
+      await queryClient.invalidateQueries({ queryKey: callDetailKeys.analysis(callId) });
+
+      toast({
+        title: 'Reanalysis started',
+        description: 'Your call is being re-analyzed. This usually takes 30-60 seconds.',
+      });
+    },
+    onError: (error) => {
+      log.error('Error starting reanalysis', { callId, error });
+      const message = error instanceof Error ? error.message : 'Failed to start reanalysis';
+      const isRateLimited = message.toLowerCase().includes('rate limit');
+      const isInProgress = message.toLowerCase().includes('already in progress');
+
+      toast({
+        title: isRateLimited ? 'Rate Limited' : isInProgress ? 'Already Processing' : 'Reanalysis Failed',
+        description: isRateLimited 
+          ? 'Too many requests. Please wait a moment before trying again.'
+          : isInProgress
+            ? 'This call is already being analyzed.'
+            : message,
         variant: 'destructive',
       });
     },
