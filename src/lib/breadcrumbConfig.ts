@@ -123,12 +123,13 @@ export function getAdminPageBreadcrumb(
  * Type-safe helper to get manager page breadcrumbs
  */
 export function getManagerPageBreadcrumb(
-  page: 'accounts' | 'coaching' | 'transcriptAnalysis'
+  page: 'accounts' | 'coaching' | 'transcriptAnalysis' | 'callHistory'
 ): BreadcrumbItem[] {
   const labels: Record<typeof page, string> = {
     accounts: 'Accounts',
     coaching: BREADCRUMB_LABELS.coaching,
     transcriptAnalysis: BREADCRUMB_LABELS.transcriptAnalysis,
+    callHistory: 'Team Call History',
   };
   return [{ label: labels[page] }];
 }

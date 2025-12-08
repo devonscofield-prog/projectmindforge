@@ -515,3 +515,183 @@ export async function updateCallTranscript(
   log.info('Transcript updated successfully', { callId });
   return { success: true };
 }
+
+/**
+ * Extended transcript type with rep name for team views.
+ */
+export interface CallTranscriptWithHeatAndRep extends CallTranscriptWithHeat {
+  rep_name: string | null;
+}
+
+/**
+ * Lists call transcripts for multiple reps (team view) with comprehensive filtering.
+ * Includes heat_score from ai_call_analysis and rep_name from profiles.
+ * @param repIds - Array of rep user IDs
+ * @param filters - Filter options (with optional repId to filter to specific rep)
+ * @returns Object with data array (with heat scores and rep names) and total count
+ */
+export async function listCallTranscriptsForTeamWithFilters(
+  repIds: string[],
+  filters: CallHistoryFilters & { repId?: string }
+): Promise<{ data: CallTranscriptWithHeatAndRep[]; count: number }> {
+  if (repIds.length === 0) {
+    return { data: [], count: 0 };
+  }
+
+  // If filtering to a specific rep, use only that rep
+  const targetRepIds = filters.repId ? [filters.repId] : repIds;
+
+  const needsHeatFiltering = !!filters.heatRange;
+  const needsHeatSorting = filters.sortBy === 'heat_score';
+  const shouldFetchAll = needsHeatFiltering || needsHeatSorting;
+
+  let query = supabase
+    .from('call_transcripts')
+    .select('*, rep:profiles!call_transcripts_rep_id_fkey(id, name)', { count: shouldFetchAll ? undefined : 'exact' })
+    .in('rep_id', targetRepIds);
+
+  // Text search across multiple columns
+  if (filters.search) {
+    const searchTerm = `%${filters.search}%`;
+    query = query.or(
+      `primary_stakeholder_name.ilike.${searchTerm},account_name.ilike.${searchTerm},call_type_other.ilike.${searchTerm},notes.ilike.${searchTerm}`
+    );
+  }
+
+  // Filter by call types
+  if (filters.callTypes && filters.callTypes.length > 0) {
+    query = query.in('call_type', filters.callTypes);
+  }
+
+  // Filter by analysis status
+  if (filters.statuses && filters.statuses.length > 0) {
+    query = query.in('analysis_status', filters.statuses);
+  }
+
+  // Date range filters
+  if (filters.dateFrom) {
+    query = query.gte('call_date', filters.dateFrom);
+  }
+  if (filters.dateTo) {
+    query = query.lte('call_date', filters.dateTo);
+  }
+
+  // Only apply DB sorting if not sorting by heat_score
+  if (!needsHeatSorting) {
+    const sortBy = filters.sortBy || 'call_date';
+    const sortOrder = filters.sortOrder || 'desc';
+    query = query.order(sortBy, { ascending: sortOrder === 'asc' });
+
+    if (sortBy !== 'created_at') {
+      query = query.order('created_at', { ascending: false });
+    }
+  } else {
+    query = query.order('call_date', { ascending: false });
+  }
+
+  // Only apply pagination if not doing heat filtering/sorting
+  if (!shouldFetchAll) {
+    if (filters.limit) {
+      query = query.limit(filters.limit);
+    }
+    if (filters.offset) {
+      query = query.range(filters.offset, filters.offset + (filters.limit || 50) - 1);
+    }
+  }
+
+  const { data, error, count } = await query;
+
+  if (error) {
+    log.error('Error listing team transcripts with filters', { repIds, error });
+    throw new Error(`Failed to list team call transcripts: ${error.message}`);
+  }
+
+  // Extract rep names and convert to transcripts
+  const transcripts = (data || []).map(row => {
+    const repData = row.rep as { id: string; name: string } | null;
+    return {
+      ...toCallTranscript(row),
+      rep_name: repData?.name ?? null,
+    };
+  });
+
+  if (transcripts.length === 0) {
+    return { data: [], count: 0 };
+  }
+
+  // Fetch heat scores from ai_call_analysis
+  const callIds = transcripts.map(t => t.id);
+  const { data: analyses, error: analysisError } = await supabase
+    .from('ai_call_analysis')
+    .select('call_id, deal_heat_analysis, coach_output')
+    .in('call_id', callIds);
+
+  if (analysisError) {
+    log.error('Analysis fetch error', { error: analysisError });
+    return {
+      data: transcripts.map(t => ({ ...t, heat_score: null })),
+      count: count || transcripts.length,
+    };
+  }
+
+  // Create a map of call_id -> heat_score
+  const heatMap = new Map<string, number | null>();
+  analyses?.forEach(a => {
+    const dealHeat = a.deal_heat_analysis as { heat_score?: number } | null;
+    if (dealHeat?.heat_score != null) {
+      heatMap.set(a.call_id, dealHeat.heat_score);
+    } else {
+      const coachOutput = toCoachOutput(a.coach_output);
+      const legacyScore = coachOutput?.heat_signature?.score ?? null;
+      heatMap.set(a.call_id, legacyScore != null ? legacyScore * 10 : null);
+    }
+  });
+
+  // Merge heat scores into transcripts
+  let transcriptsWithHeat: CallTranscriptWithHeatAndRep[] = transcripts.map(t => ({
+    ...t,
+    heat_score: heatMap.get(t.id) ?? null,
+  }));
+
+  // Apply heat range filter if specified
+  if (filters.heatRange) {
+    transcriptsWithHeat = transcriptsWithHeat.filter(t => {
+      const score = t.heat_score;
+      switch (filters.heatRange) {
+        case 'hot':
+          return score !== null && score >= 70;
+        case 'warm':
+          return score !== null && score >= 40 && score < 70;
+        case 'cold':
+          return score === null || score < 40;
+        default:
+          return true;
+      }
+    });
+  }
+
+  // Apply heat score sorting if specified
+  if (needsHeatSorting) {
+    const sortOrder = filters.sortOrder || 'desc';
+    transcriptsWithHeat.sort((a, b) => {
+      const aScore = a.heat_score ?? -1;
+      const bScore = b.heat_score ?? -1;
+      return sortOrder === 'desc' ? bScore - aScore : aScore - bScore;
+    });
+  }
+
+  // Calculate total count after filtering
+  const totalCount = shouldFetchAll ? transcriptsWithHeat.length : (count || 0);
+
+  // Apply pagination for heat filtering/sorting
+  if (shouldFetchAll) {
+    const offset = filters.offset || 0;
+    const limit = filters.limit || 50;
+    transcriptsWithHeat = transcriptsWithHeat.slice(offset, offset + limit);
+  }
+
+  return {
+    data: transcriptsWithHeat,
+    count: totalCount,
+  };
+}

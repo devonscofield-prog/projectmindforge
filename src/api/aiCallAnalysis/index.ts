@@ -48,12 +48,13 @@ export {
   createCallTranscriptAndAnalyze,
   listCallTranscriptsForRep,
   listCallTranscriptsForRepWithFilters,
+  listCallTranscriptsForTeamWithFilters,
   getCallWithAnalysis,
   retryCallAnalysis,
   deleteFailedTranscript,
   updateCallTranscript,
 } from './transcripts';
-export type { UpdateCallTranscriptParams } from './transcripts';
+export type { UpdateCallTranscriptParams, CallTranscriptWithHeatAndRep } from './transcripts';
 
 // Re-export analysis functions
 export {
