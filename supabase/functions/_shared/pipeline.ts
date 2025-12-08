@@ -61,8 +61,8 @@ export interface PipelineResult {
 // Delay between batches to allow rate limits to recover (reduced for P1)
 const BATCH_DELAY_MS = 300;
 
-// Minimum ratio of labeled transcript to original (truncation guard)
-const MIN_LABELED_TRANSCRIPT_RATIO = 0.8;
+// Phase 0 time budget - abort Speaker Labeler if it exceeds this
+const PHASE0_BUDGET_MS = 20000;
 
 // Maximum transcript length for speaker labeling (80k chars ~ 20k words)
 // Longer transcripts skip labeling to prevent timeout/overflow
@@ -156,6 +156,39 @@ function buildSpeakerLabelerPrompt(transcript: string, context: SpeakerContext):
   const prompt = SPEAKER_LABELER_PROMPT.replace('{SPEAKER_CONTEXT}', speakerContext);
   
   return `${prompt}\n\n--- TRANSCRIPT TO LABEL ---\n${transcript}`;
+}
+
+// ============= CLIENT-SIDE LABEL APPLICATION =============
+
+/**
+ * Apply line labels from Speaker Labeler to reconstruct labeled transcript
+ * This replaces the previous approach where the AI returned the full labeled text
+ */
+function applyLabelsToTranscript(
+  rawTranscript: string, 
+  lineLabels: Array<{ line: number; speaker: string }>
+): string {
+  const lines = rawTranscript.split('\n');
+  const labelMap = new Map<number, string>();
+  
+  // Build a map for O(1) lookup
+  for (const label of lineLabels) {
+    labelMap.set(label.line, label.speaker);
+  }
+  
+  // Apply labels to each line (1-indexed in AI output)
+  return lines.map((line, idx) => {
+    const lineNum = idx + 1;
+    const speaker = labelMap.get(lineNum);
+    if (speaker && line.trim()) {
+      // Only add prefix if line doesn't already have one
+      if (/^(REP|PROSPECT|MANAGER|OTHER):/i.test(line.trim())) {
+        return line;
+      }
+      return `${speaker}: ${line}`;
+    }
+    return line;
+  }).join('\n');
 }
 
 // ============= RESULT MERGING =============
@@ -320,32 +353,42 @@ export async function runAnalysisPipeline(
       const speakerLabelerConfig = getPhase0Agent();
       if (speakerLabelerConfig) {
         const labelerPrompt = buildSpeakerLabelerPrompt(transcript, speakerContext);
-        const labelerResult = await executeAgentWithPrompt(
-          speakerLabelerConfig,
-          labelerPrompt,
-          supabase,
-          callId
+        
+        // Create timeout race for Phase 0 (20 second budget)
+        const labelerTimeout = new Promise<null>((resolve) => 
+          setTimeout(() => resolve(null), PHASE0_BUDGET_MS)
         );
+        
+        const labelerResultOrTimeout = await Promise.race([
+          executeAgentWithPrompt(speakerLabelerConfig, labelerPrompt, supabase, callId),
+          labelerTimeout
+        ]);
         
         const phase0Duration = performance.now() - phase0Start;
         
-        if (labelerResult.success) {
-          const labelerData = labelerResult.data as SpeakerLabelerOutput;
-          if (labelerData.labeled_transcript) {
-            // Truncation guard: verify labeled transcript is at least 80% of original length
-            const labeledLength = labelerData.labeled_transcript.length;
-            const originalLength = transcript.length;
-            const ratio = labeledLength / originalLength;
+        // Check if timed out
+        if (labelerResultOrTimeout === null) {
+          warnings.push(`Speaker labeling timed out (${PHASE0_BUDGET_MS / 1000}s budget), using raw transcript`);
+          console.log(`[Pipeline] Phase 0 aborted: exceeded ${PHASE0_BUDGET_MS / 1000}s budget after ${Math.round(phase0Duration)}ms`);
+        } else {
+          const labelerResult = labelerResultOrTimeout;
+          
+          if (labelerResult.success) {
+            const labelerData = labelerResult.data as SpeakerLabelerOutput;
             
-            if (ratio >= MIN_LABELED_TRANSCRIPT_RATIO) {
-              // Validate label format: at least 10% of lines should have valid speaker prefixes
-              const lines = labelerData.labeled_transcript.split('\n').filter((l: string) => l.trim());
+            // Check if we have line labels
+            if (labelerData.line_labels && labelerData.line_labels.length > 0) {
+              // Apply labels client-side
+              const labeledTranscript = applyLabelsToTranscript(transcript, labelerData.line_labels);
+              
+              // Validate: check label coverage (at least 10% of non-empty lines should be labeled)
+              const lines = labeledTranscript.split('\n').filter((l: string) => l.trim());
               const labeledLines = lines.filter((l: string) => /^(REP|PROSPECT|MANAGER|OTHER):/i.test(l.trim()));
               const labelCoverage = lines.length > 0 ? labeledLines.length / lines.length : 0;
               
               if (labelCoverage >= 0.1) {
-                processedTranscript = labelerData.labeled_transcript;
-                console.log(`[Pipeline] Phase 0 complete in ${Math.round(phase0Duration)}ms - ${labelerData.speaker_count} speakers detected (${labelerData.detection_confidence} confidence), ${Math.round(labelCoverage * 100)}% label coverage`);
+                processedTranscript = labeledTranscript;
+                console.log(`[Pipeline] Phase 0 complete in ${Math.round(phase0Duration)}ms - ${labelerData.speaker_count} speakers detected (${labelerData.detection_confidence} confidence), ${labelerData.line_labels.length} lines labeled, ${Math.round(labelCoverage * 100)}% coverage`);
                 // Log speaker mapping for debugging
                 if (labelerData.speaker_mapping && labelerData.speaker_mapping.length > 0) {
                   console.log(`[Pipeline] Speaker mapping: ${JSON.stringify(labelerData.speaker_mapping)}`);
@@ -355,17 +398,14 @@ export async function runAnalysisPipeline(
                 console.log(`[Pipeline] Phase 0 fallback: Low label coverage - only ${labeledLines.length}/${lines.length} lines have valid prefixes (${Math.round(labelCoverage * 100)}%)`);
               }
             } else {
-              warnings.push(`Speaker labeling truncated (${Math.round(ratio * 100)}% of original), using raw transcript`);
-              console.log(`[Pipeline] Phase 0 fallback: Truncation detected - labeled=${labeledLength} chars, original=${originalLength} chars (${Math.round(ratio * 100)}%)`);
+              warnings.push('Speaker labeling returned no line labels, using raw transcript');
+              console.log(`[Pipeline] Phase 0 fallback: Empty line_labels array returned`);
             }
           } else {
-            warnings.push('Speaker labeling returned empty transcript, using raw transcript');
-            console.log(`[Pipeline] Phase 0 fallback: Empty labeled_transcript returned`);
+            const errorReason = labelerResult.error || 'Unknown error';
+            warnings.push(`Speaker labeling failed: ${errorReason}, using raw transcript`);
+            console.log(`[Pipeline] Phase 0 fallback: Agent failed after ${Math.round(phase0Duration)}ms - ${errorReason}`);
           }
-        } else {
-          const errorReason = labelerResult.error || 'Unknown error';
-          warnings.push(`Speaker labeling failed: ${errorReason}, using raw transcript`);
-          console.log(`[Pipeline] Phase 0 fallback: Agent failed after ${Math.round(phase0Duration)}ms - ${errorReason}`);
         }
       }
     }
@@ -479,7 +519,7 @@ export async function runAnalysisPipeline(
   checkTimeout(pipelineStart, 'Before Phase 2');
 
   const phase1Duration = batch1Duration + batch2Duration + BATCH_DELAY_MS;
-  console.log(`[Pipeline] Phase 1 (all 3 batches) complete in ${Math.round(phase1Duration)}ms (${warnings.length} warnings)`);
+  console.log(`[Pipeline] Phase 1 (all 2 batches) complete in ${Math.round(phase1Duration)}ms (${warnings.length} warnings)`);
 
   // ============= MERGE PHASE 1 RESULTS =============
   const strategist = strategistResult.data as StrategistOutput;

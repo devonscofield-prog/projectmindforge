@@ -180,9 +180,12 @@ export const CoachSchema = z.object({
   grade_reasoning: z.string(),
 });
 
-// The Speaker Labeler - pre-processing agent
+// The Speaker Labeler - pre-processing agent (compact output format for performance)
 export const SpeakerLabelerSchema = z.object({
-  labeled_transcript: z.string(),
+  line_labels: z.array(z.object({
+    line: z.number().describe("1-indexed line number"),
+    speaker: z.enum(['REP', 'PROSPECT', 'MANAGER', 'OTHER']),
+  })),
   speaker_mapping: z.array(z.object({
     original_name: z.string(),
     role: z.enum(['REP', 'PROSPECT', 'MANAGER', 'OTHER']),
