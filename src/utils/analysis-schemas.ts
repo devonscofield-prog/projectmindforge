@@ -157,6 +157,21 @@ export const PsychologyProfileSchema = z.object({
 
 export type PsychologyProfile = z.infer<typeof PsychologyProfileSchema>;
 
+// --- 8. THE SPY (Competitive Intelligence) ---
+export const CompetitiveIntelSchema = z.object({
+  competitive_intel: z.array(z.object({
+    competitor_name: z.string().describe("Name of the competitor, vendor, or 'Status Quo' for internal solutions"),
+    usage_status: z.enum(['Current Vendor', 'Past Vendor', 'Evaluating', 'Mentioned']),
+    strengths_mentioned: z.array(z.string()).describe("Positive things said about the competitor"),
+    weaknesses_mentioned: z.array(z.string()).describe("Negative things said about the competitor"),
+    threat_level: z.enum(['High', 'Medium', 'Low']),
+    churn_risk: z.enum(['High', 'Medium', 'Low']).describe("Likelihood they will switch from this competitor"),
+    silver_bullet_question: z.string().describe("A specific 'Trap Setting' question to de-position this competitor"),
+  })),
+});
+
+export type CompetitiveIntel = z.infer<typeof CompetitiveIntelSchema>;
+
 // --- 7. THE COACH (Coaching Synthesis) ---
 export const CoachingSynthesisSchema = z.object({
   overall_grade: z.enum(['A+', 'A', 'B', 'C', 'D', 'F']),

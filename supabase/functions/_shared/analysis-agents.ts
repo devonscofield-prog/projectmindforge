@@ -145,6 +145,8 @@ const CompetitiveIntelValidation = z.object({
     strengths_mentioned: z.array(z.string()),
     weaknesses_mentioned: z.array(z.string()),
     threat_level: z.enum(['High', 'Medium', 'Low']),
+    churn_risk: z.enum(['High', 'Medium', 'Low']),
+    silver_bullet_question: z.string(),
   })),
 });
 
@@ -472,7 +474,7 @@ const COMPETITIVE_INTEL_TOOL = {
   type: "function",
   function: {
     name: "analyze_competitors",
-    description: "Extract competitive intelligence from a sales call transcript",
+    description: "Extract competitive intelligence from a sales call transcript, including Status Quo competitors",
     parameters: {
       type: "object",
       properties: {
@@ -481,7 +483,7 @@ const COMPETITIVE_INTEL_TOOL = {
           items: {
             type: "object",
             properties: {
-              competitor_name: { type: "string", description: "Name of the competitor, vendor, or incumbent mentioned" },
+              competitor_name: { type: "string", description: "Name of the competitor, vendor, or 'Status Quo' for internal solutions" },
               usage_status: { 
                 type: "string", 
                 enum: ["Current Vendor", "Past Vendor", "Evaluating", "Mentioned"],
@@ -501,11 +503,20 @@ const COMPETITIVE_INTEL_TOOL = {
                 type: "string",
                 enum: ["High", "Medium", "Low"],
                 description: "How much of a threat this competitor is to winning this deal"
+              },
+              churn_risk: {
+                type: "string",
+                enum: ["High", "Medium", "Low"],
+                description: "Likelihood they will switch away from this competitor - High if dissatisfied, Low if sticky"
+              },
+              silver_bullet_question: {
+                type: "string",
+                description: "A specific 'Trap Setting' question to de-position this competitor and highlight our advantage"
               }
             },
-            required: ["competitor_name", "usage_status", "strengths_mentioned", "weaknesses_mentioned", "threat_level"]
+            required: ["competitor_name", "usage_status", "strengths_mentioned", "weaknesses_mentioned", "threat_level", "churn_risk", "silver_bullet_question"]
           },
-          description: "All competitors, vendors, or incumbents mentioned in the call"
+          description: "All competitors, vendors, incumbents, or Status Quo mentioned in the call"
         }
       },
       required: ["competitive_intel"]
@@ -800,42 +811,58 @@ For each objection, provide ONE specific, actionable tip:
 Return the score, grade (Pass if >= 60), and the objections_detected array.`;
 
 // The Spy - competitive intelligence system prompt
-const SPY_SYSTEM_PROMPT = `You are 'The Spy'. Scan the transcript for mentions of other vendors, tools, or incumbents.
+const SPY_SYSTEM_PROMPT = `You are 'The Spy'. Build a Battlecard for this specific deal by detecting ALL competitive threats.
 
-**Goal:** Build a Battlecard for this specific deal.
+**1. DETECTION TARGETS:**
 
-**DETECTION:**
-- Look for explicit competitor mentions: "We use KnowBe4", "We're also looking at Proofpoint"
-- Look for implied incumbents: "Our current solution", "What we have now", "We're evaluating options"
-- Look for vendor categories: "security awareness training", "phishing simulation", "LMS"
+**External Vendors:**
+- Explicit: "We use KnowBe4", "Looking at Udemy", "Our Pluralsight license"
+- Implied: "Our current solution", "What we have now", "We're evaluating options"
 
-**ANALYSIS:**
-For each competitor detected, determine:
+**Internal/Status Quo (CRITICAL):**
+Treat these as a competitor named **"Status Quo"**:
+- "We build it in-house"
+- "We use Excel/SharePoint/Google Docs for this"
+- "We'll just stick with what we have"
+- "Our team handles this manually"
+- "We're not looking to change right now"
 
-1. **Usage Status:**
-   - Current Vendor: They are using this competitor now
-   - Past Vendor: They used to use this competitor
-   - Evaluating: They are actively considering this competitor
-   - Mentioned: Competitor came up in conversation but no clear relationship
+**2. SENTIMENT & MOVEMENT (Churn Risk):**
 
-2. **Strengths (be nuanced):**
-   - If they say "We love X's support" → that's a strength
-   - If they say "X is easy to use" → that's a strength
-   - If they say "We've been with X for years" → implies reliability (strength)
+**Low Churn Risk (Sticky):**
+- "We are happy with them"
+- "Just renewed our contract"
+- "It's deeply integrated"
+- "The team loves it"
 
-3. **Weaknesses (be nuanced):**
-   - If they say "X is expensive" → that's a weakness
-   - If they say "We struggle with X's reporting" → that's a weakness
-   - If they say "X doesn't integrate well" → that's a weakness
-   - If they're looking to switch → implies dissatisfaction (find the reason)
+**High Churn Risk (Wobbly):**
+- "It's expensive"
+- "Support is terrible"
+- "Renewal is coming up in X months"
+- "We've had issues with..."
+- "Looking for alternatives"
 
-4. **Threat Level:**
-   - High: They love the competitor OR are actively evaluating them
-   - Medium: Competitor was mentioned but not favorably
-   - Low: Competitor has clear weaknesses or they're looking to leave
+**Medium Churn Risk:** Mixed signals or neutral sentiment.
 
-**OUTPUT:**
-Return ALL competitors mentioned with full analysis. If NO competitors are mentioned, return an empty competitive_intel array.`;
+**3. THREAT LEVEL:**
+- **High:** Current Vendor they're satisfied with, OR strong Status Quo inertia
+- **Medium:** Evaluating competitor, OR Status Quo with some pain
+- **Low:** Past vendor, mentioned in passing, OR dissatisfied Status Quo
+
+**4. BATTLECARD OUTPUT:**
+
+For each competitor, generate:
+- **Strengths:** What they like about it (even if implied)
+- **Weaknesses:** What they dislike or complain about
+- **Silver Bullet Question:** ONE specific "Trap Setting Question" to de-position this competitor by highlighting its weakness:
+  - For a vendor: "Ask: 'How do you handle [their known weakness]?'"
+  - For Status Quo: "Ask: 'How much time does your team spend on [manual process]?'"
+  - For Excel: "Ask: 'What happens when [scale problem] occurs?'"
+
+**OUTPUT RULES:**
+- Always include "Status Quo" if they express ANY resistance to change
+- Empty array ONLY if no competitors AND no Status Quo signals
+- Silver bullet must be SPECIFIC to their mentioned weakness, not generic`;
 
 // Output from The Census
 export interface CallCensus {
@@ -1003,6 +1030,8 @@ export interface CompetitiveIntel {
     strengths_mentioned: string[];
     weaknesses_mentioned: string[];
     threat_level: 'High' | 'Medium' | 'Low';
+    churn_risk: 'High' | 'Medium' | 'Low';
+    silver_bullet_question: string;
   }>;
 }
 
