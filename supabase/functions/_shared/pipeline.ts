@@ -41,8 +41,8 @@ export interface PipelineResult {
   totalDurationMs: number;
 }
 
-// Delay between batches to allow rate limits to recover
-const BATCH_DELAY_MS = 300;
+// Delay between batches to allow rate limits to recover (500ms minimum for faster Flash models)
+const BATCH_DELAY_MS = 500;
 
 // ============= CONTEXT-AWARE PROMPT BUILDERS =============
 
