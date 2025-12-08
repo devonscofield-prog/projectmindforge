@@ -145,10 +145,10 @@ Deno.serve(async (req) => {
       .eq('id', transcript.rep_id)
       .maybeSingle();
 
-    // Build speaker context for Speaker Labeler
-    const speakerContext: SpeakerContext | undefined = repProfile?.name && transcript.primary_stakeholder_name ? {
+    // Build speaker context for Speaker Labeler (allow partial context with rep name only)
+    const speakerContext: SpeakerContext | undefined = repProfile?.name ? {
       repName: repProfile.name,
-      stakeholderName: transcript.primary_stakeholder_name,
+      stakeholderName: transcript.primary_stakeholder_name || 'Unknown',
       accountName: transcript.account_name || 'Unknown Company',
       managerOnCall: !!transcript.manager_id,
       additionalSpeakers: transcript.additional_speakers || [],
@@ -157,7 +157,7 @@ Deno.serve(async (req) => {
     if (speakerContext) {
       console.log(`[analyze-call] Speaker context: REP=${speakerContext.repName}, PROSPECT=${speakerContext.stakeholderName}, Manager=${speakerContext.managerOnCall}, Others=${speakerContext.additionalSpeakers.length}`);
     } else {
-      console.log(`[analyze-call] No speaker context available (missing rep name or stakeholder name)`);
+      console.log(`[analyze-call] No speaker context available (missing rep profile name)`);
     }
 
     const { force_reanalyze } = body;

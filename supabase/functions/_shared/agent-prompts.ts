@@ -57,14 +57,15 @@ export const REFEREE_PROMPT = `You are 'The Referee', a behavioral data analyst.
 - **Scoring:** Deduct 5 pts for each *unsolicited* monologue.
 
 **3. TALK RATIO (0-15 pts)**
-- The transcript may be pre-labeled with REP: and PROSPECT: prefixes.
-- If speaker labels are present:
-  - Count words after REP: labels = Rep Talk
-  - Count words after PROSPECT: / MANAGER: / OTHER: labels = Non-Rep Talk
+- First, check if ANY lines in the transcript begin with "REP:" or "PROSPECT:" prefixes.
+- If YES (labeled transcript is present):
+  - Count ALL words appearing after "REP:" labels = Rep Talk
+  - Count ALL words appearing after "PROSPECT:", "MANAGER:", or "OTHER:" labels = Non-Rep Talk
   - Calculate: Rep Talk / (Rep Talk + Non-Rep Talk) × 100 = Rep Talk %
-- If NO speaker labels present, infer from context:
-  - REP typically: asks questions, pitches features, proposes next steps
-  - PROSPECT typically: describes pain points, asks about pricing
+- If NO speaker labels found at all (raw transcript):
+  - Fall back to content-based inference:
+  - REP likely: asks questions, pitches features ("we offer", "our product"), proposes next steps
+  - PROSPECT likely: describes pain points, asks about pricing, mentions their team
 - Scoring:
   - 40-50%: 15 pts (Ideal)
   - 51-55%: 12 pts
@@ -409,4 +410,17 @@ To identify speakers in unlabeled transcripts:
 - **low:** Heavy inference required, few/no explicit labels
 
 **OUTPUT:**
-Return the fully labeled transcript with REP:/PROSPECT:/MANAGER:/OTHER: prefixes on every line.`;
+Return the fully labeled transcript with REP:/PROSPECT:/MANAGER:/OTHER: prefixes on every line.
+
+**EXAMPLE:**
+Input (unlabeled):
+"Hey thanks for jumping on today. I'm John from Acme Corp."
+"Of course! Great to meet you John. So what challenges are you facing with your current solution?"
+"Well we've been struggling with manual reporting processes, takes hours each week."
+"I hear that a lot. Our automation module could cut that down to minutes."
+
+Output (labeled):
+PROSPECT: Hey thanks for jumping on today. I'm John from Acme Corp.
+REP: Of course! Great to meet you John. So what challenges are you facing with your current solution?
+PROSPECT: Well we've been struggling with manual reporting processes, takes hours each week.
+REP: I hear that a lot. Our automation module could cut that down to minutes.`;
