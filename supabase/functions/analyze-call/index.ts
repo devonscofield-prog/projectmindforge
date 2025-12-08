@@ -233,6 +233,7 @@ Deno.serve(async (req) => {
       analysis_behavior: result.behavior,
       analysis_strategy: result.strategy,
       analysis_psychology: result.psychology,
+      analysis_pricing: result.pricing,
       analysis_coaching: result.coaching,
       analysis_pipeline_version: 'v2-registry',
       call_summary: result.metadata.summary,

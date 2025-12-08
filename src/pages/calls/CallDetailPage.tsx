@@ -18,6 +18,7 @@ import { CallProductsSummary } from '@/components/calls/CallProductsSummary';
 import { EditCallDetailsDialog } from '@/components/calls/EditCallDetailsDialog';
 import { EditUserCountsDialog } from '@/components/calls/EditUserCountsDialog';
 import { BehaviorScorecard, PainToPitchAlignment, CriticalGapsPanel, ObjectionHandlingPanel, CompetitiveIntelPanel } from '@/components/analysis';
+import { PricingDisciplineCard } from '@/components/calls/PricingDisciplineCard';
 import { SalesAssetsGenerator } from '@/components/calls/SalesAssetsGenerator';
 import { CallAnalysisLayout } from '@/components/calls/CallAnalysisLayout';
 import { TranscriptViewer } from '@/components/calls/TranscriptViewer';
@@ -384,6 +385,7 @@ function CallDetailPage() {
               <div className="space-y-6">
                 <PainToPitchAlignment data={analysis.analysis_strategy} />
                 <ObjectionHandlingPanel data={analysis.analysis_strategy?.objection_handling} />
+                <PricingDisciplineCard data={analysis.analysis_pricing} />
               </div>
             }
             hazardsContent={

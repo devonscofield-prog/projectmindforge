@@ -32,6 +32,7 @@ import type {
   DealHeat,
   PsychologyProfile,
   CoachingSynthesis,
+  PricingDiscipline,
 } from '@/api/aiCallAnalysis/types';
 import type { UserActivityLog, UserActivityType } from '@/api/userActivityLogs';
 import { parseJsonField, isObject, isString, isStringArray, isNumber } from './typeUtils';
@@ -310,6 +311,7 @@ export function toCallAnalysis(row: AiCallAnalysisRow): CallAnalysis {
     analysis_behavior: parseJsonField<BehaviorScore>(row.analysis_behavior, isBehaviorScore),
     analysis_strategy: parseJsonField<StrategyAudit>(row.analysis_strategy, isStrategyAudit),
     analysis_psychology: parseJsonField<PsychologyProfile>(row.analysis_psychology, isPsychologyProfile),
+    analysis_pricing: row.analysis_pricing as PricingDiscipline | null,
     analysis_coaching: parseJsonField<CoachingSynthesis>(row.analysis_coaching, isCoachingSynthesis),
     deal_heat_analysis: parseJsonField<DealHeat>(row.deal_heat_analysis, isDealHeat),
   };

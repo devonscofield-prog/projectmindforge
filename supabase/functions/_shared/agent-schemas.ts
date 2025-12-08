@@ -169,6 +169,23 @@ export const SpySchema = z.object({
   })),
 });
 
+// The Auditor - pricing discipline / discount analysis
+export const AuditorSchema = z.object({
+  discounts_offered: z.array(z.object({
+    type: z.enum(['Percentage', 'Flat Amount', 'Free Trial Extension', 'Bundle Deal', 'Payment Terms', 'Waived Fee', 'Other']),
+    discount_value: z.string().describe("The actual discount (e.g., '15%', '$500', '30 extra days')"),
+    context_quote: z.string().describe("What triggered or accompanied this discount offer"),
+    timing_assessment: z.enum(['Premature', 'Appropriate', 'Late/Reactive']).describe("When was this discount offered relative to value establishment?"),
+    value_established_before: z.boolean().describe("Was ROI/pain established before offering this discount?"),
+    prospect_requested: z.boolean().describe("Did the prospect ask for a discount, or was it volunteered?"),
+    coaching_note: z.string().describe("Brief coaching feedback on this specific discount offer"),
+  })),
+  pricing_score: z.number().min(0).max(100).describe("Pricing discipline score 0-100"),
+  grade: z.enum(['Pass', 'Fail']).describe("Pass if score >= 60, Fail otherwise"),
+  summary: z.string().describe("1-2 sentence assessment of pricing discipline"),
+  coaching_tips: z.array(z.string()).max(3).describe("2-3 specific tips for improving pricing discipline"),
+});
+
 // The Coach - synthesis
 export const CoachSchema = z.object({
   overall_grade: z.enum(['A+', 'A', 'B', 'C', 'D', 'F']),
@@ -227,6 +244,7 @@ export type SkepticOutput = z.infer<typeof SkepticSchema>;
 export type NegotiatorOutput = z.infer<typeof NegotiatorSchema>;
 export type ProfilerOutput = z.infer<typeof ProfilerSchema>;
 export type SpyOutput = z.infer<typeof SpySchema>;
+export type AuditorOutput = z.infer<typeof AuditorSchema>;
 export type CoachOutput = z.infer<typeof CoachSchema>;
 export type SpeakerLabelerOutput = z.infer<typeof SpeakerLabelerSchema>;
 export type SentinelOutput = z.infer<typeof SentinelSchema>;
