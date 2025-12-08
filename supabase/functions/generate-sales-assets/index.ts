@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -7,6 +8,52 @@ const corsHeaders = {
 };
 
 const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+
+// Input validation schema
+const MAX_TRANSCRIPT_LENGTH = 500_000;
+
+function sanitizeUserInput(input: string): string {
+  if (typeof input !== 'string') return '';
+  return input.replace(/\0/g, '').replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '[REMOVED]').trim();
+}
+
+const generateSalesAssetsSchema = z.object({
+  transcript: z.string()
+    .min(100, "Transcript too short")
+    .max(MAX_TRANSCRIPT_LENGTH, `Transcript too long (max ${MAX_TRANSCRIPT_LENGTH} chars)`)
+    .transform(sanitizeUserInput),
+  strategic_context: z.object({
+    strategic_threading: z.object({
+      relevance_map: z.array(z.object({
+        pain_identified: z.string().max(500),
+        feature_pitched: z.string().max(500),
+        is_relevant: z.boolean(),
+        reasoning: z.string().max(1000)
+      })).max(50).optional(),
+      missed_opportunities: z.array(z.string().max(500)).max(20).optional()
+    }).optional(),
+    critical_gaps: z.array(z.object({
+      category: z.string().max(100),
+      description: z.string().max(500),
+      impact: z.string().max(100),
+      suggested_question: z.string().max(500)
+    })).max(20).optional()
+  }).optional(),
+  psychology_context: z.object({
+    prospect_persona: z.string().max(200).optional(),
+    disc_profile: z.string().max(100).optional(),
+    communication_style: z.object({
+      tone: z.string().max(100).optional(),
+      preference: z.string().max(200).optional()
+    }).optional(),
+    dos_and_donts: z.object({
+      do: z.array(z.string().max(200)).max(10).optional(),
+      dont: z.array(z.string().max(200)).max(10).optional()
+    }).optional()
+  }).optional(),
+  account_name: z.string().max(200).transform(sanitizeUserInput).optional(),
+  stakeholder_name: z.string().max(200).transform(sanitizeUserInput).optional()
+});
 
 const SALES_ASSETS_TOOL = {
   type: "function",
@@ -146,14 +193,31 @@ serve(async (req) => {
       });
     }
 
-    const { transcript, strategic_context, psychology_context, account_name, stakeholder_name } = await req.json();
-
-    if (!transcript || typeof transcript !== 'string') {
-      return new Response(JSON.stringify({ error: 'transcript is required and must be a string' }), {
+    // Validate request body
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(JSON.stringify({ error: 'Invalid JSON in request body' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
+
+    const validation = generateSalesAssetsSchema.safeParse(body);
+    if (!validation.success) {
+      const errors = validation.error.errors.map(err => ({
+        path: err.path.join('.'),
+        message: err.message
+      }));
+      console.warn('[generate-sales-assets] Validation failed:', errors);
+      return new Response(JSON.stringify({ error: 'Validation failed', issues: errors }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    const { transcript, strategic_context, psychology_context, account_name, stakeholder_name } = validation.data;
 
     console.log(`[generate-sales-assets] Generating assets for user ${user.id}`);
 
