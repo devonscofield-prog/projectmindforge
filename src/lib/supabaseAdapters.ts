@@ -87,6 +87,14 @@ export function isCoachOutput(value: unknown): value is CoachOutput {
 }
 
 /**
+ * Type guard for PricingDiscipline (Analysis 2.0 - The Auditor)
+ */
+export function isPricingDiscipline(value: unknown): value is PricingDiscipline {
+  if (!isObject(value)) return false;
+  return 'pricing_score' in value && 'grade' in value && 'discounts_offered' in value;
+}
+
+/**
  * Type guard for BehaviorScore (Analysis 2.0)
  * 
  * Note: BehaviorScore from the Referee agent does NOT include question_quality.
@@ -311,7 +319,7 @@ export function toCallAnalysis(row: AiCallAnalysisRow): CallAnalysis {
     analysis_behavior: parseJsonField<BehaviorScore>(row.analysis_behavior, isBehaviorScore),
     analysis_strategy: parseJsonField<StrategyAudit>(row.analysis_strategy, isStrategyAudit),
     analysis_psychology: parseJsonField<PsychologyProfile>(row.analysis_psychology, isPsychologyProfile),
-    analysis_pricing: row.analysis_pricing as PricingDiscipline | null,
+    analysis_pricing: parseJsonField<PricingDiscipline>(row.analysis_pricing, isPricingDiscipline),
     analysis_coaching: parseJsonField<CoachingSynthesis>(row.analysis_coaching, isCoachingSynthesis),
     deal_heat_analysis: parseJsonField<DealHeat>(row.deal_heat_analysis, isDealHeat),
   };
