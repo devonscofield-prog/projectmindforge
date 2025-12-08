@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { 
   Users, 
   Monitor, 
@@ -13,7 +14,12 @@ import {
   Mail,
   AlertTriangle,
   Pencil,
-  RefreshCw
+  RefreshCw,
+  Video,
+  VideoOff,
+  Crown,
+  Quote,
+  UserCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CallAnalysis, CallTranscript } from '@/api/aiCallAnalysis';
@@ -121,19 +127,99 @@ interface StatCardProps {
   icon: ReactNode;
   label: string;
   value: string | number;
+  sourceQuote?: string | null;
+  extraBadges?: ReactNode;
 }
 
-function StatCard({ icon, label, value }: StatCardProps) {
-  return (
-    <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
-      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+function StatCard({ icon, label, value, sourceQuote, extraBadges }: StatCardProps) {
+  const content = (
+    <div className="flex items-center gap-3 rounded-lg border bg-card p-3 h-full">
+      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0">
         {icon}
       </div>
-      <div>
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <p className="text-lg font-semibold">{value}</p>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5">
+          <p className="text-xs text-muted-foreground">{label}</p>
+          {sourceQuote && (
+            <Quote className="h-3 w-3 text-muted-foreground/60" />
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <p className="text-lg font-semibold">{value}</p>
+          {extraBadges}
+        </div>
       </div>
     </div>
+  );
+
+  if (sourceQuote) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            {content}
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="max-w-xs">
+            <p className="text-xs italic">"{sourceQuote}"</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
+  return content;
+}
+
+// Sentiment badge colors
+const sentimentStyles: Record<string, string> = {
+  'Positive': 'bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/30',
+  'Neutral': 'bg-muted text-muted-foreground border-muted-foreground/30',
+  'Skeptical': 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/30',
+  'Negative': 'bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/30',
+};
+
+interface ParticipantBadgeProps {
+  participant: {
+    name: string;
+    role: string;
+    is_decision_maker: boolean;
+    sentiment: 'Positive' | 'Neutral' | 'Negative' | 'Skeptical';
+  };
+}
+
+function ParticipantBadge({ participant }: ParticipantBadgeProps) {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className={cn(
+            "inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-xs",
+            sentimentStyles[participant.sentiment] || sentimentStyles['Neutral']
+          )}>
+            {participant.is_decision_maker && (
+              <Crown className="h-3 w-3 text-amber-500" />
+            )}
+            <span className="font-medium truncate max-w-[120px]">{participant.name}</span>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">
+          <div className="text-xs space-y-1">
+            <p className="font-medium">{participant.name}</p>
+            <p className="text-muted-foreground">{participant.role}</p>
+            <div className="flex items-center gap-2 pt-1">
+              <Badge variant="outline" className={cn("text-[10px]", sentimentStyles[participant.sentiment])}>
+                {participant.sentiment}
+              </Badge>
+              {participant.is_decision_maker && (
+                <Badge variant="outline" className="text-[10px] border-amber-500/50 text-amber-600">
+                  Decision Maker
+                </Badge>
+              )}
+            </div>
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
@@ -231,12 +317,18 @@ export function CallAnalysisLayout({
   const stats = useMemo(() => {
     const itUsers = metadataData?.user_counts?.it_users ?? '-';
     const endUsers = metadataData?.user_counts?.end_users ?? '-';
+    const sourceQuote = metadataData?.user_counts?.source_quote ?? null;
     const duration = metadataData?.logistics?.duration_minutes 
       ? `${metadataData.logistics.duration_minutes} min` 
       : '-';
+    const platform = metadataData?.logistics?.platform ?? null;
+    const videoOn = metadataData?.logistics?.video_on ?? null;
     
-    return { itUsers, endUsers, duration };
+    return { itUsers, endUsers, sourceQuote, duration, platform, videoOn };
   }, [metadataData]);
+
+  // Extract participants from metadata
+  const participants = metadataData?.participants ?? [];
 
   // Display names
   const prospectName = transcript.account_name || transcript.primary_stakeholder_name || 'Unknown Prospect';
@@ -390,13 +482,29 @@ export function CallAnalysisLayout({
               </div>
             </div>
 
+            {/* Participants Row */}
+            {participants.length > 0 && (
+              <div className="mt-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <UserCircle className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-xs font-medium text-muted-foreground">Participants</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {participants.map((participant, idx) => (
+                    <ParticipantBadge key={idx} participant={participant} />
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Key Stats Row */}
-            <div className="mt-6 grid gap-4 sm:grid-cols-3">
+            <div className="mt-4 grid gap-4 sm:grid-cols-3">
               <div className="relative">
                 <StatCard 
                   icon={<Monitor className="h-5 w-5" />}
                   label="IT Users"
                   value={stats.itUsers}
+                  sourceQuote={stats.sourceQuote}
                 />
                 {canEdit && onEditUserCounts && (
                   <Button
@@ -415,6 +523,7 @@ export function CallAnalysisLayout({
                   icon={<Users className="h-5 w-5" />}
                   label="End Users"
                   value={stats.endUsers}
+                  sourceQuote={stats.sourceQuote}
                 />
                 {canEdit && onEditUserCounts && (
                   <Button
@@ -432,6 +541,32 @@ export function CallAnalysisLayout({
                 icon={<Clock className="h-5 w-5" />}
                 label="Duration"
                 value={stats.duration}
+                extraBadges={
+                  <div className="flex items-center gap-1">
+                    {stats.videoOn !== null && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className={cn(
+                              "p-0.5 rounded",
+                              stats.videoOn ? "text-green-600" : "text-muted-foreground"
+                            )}>
+                              {stats.videoOn ? <Video className="h-3.5 w-3.5" /> : <VideoOff className="h-3.5 w-3.5" />}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <p className="text-xs">{stats.videoOn ? 'Video was on' : 'Video was off'}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                    {stats.platform && (
+                      <Badge variant="outline" className="text-[10px] px-1 py-0">
+                        {stats.platform}
+                      </Badge>
+                    )}
+                  </div>
+                }
               />
             </div>
           </CardContent>
