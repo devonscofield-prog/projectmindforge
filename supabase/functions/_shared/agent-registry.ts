@@ -224,7 +224,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (t) => `Analyze this sales call transcript. Find the 3-5 most dangerous UNKNOWNS or MISSING INFORMATION that could block this deal:\n\n${t}`,
     toolName: 'identify_deal_gaps',
     toolDescription: 'Identify critical information gaps blocking a sales deal',
-    options: { model: 'google/gemini-2.5-pro', temperature: 0.1, maxTokens: 4096 },
+    options: { model: 'google/gemini-2.5-flash', temperature: 0.1, maxTokens: 4096 }, // Changed from pro to flash for performance
     isCritical: false,
     default: DEFAULT_SKEPTIC,
     phase: 1,

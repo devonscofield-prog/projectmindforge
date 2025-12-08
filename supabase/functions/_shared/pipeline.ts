@@ -211,6 +211,28 @@ ${competitors.competitive_intel?.length > 0 ? competitors.competitive_intel.map(
 `;
 }
 
+// ============= PIPELINE TIMEOUT =============
+
+const PIPELINE_TIMEOUT_MS = 50000; // 50 seconds - leave 10s buffer for Edge Function limit
+
+class PipelineTimeoutError extends Error {
+  constructor(elapsedMs: number) {
+    super(`Pipeline timeout after ${Math.round(elapsedMs)}ms`);
+    this.name = 'PipelineTimeoutError';
+  }
+}
+
+function checkTimeout(startTime: number, phase: string): void {
+  const elapsed = performance.now() - startTime;
+  if (elapsed > PIPELINE_TIMEOUT_MS) {
+    throw new PipelineTimeoutError(elapsed);
+  }
+  // Log warning if we're getting close (80% of timeout)
+  if (elapsed > PIPELINE_TIMEOUT_MS * 0.8) {
+    console.warn(`[Pipeline] WARNING: ${phase} - ${Math.round(elapsed)}ms elapsed, approaching timeout`);
+  }
+}
+
 // ============= MAIN PIPELINE =============
 
 /**
@@ -253,6 +275,9 @@ export async function runAnalysisPipeline(
 
   const batch1Duration = performance.now() - batch1Start;
   console.log(`[Pipeline] Batch 1 complete in ${Math.round(batch1Duration)}ms`);
+  
+  // Check timeout after each batch
+  checkTimeout(pipelineStart, 'After Batch 1');
 
   // Check critical agents
   if (!censusResult.success) {
@@ -294,6 +319,9 @@ export async function runAnalysisPipeline(
 
   const batch2Duration = performance.now() - batch2Start;
   console.log(`[Pipeline] Batch 2 complete in ${Math.round(batch2Duration)}ms`);
+  
+  // Check timeout after Batch 2
+  checkTimeout(pipelineStart, 'After Batch 2');
 
   // Track warnings for non-critical agents
   if (!profilerResult.success) warnings.push(`Psychology profiling failed: ${profilerResult.error}`);
@@ -334,6 +362,9 @@ export async function runAnalysisPipeline(
 
   if (!skepticResult.success) warnings.push(`Deal gaps analysis failed: ${skepticResult.error}`);
   if (!negotiatorResult.success) warnings.push(`Objection handling analysis failed: ${negotiatorResult.error}`);
+  
+  // Check timeout before Phase 2
+  checkTimeout(pipelineStart, 'Before Phase 2');
 
   const phase1Duration = batch1Duration + batch2Duration + batch3Duration + (BATCH_DELAY_MS * 2);
   console.log(`[Pipeline] Phase 1 (all 3 batches) complete in ${Math.round(phase1Duration)}ms (${warnings.length} warnings)`);
