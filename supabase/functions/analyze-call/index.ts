@@ -7,6 +7,7 @@
  * - Agent 3: The Interrogator (question leverage) - gemini-2.5-flash
  * - Agent 4: The Strategist (pain-to-pitch mapping) - gemini-2.5-flash
  * - Agent 5: The Skeptic (deal gaps analysis) - gemini-2.5-pro
+ * - Agent 6: The Negotiator (objection handling) - gemini-2.5-pro
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -20,11 +21,13 @@ import {
   analyzeCallStrategy,
   analyzeQuestionLeverage,
   analyzeDealGaps,
+  analyzeObjections,
   type CallMetadata,
   type BehaviorScore,
   type QuestionLeverage,
   type StrategicThreading,
   type DealGaps,
+  type ObjectionHandling,
   type StrategyAudit,
   type MergedBehaviorScore,
 } from '../_shared/analysis-agents.ts';
@@ -68,6 +71,14 @@ const DEFAULT_STRATEGY: StrategicThreading = {
 
 const DEFAULT_GAPS: DealGaps = {
   critical_gaps: [],
+};
+
+const DEFAULT_OBJECTIONS: ObjectionHandling = {
+  objection_handling: {
+    score: 100,
+    grade: 'Pass',
+    objections_detected: [],
+  },
 };
 
 /**
@@ -349,13 +360,33 @@ serve(async (req) => {
         throw err;
       }
     };
+
+    const timedObjections = async () => {
+      const start = performance.now();
+      try {
+        const result = await analyzeObjections(transcript.raw_text);
+        await logPerformance(supabaseAdmin, 'agent_negotiator_objections', performance.now() - start, 'success', { 
+          call_id: targetCallId,
+          objections_count: result.objection_handling.objections_detected.length,
+          score: result.objection_handling.score,
+        });
+        return result;
+      } catch (err) {
+        await logPerformance(supabaseAdmin, 'agent_negotiator_objections', performance.now() - start, 'error', { 
+          call_id: targetCallId, 
+          error: err instanceof Error ? err.message : String(err),
+        });
+        throw err;
+      }
+    };
     
-    const [metadataSettled, behaviorSettled, questionSettled, strategySettled, gapsSettled] = await Promise.allSettled([
+    const [metadataSettled, behaviorSettled, questionSettled, strategySettled, gapsSettled, objectionsSettled] = await Promise.allSettled([
       timedMetadata(),
       timedBehavior(),
       timedQuestions(),
       timedStrategy(),
       timedGaps(),
+      timedObjections(),
     ]);
 
     // Metadata is CRITICAL - if it fails, the whole analysis fails
@@ -410,10 +441,22 @@ serve(async (req) => {
       gapsResult = gapsSettled.value;
     }
 
-    // Combine strategy threading and gaps into full StrategyAudit for storage
+    // Objections agent (The Negotiator) - use fallback on failure
+    let objectionsResult: ObjectionHandling;
+    if (objectionsSettled.status === 'rejected') {
+      const error = objectionsSettled.reason instanceof Error ? objectionsSettled.reason.message : String(objectionsSettled.reason);
+      console.warn('[analyze-call] Objections agent failed, using defaults:', error);
+      analysisWarnings.push(`Objection handling analysis failed: ${error}`);
+      objectionsResult = DEFAULT_OBJECTIONS;
+    } else {
+      objectionsResult = objectionsSettled.value;
+    }
+
+    // Combine strategy threading, gaps, and objections into full StrategyAudit for storage
     const strategyResult: StrategyAudit = {
       ...strategyThreading,
       ...gapsResult,
+      ...objectionsResult,
     };
 
     const pipelineDuration = performance.now() - pipelineStartTime;
