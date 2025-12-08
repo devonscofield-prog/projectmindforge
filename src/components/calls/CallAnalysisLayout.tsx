@@ -19,7 +19,9 @@ import {
   VideoOff,
   Crown,
   Quote,
-  UserCircle
+  UserCircle,
+  FileText,
+  Tag
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CallAnalysis, CallTranscript } from '@/api/aiCallAnalysis';
@@ -327,6 +329,10 @@ export function CallAnalysisLayout({
     return { itUsers, endUsers, sourceQuote, duration, platform, videoOn };
   }, [metadataData]);
 
+  // Extract summary and topics from metadata (Historian output)
+  const summary = metadataData?.summary || null;
+  const topics = metadataData?.topics || [];
+
   // Extract participants from metadata
   const participants = metadataData?.participants ?? [];
 
@@ -481,6 +487,38 @@ export function CallAnalysisLayout({
                 )}
               </div>
             </div>
+
+            {/* Call Summary (Historian output) */}
+            {summary && (
+              <div className="mt-4 p-4 rounded-lg bg-muted/30 border border-border/50">
+                <div className="flex items-center gap-2 mb-2">
+                  <FileText className="h-4 w-4 text-primary" />
+                  <span className="text-xs font-medium text-muted-foreground">Call Summary</span>
+                </div>
+                <p className="text-sm text-foreground/90 leading-relaxed">{summary}</p>
+              </div>
+            )}
+
+            {/* Key Topics (Historian output) */}
+            {topics.length > 0 && (
+              <div className="mt-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Tag className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-xs font-medium text-muted-foreground">Key Topics</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {topics.map((topic, idx) => (
+                    <Badge 
+                      key={idx} 
+                      variant="secondary" 
+                      className="text-xs font-normal"
+                    >
+                      {topic}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Participants Row */}
             {participants.length > 0 && (
