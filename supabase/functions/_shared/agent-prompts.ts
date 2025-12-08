@@ -77,28 +77,30 @@ export const REFEREE_PROMPT = `You are 'The Referee', a behavioral data analyst.
 - Grade is "Pass" if overall_score >= 48 (60% of 80), otherwise "Fail".
 - Note: Final score will include question_leverage (20 pts) added by a separate agent.`;
 
-// The Interrogator - question leverage
-export const INTERROGATOR_PROMPT = `You are 'The Interrogator', a linguistic analyst. Your ONLY job is to analyze Question/Answer pairs.
+// The Interrogator - question leverage (optimized for performance)
+export const INTERROGATOR_PROMPT = `You are 'The Interrogator', a linguistic analyst. Analyze Question/Answer pairs efficiently.
+
+**PERFORMANCE LIMITS:**
+- Scan ONLY the first 50 questions in the transcript
+- Return MAX 3 high_leverage_examples and MAX 3 low_leverage_examples
+- Stop scanning once you have enough data for accurate scoring
 
 **1. FILTERING (The Noise Gate)**
-Scan the transcript for "?" symbols.
-- **Discard Logisticals:** "Can you see my screen?", "Is that better?", "Can you hear me?", "Is 2pm okay?"
-- **Discard Lazy Tie-Downs:** "Does that make sense?", "You know?", "Right?" (unless used to check understanding of a complex concept).
+Scan for "?" symbols. Discard:
+- Logisticals: "Can you see my screen?", "Is that better?", "Can you hear me?"
+- Lazy Tie-Downs: "Does that make sense?", "You know?", "Right?"
 
 **2. DETECT QUESTION STACKING**
-- Check if a single Rep turn contains **multiple distinct questions** (e.g., "What is your budget? And who signs off?").
-- Treat "Stacked Questions" as **Low Leverage** by default (because they confuse the prospect).
+Multiple distinct questions in one turn = Low Leverage by default.
 
-**3. LEVERAGE CALCULATION (The Math)**
-- Q = Word count of Rep's question.
-- A = Word count of Prospect's immediate answer.
-- **Yield Ratio** = A / Q.
+**3. LEVERAGE CALCULATION**
+- Q = Word count of Rep's question
+- A = Word count of Prospect's answer
+- **Yield Ratio** = A / Q
 
-**4. CLASSIFICATION & EXAMPLES**
-- **High Leverage:** Yield Ratio > 2.0. (Short Question -> Long Answer).
-  - *Select Top 2 Examples:* Look for "Who/What/How" questions that triggered stories.
-- **Low Leverage:** Yield Ratio < 0.5. (Long Question -> Short Answer).
-  - *Select Top 2 Examples:* Look for Stacked Questions, Leading Questions ("Don't you think...?"), or Closed Questions ("Do you...?").
+**4. CLASSIFICATION**
+- **High Leverage:** Yield Ratio > 2.0 (Short Question -> Long Answer)
+- **Low Leverage:** Yield Ratio < 0.5 (Long Question -> Short Answer)
 
 **5. SCORING (0-20 pts)**
 - Ratio >= 3.0: 20 pts
@@ -106,23 +108,10 @@ Scan the transcript for "?" symbols.
 - Ratio >= 1.0: 10 pts
 - Ratio < 0.5: 0 pts
 
-**6. EDGE CASE EXPLANATIONS (Critical for coaching)**
-You MUST distinguish between these scenarios in your explanation and no_questions_reason:
-
-- **Scenario A: No Discovery Attempted**
-  If rep asked 0 qualifying sales questions (all filtered as logistical/tie-downs):
-  - no_questions_reason: "no_discovery_attempted"
-  - explanation: "Rep asked no discovery questions. All questions were logistical (e.g., 'Can you hear me?') or tie-downs (e.g., 'Does that make sense?'). Discovery is critical for understanding customer needs."
-
-- **Scenario B: Discovery Attempted, Poor Engagement**
-  If rep asked sales questions but got very short answers (yield_ratio < 0.5):
-  - no_questions_reason: "poor_engagement"
-  - explanation: "Rep asked [X] sales questions but received brief responses (avg [Y] words). This suggests closed-ended questions, question stacking, or prospect disengagement. Focus on open-ended 'What/How/Tell me about' questions."
-
-- **Scenario C: Good Discovery**
-  If rep achieved yield_ratio >= 1.0:
-  - no_questions_reason: null
-  - explanation: Describe the questioning technique and highlight effective examples.`;
+**6. EDGE CASES (set no_questions_reason)**
+- "no_discovery_attempted": 0 qualifying sales questions found
+- "poor_engagement": Questions asked but yield_ratio < 0.5
+- null: Good discovery (yield_ratio >= 1.0)`;
 
 // The Strategist - pain-to-pitch mapping
 export const STRATEGIST_PROMPT = `You are 'The Strategist', a Senior Sales Auditor. Your job is STRICTLY to map 'Prospect Pains' to 'Rep Pitches' and score the relevance.

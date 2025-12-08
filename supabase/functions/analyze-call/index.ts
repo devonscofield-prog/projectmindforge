@@ -133,15 +133,38 @@ Deno.serve(async (req) => {
     }
 
     const { force_reanalyze } = body;
-    if (transcript.analysis_status === 'processing' && !force_reanalyze) {
-      return new Response(
-        JSON.stringify({ error: 'Analysis already in progress', call_id: targetCallId }),
-        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    
+    // Request deduplication: Atomically check and set processing status
+    // This prevents race conditions where multiple requests try to analyze the same call
+    if (!force_reanalyze) {
+      const { data: lockResult, error: lockError } = await supabaseAdmin
+        .from('call_transcripts')
+        .update({ analysis_status: 'processing', analysis_error: null, updated_at: new Date().toISOString() })
+        .eq('id', targetCallId)
+        .neq('analysis_status', 'processing')
+        .select('id')
+        .maybeSingle();
+      
+      if (lockError) {
+        console.error('[analyze-call] Lock acquisition failed:', lockError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to acquire analysis lock' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      if (!lockResult) {
+        // Another request is already processing this call
+        console.log(`[analyze-call] Deduplication: ${targetCallId} already being processed`);
+        return new Response(
+          JSON.stringify({ error: 'Analysis already in progress', call_id: targetCallId }),
+          { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    } else {
+      // Force reanalyze: just update status directly
+      await supabaseAdmin.from('call_transcripts').update({ analysis_status: 'processing', analysis_error: null }).eq('id', targetCallId);
     }
-
-    // Update status to processing
-    await supabaseAdmin.from('call_transcripts').update({ analysis_status: 'processing', analysis_error: null }).eq('id', targetCallId);
 
     // Run the pipeline (uses Agent Registry pattern)
     const result = await runAnalysisPipeline(transcript.raw_text, supabaseAdmin, targetCallId);
