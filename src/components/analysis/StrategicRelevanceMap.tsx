@@ -199,6 +199,167 @@ function CriticalGapCard({ category, description, impact, suggestedQuestion }: C
   );
 }
 
+// Exported component for Pain-to-Pitch Alignment (Strategy tab)
+export function PainToPitchAlignment({ data }: StrategicRelevanceMapProps) {
+  if (!data) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Target className="h-5 w-5" />
+            Strategic Analysis
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-24 w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const { strategic_threading } = data;
+  const isPassing = strategic_threading?.grade === 'Pass';
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Target className="h-5 w-5" />
+              Pain-to-Pitch Alignment
+            </CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              How well solutions addressed customer pains
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-2xl font-bold">{strategic_threading.score}</span>
+            <Badge 
+              variant={isPassing ? 'default' : 'destructive'}
+              className={isPassing ? 'bg-green-500 hover:bg-green-600' : ''}
+            >
+              {strategic_threading.grade}
+            </Badge>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {strategic_threading.relevance_map.length === 0 ? (
+          <div className="flex items-center justify-center py-8 text-muted-foreground">
+            <Minus className="h-4 w-4 mr-2" />
+            No pain-to-pitch mappings identified
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {strategic_threading.relevance_map.map((item, index) => (
+              <RelevanceBridge
+                key={index}
+                painIdentified={item.pain_identified}
+                featurePitched={item.feature_pitched}
+                isRelevant={item.is_relevant}
+                reasoning={item.reasoning}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Missed Opportunities */}
+        {strategic_threading.missed_opportunities.length > 0 && (
+          <Alert className="border-yellow-500/50 bg-yellow-500/10 mt-6">
+            <AlertTriangle className="h-4 w-4 text-yellow-600" />
+            <AlertTitle className="text-yellow-700 dark:text-yellow-400">
+              Missed Opportunities
+            </AlertTitle>
+            <AlertDescription>
+              <ul className="mt-2 space-y-1">
+                {strategic_threading.missed_opportunities.map((opportunity, index) => (
+                  <li key={index} className="text-sm text-yellow-600 dark:text-yellow-300 flex items-start gap-2">
+                    <span className="text-yellow-500 shrink-0">•</span>
+                    {opportunity}
+                  </li>
+                ))}
+              </ul>
+            </AlertDescription>
+          </Alert>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Exported component for Critical Gaps (Hazards tab)
+export function CriticalGapsPanel({ data }: StrategicRelevanceMapProps) {
+  if (!data) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-yellow-500" />
+            Deal Hazards & Gaps
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2">
+            {[...Array(4)].map((_, i) => (
+              <Skeleton key={i} className="h-32 rounded-xl" />
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const { critical_gaps = [] } = data;
+  const safeGaps = Array.isArray(critical_gaps) ? critical_gaps : [];
+  const highImpactGaps = safeGaps.filter(g => g.impact === 'High');
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-yellow-500" />
+              ⚠️ Deal Hazards & Gaps
+            </CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Critical unknowns that could derail this deal
+            </p>
+          </div>
+          {highImpactGaps.length > 0 && (
+            <Badge variant="destructive">
+              {highImpactGaps.length} High Impact
+            </Badge>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {safeGaps.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+            <CheckCircle2 className="h-5 w-5 mb-2 text-green-500" />
+            <p>No critical gaps identified</p>
+            <p className="text-xs mt-1">(or this call was analyzed with a previous version)</p>
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            {safeGaps.map((gap, index) => (
+              <CriticalGapCard
+                key={index}
+                category={gap.category}
+                description={gap.description}
+                impact={gap.impact}
+                suggestedQuestion={gap.suggested_question}
+              />
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Full component (backward compatibility)
 export function StrategicRelevanceMap({ data }: StrategicRelevanceMapProps) {
   // Loading skeleton state
   if (!data) {
@@ -228,121 +389,10 @@ export function StrategicRelevanceMap({ data }: StrategicRelevanceMapProps) {
     );
   }
 
-  const { strategic_threading, critical_gaps = [] } = data;
-  const isPassing = strategic_threading?.grade === 'Pass';
-  const safeGaps = Array.isArray(critical_gaps) ? critical_gaps : [];
-  const highImpactGaps = safeGaps.filter(g => g.impact === 'High');
-
   return (
     <div className="space-y-6">
-      {/* Strategic Threading - Relevance Bridge */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Target className="h-5 w-5" />
-                Pain-to-Pitch Alignment
-              </CardTitle>
-              <p className="text-sm text-muted-foreground mt-1">
-                How well solutions addressed customer pains
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-2xl font-bold">{strategic_threading.score}</span>
-              <Badge 
-                variant={isPassing ? 'default' : 'destructive'}
-                className={isPassing ? 'bg-green-500 hover:bg-green-600' : ''}
-              >
-                {strategic_threading.grade}
-              </Badge>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {strategic_threading.relevance_map.length === 0 ? (
-            <div className="flex items-center justify-center py-8 text-muted-foreground">
-              <Minus className="h-4 w-4 mr-2" />
-              No pain-to-pitch mappings identified
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {strategic_threading.relevance_map.map((item, index) => (
-                <RelevanceBridge
-                  key={index}
-                  painIdentified={item.pain_identified}
-                  featurePitched={item.feature_pitched}
-                  isRelevant={item.is_relevant}
-                  reasoning={item.reasoning}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Missed Opportunities */}
-          {strategic_threading.missed_opportunities.length > 0 && (
-            <Alert className="border-yellow-500/50 bg-yellow-500/10 mt-6">
-              <AlertTriangle className="h-4 w-4 text-yellow-600" />
-              <AlertTitle className="text-yellow-700 dark:text-yellow-400">
-                Missed Opportunities
-              </AlertTitle>
-              <AlertDescription>
-                <ul className="mt-2 space-y-1">
-                  {strategic_threading.missed_opportunities.map((opportunity, index) => (
-                    <li key={index} className="text-sm text-yellow-600 dark:text-yellow-300 flex items-start gap-2">
-                      <span className="text-yellow-500 shrink-0">•</span>
-                      {opportunity}
-                    </li>
-                  ))}
-                </ul>
-              </AlertDescription>
-            </Alert>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Deal Hazards & Gaps */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-yellow-500" />
-                ⚠️ Deal Hazards & Gaps
-              </CardTitle>
-              <p className="text-sm text-muted-foreground mt-1">
-                Critical unknowns that could derail this deal
-              </p>
-            </div>
-            {highImpactGaps.length > 0 && (
-              <Badge variant="destructive">
-                {highImpactGaps.length} High Impact
-              </Badge>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          {safeGaps.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-              <CheckCircle2 className="h-5 w-5 mb-2 text-green-500" />
-              <p>No critical gaps identified</p>
-              <p className="text-xs mt-1">(or this call was analyzed with a previous version)</p>
-            </div>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              {safeGaps.map((gap, index) => (
-                <CriticalGapCard
-                  key={index}
-                  category={gap.category}
-                  description={gap.description}
-                  impact={gap.impact}
-                  suggestedQuestion={gap.suggested_question}
-                />
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <PainToPitchAlignment data={data} />
+      <CriticalGapsPanel data={data} />
     </div>
   );
 }

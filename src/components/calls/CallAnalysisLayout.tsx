@@ -33,6 +33,7 @@ interface CallAnalysisLayoutProps {
   analysis: CallAnalysis | null;
   behaviorContent: ReactNode;
   strategyContent: ReactNode;
+  hazardsContent: ReactNode;
   recapContent: ReactNode;
   canEdit?: boolean;
   onEditUserCounts?: () => void;
@@ -133,6 +134,7 @@ export function CallAnalysisLayout({
   analysis,
   behaviorContent,
   strategyContent,
+  hazardsContent,
   recapContent,
   canEdit = false,
   onEditUserCounts,
@@ -328,6 +330,16 @@ export function CallAnalysisLayout({
         </div>
       </Card>
 
+      {/* Deal Heat Card - Always Visible */}
+      <DealHeatCard
+        transcript={transcript.raw_text}
+        strategyData={strategyData}
+        behaviorData={behaviorData}
+        metadataData={metadataData}
+        existingHeatData={dealHeatData}
+        callId={transcript.id}
+      />
+
       {/* Tabbed Interface */}
       <Tabs defaultValue="behavior" className="w-full">
         <TabsList className="grid w-full grid-cols-4">
@@ -361,15 +373,8 @@ export function CallAnalysisLayout({
           {strategyContent}
         </TabsContent>
         
-        <TabsContent value="hazards" forceMount className={cn("mt-6", "data-[state=inactive]:hidden")}>
-          <DealHeatCard
-            transcript={transcript.raw_text}
-            strategyData={strategyData}
-            behaviorData={behaviorData}
-            metadataData={metadataData}
-            existingHeatData={dealHeatData}
-            callId={transcript.id}
-          />
+        <TabsContent value="hazards" className="mt-6">
+          {hazardsContent}
         </TabsContent>
         
         <TabsContent value="recap" className="mt-6">

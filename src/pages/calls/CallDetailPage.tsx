@@ -18,7 +18,7 @@ import { CallProductsSummary } from '@/components/calls/CallProductsSummary';
 import { EditCallDetailsDialog } from '@/components/calls/EditCallDetailsDialog';
 import { EditUserCountsDialog } from '@/components/calls/EditUserCountsDialog';
 import { BehaviorScorecard } from '@/components/analysis/BehaviorScorecard';
-import { StrategicRelevanceMap } from '@/components/analysis/StrategicRelevanceMap';
+import { PainToPitchAlignment, CriticalGapsPanel } from '@/components/analysis/StrategicRelevanceMap';
 import { SalesAssetsGenerator } from '@/components/calls/SalesAssetsGenerator';
 import { CallAnalysisLayout } from '@/components/calls/CallAnalysisLayout';
 import { CallType, callTypeLabels } from '@/constants/callTypes';
@@ -348,7 +348,8 @@ function CallDetailPage() {
             canEdit={isOwner || isManager}
             onEditUserCounts={() => setIsUserCountsDialogOpen(true)}
             behaviorContent={<BehaviorScorecard data={analysis.analysis_behavior} />}
-            strategyContent={<StrategicRelevanceMap data={analysis.analysis_strategy} />}
+            strategyContent={<PainToPitchAlignment data={analysis.analysis_strategy} />}
+            hazardsContent={<CriticalGapsPanel data={analysis.analysis_strategy} />}
             recapContent={
               <SalesAssetsGenerator
                 transcript={transcript.raw_text}
