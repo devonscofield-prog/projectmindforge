@@ -1,7 +1,8 @@
 /**
  * Analysis Agents for Call Analysis 2.0
  * 
- * Agent 1: The Clerk - Metadata & Facts extraction
+ * Agent 1a: The Census - Structured data extraction (participants, logistics, user counts)
+ * Agent 1b: The Historian - Executive summary & key topics
  * Agent 2: The Referee - Behavioral scoring
  * Agent 3: The Interrogator - Question leverage analysis
  * Agent 4: The Strategist - Strategy & pain-to-pitch alignment
@@ -20,6 +21,33 @@ const AI_GATEWAY_TIMEOUT_MS = 55000;
 // ============= ZOD VALIDATION SCHEMAS =============
 // These are used to validate AI responses at runtime
 
+// The Census - structured data only (no summary/topics)
+const CallCensusValidation = z.object({
+  logistics: z.object({
+    platform: z.string().optional(),
+    duration_minutes: z.number(),
+    video_on: z.boolean(),
+  }),
+  participants: z.array(z.object({
+    name: z.string(),
+    role: z.string(),
+    is_decision_maker: z.boolean(),
+    sentiment: z.enum(['Positive', 'Neutral', 'Negative', 'Skeptical']),
+  })),
+  user_counts: z.object({
+    it_users: z.number().nullable(),
+    end_users: z.number().nullable(),
+    source_quote: z.string().nullable(),
+  }),
+});
+
+// The Historian - summary and topics
+const CallHistoryValidation = z.object({
+  summary: z.string(),
+  key_topics: z.array(z.string()),
+});
+
+// Combined CallMetadata (for backward compatibility with merged output)
 const CallMetadataValidation = z.object({
   summary: z.string(),
   topics: z.array(z.string()),
@@ -135,20 +163,15 @@ const PsychologyProfileValidation = z.object({
 });
 
 // Tool schemas for structured output extraction
-const CALL_METADATA_TOOL = {
+// Tool for The Census - structured data extraction only
+const CALL_CENSUS_TOOL = {
   type: "function",
   function: {
-    name: "extract_call_metadata",
-    description: "Extract metadata, participants, topics, and user counts from a sales call transcript",
+    name: "extract_call_census",
+    description: "Extract structured data entities from a sales call: participants, logistics, and user counts",
     parameters: {
       type: "object",
       properties: {
-        summary: { type: "string", description: "A concise 2-3 sentence executive summary of the call" },
-        topics: { 
-          type: "array", 
-          items: { type: "string" },
-          description: "List of high-level topics discussed (e.g., 'Pricing', 'SSO', 'Phishing')"
-        },
         logistics: {
           type: "object",
           properties: {
@@ -180,7 +203,31 @@ const CALL_METADATA_TOOL = {
           }
         }
       },
-      required: ["summary", "topics", "logistics", "participants", "user_counts"]
+      required: ["logistics", "participants", "user_counts"]
+    }
+  }
+};
+
+// Tool for The Historian - executive summary and topics
+const CALL_HISTORY_TOOL = {
+  type: "function",
+  function: {
+    name: "write_call_history",
+    description: "Write a high-quality executive summary of a sales call",
+    parameters: {
+      type: "object",
+      properties: {
+        summary: { 
+          type: "string", 
+          description: "A 3-4 paragraph executive summary covering Context, Problem, Solution Discussed, and Outcome" 
+        },
+        key_topics: { 
+          type: "array", 
+          items: { type: "string" },
+          description: "Top 5 distinct topics discussed in the call (e.g., 'Security Training', 'Pricing', 'SSO Integration')"
+        }
+      },
+      required: ["summary", "key_topics"]
     }
   }
 };
@@ -452,16 +499,31 @@ const PSYCHOLOGY_PROFILE_TOOL = {
   }
 };
 
-const CLERK_SYSTEM_PROMPT = `You are 'The Clerk', a strictly factual executive assistant. Your job is to extract participants, logistics, and data from a sales call transcript.
+// The Census - structured data extraction only (no summary)
+const CENSUS_SYSTEM_PROMPT = `You are 'The Census'. Extract structured data entities only. Do not summarize.
 
 Rules:
-- Do not infer sentiment unless explicitly stated or clearly demonstrated through language.
 - Extract exact quotes for 'user_counts' if found.
 - Identify 'decision_makers' based on job titles or authority demonstrated.
-- Summary should be factual, not coaching-oriented.
 - If duration is not mentioned, estimate based on transcript length (~150 words per minute).
 - If video status is unclear, default to false.
-- For participants, include all named individuals with their roles.`;
+- For participants, include all named individuals with their roles.
+- Do not infer sentiment unless explicitly stated or clearly demonstrated through language.`;
+
+// The Historian - executive summary and topics
+const HISTORIAN_SYSTEM_PROMPT = `You are 'The Historian'. Write a high-quality Executive Summary of this sales call.
+
+Structure your summary in 3-4 concise paragraphs:
+1. **Context**: Who was on the call, their roles, and the purpose of the meeting.
+2. **Problem**: What challenges or needs the prospect discussed.
+3. **Solution Discussed**: What solutions, features, or approaches were proposed.
+4. **Outcome**: What was decided, next steps, and the current status of the opportunity.
+
+For Topics:
+- Extract the top 5 distinct topics discussed (e.g., 'Security Awareness Training', 'SSO Integration', 'Pricing').
+- Be specific - prefer "Phishing Simulation" over just "Security".
+
+Write in a professional, narrative style suitable for an executive briefing.`;
 
 // The Interrogator - dedicated question analysis agent
 const INTERROGATOR_SYSTEM_PROMPT = `You are 'The Interrogator', a linguistic analyst. Your ONLY job is to analyze Question/Answer pairs.
@@ -667,6 +729,33 @@ For each objection, provide ONE specific, actionable tip:
 **OUTPUT:**
 Return the score, grade (Pass if >= 60), and the objections_detected array.`;
 
+// Output from The Census
+export interface CallCensus {
+  logistics: {
+    platform?: string;
+    duration_minutes: number;
+    video_on: boolean;
+  };
+  participants: Array<{
+    name: string;
+    role: string;
+    is_decision_maker: boolean;
+    sentiment: 'Positive' | 'Neutral' | 'Negative' | 'Skeptical';
+  }>;
+  user_counts: {
+    it_users: number | null;
+    end_users: number | null;
+    source_quote: string | null;
+  };
+}
+
+// Output from The Historian
+export interface CallHistory {
+  summary: string;
+  key_topics: string[];
+}
+
+// Merged output for backward compatibility
 export interface CallMetadata {
   summary: string;
   topics: string[];
@@ -914,23 +1003,59 @@ async function callLovableAI(
 }
 
 /**
- * Agent 1: The Clerk - Extract metadata and facts from transcript
+ * Agent 1a: The Census - Extract structured data entities only
  */
-export async function analyzeCallMetadata(transcript: string): Promise<CallMetadata> {
-  console.log('[analyzeCallMetadata] Starting metadata extraction...');
+export async function analyzeCallCensus(transcript: string): Promise<CallCensus> {
+  console.log('[analyzeCallCensus] Starting structured data extraction...');
   
-  const userPrompt = `Analyze this sales call transcript and extract all relevant metadata:\n\n${transcript}`;
+  const userPrompt = `Extract structured data entities from this sales call transcript:\n\n${transcript}`;
   
   const result = await callLovableAI(
-    CLERK_SYSTEM_PROMPT,
+    CENSUS_SYSTEM_PROMPT,
     userPrompt,
-    CALL_METADATA_TOOL,
-    'extract_call_metadata',
-    { validationSchema: CallMetadataValidation }
+    CALL_CENSUS_TOOL,
+    'extract_call_census',
+    { validationSchema: CallCensusValidation }
   );
   
-  console.log('[analyzeCallMetadata] Extraction complete');
-  return result as CallMetadata;
+  console.log('[analyzeCallCensus] Extraction complete');
+  return result as CallCensus;
+}
+
+/**
+ * Agent 1b: The Historian - Write executive summary and extract topics
+ */
+export async function analyzeCallHistory(transcript: string): Promise<CallHistory> {
+  console.log('[analyzeCallHistory] Starting summary generation...');
+  
+  const userPrompt = `Write a high-quality executive summary of this sales call:\n\n${transcript}`;
+  
+  const result = await callLovableAI(
+    HISTORIAN_SYSTEM_PROMPT,
+    userPrompt,
+    CALL_HISTORY_TOOL,
+    'write_call_history',
+    { 
+      temperature: 0.4, // Better writing flow for summaries
+      validationSchema: CallHistoryValidation 
+    }
+  );
+  
+  console.log('[analyzeCallHistory] Summary generation complete');
+  return result as CallHistory;
+}
+
+/**
+ * Merge Census and History outputs into CallMetadata for backward compatibility
+ */
+export function mergeCallMetadata(census: CallCensus, history: CallHistory): CallMetadata {
+  return {
+    summary: history.summary,
+    topics: history.key_topics,
+    logistics: census.logistics,
+    participants: census.participants,
+    user_counts: census.user_counts,
+  };
 }
 
 /**
