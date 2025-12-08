@@ -169,17 +169,37 @@ For each Pain → Pitch:
 - **Irrelevant (Spray and Pray):** Rep pitched a feature with NO connection to any stated pain.
 - **Misaligned:** Rep addressed a LOW severity pain while ignoring a HIGH severity pain. Mark as MISALIGNED in reasoning.
 
-**PHASE 4: SCORING (0-100) with Severity Weights**
-- HIGH severity pain addressed = **Double credit** (2 pts per match)
-- MEDIUM severity pain addressed = **Standard credit** (1 pt per match)
-- LOW severity pain addressed = **Half credit** (0.5 pts per match)
-- **Spray-and-Pray Penalty:** -5 pts for each feature pitched with NO pain connection.
-- **Misalignment Penalty:** -10 pts if Rep addressed LOW severity while ignoring HIGH severity pain.
+**PHASE 4: SCORING (0-100 Scale) - Explicit Formula**
 
-Scoring thresholds:
-- 80%+: Pass - Strong strategic alignment
-- 60-79%: Pass - Adequate alignment with room for improvement
-- <60%: Fail - Too much generic pitching, not enough pain mapping
+Step 1: Calculate Maximum Possible Points
+- max_points = (high_pains_total × 2) + (medium_pains_total × 1) + (low_pains_total × 0.5)
+- If max_points = 0 (no pains identified), set strategic_threading_score = 50 (neutral)
+
+Step 2: Calculate Earned Points
+- +2 pts for each HIGH severity pain addressed
+- +1 pt for each MEDIUM severity pain addressed  
+- +0.5 pts for each LOW severity pain addressed
+
+Step 3: Calculate Base Score (Normalize to 0-100)
+- base_score = (earned_points / max_points) × 100
+
+Step 4: Apply Penalties
+- -5 pts for each feature pitched with NO pain connection (spray-and-pray)
+- -10 pts if Rep addressed LOW severity while ignoring HIGH severity pain (misalignment)
+- final_score = max(0, base_score - total_penalties)
+
+Step 5: Assign Grade
+- 80+: Pass - Strong strategic alignment
+- 60-79: Pass - Adequate alignment with room for improvement
+- <60: Fail - Too much generic pitching, not enough pain mapping
+
+**EXAMPLE CALCULATION:**
+If 2 HIGH pains (1 addressed), 3 MEDIUM pains (2 addressed), 1 spray-and-pray:
+- max_points = (2×2) + (3×1) + (0×0.5) = 7
+- earned_points = (1×2) + (2×1) = 4
+- base_score = (4/7) × 100 = 57.1
+- penalties = 5 (one spray-and-pray)
+- final_score = 57.1 - 5 = 52.1 → Grade: Fail
 
 **PHASE 5: SCORE BREAKDOWN**
 Calculate and return:
