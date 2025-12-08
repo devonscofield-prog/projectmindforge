@@ -109,15 +109,12 @@ export function isCallMetadata(value: unknown): value is CallMetadata {
 /**
  * Type guard for StrategyAudit (Analysis 2.0)
  * Supports both legacy MEDDPICC and new critical_gaps format
- * Note: objection_handling is optional for backward compatibility with legacy data
+ * Note: critical_gaps and objection_handling are optional for backward compatibility
  */
 export function isStrategyAudit(value: unknown): value is StrategyAudit {
   if (!isObject(value)) return false;
-  // Must have strategic_threading, and either meddpicc (legacy) or critical_gaps (v2)
-  // objection_handling is expected in v2 but optional for legacy compatibility
-  const hasStrategicThreading = 'strategic_threading' in value;
-  const hasGapsOrMeddpicc = 'meddpicc' in value || 'critical_gaps' in value;
-  return hasStrategicThreading && hasGapsOrMeddpicc;
+  // Only requires strategic_threading - critical_gaps and objection_handling are optional
+  return 'strategic_threading' in value;
 }
 
 /**

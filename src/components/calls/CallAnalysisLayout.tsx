@@ -230,19 +230,32 @@ export function CallAnalysisLayout({
   // Display names
   const prospectName = transcript.account_name || transcript.primary_stakeholder_name || 'Unknown Prospect';
 
-  // Show error state if parsing failed completely
+  // Show error state if parsing failed completely - but still show Re-run button
   if (parseError) {
     return (
       <Card className="border-destructive">
         <CardContent className="py-8">
-          <div className="flex items-center gap-3 text-destructive">
-            <AlertTriangle className="h-8 w-8" />
-            <div>
-              <h3 className="font-semibold text-lg">Analysis Data Error</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                {parseError}. Please try re-analyzing this call.
-              </p>
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 text-destructive">
+              <AlertTriangle className="h-8 w-8" />
+              <div>
+                <h3 className="font-semibold text-lg">Analysis Data Error</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {parseError}. Please try re-analyzing this call.
+                </p>
+              </div>
             </div>
+            {canEdit && onReanalyze && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onReanalyze}
+                disabled={isReanalyzing}
+              >
+                <RefreshCw className={cn("h-4 w-4 mr-2", isReanalyzing && "animate-spin")} />
+                {isReanalyzing ? 'Reanalyzing...' : 'Re-run Analysis'}
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -250,7 +263,7 @@ export function CallAnalysisLayout({
   }
 
   // If no analysis yet, show skeleton
-  if (!analysis || !behaviorData || !strategyData) {
+  if (!analysis) {
     return (
       <div className="space-y-6">
         <Card>
@@ -276,6 +289,9 @@ export function CallAnalysisLayout({
       </div>
     );
   }
+  
+  // Check if this is a legacy analysis needing re-run
+  const isLegacyAnalysis = !behaviorData || !strategyData;
 
   return (
     <div className="space-y-6">
@@ -313,8 +329,22 @@ export function CallAnalysisLayout({
               
               {/* Right: Big Scores */}
               <div className="flex justify-center gap-8 lg:gap-12">
-                <CircularScore score={behaviorScore} label="Behavior" />
-                <CircularScore score={strategyScore} label="Strategy" />
+                {isLegacyAnalysis ? (
+                  <div className="text-center p-4 border rounded-lg bg-muted/50">
+                    <AlertTriangle className="h-8 w-8 text-yellow-500 mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">
+                      This call was analyzed with an older pipeline.
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Re-run to get full insights.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <CircularScore score={behaviorScore} label="Behavior" />
+                    <CircularScore score={strategyScore} label="Strategy" />
+                  </>
+                )}
               </div>
             </div>
 

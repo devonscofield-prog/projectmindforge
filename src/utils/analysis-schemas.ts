@@ -98,13 +98,14 @@ export const StrategyAuditSchema = z.object({
     })),
     missed_opportunities: z.array(z.string()).describe("Pains mentioned that were ignored"),
   }),
+  // Optional for backward compatibility with legacy analysis data
   critical_gaps: z.array(z.object({
     category: z.enum(['Budget', 'Authority', 'Need', 'Timeline', 'Competition', 'Technical']),
     description: z.string().describe("Specific description of what is missing in this deal"),
     impact: z.enum(['High', 'Medium', 'Low']),
     suggested_question: z.string().describe("The exact question the rep should ask to close this gap"),
-  })).describe("Identify 3-5 critical pieces of information blocking the deal."),
-  objection_handling: ObjectionHandlingSchema,
+  })).optional().describe("Identify 3-5 critical pieces of information blocking the deal."),
+  objection_handling: ObjectionHandlingSchema.optional(),
 });
 
 export type StrategyAudit = z.infer<typeof StrategyAuditSchema>;
