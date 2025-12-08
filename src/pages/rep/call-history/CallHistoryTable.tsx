@@ -110,6 +110,28 @@ export function CallHistoryTable({
     );
   };
 
+  const getGradeBadge = (grade: string | null) => {
+    if (!grade) return <span className="text-muted-foreground">-</span>;
+    
+    const isA = grade.startsWith('A');
+    const isBC = grade.startsWith('B') || grade.startsWith('C');
+    const isDF = grade.startsWith('D') || grade.startsWith('F');
+    
+    return (
+      <Badge 
+        variant="outline"
+        className={cn(
+          "font-bold min-w-[2rem] justify-center",
+          isA && "border-green-500 text-green-600 bg-green-50 dark:border-green-400 dark:text-green-400 dark:bg-green-950",
+          isBC && "border-yellow-500 text-yellow-600 bg-yellow-50 dark:border-yellow-400 dark:text-yellow-400 dark:bg-yellow-950",
+          isDF && "border-red-500 text-red-600 bg-red-50 dark:border-red-400 dark:text-red-400 dark:bg-red-950"
+        )}
+      >
+        {grade}
+      </Badge>
+    );
+  };
+
   return (
     <ComponentErrorBoundary onReset={onRefresh}>
     <Card>
@@ -191,6 +213,7 @@ export function CallHistoryTable({
                         <ArrowUpDown className="h-3 w-3" />
                       </div>
                     </TableHead>
+                    <TableHead>Grade</TableHead>
                     <TableHead>Call Type</TableHead>
                     <TableHead 
                       className="cursor-pointer hover:bg-muted/50"
@@ -236,6 +259,7 @@ export function CallHistoryTable({
                       )}
                       <TableCell>{t.primary_stakeholder_name || '-'}</TableCell>
                       <TableCell>{t.account_name || '-'}</TableCell>
+                      <TableCell>{getGradeBadge((t as CallTranscriptWithHeat & { coach_grade?: string | null }).coach_grade ?? null)}</TableCell>
                       <TableCell>
                         <Badge variant="outline">{getCallTypeDisplay(t)}</Badge>
                       </TableCell>

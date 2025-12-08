@@ -10,6 +10,7 @@ export interface CallRecord {
   call_type: string | null;
   analysis_status: string;
   primary_stakeholder_name: string | null;
+  coach_grade: string | null;
 }
 
 export interface ProspectCoreState {

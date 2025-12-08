@@ -3,10 +3,33 @@ import { Badge } from '@/components/ui/badge';
 import { CollapsibleSection } from '@/components/ui/collapsible-section';
 import { Phone } from 'lucide-react';
 import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 import type { CallRecord } from '@/hooks/useProspectData';
 
 interface ProspectCallHistoryProps {
   calls: CallRecord[];
+}
+
+function getGradeBadge(grade: string | null) {
+  if (!grade) return null;
+  
+  const isA = grade.startsWith('A');
+  const isBC = grade.startsWith('B') || grade.startsWith('C');
+  const isDF = grade.startsWith('D') || grade.startsWith('F');
+  
+  return (
+    <Badge 
+      variant="outline"
+      className={cn(
+        "font-bold min-w-[2rem] justify-center text-xs",
+        isA && "border-green-500 text-green-600 bg-green-50 dark:border-green-400 dark:text-green-400 dark:bg-green-950",
+        isBC && "border-yellow-500 text-yellow-600 bg-yellow-50 dark:border-yellow-400 dark:text-yellow-400 dark:bg-yellow-950",
+        isDF && "border-red-500 text-red-600 bg-red-50 dark:border-red-400 dark:text-red-400 dark:bg-red-950"
+      )}
+    >
+      {grade}
+    </Badge>
+  );
 }
 
 export function ProspectCallHistory({ calls }: ProspectCallHistoryProps) {
@@ -40,9 +63,12 @@ export function ProspectCallHistory({ calls }: ProspectCallHistoryProps) {
                   </p>
                 </div>
               </div>
-              <Badge variant={call.analysis_status === 'completed' ? 'secondary' : 'outline'}>
-                {call.analysis_status}
-              </Badge>
+              <div className="flex items-center gap-2">
+                {getGradeBadge(call.coach_grade)}
+                <Badge variant={call.analysis_status === 'completed' ? 'secondary' : 'outline'}>
+                  {call.analysis_status}
+                </Badge>
+              </div>
             </Link>
           ))}
         </div>

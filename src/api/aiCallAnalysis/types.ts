@@ -74,6 +74,7 @@ export interface CallTranscript {
 
 export interface CallTranscriptWithHeat extends CallTranscript {
   heat_score: number | null;
+  coach_grade: string | null;
 }
 
 export type AnalysisStatus = 'pending' | 'processing' | 'completed' | 'error' | 'skipped';

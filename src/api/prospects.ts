@@ -395,7 +395,7 @@ export async function createProspectActivity(params: {
 }
 
 /**
- * Gets calls linked to a prospect
+ * Gets calls linked to a prospect with coach grades
  */
 export async function getCallsForProspect(prospectId: string): Promise<{
   id: string;
@@ -403,6 +403,7 @@ export async function getCallsForProspect(prospectId: string): Promise<{
   call_type: string | null;
   analysis_status: string;
   primary_stakeholder_name: string | null;
+  coach_grade: string | null;
 }[]> {
   const { data, error } = await supabase
     .from('call_transcripts')
@@ -415,7 +416,28 @@ export async function getCallsForProspect(prospectId: string): Promise<{
     throw new Error(`Failed to get calls: ${error.message}`);
   }
 
-  return data || [];
+  if (!data || data.length === 0) {
+    return [];
+  }
+
+  // Fetch coach grades from ai_call_analysis
+  const callIds = data.map(c => c.id);
+  const { data: analyses } = await supabase
+    .from('ai_call_analysis')
+    .select('call_id, analysis_coaching')
+    .in('call_id', callIds);
+
+  // Create a map of call_id -> coach_grade
+  const gradeMap = new Map<string, string | null>();
+  analyses?.forEach(a => {
+    const coaching = a.analysis_coaching as { overall_grade?: string } | null;
+    gradeMap.set(a.call_id, coaching?.overall_grade ?? null);
+  });
+
+  return data.map(call => ({
+    ...call,
+    coach_grade: gradeMap.get(call.id) ?? null,
+  }));
 }
 
 /**
