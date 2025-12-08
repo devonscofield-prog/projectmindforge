@@ -24,7 +24,7 @@ async function triggerBackgroundChunking(callId: string, supabaseUrl: string, se
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${serviceKey}`,
       },
-      body: JSON.stringify({ call_ids: [callId] }),
+      body: JSON.stringify({ transcript_ids: [callId] }),
     });
 
     if (!response.ok) {
