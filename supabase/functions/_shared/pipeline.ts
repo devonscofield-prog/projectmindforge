@@ -1,16 +1,16 @@
 /**
- * Analysis Pipeline Orchestrator
+ * Analysis Pipeline Orchestrator - Context-Aware Batched Execution
  * 
- * Runs agents in phases and merges results for storage.
+ * Runs agents in 3 sequential batches with context passing between batches:
+ * - Batch 1: Critical (Census, Historian, Spy)
+ * - Batch 2: Strategic (Profiler, Strategist, Referee, Interrogator) - uses Batch 1 context
+ * - Batch 3: Deep Dive (Skeptic, Negotiator) - uses Batch 1 & 2 context
+ * - Phase 2: Coach (synthesis) - uses all batch outputs
  */
 
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { 
-  getAgent, 
-  getPhase1Agents, 
-  AgentConfig 
-} from './agent-registry.ts';
-import { executeAgent, executeAgentsInParallel, AgentResult } from './agent-factory.ts';
+import { getAgent, AgentConfig } from './agent-registry.ts';
+import { executeAgent, executeAgentWithPrompt, AgentResult } from './agent-factory.ts';
 import {
   CensusOutput,
   HistorianOutput,
@@ -25,7 +25,6 @@ import {
   CallMetadata,
   MergedBehaviorScore,
   StrategyAudit,
-  CoachingInputs,
 } from './agent-schemas.ts';
 
 // ============= PIPELINE RESULT TYPE =============
@@ -40,6 +39,75 @@ export interface PipelineResult {
   phase1DurationMs: number;
   phase2DurationMs: number;
   totalDurationMs: number;
+}
+
+// Delay between batches to allow rate limits to recover
+const BATCH_DELAY_MS = 300;
+
+// ============= CONTEXT-AWARE PROMPT BUILDERS =============
+
+function buildProfilerPrompt(transcript: string, primarySpeakerName?: string): string {
+  const basePrompt = `Analyze this sales call transcript to profile the PROSPECT's communication style and create a behavioral persona. Focus on how THEY speak, respond, and what they seem to value:\n\n${transcript}`;
+  
+  if (primarySpeakerName) {
+    return `${basePrompt}\n\n--- CONTEXT ---\nFocus your analysis specifically on the speech patterns of ${primarySpeakerName}.`;
+  }
+  return basePrompt;
+}
+
+function buildStrategistPrompt(transcript: string, callSummary?: string): string {
+  const basePrompt = `Analyze this sales call transcript for strategic alignment. Map every prospect pain to every rep pitch and score the relevance:\n\n${transcript}`;
+  
+  if (callSummary) {
+    return `${basePrompt}\n\n--- CONTEXT ---\nCall Summary: ${callSummary}\n\nUse this to understand the core conversation flow.`;
+  }
+  return basePrompt;
+}
+
+function buildBehaviorPrompt(transcript: string, callSummary?: string): string {
+  const basePrompt = `Analyze this sales call transcript for behavioral dynamics and score the rep's performance:\n\n${transcript}`;
+  
+  if (callSummary) {
+    const isDemoCall = callSummary.toLowerCase().includes('demo') || callSummary.toLowerCase().includes('walkthrough');
+    const leniencyNote = isDemoCall 
+      ? "\n\nNOTE: This summary indicates the call was a 'Demo' or 'Walkthrough'. Be lenient on the Monologue score, as long turns are expected in demos." 
+      : "";
+    return `${basePrompt}\n\n--- CONTEXT ---\nCall Summary: ${callSummary}${leniencyNote}`;
+  }
+  return basePrompt;
+}
+
+function buildSkepticPrompt(transcript: string, missedOpportunities?: Array<{ pain: string; severity: string; suggested_pitch: string }>): string {
+  const basePrompt = `Analyze this sales call transcript. Find the 3-5 most dangerous UNKNOWNS or MISSING INFORMATION that could block this deal:\n\n${transcript}`;
+  
+  if (missedOpportunities && missedOpportunities.length > 0) {
+    const painsList = missedOpportunities.map(o => `- ${o.pain} (${o.severity})`).join('\n');
+    return `${basePrompt}\n\n--- CONTEXT ---\nThe rep already missed these specific pains:\n${painsList}\n\nFocus your gap analysis on UNKNOWNS regarding Budget, Authority, and Timeline.`;
+  }
+  return basePrompt;
+}
+
+function buildNegotiatorPrompt(
+  transcript: string, 
+  competitorNames?: string[], 
+  pitchedFeatures?: string[]
+): string {
+  const basePrompt = `Analyze this sales call transcript for objections and pushback. Identify how the rep handled each moment of friction:\n\n${transcript}`;
+  
+  const contextParts: string[] = [];
+  
+  if (competitorNames && competitorNames.length > 0) {
+    contextParts.push(`The prospect is evaluating these competitors: ${competitorNames.join(', ')}.`);
+  }
+  
+  if (pitchedFeatures && pitchedFeatures.length > 0) {
+    contextParts.push(`The rep pitched these features: ${pitchedFeatures.join(', ')}.`);
+  }
+  
+  if (contextParts.length > 0) {
+    return `${basePrompt}\n\n--- CONTEXT ---\n${contextParts.join(' ')}\n\nCheck if the rep handled objections related to these specific vendors or features.`;
+  }
+  return basePrompt;
 }
 
 // ============= RESULT MERGING =============
@@ -122,7 +190,7 @@ function buildCoachingInputReport(
 - Score: ${strategy.strategic_threading.score}/100 (${strategy.strategic_threading.grade})
 - Relevance Map:
 ${strategy.strategic_threading.relevance_map?.map(r => `  - Pain: "${r.pain_identified}" → Feature: "${r.feature_pitched}" | ${r.is_relevant ? '✓ RELEVANT' : '✗ MISMATCH'}: ${r.reasoning}`).join('\n') || '  No mappings found.'}
-- Missed Opportunities: ${strategy.strategic_threading.missed_opportunities?.join(', ') || 'None'}
+- Missed Opportunities: ${strategy.strategic_threading.missed_opportunities?.map(o => o.pain).join(', ') || 'None'}
 
 ### 5. CRITICAL GAPS (The Skeptic)
 ${gaps.critical_gaps?.length > 0 ? gaps.critical_gaps.map(g => `- [${g.impact}] ${g.category}: ${g.description} → Ask: "${g.suggested_question}"`).join('\n') : 'No critical gaps identified.'}
@@ -146,9 +214,12 @@ ${competitors.competitive_intel?.length > 0 ? competitors.competitive_intel.map(
 // ============= MAIN PIPELINE =============
 
 /**
- * Run the full analysis pipeline
- * Phase 1: Run all agents in parallel (except Coach)
- * Phase 2: Run The Coach with aggregated inputs
+ * Run the full analysis pipeline with context-aware batched execution
+ * 
+ * Batch 1 (Critical): Census, Historian, Spy
+ * Batch 2 (Strategic): Profiler, Strategist, Referee, Interrogator - uses Batch 1 outputs
+ * Batch 3 (Deep Dive): Skeptic, Negotiator - uses Batch 1 & 2 outputs
+ * Phase 2: Coach - synthesizes all outputs
  */
 export async function runAnalysisPipeline(
   transcript: string,
@@ -158,89 +229,142 @@ export async function runAnalysisPipeline(
   const pipelineStart = performance.now();
   const warnings: string[] = [];
 
-  // ============= PHASE 1: Parallel Agents =============
-  console.log('[Pipeline] Phase 1: Running 9 agents in parallel...');
-  const phase1Start = performance.now();
+  // Get all agent configs
+  const censusConfig = getAgent('census')!;
+  const historianConfig = getAgent('historian')!;
+  const spyConfig = getAgent('spy')!;
+  const profilerConfig = getAgent('profiler')!;
+  const strategistConfig = getAgent('strategist')!;
+  const refereeConfig = getAgent('referee')!;
+  const interrogatorConfig = getAgent('interrogator')!;
+  const skepticConfig = getAgent('skeptic')!;
+  const negotiatorConfig = getAgent('negotiator')!;
+  const coachConfig = getAgent('coach')!;
 
-  const phase1Agents = getPhase1Agents();
-  const phase1Results = await executeAgentsInParallel(phase1Agents, transcript, supabase, callId);
+  // ============= BATCH 1: Critical Agents (Census, Historian, Spy) =============
+  console.log('[Pipeline] Batch 1/3: Running Census, Historian, Spy...');
+  const batch1Start = performance.now();
 
-  // Process results with critical agent checking
-  const getResult = <T>(id: string): { data: T; success: boolean } => {
-    const result = phase1Results.get(id) as AgentResult<T> | undefined;
-    if (!result) {
-      throw new Error(`Missing result for agent: ${id}`);
-    }
-    return { data: result.data, success: result.success };
-  };
+  const [censusResult, historianResult, spyResult] = await Promise.all([
+    executeAgent(censusConfig, transcript, supabase, callId),
+    executeAgent(historianConfig, transcript, supabase, callId),
+    executeAgent(spyConfig, transcript, supabase, callId),
+  ]);
+
+  const batch1Duration = performance.now() - batch1Start;
+  console.log(`[Pipeline] Batch 1 complete in ${Math.round(batch1Duration)}ms`);
 
   // Check critical agents
-  const censusResult = getResult<CensusOutput>('census');
   if (!censusResult.success) {
-    throw new Error(`Critical agent 'Census' failed: ${phase1Results.get('census')?.error}`);
+    throw new Error(`Critical agent 'Census' failed: ${censusResult.error}`);
   }
-
-  const historianResult = getResult<HistorianOutput>('historian');
   if (!historianResult.success) {
-    throw new Error(`Critical agent 'Historian' failed: ${phase1Results.get('historian')?.error}`);
+    throw new Error(`Critical agent 'Historian' failed: ${historianResult.error}`);
+  }
+  if (!spyResult.success) {
+    warnings.push(`Competitive intelligence failed: ${spyResult.error}`);
   }
 
-  // Get non-critical results with warnings
-  const refereeResult = getResult<RefereeOutput>('referee');
-  if (!refereeResult.success) warnings.push(`Behavior analysis failed: ${phase1Results.get('referee')?.error}`);
+  // Extract context from Batch 1 for Batch 2
+  const census = censusResult.data as CensusOutput;
+  const historian = historianResult.data as HistorianOutput;
+  const spy = spyResult.data as SpyOutput;
+  
+  const primaryDecisionMaker = census.participants.find(p => p.is_decision_maker);
+  const callSummary = historian.summary;
 
-  const interrogatorResult = getResult<InterrogatorOutput>('interrogator');
-  if (!interrogatorResult.success) warnings.push(`Question analysis failed: ${phase1Results.get('interrogator')?.error}`);
+  // Small delay between batches to let rate limits recover
+  await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
 
-  const strategistResult = getResult<StrategistOutput>('strategist');
-  if (!strategistResult.success) warnings.push(`Strategy analysis failed: ${phase1Results.get('strategist')?.error}`);
+  // ============= BATCH 2: Strategic Agents (Profiler, Strategist, Referee, Interrogator) =============
+  console.log('[Pipeline] Batch 2/3: Running Profiler, Strategist, Referee, Interrogator (context-aware)...');
+  const batch2Start = performance.now();
 
-  const skepticResult = getResult<SkepticOutput>('skeptic');
-  if (!skepticResult.success) warnings.push(`Deal gaps analysis failed: ${phase1Results.get('skeptic')?.error}`);
+  // Build context-aware prompts
+  const profilerPrompt = buildProfilerPrompt(transcript, primaryDecisionMaker?.name);
+  const strategistPrompt = buildStrategistPrompt(transcript, callSummary);
+  const behaviorPrompt = buildBehaviorPrompt(transcript, callSummary);
 
-  const negotiatorResult = getResult<NegotiatorOutput>('negotiator');
-  if (!negotiatorResult.success) warnings.push(`Objection handling analysis failed: ${phase1Results.get('negotiator')?.error}`);
+  const [profilerResult, strategistResult, refereeResult, interrogatorResult] = await Promise.all([
+    executeAgentWithPrompt(profilerConfig, profilerPrompt, supabase, callId),
+    executeAgentWithPrompt(strategistConfig, strategistPrompt, supabase, callId),
+    executeAgentWithPrompt(refereeConfig, behaviorPrompt, supabase, callId),
+    executeAgent(interrogatorConfig, transcript, supabase, callId), // No extra context needed
+  ]);
 
-  const profilerResult = getResult<ProfilerOutput>('profiler');
-  if (!profilerResult.success) warnings.push(`Psychology profiling failed: ${phase1Results.get('profiler')?.error}`);
+  const batch2Duration = performance.now() - batch2Start;
+  console.log(`[Pipeline] Batch 2 complete in ${Math.round(batch2Duration)}ms`);
 
-  const spyResult = getResult<SpyOutput>('spy');
-  if (!spyResult.success) warnings.push(`Competitive intelligence failed: ${phase1Results.get('spy')?.error}`);
+  // Track warnings for non-critical agents
+  if (!profilerResult.success) warnings.push(`Psychology profiling failed: ${profilerResult.error}`);
+  if (!strategistResult.success) warnings.push(`Strategy analysis failed: ${strategistResult.error}`);
+  if (!refereeResult.success) warnings.push(`Behavior analysis failed: ${refereeResult.error}`);
+  if (!interrogatorResult.success) warnings.push(`Question analysis failed: ${interrogatorResult.error}`);
 
-  const phase1Duration = performance.now() - phase1Start;
-  console.log(`[Pipeline] Phase 1 complete in ${Math.round(phase1Duration)}ms (${warnings.length} warnings)`);
+  // Extract context from Batch 2 for Batch 3
+  const strategist = strategistResult.data as StrategistOutput;
+  const missedOpportunities = strategistResult.success 
+    ? strategist.strategic_threading.missed_opportunities 
+    : undefined;
+  const competitorNames = spyResult.success 
+    ? spy.competitive_intel.map(c => c.competitor_name) 
+    : undefined;
+  const pitchedFeatures = strategistResult.success 
+    ? strategist.strategic_threading.relevance_map.map(r => r.feature_pitched) 
+    : undefined;
+
+  // Small delay between batches
+  await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
+
+  // ============= BATCH 3: Deep Dive Agents (Skeptic, Negotiator) =============
+  console.log('[Pipeline] Batch 3/3: Running Skeptic, Negotiator (context-aware)...');
+  const batch3Start = performance.now();
+
+  // Build context-aware prompts using Batch 1 & 2 outputs
+  const skepticPrompt = buildSkepticPrompt(transcript, missedOpportunities);
+  const negotiatorPrompt = buildNegotiatorPrompt(transcript, competitorNames, pitchedFeatures);
+
+  const [skepticResult, negotiatorResult] = await Promise.all([
+    executeAgentWithPrompt(skepticConfig, skepticPrompt, supabase, callId),
+    executeAgentWithPrompt(negotiatorConfig, negotiatorPrompt, supabase, callId),
+  ]);
+
+  const batch3Duration = performance.now() - batch3Start;
+  console.log(`[Pipeline] Batch 3 complete in ${Math.round(batch3Duration)}ms`);
+
+  if (!skepticResult.success) warnings.push(`Deal gaps analysis failed: ${skepticResult.error}`);
+  if (!negotiatorResult.success) warnings.push(`Objection handling analysis failed: ${negotiatorResult.error}`);
+
+  const phase1Duration = batch1Duration + batch2Duration + batch3Duration + (BATCH_DELAY_MS * 2);
+  console.log(`[Pipeline] Phase 1 (all 3 batches) complete in ${Math.round(phase1Duration)}ms (${warnings.length} warnings)`);
 
   // ============= MERGE PHASE 1 RESULTS =============
-  const metadata = mergeCallMetadata(censusResult.data, historianResult.data);
-  const behavior = mergeBehaviorWithQuestions(refereeResult.data, interrogatorResult.data);
-  const strategy = mergeStrategy(
-    strategistResult.data, 
-    skepticResult.data, 
-    negotiatorResult.data, 
-    spyResult.data
-  );
+  const referee = refereeResult.data as RefereeOutput;
+  const interrogator = interrogatorResult.data as InterrogatorOutput;
+  const skeptic = skepticResult.data as SkepticOutput;
+  const negotiator = negotiatorResult.data as NegotiatorOutput;
+  const profiler = profilerResult.data as ProfilerOutput;
 
-  console.log(`[Pipeline] Scores - Behavior: ${behavior.overall_score} (base: ${refereeResult.data.overall_score}, questions: ${interrogatorResult.data.score}), Threading: ${strategy.strategic_threading.score}, Critical Gaps: ${strategy.critical_gaps.length}`);
+  const metadata = mergeCallMetadata(census, historian);
+  const behavior = mergeBehaviorWithQuestions(referee, interrogator);
+  const strategy = mergeStrategy(strategist, skeptic, negotiator, spy);
+
+  console.log(`[Pipeline] Scores - Behavior: ${behavior.overall_score} (base: ${referee.overall_score}, questions: ${interrogator.score}), Threading: ${strategy.strategic_threading.score}, Critical Gaps: ${strategy.critical_gaps.length}`);
 
   // ============= PHASE 2: The Coach =============
   console.log('[Pipeline] Phase 2: Running The Coach (synthesis agent)...');
   const phase2Start = performance.now();
 
-  const coachConfig = getAgent('coach');
-  if (!coachConfig) {
-    throw new Error('Coach agent not found in registry');
-  }
-
   // Build coaching input report
   const coachingReport = buildCoachingInputReport(
     metadata,
     behavior,
-    interrogatorResult.data,
-    strategistResult.data,
-    skepticResult.data,
-    negotiatorResult.data,
-    profilerResult.data,
-    spyResult.data
+    interrogator,
+    strategist,
+    skeptic,
+    negotiator,
+    profiler,
+    spy
   );
 
   const coachResult = await executeAgent(coachConfig, coachingReport, supabase, callId);
@@ -259,7 +383,7 @@ export async function runAnalysisPipeline(
     metadata,
     behavior,
     strategy,
-    psychology: profilerResult.data,
+    psychology: profiler,
     coaching: coachResult.data,
     warnings,
     phase1DurationMs: phase1Duration,

@@ -217,6 +217,53 @@ export async function executeAgent<T extends z.ZodTypeAny>(
 }
 
 /**
+ * Execute a single agent with a CUSTOM user prompt (for context-aware execution)
+ * This allows injecting context from previous batches into the prompt.
+ */
+export async function executeAgentWithPrompt<T extends z.ZodTypeAny>(
+  config: AgentConfig<T>,
+  customUserPrompt: string,
+  supabase: SupabaseClient,
+  callId: string
+): Promise<AgentResult<z.infer<T>>> {
+  const start = performance.now();
+  const metricName = `agent_${config.id}`;
+
+  console.log(`[${config.name}] Starting ${config.description} (context-aware)...`);
+
+  try {
+    const result = await callLovableAI(config, customUserPrompt);
+    const duration = performance.now() - start;
+
+    // Log success
+    await logPerformance(supabase, metricName, duration, 'success', {
+      call_id: callId,
+      agent_id: config.id,
+      context_aware: true,
+    });
+
+    console.log(`[${config.name}] Complete in ${Math.round(duration)}ms`);
+
+    return { success: true, data: result, durationMs: duration };
+  } catch (err) {
+    const duration = performance.now() - start;
+    const error = err instanceof Error ? err.message : String(err);
+
+    // Log error
+    await logPerformance(supabase, metricName, duration, 'error', {
+      call_id: callId,
+      agent_id: config.id,
+      error,
+      context_aware: true,
+    });
+
+    console.warn(`[${config.name}] Failed after ${Math.round(duration)}ms: ${error}`);
+
+    return { success: false, data: config.default, durationMs: duration, error };
+  }
+}
+
+/**
  * Execute multiple agents in parallel with graceful error handling
  */
 export async function executeAgentsInParallel<T extends z.ZodTypeAny>(
