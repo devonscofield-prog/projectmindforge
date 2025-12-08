@@ -9,7 +9,7 @@
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 import { UUID_REGEX } from './lib/constants.ts';
 import { getCorsHeaders, checkRateLimit } from './lib/cors.ts';
@@ -62,6 +62,54 @@ const DEFAULT_STRATEGY: StrategyAudit = {
   },
   critical_gaps: [],
 };
+
+/**
+ * Log performance metrics to the database
+ */
+async function logPerformance(
+  supabase: SupabaseClient,
+  metricName: string,
+  durationMs: number,
+  status: 'success' | 'error',
+  metadata: Record<string, unknown> = {}
+): Promise<void> {
+  try {
+    await supabase.from('performance_metrics').insert({
+      metric_type: 'edge_function',
+      metric_name: metricName,
+      duration_ms: Math.round(durationMs),
+      status,
+      metadata,
+    });
+  } catch (err) {
+    console.warn(`[analyze-call] Failed to log performance metric ${metricName}:`, err);
+  }
+}
+
+/**
+ * Trigger background chunking for RAG indexing
+ */
+async function triggerBackgroundChunking(callId: string, supabaseUrl: string, serviceKey: string): Promise<void> {
+  try {
+    const response = await fetch(`${supabaseUrl}/functions/v1/chunk-transcripts`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify({ call_ids: [callId] }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.warn(`[analyze-call] Background chunking failed for ${callId}:`, response.status, errorText);
+    } else {
+      console.log(`[analyze-call] Background chunking triggered for ${callId}`);
+    }
+  } catch (err) {
+    console.warn(`[analyze-call] Failed to trigger background chunking for ${callId}:`, err);
+  }
+}
 
 serve(async (req) => {
   const origin = req.headers.get('Origin');
@@ -196,17 +244,93 @@ serve(async (req) => {
       console.error('[analyze-call] Failed to update status to processing:', statusUpdateError);
     }
 
-    const startTime = Date.now();
+    const pipelineStartTime = performance.now();
     const analysisWarnings: string[] = [];
+    const transcriptLength = transcript.raw_text.length;
 
-    // Run ALL FOUR agents in PARALLEL with graceful error recovery
+    // Run ALL FOUR agents in PARALLEL with graceful error recovery and performance tracking
     console.log('[analyze-call] Running Clerk, Referee, Interrogator, and Auditor agents in parallel...');
+
+    // Wrap each agent with timing
+    const timedMetadata = async () => {
+      const start = performance.now();
+      try {
+        const result = await analyzeCallMetadata(transcript.raw_text);
+        await logPerformance(supabaseAdmin, 'agent_clerk_metadata', performance.now() - start, 'success', { 
+          call_id: targetCallId, 
+          transcript_length: transcriptLength,
+        });
+        return result;
+      } catch (err) {
+        await logPerformance(supabaseAdmin, 'agent_clerk_metadata', performance.now() - start, 'error', { 
+          call_id: targetCallId, 
+          error: err instanceof Error ? err.message : String(err),
+        });
+        throw err;
+      }
+    };
+
+    const timedBehavior = async () => {
+      const start = performance.now();
+      try {
+        const result = await analyzeCallBehavior(transcript.raw_text);
+        await logPerformance(supabaseAdmin, 'agent_referee_behavior', performance.now() - start, 'success', { 
+          call_id: targetCallId,
+          score: result.overall_score,
+        });
+        return result;
+      } catch (err) {
+        await logPerformance(supabaseAdmin, 'agent_referee_behavior', performance.now() - start, 'error', { 
+          call_id: targetCallId, 
+          error: err instanceof Error ? err.message : String(err),
+        });
+        throw err;
+      }
+    };
+
+    const timedQuestions = async () => {
+      const start = performance.now();
+      try {
+        const result = await analyzeQuestionLeverage(transcript.raw_text);
+        await logPerformance(supabaseAdmin, 'agent_interrogator_questions', performance.now() - start, 'success', { 
+          call_id: targetCallId,
+          score: result.score,
+          yield_ratio: result.yield_ratio,
+        });
+        return result;
+      } catch (err) {
+        await logPerformance(supabaseAdmin, 'agent_interrogator_questions', performance.now() - start, 'error', { 
+          call_id: targetCallId, 
+          error: err instanceof Error ? err.message : String(err),
+        });
+        throw err;
+      }
+    };
+
+    const timedStrategy = async () => {
+      const start = performance.now();
+      try {
+        const result = await analyzeCallStrategy(transcript.raw_text);
+        await logPerformance(supabaseAdmin, 'agent_auditor_strategy', performance.now() - start, 'success', { 
+          call_id: targetCallId,
+          threading_score: result.strategic_threading.score,
+          gaps_count: result.critical_gaps.length,
+        });
+        return result;
+      } catch (err) {
+        await logPerformance(supabaseAdmin, 'agent_auditor_strategy', performance.now() - start, 'error', { 
+          call_id: targetCallId, 
+          error: err instanceof Error ? err.message : String(err),
+        });
+        throw err;
+      }
+    };
     
     const [metadataSettled, behaviorSettled, questionSettled, strategySettled] = await Promise.allSettled([
-      analyzeCallMetadata(transcript.raw_text),
-      analyzeCallBehavior(transcript.raw_text),
-      analyzeQuestionLeverage(transcript.raw_text),
-      analyzeCallStrategy(transcript.raw_text),
+      timedMetadata(),
+      timedBehavior(),
+      timedQuestions(),
+      timedStrategy(),
     ]);
 
     // Metadata is CRITICAL - if it fails, the whole analysis fails
@@ -250,8 +374,8 @@ serve(async (req) => {
       strategyResult = strategySettled.value;
     }
 
-    const analysisTime = Date.now() - startTime;
-    console.log(`[analyze-call] All agents completed in ${analysisTime}ms (${analysisWarnings.length} warnings)`);
+    const pipelineDuration = performance.now() - pipelineStartTime;
+    console.log(`[analyze-call] All agents completed in ${Math.round(pipelineDuration)}ms (${analysisWarnings.length} warnings)`);
     
     // Merge question quality into behavior result to create MergedBehaviorScore
     const behaviorResult: MergedBehaviorScore = {
@@ -325,7 +449,20 @@ serve(async (req) => {
       console.error('[analyze-call] Failed to update status to completed:', completeError);
     }
 
+    // Log overall pipeline performance
+    await logPerformance(supabaseAdmin, 'analyze_call_pipeline', pipelineDuration, 'success', {
+      call_id: targetCallId,
+      transcript_length: transcriptLength,
+      warnings_count: analysisWarnings.length,
+      behavior_score: behaviorResult.overall_score,
+      threading_score: strategyResult.strategic_threading.score,
+    });
+
     console.log(`[analyze-call] Analysis 2.0 complete for call_id: ${targetCallId}`);
+
+    // Trigger background chunking for RAG indexing (non-blocking)
+    // @ts-ignore - EdgeRuntime is available in Supabase Edge Functions
+    EdgeRuntime.waitUntil(triggerBackgroundChunking(targetCallId, supabaseUrl, supabaseServiceKey));
 
     return new Response(
       JSON.stringify({
@@ -335,7 +472,7 @@ serve(async (req) => {
         metadata: metadataResult,
         behavior: behaviorResult,
         strategy: strategyResult,
-        processing_time_ms: analysisTime,
+        processing_time_ms: Math.round(pipelineDuration),
         warnings: analysisWarnings.length > 0 ? analysisWarnings : undefined,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
