@@ -280,7 +280,14 @@ Rules:
   - 66-70%: 3 pts
   - 71%+: 0 pts (talking way too much to be effective)
   - <40%: Deduct proportionally (rep may not be engaging enough)
-- **Next Steps (0-15 pts):** Look for specific calendar dates, "I will send X" commitments, or scheduled follow-ups.
+- **Next Steps Commitment (0-15 pts):** Award points based on the specificity of the next step secured:
+  - 15 pts: Specific DATE + TIME + AGENDA (e.g., "Let's meet Tuesday at 2pm to review the proposal with your IT team")
+  - 12 pts: Specific DATE + TIME, but no clear agenda (e.g., "We're set for Thursday at 10am")
+  - 10 pts: Specific DATE, no time (e.g., "I'll send the proposal by Friday")
+  - 8 pts: Vague timeframe with action (e.g., "I'll send something next week", "Let's reconnect early next month")
+  - 5 pts: Vague commitment only (e.g., "I'll follow up", "We'll be in touch")
+  - 0 pts: No next steps secured, or only "Let me know if you have questions"
+  - IMPORTANT: If a specific calendar invite was scheduled on the call, award 15 pts regardless of whether the agenda was explicitly stated.
 
 Scoring:
 - Grade is "Pass" if overall_score >= 60, otherwise "Fail".`;
