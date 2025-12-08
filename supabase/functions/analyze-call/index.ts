@@ -18,13 +18,17 @@ import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-
 import { UUID_REGEX } from './lib/constants.ts';
 import { getCorsHeaders, checkRateLimit } from './lib/cors.ts';
 import { 
-  analyzeCallMetadata, 
+  analyzeCallCensus,
+  analyzeCallHistory,
+  mergeCallMetadata,
   analyzeCallBehavior, 
   analyzeCallStrategy,
   analyzeQuestionLeverage,
   analyzeDealGaps,
   analyzeObjections,
   analyzePsychology,
+  type CallCensus,
+  type CallHistory,
   type CallMetadata,
   type BehaviorScore,
   type QuestionLeverage,
@@ -297,21 +301,41 @@ serve(async (req) => {
     const analysisWarnings: string[] = [];
     const transcriptLength = transcript.raw_text.length;
 
-    // Run ALL SEVEN agents in PARALLEL with graceful error recovery and performance tracking
-    console.log('[analyze-call] Running all 7 agents in parallel: Clerk, Referee, Interrogator, Strategist, Skeptic, Negotiator, Profiler...');
+    // Run ALL EIGHT agents in PARALLEL with graceful error recovery and performance tracking
+    console.log('[analyze-call] Running all 8 agents in parallel: Census, Historian, Referee, Interrogator, Strategist, Skeptic, Negotiator, Profiler...');
 
     // Wrap each agent with timing
-    const timedMetadata = async () => {
+    const timedCensus = async () => {
       const start = performance.now();
       try {
-        const result = await analyzeCallMetadata(transcript.raw_text);
-        await logPerformance(supabaseAdmin, 'agent_clerk_metadata', performance.now() - start, 'success', { 
+        const result = await analyzeCallCensus(transcript.raw_text);
+        await logPerformance(supabaseAdmin, 'agent_census_data', performance.now() - start, 'success', { 
           call_id: targetCallId, 
           transcript_length: transcriptLength,
+          participants_count: result.participants.length,
         });
         return result;
       } catch (err) {
-        await logPerformance(supabaseAdmin, 'agent_clerk_metadata', performance.now() - start, 'error', { 
+        await logPerformance(supabaseAdmin, 'agent_census_data', performance.now() - start, 'error', { 
+          call_id: targetCallId, 
+          error: err instanceof Error ? err.message : String(err),
+        });
+        throw err;
+      }
+    };
+
+    const timedHistory = async () => {
+      const start = performance.now();
+      try {
+        const result = await analyzeCallHistory(transcript.raw_text);
+        await logPerformance(supabaseAdmin, 'agent_historian_summary', performance.now() - start, 'success', { 
+          call_id: targetCallId, 
+          summary_length: result.summary.length,
+          topics_count: result.key_topics.length,
+        });
+        return result;
+      } catch (err) {
+        await logPerformance(supabaseAdmin, 'agent_historian_summary', performance.now() - start, 'error', { 
           call_id: targetCallId, 
           error: err instanceof Error ? err.message : String(err),
         });
@@ -429,8 +453,9 @@ serve(async (req) => {
       }
     };
     
-    const [metadataSettled, behaviorSettled, questionSettled, strategySettled, gapsSettled, objectionsSettled, psychologySettled] = await Promise.allSettled([
-      timedMetadata(),
+    const [censusSettled, historySettled, behaviorSettled, questionSettled, strategySettled, gapsSettled, objectionsSettled, psychologySettled] = await Promise.allSettled([
+      timedCensus(),
+      timedHistory(),
       timedBehavior(),
       timedQuestions(),
       timedStrategy(),
@@ -439,13 +464,24 @@ serve(async (req) => {
       timedPsychology(),
     ]);
 
-    // Metadata is CRITICAL - if it fails, the whole analysis fails
-    if (metadataSettled.status === 'rejected') {
-      const error = metadataSettled.reason instanceof Error ? metadataSettled.reason.message : String(metadataSettled.reason);
-      console.error('[analyze-call] CRITICAL: Metadata agent failed:', error);
-      throw new Error(`Metadata extraction failed: ${error}`);
+    // Census is CRITICAL - if it fails, the whole analysis fails (need structured data)
+    if (censusSettled.status === 'rejected') {
+      const error = censusSettled.reason instanceof Error ? censusSettled.reason.message : String(censusSettled.reason);
+      console.error('[analyze-call] CRITICAL: Census agent failed:', error);
+      throw new Error(`Structured data extraction failed: ${error}`);
     }
-    const metadataResult: CallMetadata = metadataSettled.value;
+    const censusResult: CallCensus = censusSettled.value;
+
+    // History is CRITICAL - if it fails, the whole analysis fails (need summary)
+    if (historySettled.status === 'rejected') {
+      const error = historySettled.reason instanceof Error ? historySettled.reason.message : String(historySettled.reason);
+      console.error('[analyze-call] CRITICAL: Historian agent failed:', error);
+      throw new Error(`Summary generation failed: ${error}`);
+    }
+    const historyResult: CallHistory = historySettled.value;
+
+    // Merge Census + History into CallMetadata for backward compatibility
+    const metadataResult: CallMetadata = mergeCallMetadata(censusResult, historyResult);
 
     // Behavior agent - use fallback on failure
     let behaviorBase: BehaviorScore;
