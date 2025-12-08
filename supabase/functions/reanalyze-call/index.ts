@@ -141,14 +141,14 @@ serve(async (req) => {
 
     console.log(`[reanalyze-call] Status reset to processing, invoking analyze-call`);
 
-    // Trigger the analyze-call function
+    // Trigger the analyze-call function with force flag to bypass idempotency check
     const analyzeResponse = await fetch(`${supabaseUrl}/functions/v1/analyze-call`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${serviceRoleKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ call_id }),
+      body: JSON.stringify({ call_id, force_reanalyze: true }),
     });
 
     if (!analyzeResponse.ok) {

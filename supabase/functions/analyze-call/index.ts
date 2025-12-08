@@ -273,8 +273,9 @@ serve(async (req) => {
       );
     }
 
-    // Check if already being processed (idempotency)
-    if (transcript.analysis_status === 'processing') {
+    // Check if already being processed (idempotency) - skip for forced re-analysis
+    const { force_reanalyze } = body;
+    if (transcript.analysis_status === 'processing' && !force_reanalyze) {
       console.log('[analyze-call] Already processing, skipping');
       return new Response(
         JSON.stringify({ error: 'Analysis already in progress', call_id: targetCallId }),
