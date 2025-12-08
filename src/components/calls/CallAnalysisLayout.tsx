@@ -332,6 +332,22 @@ export function CallAnalysisLayout({
                       )}
                     </div>
                     <p className="text-muted-foreground text-sm">Coaching Analysis</p>
+                    
+                    {/* Detection Signals - Enhancement #2 */}
+                    {callClassificationData?.detection_signals && callClassificationData.detection_signals.length > 0 && (
+                      <details className="mt-2">
+                        <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors">
+                          Why this classification? ({callClassificationData.detection_signals.length} signals)
+                        </summary>
+                        <ul className="mt-2 space-y-1 text-xs text-muted-foreground pl-4">
+                          {callClassificationData.detection_signals.slice(0, 5).map((signal, idx) => (
+                            <li key={idx} className="list-disc">
+                              <span className="italic">"{signal}"</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
                   </div>
                   {canEdit && onReanalyze && (
                     <Button

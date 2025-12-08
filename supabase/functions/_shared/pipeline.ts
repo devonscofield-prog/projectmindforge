@@ -82,11 +82,29 @@ const MAX_TRANSCRIPT_LENGTH_FOR_LABELING = 80000;
 
 // ============= CONTEXT-AWARE PROMPT BUILDERS =============
 
-function buildProfilerPrompt(transcript: string, primarySpeakerName?: string): string {
+function buildProfilerPrompt(
+  transcript: string, 
+  primarySpeakerName?: string,
+  callType?: string
+): string {
   const basePrompt = `Analyze this sales call transcript to profile the PROSPECT's communication style and create a behavioral persona. Focus on how THEY speak, respond, and what they seem to value:\n\n${transcript}`;
   
+  const contextParts: string[] = [];
+  
   if (primarySpeakerName) {
-    return `${basePrompt}\n\n--- CONTEXT ---\nFocus your analysis specifically on the speech patterns of ${primarySpeakerName}.`;
+    contextParts.push(`Focus your analysis specifically on the speech patterns of ${primarySpeakerName}.`);
+  }
+  
+  if (callType) {
+    if (callType === 'group_demo') {
+      contextParts.push(`NOTE: This is a GROUP DEMO with multiple prospect participants. Focus on the PRIMARY decision maker's profile, not an average of all attendees.`);
+    } else if (callType === 'executive_alignment') {
+      contextParts.push(`NOTE: This is an EXECUTIVE ALIGNMENT call. The prospect is likely a C-level or VP. Look for High-D (direct, results-focused) or High-C (data-driven) patterns typical of executives.`);
+    }
+  }
+  
+  if (contextParts.length > 0) {
+    return `${basePrompt}\n\n--- CONTEXT ---\n${contextParts.join('\n')}`;
   }
   return basePrompt;
 }
@@ -132,7 +150,12 @@ function buildStrategistPrompt(
   return basePrompt;
 }
 
-function buildBehaviorPrompt(transcript: string, callSummary?: string, scoringHints?: SentinelOutput['scoring_hints']): string {
+function buildBehaviorPrompt(
+  transcript: string, 
+  callSummary?: string, 
+  scoringHints?: SentinelOutput['scoring_hints'],
+  callType?: string
+): string {
   const basePrompt = `Analyze this sales call transcript for behavioral dynamics and score the rep's performance:\n\n${transcript}`;
   
   const contextParts: string[] = [];
@@ -141,16 +164,28 @@ function buildBehaviorPrompt(transcript: string, callSummary?: string, scoringHi
     contextParts.push(`Call Summary: ${callSummary}`);
   }
   
+  if (callType) {
+    contextParts.push(`Call Type: ${callType}`);
+    
+    if (callType === 'group_demo') {
+      contextParts.push(`NOTE: This is a GROUP DEMO. Extended monologues during screen share are EXPECTED and should NOT be penalized.`);
+    } else if (callType === 'technical_deep_dive') {
+      contextParts.push(`NOTE: This is a TECHNICAL DEEP DIVE. Rep may need to explain technical details at length - moderate monologue tolerance.`);
+    }
+  }
+  
   // Apply scoring hints from Sentinel
   if (scoringHints) {
     if (scoringHints.monologue_tolerance === 'lenient') {
-      contextParts.push(`NOTE: This call type expects extended monologues (demo/presentation). Be LENIENT on the Monologue score - do not penalize long turns that are appropriate for demos.`);
+      contextParts.push(`SCORING CALIBRATION: This call type expects extended monologues (demo/presentation). Be LENIENT on the Monologue score - do not penalize long turns that are appropriate for demos.`);
+    } else if (scoringHints.monologue_tolerance === 'moderate') {
+      contextParts.push(`SCORING CALIBRATION: This call type has moderate monologue tolerance. Some longer explanations are acceptable.`);
     }
     if (scoringHints.talk_ratio_ideal > 55) {
-      contextParts.push(`NOTE: For this call type, rep talk % of ${scoringHints.talk_ratio_ideal}% is ideal. Adjust Talk Ratio scoring accordingly.`);
+      contextParts.push(`SCORING CALIBRATION: For this call type, rep talk % of ${scoringHints.talk_ratio_ideal}% is ideal. Adjust Talk Ratio scoring accordingly.`);
     }
     if (scoringHints.discovery_expectation === 'none' || scoringHints.discovery_expectation === 'light') {
-      contextParts.push(`NOTE: This call type has ${scoringHints.discovery_expectation} discovery expectation. Light questioning is acceptable.`);
+      contextParts.push(`SCORING CALIBRATION: This call type has ${scoringHints.discovery_expectation} discovery expectation. Light questioning is acceptable.`);
     }
   }
   
@@ -191,6 +226,31 @@ function buildSkepticPrompt(
   
   if (contextParts.length > 0) {
     return `${basePrompt}\n\n--- CONTEXT ---\n${contextParts.join('\n\n')}`;
+  }
+  return basePrompt;
+}
+
+// ============= SPY PROMPT BUILDER =============
+
+function buildSpyPrompt(transcript: string, callType?: string): string {
+  const basePrompt = `Analyze this sales call transcript for competitive intelligence. Extract competitor mentions and build battlecard:\n\n${transcript}`;
+  
+  const contextParts: string[] = [];
+  
+  if (callType) {
+    contextParts.push(`Call Type: ${callType}`);
+    
+    if (callType === 'pricing_negotiation') {
+      contextParts.push(`NOTE: This is a PRICING NEGOTIATION call. Competitors are more likely to be mentioned as pricing benchmarks. Pay special attention to comparative pricing statements.`);
+    } else if (callType === 'technical_deep_dive') {
+      contextParts.push(`NOTE: This is a TECHNICAL DEEP DIVE. Look for competitors mentioned in technical context (features, integrations, APIs). Technical stakeholders often reference alternatives.`);
+    } else if (callType === 'reconnect') {
+      contextParts.push(`NOTE: This is a RECONNECT call. The prospect may have evaluated competitors since the last meeting. Look for new competitor mentions or changes in evaluation status.`);
+    }
+  }
+  
+  if (contextParts.length > 0) {
+    return `${basePrompt}\n\n--- CONTEXT ---\n${contextParts.join('\n')}`;
   }
   return basePrompt;
 }
@@ -329,21 +389,37 @@ function mergeStrategy(
 
 // ============= COACHING INPUT BUILDER =============
 
-function buildInterrogatorPrompt(transcript: string, scoringHints?: SentinelOutput['scoring_hints']): string {
+function buildInterrogatorPrompt(
+  transcript: string, 
+  scoringHints?: SentinelOutput['scoring_hints'],
+  callType?: string
+): string {
   const basePrompt = `Analyze this sales call transcript for question quality and leverage. Focus on the yield ratio - how much information the rep extracted relative to their question investment:\n\n${transcript}`;
   
   const contextParts: string[] = [];
   
+  if (callType) {
+    contextParts.push(`Call Type: ${callType}`);
+    
+    if (callType === 'full_cycle_sales') {
+      contextParts.push(`NOTE: This is a FULL CYCLE SALES call. Strong discovery questioning is critical - score strictly on question depth and yield ratio.`);
+    } else if (callType === 'reconnect') {
+      contextParts.push(`NOTE: This is a RECONNECT call. Questions should focus on clarification and progress updates, not full discovery. Fewer questions are acceptable.`);
+    } else if (callType === 'technical_deep_dive') {
+      contextParts.push(`NOTE: This is a TECHNICAL DEEP DIVE. Questions should focus on technical requirements and integration details.`);
+    }
+  }
+  
   if (scoringHints) {
     const expectation = scoringHints.discovery_expectation;
     if (expectation === 'heavy') {
-      contextParts.push(`NOTE: This call type requires HEAVY discovery. Expect many probing questions with high leverage (long detailed answers). Score strictly.`);
+      contextParts.push(`SCORING CALIBRATION: This call type requires HEAVY discovery. Expect many probing questions with high leverage (long detailed answers). Score strictly.`);
     } else if (expectation === 'moderate') {
-      contextParts.push(`NOTE: This call type requires MODERATE discovery. Balance of qualifying questions and other conversation is expected.`);
+      contextParts.push(`SCORING CALIBRATION: This call type requires MODERATE discovery. Balance of qualifying questions and other conversation is expected.`);
     } else if (expectation === 'light') {
-      contextParts.push(`NOTE: This call type has LIGHT discovery expectation. A few well-placed questions are sufficient. Don't penalize for fewer questions.`);
+      contextParts.push(`SCORING CALIBRATION: This call type has LIGHT discovery expectation. A few well-placed questions are sufficient. Don't penalize for fewer questions.`);
     } else if (expectation === 'none') {
-      contextParts.push(`NOTE: This call type has NO discovery expectation (e.g., demo or check-in). Score based on any questions asked, but don't penalize absence of discovery.`);
+      contextParts.push(`SCORING CALIBRATION: This call type has NO discovery expectation (e.g., demo or check-in). Score based on any questions asked, but don't penalize absence of discovery.`);
     }
   }
   
@@ -601,13 +677,17 @@ export async function runAnalysisPipeline(
 
   // ============= BATCH 1: Critical Agents (Census, Historian, Spy) =============
   // Note: Use processedTranscript (labeled) for analysis
+  // Spy now receives call type context from Sentinel for better competitor detection
   console.log('[Pipeline] Batch 1/2: Running Census, Historian, Spy...');
   const batch1Start = performance.now();
+
+  // Build context-aware Spy prompt
+  const spyPrompt = buildSpyPrompt(processedTranscript, callClassification?.detected_call_type);
 
   const [censusResult, historianResult, spyResult] = await Promise.all([
     executeAgent(censusConfig, processedTranscript, supabase, callId),
     executeAgent(historianConfig, processedTranscript, supabase, callId),
-    executeAgent(spyConfig, processedTranscript, supabase, callId),
+    executeAgentWithPrompt(spyConfig, spyPrompt, supabase, callId),
   ]);
 
   const batch1Duration = performance.now() - batch1Start;
@@ -645,15 +725,28 @@ export async function runAnalysisPipeline(
   const batch2Start = performance.now();
 
   // Build context-aware prompts using processedTranscript
-  const profilerPrompt = buildProfilerPrompt(processedTranscript, primaryDecisionMaker?.name);
+  const profilerPrompt = buildProfilerPrompt(
+    processedTranscript, 
+    primaryDecisionMaker?.name,
+    callClassification?.detected_call_type
+  );
   const strategistPrompt = buildStrategistPrompt(
     processedTranscript, 
     callSummary, 
     callClassification?.detected_call_type,
     callClassification?.scoring_hints
   );
-  const behaviorPrompt = buildBehaviorPrompt(processedTranscript, callSummary, callClassification?.scoring_hints);
-  const interrogatorPrompt = buildInterrogatorPrompt(processedTranscript, callClassification?.scoring_hints);
+  const behaviorPrompt = buildBehaviorPrompt(
+    processedTranscript, 
+    callSummary, 
+    callClassification?.scoring_hints,
+    callClassification?.detected_call_type
+  );
+  const interrogatorPrompt = buildInterrogatorPrompt(
+    processedTranscript, 
+    callClassification?.scoring_hints,
+    callClassification?.detected_call_type
+  );
   const competitorNames = spyResult.success 
     ? spy.competitive_intel.map(c => c.competitor_name) 
     : undefined;
