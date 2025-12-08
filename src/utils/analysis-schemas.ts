@@ -132,3 +132,19 @@ export const DealHeatSchema = z.object({
 });
 
 export type DealHeat = z.infer<typeof DealHeatSchema>;
+
+// --- 6. THE PSYCHOLOGIST (Prospect Profiling) ---
+export const PsychologyProfileSchema = z.object({
+  prospect_persona: z.string().describe("Archetype (e.g., 'The Data-Driven Skeptic', 'The Busy Executive')"),
+  disc_profile: z.enum(['D - Dominance', 'I - Influence', 'S - Steadiness', 'C - Compliance']).describe("Estimated DISC profile based on speech patterns"),
+  communication_style: z.object({
+    tone: z.string().describe("e.g., 'Formal', 'Casual', 'Urgent'"),
+    preference: z.string().describe("e.g., 'Wants bullet points and ROI', 'Wants rapport and stories'"),
+  }),
+  dos_and_donts: z.object({
+    do: z.array(z.string()).describe("2-3 specific communication tactics to use"),
+    dont: z.array(z.string()).describe("2-3 specific tactics to avoid (e.g., 'Don't use fluff')"),
+  }),
+});
+
+export type PsychologyProfile = z.infer<typeof PsychologyProfileSchema>;

@@ -285,6 +285,7 @@ export type Database = {
           analysis_behavior: Json | null
           analysis_metadata: Json | null
           analysis_pipeline_version: string | null
+          analysis_psychology: Json | null
           analysis_strategy: Json | null
           call_effectiveness_score: number | null
           call_id: string
@@ -320,6 +321,7 @@ export type Database = {
           analysis_behavior?: Json | null
           analysis_metadata?: Json | null
           analysis_pipeline_version?: string | null
+          analysis_psychology?: Json | null
           analysis_strategy?: Json | null
           call_effectiveness_score?: number | null
           call_id: string
@@ -355,6 +357,7 @@ export type Database = {
           analysis_behavior?: Json | null
           analysis_metadata?: Json | null
           analysis_pipeline_version?: string | null
+          analysis_psychology?: Json | null
           analysis_strategy?: Json | null
           call_effectiveness_score?: number | null
           call_id?: string
