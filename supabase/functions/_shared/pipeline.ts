@@ -91,11 +91,39 @@ function buildProfilerPrompt(transcript: string, primarySpeakerName?: string): s
   return basePrompt;
 }
 
-function buildStrategistPrompt(transcript: string, callSummary?: string): string {
+function buildStrategistPrompt(
+  transcript: string, 
+  callSummary?: string, 
+  callType?: string,
+  scoringHints?: SentinelOutput['scoring_hints']
+): string {
   const basePrompt = `Analyze this sales call transcript for strategic alignment. Map every prospect pain to every rep pitch and score the relevance:\n\n${transcript}`;
   
+  const contextParts: string[] = [];
+  
   if (callSummary) {
-    return `${basePrompt}\n\n--- CONTEXT ---\nCall Summary: ${callSummary}\n\nUse this to understand the core conversation flow.`;
+    contextParts.push(`Call Summary: ${callSummary}`);
+  }
+  
+  if (callType) {
+    contextParts.push(`Call Type: ${callType}`);
+    
+    // Adjust expectations based on call type
+    if (callType === 'reconnect' || callType === 'check_in') {
+      contextParts.push(`NOTE: This is a ${callType} call. These calls often have fewer new pains to uncover - focus on relationship continuity and progress on known issues.`);
+    } else if (callType === 'group_demo') {
+      contextParts.push(`NOTE: This is a group demo. Focus on how well the rep tailored the presentation to the audience's stated needs.`);
+    } else if (callType === 'closing_call') {
+      contextParts.push(`NOTE: This is a closing call. Strategic alignment should focus on addressing final concerns and confirming value fit.`);
+    }
+  }
+  
+  if (scoringHints?.discovery_expectation === 'none' || scoringHints?.discovery_expectation === 'light') {
+    contextParts.push(`IMPORTANT: This call type has ${scoringHints.discovery_expectation} discovery expectation. Don't penalize for lack of new pain discovery if existing pains are being addressed.`);
+  }
+  
+  if (contextParts.length > 0) {
+    return `${basePrompt}\n\n--- CONTEXT ---\n${contextParts.join('\n')}`;
   }
   return basePrompt;
 }
@@ -261,6 +289,30 @@ function mergeStrategy(
 
 // ============= COACHING INPUT BUILDER =============
 
+function buildInterrogatorPrompt(transcript: string, scoringHints?: SentinelOutput['scoring_hints']): string {
+  const basePrompt = `Analyze this sales call transcript for question quality and leverage. Focus on the yield ratio - how much information the rep extracted relative to their question investment:\n\n${transcript}`;
+  
+  const contextParts: string[] = [];
+  
+  if (scoringHints) {
+    const expectation = scoringHints.discovery_expectation;
+    if (expectation === 'heavy') {
+      contextParts.push(`NOTE: This call type requires HEAVY discovery. Expect many probing questions with high leverage (long detailed answers). Score strictly.`);
+    } else if (expectation === 'moderate') {
+      contextParts.push(`NOTE: This call type requires MODERATE discovery. Balance of qualifying questions and other conversation is expected.`);
+    } else if (expectation === 'light') {
+      contextParts.push(`NOTE: This call type has LIGHT discovery expectation. A few well-placed questions are sufficient. Don't penalize for fewer questions.`);
+    } else if (expectation === 'none') {
+      contextParts.push(`NOTE: This call type has NO discovery expectation (e.g., demo or check-in). Score based on any questions asked, but don't penalize absence of discovery.`);
+    }
+  }
+  
+  if (contextParts.length > 0) {
+    return `${basePrompt}\n\n--- CONTEXT ---\n${contextParts.join('\n')}`;
+  }
+  return basePrompt;
+}
+
 function buildCoachingInputReport(
   metadata: CallMetadata,
   behavior: MergedBehaviorScore,
@@ -269,10 +321,25 @@ function buildCoachingInputReport(
   gaps: SkepticOutput,
   objections: NegotiatorOutput,
   psychology: ProfilerOutput,
-  competitors: SpyOutput
+  competitors: SpyOutput,
+  callClassification?: CallClassification
 ): string {
+  const callTypeSection = callClassification ? `
+### 0. CALL CLASSIFICATION (The Sentinel)
+- Detected Type: ${callClassification.detected_call_type}
+- Confidence: ${callClassification.confidence}
+- Detection Signals: ${callClassification.detection_signals.join(', ') || 'None'}
+- Scoring Context:
+  - Discovery Expectation: ${callClassification.scoring_hints.discovery_expectation}
+  - Monologue Tolerance: ${callClassification.scoring_hints.monologue_tolerance}
+  - Ideal Talk Ratio: ${callClassification.scoring_hints.talk_ratio_ideal}%
+
+**IMPORTANT**: Calibrate your coaching based on this call type. A "${callClassification.detected_call_type}" call has different success criteria than a standard discovery call.
+` : '';
+
   return `
 ## AGENT REPORTS FOR THIS CALL
+${callTypeSection}
 
 ### 1. CALL METADATA (The Census & Historian)
 - Summary: ${metadata.summary}
@@ -539,8 +606,14 @@ export async function runAnalysisPipeline(
 
   // Build context-aware prompts using processedTranscript
   const profilerPrompt = buildProfilerPrompt(processedTranscript, primaryDecisionMaker?.name);
-  const strategistPrompt = buildStrategistPrompt(processedTranscript, callSummary);
+  const strategistPrompt = buildStrategistPrompt(
+    processedTranscript, 
+    callSummary, 
+    callClassification?.detected_call_type,
+    callClassification?.scoring_hints
+  );
   const behaviorPrompt = buildBehaviorPrompt(processedTranscript, callSummary, callClassification?.scoring_hints);
+  const interrogatorPrompt = buildInterrogatorPrompt(processedTranscript, callClassification?.scoring_hints);
   const competitorNames = spyResult.success 
     ? spy.competitive_intel.map(c => c.competitor_name) 
     : undefined;
@@ -557,7 +630,7 @@ export async function runAnalysisPipeline(
     executeAgentWithPrompt(profilerConfig, profilerPrompt, supabase, callId),
     executeAgentWithPrompt(strategistConfig, strategistPrompt, supabase, callId),
     executeAgentWithPrompt(refereeConfig, behaviorPrompt, supabase, callId),
-    executeAgent(interrogatorConfig, processedTranscript, supabase, callId),
+    executeAgentWithPrompt(interrogatorConfig, interrogatorPrompt, supabase, callId),
     executeAgentWithPrompt(negotiatorConfig, negotiatorPrompt, supabase, callId),
   ]);
 
@@ -615,7 +688,8 @@ export async function runAnalysisPipeline(
     skeptic,
     negotiator,
     profiler,
-    spy
+    spy,
+    callClassification
   );
 
   const coachResult = await executeAgent(coachConfig, coachingReport, supabase, callId);

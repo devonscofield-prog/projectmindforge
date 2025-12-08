@@ -227,3 +227,27 @@ export const CoachingSynthesisSchema = z.object({
 });
 
 export type CoachingSynthesis = z.infer<typeof CoachingSynthesisSchema>;
+
+// --- 9. THE SENTINEL (Call Classification) ---
+export const CallClassificationSchema = z.object({
+  detected_call_type: z.enum([
+    'full_cycle_sales', 
+    'discovery_only', 
+    'demo_only', 
+    'closing_call', 
+    'reconnect', 
+    'check_in', 
+    'group_demo', 
+    'internal_roleplay',
+    'unknown'
+  ]).describe("The detected type of sales call"),
+  confidence: z.enum(['High', 'Medium', 'Low']).describe("Confidence level in the classification"),
+  detection_signals: z.array(z.string()).describe("Key signals that led to this classification"),
+  scoring_hints: z.object({
+    discovery_expectation: z.enum(['heavy', 'moderate', 'light', 'none']).describe("How much discovery is expected for this call type"),
+    monologue_tolerance: z.enum(['strict', 'lenient']).describe("Whether long monologues are acceptable"),
+    talk_ratio_ideal: z.number().describe("Ideal rep talk percentage for this call type"),
+  }),
+});
+
+export type CallClassification = z.infer<typeof CallClassificationSchema>;

@@ -208,7 +208,10 @@ Deno.serve(async (req) => {
       analysis_coaching: result.coaching,
       analysis_pipeline_version: 'v2-registry',
       call_summary: result.metadata.summary,
-      raw_json: result.warnings.length > 0 ? { analysis_warnings: result.warnings } : null,
+      raw_json: {
+        ...(result.warnings.length > 0 ? { analysis_warnings: result.warnings } : {}),
+        ...(result.callClassification ? { call_classification: result.callClassification } : {}),
+      },
     };
 
     if (existingAnalysis) {
