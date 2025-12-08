@@ -128,44 +128,26 @@ function GaugeBar({ value, max, label, sublabel, icon, colorThresholds }: GaugeB
   );
 }
 
-// Interactive Monologue Alert
+// Monologue Alert
 interface MonologueAlertProps {
   violationCount: number;
   longestTurnWords: number;
-  onSeekToTimestamp?: (timestamp: string) => void;
 }
 
-function MonologueAlert({ violationCount, longestTurnWords, onSeekToTimestamp }: MonologueAlertProps) {
-  // Estimate timestamp (in real implementation, this would come from analysis data)
-  const estimatedTimestamp = "21:01"; // Placeholder - would come from actual data
-  
+function MonologueAlert({ violationCount, longestTurnWords }: MonologueAlertProps) {
   return (
     <div className="rounded-lg border border-orange-500/50 bg-orange-500/10 p-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-start gap-3">
-          <AlertTriangle className="h-5 w-5 text-orange-500 shrink-0 mt-0.5" />
-          <div>
-            <h4 className="font-semibold text-orange-700 dark:text-orange-400">
-              Monologue Warning
-            </h4>
-            <p className="text-sm text-orange-600 dark:text-orange-300">
-              {violationCount} monologue{violationCount > 1 ? 's' : ''} detected • 
-              Longest turn: {longestTurnWords} words
-            </p>
-          </div>
+      <div className="flex items-start gap-3">
+        <AlertTriangle className="h-5 w-5 text-orange-500 shrink-0 mt-0.5" />
+        <div>
+          <h4 className="font-semibold text-orange-700 dark:text-orange-400">
+            Monologue Warning
+          </h4>
+          <p className="text-sm text-orange-600 dark:text-orange-300">
+            {violationCount} monologue{violationCount > 1 ? 's' : ''} detected • 
+            Longest turn: {longestTurnWords} words
+          </p>
         </div>
-        
-        {onSeekToTimestamp && (
-          <Button 
-            variant="outline" 
-            size="sm"
-            className="border-orange-500/50 text-orange-600 hover:bg-orange-500/20"
-            onClick={() => onSeekToTimestamp(estimatedTimestamp)}
-          >
-            <Play className="h-4 w-4 mr-2" />
-            Jump to {estimatedTimestamp}
-          </Button>
-        )}
       </div>
     </div>
   );
@@ -238,7 +220,6 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
         <MonologueAlert 
           violationCount={metrics.monologue.violation_count}
           longestTurnWords={metrics.monologue.longest_turn_word_count}
-          onSeekToTimestamp={onSeekToTimestamp}
         />
       )}
 
