@@ -59,16 +59,49 @@ const CALL_METADATA_TOOL = {
   }
 };
 
+// Tool for The Interrogator - dedicated question analysis
+const QUESTION_LEVERAGE_TOOL = {
+  type: "function",
+  function: {
+    name: "analyze_question_leverage",
+    description: "Analyze question/answer dynamics from a sales call transcript",
+    parameters: {
+      type: "object",
+      properties: {
+        score: { type: "number", minimum: 0, maximum: 20, description: "Score 0-20 based on question leverage effectiveness" },
+        explanation: { type: "string", description: "Brief note on question leverage effectiveness" },
+        average_question_length: { type: "number", description: "Average word count of Rep's sales questions" },
+        average_answer_length: { type: "number", description: "Average word count of Prospect's immediate answers" },
+        high_leverage_count: { type: "number", description: "Count of questions where prospect answer was longer than question" },
+        low_leverage_count: { type: "number", description: "Count of questions where question was longer than answer" },
+        high_leverage_examples: { 
+          type: "array", 
+          items: { type: "string" },
+          description: "Exact quotes of the 2 best questions that triggered long, detailed answers"
+        },
+        low_leverage_examples: { 
+          type: "array", 
+          items: { type: "string" },
+          description: "Exact quotes of the 2 worst questions that got minimal responses"
+        },
+        total_sales_questions: { type: "number", description: "Total number of qualifying sales questions found" },
+        yield_ratio: { type: "number", description: "Calculated ratio: average_answer_length / average_question_length" }
+      },
+      required: ["score", "explanation", "average_question_length", "average_answer_length", "high_leverage_count", "low_leverage_count", "high_leverage_examples", "low_leverage_examples", "total_sales_questions", "yield_ratio"]
+    }
+  }
+};
+
 const BEHAVIOR_SCORE_TOOL = {
   type: "function",
   function: {
     name: "score_call_behavior",
-    description: "Analyze and score the behavioral dynamics of a sales call",
+    description: "Analyze and score the behavioral dynamics of a sales call (excluding question analysis)",
     parameters: {
       type: "object",
       properties: {
-        overall_score: { type: "number", minimum: 0, maximum: 100, description: "Overall behavioral score 0-100" },
-        grade: { type: "string", enum: ["Pass", "Fail"], description: "Pass if score >= 60, Fail otherwise" },
+        overall_score: { type: "number", minimum: 0, maximum: 80, description: "Overall behavioral score 0-80 (question_quality added separately)" },
+        grade: { type: "string", enum: ["Pass", "Fail"], description: "Pass if final score >= 60, Fail otherwise" },
         metrics: {
           type: "object",
           properties: {
@@ -94,28 +127,6 @@ const BEHAVIOR_SCORE_TOOL = {
                 }
               },
               required: ["score", "interruption_count", "status"]
-            },
-            question_quality: {
-              type: "object",
-              properties: {
-                score: { type: "number", minimum: 0, maximum: 20, description: "Score 0-20 based on question leverage" },
-                explanation: { type: "string", description: "Brief note on question leverage effectiveness" },
-                average_question_length: { type: "number", description: "Average word count of Rep's sales questions" },
-                average_answer_length: { type: "number", description: "Average word count of Prospect's immediate answers" },
-                high_leverage_count: { type: "number", description: "Count of questions where prospect answer was longer than question" },
-                low_leverage_count: { type: "number", description: "Count of questions where question was longer than answer" },
-                high_leverage_examples: { 
-                  type: "array", 
-                  items: { type: "string" },
-                  description: "List of 2-3 specific questions from the call that triggered long, detailed answers"
-                },
-                low_leverage_examples: { 
-                  type: "array", 
-                  items: { type: "string" },
-                  description: "List of 2-3 specific questions that were closed-ended, leading, or resulted in 1-word answers"
-                }
-              },
-              required: ["score", "explanation", "average_question_length", "average_answer_length", "high_leverage_count", "low_leverage_count", "high_leverage_examples", "low_leverage_examples"]
             },
             monologue: {
               type: "object",
@@ -144,7 +155,7 @@ const BEHAVIOR_SCORE_TOOL = {
               required: ["score", "secured", "details"]
             }
           },
-          required: ["patience", "question_quality", "monologue", "talk_listen_ratio", "next_steps"]
+          required: ["patience", "monologue", "talk_listen_ratio", "next_steps"]
         }
       },
       required: ["overall_score", "grade", "metrics"]
@@ -225,7 +236,60 @@ Rules:
 - If video status is unclear, default to false.
 - For participants, include all named individuals with their roles.`;
 
+// The Interrogator - dedicated question analysis agent
+const INTERROGATOR_SYSTEM_PROMPT = `You are 'The Interrogator', a linguistic analyst. Your ONLY job is to analyze Question/Answer pairs.
+
+**1. EXTRACTION & FILTERING**
+- Scan the transcript for every "?" symbol spoken by the Rep.
+- **DISCARD** any question that is purely logistical:
+  - "Can you see my screen?"
+  - "Is that better?"
+  - "Can you hear me?"
+  - "Does that make sense?"
+  - "Any questions so far?"
+  - "Is 2pm okay?"
+- **DISCARD** rhetorical questions where the Rep keeps talking immediately without waiting for an answer.
+
+**2. LEVERAGE CALCULATION**
+- For each valid Sales Question, measure:
+  - Q = word count of the Rep's question
+  - A = word count of the Prospect's immediate answer (before someone else speaks)
+- **Yield Ratio** = A / Q
+
+**3. CLASSIFICATION**
+- **High Leverage:** Answer word count > Question word count (Rep engaged them effectively)
+- **Low Leverage:** Question word count > Answer word count (Rep lectured or got minimal response)
+
+**4. EXAMPLE SELECTION (CRITICAL)**
+- **High Leverage Examples:** Find the 2 questions with the HIGHEST Yield Ratio (Short Question → Long Answer). Return the EXACT quote of the Rep's question.
+- **Low Leverage Examples:** Find the 2 questions with the LOWEST Yield Ratio (Long Question → One-word Answer). Return the EXACT quote of the Rep's question.
+
+**5. SCORING (0-20 pts)**
+Based on calculated Yield Ratio:
+- Ratio >= 3.0: 20 pts (excellent - prospect talking 3x as much)
+- Ratio >= 2.5: 17 pts
+- Ratio >= 2.0: 14 pts (solid - prospect talking 2x as much)
+- Ratio >= 1.5: 11 pts
+- Ratio >= 1.0: 8 pts (baseline - equal talking)
+- Ratio >= 0.5: 5 pts
+- Ratio < 0.5: 2 pts (poor - rep questions longer than answers)
+
+**EDGE CASE: NO SALES QUESTIONS**
+If NO sales questions remain after filtering (only logistical questions found):
+- Return score: 0
+- Return average_question_length: 0
+- Return average_answer_length: 0
+- Return high_leverage_count: 0
+- Return low_leverage_count: 0
+- Return high_leverage_examples: []
+- Return low_leverage_examples: []
+- Return total_sales_questions: 0
+- Return yield_ratio: 0
+- Return explanation: "No qualifying sales questions detected."`;
+
 const REFEREE_SYSTEM_PROMPT = `You are 'The Referee', a behavioral data analyst. Analyze the transcript for conversational dynamics.
+
+**NOTE:** Question Quality analysis is handled by a separate agent. Focus ONLY on the metrics below.
 
 Rules:
 - **Patience (0-30 pts):** Flag interruptions where a speaker starts before another finishes.
@@ -235,42 +299,8 @@ Rules:
     - interrupter: who interrupted  
     - context: brief description of what was happening when interruption occurred
     - severity: Minor (brief overlap), Moderate (cut off mid-thought), Severe (aggressive/repeated pattern)
+
 - **Monologue (0-20 pts):** Flag any single turn exceeding ~250 words. Deduct points for each violation.
-
-**QUESTION LEVERAGE ANALYSIS (0-20 pts):**
-- **Step A (Filter):** Identify all questions asked by the Rep. DISCARD "Logistical Questions" (e.g., "Can you see my screen?", "Is 2pm okay?", "Can you hear me?", "Does that make sense?", "Any questions so far?").
-- **Step B (Measure):** For the remaining "Sales Questions", calculate the word count of the Question and the word count of the Prospect's immediate Answer.
-- **Step C (Classify):**
-  - **High Leverage:** Prospect Answer word count > Rep Question word count (Rep engaged them effectively).
-  - **Low Leverage:** Rep Question word count > Prospect Answer word count (Rep lectured or led the witness).
-- **Step D (Math):**
-  - Calculate \`average_question_length\` (average word count of Rep's sales questions).
-  - Calculate \`average_answer_length\` (average word count of Prospect's immediate answers).
-  - Calculate the "Yield Ratio" = average_answer_length / average_question_length.
-  - **Score:** Award points based on Yield Ratio:
-    - Ratio >= 3.0: 20 pts (excellent leverage - prospect is talking 3x as much)
-    - Ratio >= 2.5: 17 pts
-    - Ratio >= 2.0: 14 pts (solid - prospect talking 2x as much)
-    - Ratio >= 1.5: 11 pts
-    - Ratio >= 1.0: 8 pts (baseline - equal talking)
-    - Ratio >= 0.5: 5 pts
-    - Ratio < 0.5: 2 pts (poor - rep questions longer than prospect answers)
-
-**5. EXAMPLE EXTRACTION:**
-- Identify the top 2-3 **"High Leverage"** questions (where the Rep asked a short/clear question and got a massive answer).
-- Identify the top 2-3 **"Low Leverage"** questions (where the Rep lectured, asked a leading "Yes/No" question, or got a 1-word response).
-- **Format:** Return exact quotes of the Rep's question only.
-
-**EDGE CASE HANDLING:**
-- If NO sales questions remain after filtering (e.g., only logistical questions found):
-  - Return \`score: 0\`
-  - Return \`average_question_length: 0\`
-  - Return \`average_answer_length: 0\`
-  - Return \`high_leverage_count: 0\`
-  - Return \`low_leverage_count: 0\`
-  - Return \`high_leverage_examples: []\`
-  - Return \`low_leverage_examples: []\`
-  - Return \`explanation: "No qualifying sales questions detected."\`
 
 - **Talk Ratio (0-15 pts):** Score STRICTLY based on rep talk percentage:
   - 40-50%: 15 pts (ideal balance - prospect is talking more)
@@ -280,6 +310,7 @@ Rules:
   - 66-70%: 3 pts
   - 71%+: 0 pts (talking way too much to be effective)
   - <40%: Deduct proportionally (rep may not be engaging enough)
+
 - **Next Steps Commitment (0-15 pts):** Award points based on the specificity of the next step secured:
   - 15 pts: Specific DATE + TIME + AGENDA (e.g., "Let's meet Tuesday at 2pm to review the proposal with your IT team")
   - 12 pts: Specific DATE + TIME, but no clear agenda (e.g., "We're set for Thursday at 10am")
@@ -290,7 +321,9 @@ Rules:
   - IMPORTANT: If a specific calendar invite was scheduled on the call, award 15 pts regardless of whether the agenda was explicitly stated.
 
 Scoring:
-- Grade is "Pass" if overall_score >= 60, otherwise "Fail".`;
+- Calculate overall_score as sum of: patience + monologue + talk_listen_ratio + next_steps (max 80 pts)
+- Grade is "Pass" if overall_score >= 48 (60% of 80), otherwise "Fail".
+- Note: Final score will include question_quality (20 pts) added by a separate agent.`;
 
 const AUDITOR_SYSTEM_PROMPT = `You are a Senior Sales Auditor. Your goal is to measure Deal Health and Strategic Alignment objectively.
 
@@ -374,6 +407,19 @@ export interface BehaviorScore {
       details: string;
     };
   };
+}
+
+export interface QuestionLeverage {
+  score: number;
+  explanation: string;
+  average_question_length: number;
+  average_answer_length: number;
+  high_leverage_count: number;
+  low_leverage_count: number;
+  high_leverage_examples: string[];
+  low_leverage_examples: string[];
+  total_sales_questions: number;
+  yield_ratio: number;
 }
 
 export interface StrategyAudit {
@@ -534,6 +580,29 @@ export async function analyzeCallStrategy(transcript: string): Promise<StrategyA
     }
   );
   
-  console.log('[analyzeCallStrategy] Audit complete, threading score:', result.strategic_threading?.score, ', MEDDPICC score:', result.meddpicc?.overall_score);
+  console.log('[analyzeCallStrategy] Audit complete, threading score:', result.strategic_threading?.score);
   return result as StrategyAudit;
+}
+
+/**
+ * Agent 4: The Interrogator - Analyze question leverage and effectiveness
+ * Uses gemini-2.5-flash with low temperature for precise linguistic analysis
+ */
+export async function analyzeQuestionLeverage(transcript: string): Promise<QuestionLeverage> {
+  console.log('[analyzeQuestionLeverage] Starting question leverage analysis...');
+  
+  const userPrompt = `Analyze this sales call transcript for Question/Answer dynamics. Identify the Rep's questions, filter out logistical questions, and calculate the leverage (Yield Ratio) of each valid sales question:\n\n${transcript}`;
+  
+  const result = await callLovableAI(
+    INTERROGATOR_SYSTEM_PROMPT,
+    userPrompt,
+    QUESTION_LEVERAGE_TOOL,
+    'analyze_question_leverage',
+    {
+      temperature: 0.2, // Low temperature for precise linguistic analysis
+    }
+  );
+  
+  console.log('[analyzeQuestionLeverage] Analysis complete, score:', result.score, ', yield_ratio:', result.yield_ratio);
+  return result as QuestionLeverage;
 }
