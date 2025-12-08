@@ -33,6 +33,7 @@ const RepDetail = lazy(() => import("./pages/manager/RepDetail"));
 
 // Lazy load - Admin pages
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
+const AdminCallHistory = lazy(() => import("./pages/admin/AdminCallHistory"));
 const AdminTeams = lazy(() => import("./pages/admin/AdminTeams"));
 const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
 const AdminUserEdit = lazy(() => import("./pages/admin/AdminUserEdit"));
@@ -181,6 +182,11 @@ const App = () => (
                 <Route path="/admin" element={
                   <ProtectedRoute allowedRoles={['admin']}>
                     <AdminDashboard />
+                  </ProtectedRoute>
+                } />
+                <Route path="/admin/history" element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <AdminCallHistory />
                   </ProtectedRoute>
                 } />
                 <Route path="/admin/teams" element={
