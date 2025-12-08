@@ -154,3 +154,22 @@ export const PsychologyProfileSchema = z.object({
 });
 
 export type PsychologyProfile = z.infer<typeof PsychologyProfileSchema>;
+
+// --- 7. THE COACH (Coaching Synthesis) ---
+export const CoachingSynthesisSchema = z.object({
+  overall_grade: z.enum(['A+', 'A', 'B', 'C', 'D', 'F']),
+  executive_summary: z.string().describe("A 2-sentence Manager's summary of the rep's performance."),
+  
+  // The Prioritization Engine
+  top_3_strengths: z.array(z.string()),
+  top_3_areas_for_improvement: z.array(z.string()),
+  
+  // The "One Big Thing" (Highest Priority)
+  primary_focus_area: z.enum(['Discovery Depth', 'Behavioral Polish', 'Closing/Next Steps', 'Objection Handling', 'Strategic Alignment']),
+  coaching_prescription: z.string().describe("The specific actionable advice to fix the primary focus area."),
+  
+  // The "why" behind the grade
+  grade_reasoning: z.string()
+});
+
+export type CoachingSynthesis = z.infer<typeof CoachingSynthesisSchema>;
