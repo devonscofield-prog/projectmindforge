@@ -414,13 +414,19 @@ function RepDashboard() {
                       </Label>
                     </div>
                     {additionalSpeakersEnabled && (
-                      <Input 
-                        placeholder="Enter names separated by commas (e.g., John Smith, Sarah Jones)"
-                        value={additionalSpeakersText}
-                        onChange={e => setAdditionalSpeakersText(e.target.value)}
-                        disabled={isSubmitting}
-                        className="text-sm"
-                      />
+                      <div className="space-y-1">
+                        <Input 
+                          placeholder="Enter names separated by commas (e.g., John Smith, Sarah Jones)"
+                          value={additionalSpeakersText}
+                          onChange={e => setAdditionalSpeakersText(e.target.value)}
+                          disabled={isSubmitting}
+                          maxLength={200}
+                          className="text-sm"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Max 5 additional speakers
+                        </p>
+                      </div>
                     )}
                   </div>
 

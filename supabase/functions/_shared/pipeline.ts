@@ -61,8 +61,8 @@ export interface PipelineResult {
 // Delay between batches to allow rate limits to recover (reduced for P1)
 const BATCH_DELAY_MS = 300;
 
-// Async agent result holder (for non-blocking Skeptic)
-let pendingSkepticResult: Promise<AgentResult<SkepticOutput>> | null = null;
+// Minimum ratio of labeled transcript to original (truncation guard)
+const MIN_LABELED_TRANSCRIPT_RATIO = 0.8;
 
 // ============= CONTEXT-AWARE PROMPT BUILDERS =============
 
@@ -284,8 +284,7 @@ function checkTimeout(startTime: number, phase: string): void {
  * 
  * Phase 0: Speaker Labeler (pre-processing with speaker context)
  * Batch 1 (Critical): Census, Historian, Spy
- * Batch 2 (Strategic): Profiler, Strategist, Referee, Interrogator - uses Batch 1 outputs
- * Batch 3 (Deep Dive): Skeptic, Negotiator - uses Batch 1 & 2 outputs
+ * Batch 2 (Strategic): Profiler, Strategist, Referee, Interrogator, Negotiator + Skeptic (async)
  * Phase 2: Coach - synthesizes all outputs
  */
 export async function runAnalysisPipeline(
@@ -296,6 +295,9 @@ export async function runAnalysisPipeline(
 ): Promise<PipelineResult> {
   const pipelineStart = performance.now();
   const warnings: string[] = [];
+
+  // Async agent result holder (scoped to this pipeline run to avoid race conditions)
+  let pendingSkepticResult: Promise<AgentResult<SkepticOutput>> | null = null;
 
   // Determine which transcript to use (labeled or raw)
   let processedTranscript = transcript;
@@ -320,8 +322,22 @@ export async function runAnalysisPipeline(
       if (labelerResult.success) {
         const labelerData = labelerResult.data as SpeakerLabelerOutput;
         if (labelerData.labeled_transcript) {
-          processedTranscript = labelerData.labeled_transcript;
-          console.log(`[Pipeline] Phase 0 complete in ${Math.round(phase0Duration)}ms - ${labelerData.speaker_count} speakers detected (${labelerData.detection_confidence} confidence)`);
+          // Truncation guard: verify labeled transcript is at least 80% of original length
+          const labeledLength = labelerData.labeled_transcript.length;
+          const originalLength = transcript.length;
+          const ratio = labeledLength / originalLength;
+          
+          if (ratio >= MIN_LABELED_TRANSCRIPT_RATIO) {
+            processedTranscript = labelerData.labeled_transcript;
+            console.log(`[Pipeline] Phase 0 complete in ${Math.round(phase0Duration)}ms - ${labelerData.speaker_count} speakers detected (${labelerData.detection_confidence} confidence)`);
+            // Log speaker mapping for debugging
+            if (labelerData.speaker_mapping && labelerData.speaker_mapping.length > 0) {
+              console.log(`[Pipeline] Speaker mapping: ${JSON.stringify(labelerData.speaker_mapping)}`);
+            }
+          } else {
+            warnings.push(`Speaker labeling truncated (${Math.round(ratio * 100)}% of original), using raw transcript`);
+            console.log(`[Pipeline] Phase 0 truncated: labeled=${labeledLength} chars, original=${originalLength} chars (${Math.round(ratio * 100)}%), falling back to raw`);
+          }
         } else {
           warnings.push('Speaker labeling succeeded but returned empty transcript, using raw transcript');
           console.log(`[Pipeline] Phase 0 returned empty labeled transcript, falling back to raw`);
@@ -388,7 +404,7 @@ export async function runAnalysisPipeline(
 
   // ============= BATCH 2: Strategic + Deep Dive (P1 Optimized) =============
   // Skeptic runs async (non-blocking) to reduce critical path
-  // Note: Use processedTranscript (labeled) for analysis
+  // Skeptic runs async (non-blocking) and we await before Coach
   console.log('[Pipeline] Batch 2/2: Running Profiler, Strategist, Referee, Interrogator, Negotiator + Skeptic (async)...');
   const batch2Start = performance.now();
 
