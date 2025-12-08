@@ -13,6 +13,16 @@ import { createToolFromSchema } from './zod-to-json-schema.ts';
 const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const AI_GATEWAY_TIMEOUT_MS = 55000; // 55s to leave buffer before 60s edge function timeout
 
+// Per-agent timeouts based on model (P1 optimization)
+const AGENT_TIMEOUT_MS = {
+  'google/gemini-2.5-flash': 15000,  // 15s for flash models
+  'google/gemini-2.5-pro': 30000,    // 30s for pro models (reduced from 45s)
+} as const;
+
+export function getAgentTimeout(model: 'google/gemini-2.5-flash' | 'google/gemini-2.5-pro'): number {
+  return AGENT_TIMEOUT_MS[model] || 15000;
+}
+
 // ============= TYPES =============
 
 export interface AgentResult<T> {
@@ -87,6 +97,9 @@ async function callLovableAI<T extends z.ZodTypeAny>(
   }
 
   let lastError: Error | null = null;
+  
+  // Use per-agent timeout instead of global timeout (P1 optimization)
+  const agentTimeoutMs = getAgentTimeout(config.options.model);
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     if (attempt > 0) {
@@ -95,9 +108,9 @@ async function callLovableAI<T extends z.ZodTypeAny>(
       await delay(delayMs);
     }
 
-    // Create AbortController with timeout
+    // Create AbortController with per-agent timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), AI_GATEWAY_TIMEOUT_MS);
+    const timeoutId = setTimeout(() => controller.abort(), agentTimeoutMs);
 
     let response: Response;
     try {
@@ -113,7 +126,8 @@ async function callLovableAI<T extends z.ZodTypeAny>(
     } catch (fetchError) {
       clearTimeout(timeoutId);
       if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-        lastError = new Error(`AI Gateway timeout after ${AI_GATEWAY_TIMEOUT_MS / 1000}s`);
+        lastError = new Error(`Agent ${config.id} timeout after ${agentTimeoutMs / 1000}s`);
+        console.warn(`[agent-factory] ${config.id} timed out after ${agentTimeoutMs}ms`);
         continue; // Retry on timeout
       }
       throw fetchError;
