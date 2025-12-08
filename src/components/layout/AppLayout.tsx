@@ -56,6 +56,7 @@ function SidebarNav() {
   const navItems = role === 'admin' 
     ? [
         { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
+        { href: '/admin/history', label: 'Call History', icon: History },
         { href: '/admin/users', label: 'Users', icon: Users },
         { href: '/admin/teams', label: 'Teams', icon: Users },
         { href: '/admin/accounts', label: 'Accounts', icon: UserCheck },
