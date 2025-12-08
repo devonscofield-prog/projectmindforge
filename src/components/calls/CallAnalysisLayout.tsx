@@ -285,7 +285,7 @@ export function CallAnalysisLayout({
           <CardContent className="p-0">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
               {/* Left: Names + Persona */}
-              <div className="space-y-4 lg:max-w-sm">
+              <div className="space-y-4 lg:max-w-md">
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-1">
                     <h2 className="text-xl font-semibold">{prospectName}</h2>
@@ -304,16 +304,17 @@ export function CallAnalysisLayout({
                     </Button>
                   )}
                 </div>
+                
+                {/* Prospect Persona Card */}
+                {psychologyData && (
+                  <ProspectPersonaCard psychology={psychologyData} />
+                )}
+              </div>
               
               {/* Right: Big Scores */}
               <div className="flex justify-center gap-8 lg:gap-12">
                 <CircularScore score={behaviorScore} label="Behavior" />
                 <CircularScore score={strategyScore} label="Strategy" />
-              </div>
-                {/* Prospect Persona Card - Compact in Hero */}
-                {psychologyData && (
-                  <ProspectPersonaCard psychology={psychologyData} />
-                )}
               </div>
             </div>
 
