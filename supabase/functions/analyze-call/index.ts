@@ -12,7 +12,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 import { UUID_REGEX } from './lib/constants.ts';
-import { getCorsHeaders } from './lib/cors.ts';
+import { getCorsHeaders, checkRateLimit } from './lib/cors.ts';
 import { 
   analyzeCallMetadata, 
   analyzeCallBehavior, 
@@ -24,6 +24,9 @@ import {
   type StrategyAudit,
   type MergedBehaviorScore,
 } from '../_shared/analysis-agents.ts';
+
+// Minimum transcript length for meaningful analysis
+const MIN_TRANSCRIPT_LENGTH = 500;
 
 // Default fallback objects for failed agents
 const DEFAULT_BEHAVIOR: BehaviorScore = {
@@ -95,28 +98,58 @@ serve(async (req) => {
     );
   }
 
-  // Store call_id early for error handling
-  let callId: string | null = null;
+  // Enforce rate limiting immediately after authentication
+  const rateLimitResult = checkRateLimit(user.id);
+  if (!rateLimitResult.allowed) {
+    console.log(`[analyze-call] Rate limit exceeded for user ${user.id}, retry after ${rateLimitResult.retryAfter}s`);
+    return new Response(
+      JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
+      { 
+        status: 429, 
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json',
+          'Retry-After': String(rateLimitResult.retryAfter || 60),
+        } 
+      }
+    );
+  }
+
+  // Store call_id early for error handling (declared outside try block)
+  let targetCallId: string | null = null;
 
   try {
+    // Recover any stuck transcripts from previous crashes (run once per function invocation)
+    try {
+      const { data: recovered, error: recoverError } = await supabaseAdmin.rpc('recover_stuck_processing_transcripts');
+      if (recoverError) {
+        console.warn('[analyze-call] Failed to recover stuck transcripts:', recoverError.message);
+      } else if (recovered && recovered.length > 0) {
+        console.log(`[analyze-call] Recovered ${recovered.length} stuck transcript(s):`, recovered.map((r: any) => r.transcript_id));
+      }
+    } catch (recoverErr) {
+      // Non-critical, log and continue
+      console.warn('[analyze-call] Error recovering stuck transcripts:', recoverErr);
+    }
+
     // Parse and validate input
     const body = await req.json();
-    callId = body.call_id;
+    targetCallId = body.call_id; // Assign early for error handling
 
-    if (!callId || typeof callId !== 'string' || !UUID_REGEX.test(callId)) {
+    if (!targetCallId || typeof targetCallId !== 'string' || !UUID_REGEX.test(targetCallId)) {
       return new Response(
         JSON.stringify({ error: 'Invalid call_id' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`[analyze-call] Starting Analysis 2.0 for call_id: ${callId}, user: ${user.id}`);
+    console.log(`[analyze-call] Starting Analysis 2.0 for call_id: ${targetCallId}, user: ${user.id}`);
 
     // Fetch the transcript
     const { data: transcript, error: fetchError } = await supabaseAdmin
       .from('call_transcripts')
       .select('id, raw_text, rep_id, account_name, analysis_status')
-      .eq('id', callId)
+      .eq('id', targetCallId)
       .is('deleted_at', null)
       .maybeSingle();
 
@@ -135,11 +168,20 @@ serve(async (req) => {
       );
     }
 
+    // Input validation: Check transcript length
+    if (!transcript.raw_text || transcript.raw_text.trim().length < MIN_TRANSCRIPT_LENGTH) {
+      console.warn(`[analyze-call] Transcript too short: ${transcript.raw_text?.length || 0} chars (min: ${MIN_TRANSCRIPT_LENGTH})`);
+      return new Response(
+        JSON.stringify({ error: `Transcript too short for analysis. Minimum ${MIN_TRANSCRIPT_LENGTH} characters required.` }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Check if already being processed (idempotency)
     if (transcript.analysis_status === 'processing') {
       console.log('[analyze-call] Already processing, skipping');
       return new Response(
-        JSON.stringify({ error: 'Analysis already in progress', call_id: callId }),
+        JSON.stringify({ error: 'Analysis already in progress', call_id: targetCallId }),
         { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -148,7 +190,7 @@ serve(async (req) => {
     const { error: statusUpdateError } = await supabaseAdmin
       .from('call_transcripts')
       .update({ analysis_status: 'processing', analysis_error: null })
-      .eq('id', callId);
+      .eq('id', targetCallId);
 
     if (statusUpdateError) {
       console.error('[analyze-call] Failed to update status to processing:', statusUpdateError);
@@ -228,7 +270,7 @@ serve(async (req) => {
     const { data: existingAnalysis } = await supabaseAdmin
       .from('ai_call_analysis')
       .select('id')
-      .eq('call_id', callId)
+      .eq('call_id', targetCallId)
       .maybeSingle();
 
     // Prepare the analysis data including warnings
@@ -258,7 +300,7 @@ serve(async (req) => {
       const { error: insertError } = await supabaseAdmin
         .from('ai_call_analysis')
         .insert({
-          call_id: callId,
+          call_id: targetCallId,
           rep_id: transcript.rep_id,
           model_name: 'google/gemini-2.5-flash,google/gemini-2.5-pro',
           ...analysisData,
@@ -277,18 +319,18 @@ serve(async (req) => {
         analysis_status: 'completed',
         analysis_version: 'v2'
       })
-      .eq('id', callId);
+      .eq('id', targetCallId);
 
     if (completeError) {
       console.error('[analyze-call] Failed to update status to completed:', completeError);
     }
 
-    console.log(`[analyze-call] Analysis 2.0 complete for call_id: ${callId}`);
+    console.log(`[analyze-call] Analysis 2.0 complete for call_id: ${targetCallId}`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        call_id: callId,
+        call_id: targetCallId,
         analysis_version: 'v2',
         metadata: metadataResult,
         behavior: behaviorResult,
@@ -303,18 +345,22 @@ serve(async (req) => {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('[analyze-call] Error:', errorMessage);
 
-    // Try to update transcript status to error (use stored callId instead of re-parsing)
-    if (callId && UUID_REGEX.test(callId)) {
+    // Update transcript status to error using stored targetCallId (no re-parsing needed)
+    if (targetCallId && UUID_REGEX.test(targetCallId)) {
       try {
-        await supabaseAdmin
+        const { error: statusErr } = await supabaseAdmin
           .from('call_transcripts')
           .update({ 
             analysis_status: 'error',
             analysis_error: errorMessage 
           })
-          .eq('id', callId);
+          .eq('id', targetCallId);
+        
+        if (statusErr) {
+          console.error('[analyze-call] Failed to update error status:', statusErr);
+        }
       } catch (e) {
-        console.error('[analyze-call] Failed to update error status:', e);
+        console.error('[analyze-call] Exception updating error status:', e);
       }
     }
 
