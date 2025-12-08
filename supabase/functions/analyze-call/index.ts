@@ -1,7 +1,13 @@
 /**
- * analyze-call Edge Function - Analysis 2.0 Pipeline (Refactored)
+ * analyze-call Edge Function - Analysis 2.0 Pipeline (P1 Optimized)
  * 
  * Uses the Agent Registry pattern for clean, maintainable agent orchestration.
+ * 
+ * P1 Optimizations (2024-12):
+ * - Per-agent timeouts (15s flash, 30s pro) with graceful degradation
+ * - Skeptic runs async (non-blocking) to reduce critical path
+ * - Simplified Negotiator/Spy prompts for faster inference
+ * - Request deduplication via row-level locking
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";

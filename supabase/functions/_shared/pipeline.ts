@@ -1,16 +1,19 @@
 /**
- * Analysis Pipeline Orchestrator - Context-Aware Batched Execution
+ * Analysis Pipeline Orchestrator - P1 Optimized
  * 
- * Runs agents in 3 sequential batches with context passing between batches:
- * - Batch 1: Critical (Census, Historian, Spy)
- * - Batch 2: Strategic (Profiler, Strategist, Referee, Interrogator) - uses Batch 1 context
- * - Batch 3: Deep Dive (Skeptic, Negotiator) - uses Batch 1 & 2 context
- * - Phase 2: Coach (synthesis) - uses all batch outputs
+ * Performance optimizations (P1):
+ * - Skeptic runs async (non-blocking) at start of Batch 2
+ * - Per-agent timeouts with graceful degradation
+ * - Reduced batch count from 3 to 2 + async Skeptic
+ * 
+ * Batch 1: Critical (Census, Historian, Spy)
+ * Batch 2: Strategic (Profiler, Strategist, Referee, Interrogator, Negotiator) + Skeptic (async)
+ * Phase 2: Coach (synthesis)
  */
 
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getAgent, AgentConfig } from './agent-registry.ts';
-import { executeAgent, executeAgentWithPrompt, AgentResult } from './agent-factory.ts';
+import { executeAgent, executeAgentWithPrompt, AgentResult, getAgentTimeout } from './agent-factory.ts';
 import {
   CensusOutput,
   HistorianOutput,
@@ -41,8 +44,11 @@ export interface PipelineResult {
   totalDurationMs: number;
 }
 
-// Delay between batches to allow rate limits to recover (500ms minimum for faster Flash models)
-const BATCH_DELAY_MS = 500;
+// Delay between batches to allow rate limits to recover (reduced for P1)
+const BATCH_DELAY_MS = 300;
+
+// Async agent result holder (for non-blocking Skeptic)
+let pendingSkepticResult: Promise<AgentResult<SkepticOutput>> | null = null;
 
 // ============= CONTEXT-AWARE PROMPT BUILDERS =============
 
@@ -301,20 +307,33 @@ export async function runAnalysisPipeline(
   // Small delay between batches to let rate limits recover
   await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
 
-  // ============= BATCH 2: Strategic Agents (Profiler, Strategist, Referee, Interrogator) =============
-  console.log('[Pipeline] Batch 2/3: Running Profiler, Strategist, Referee, Interrogator (context-aware)...');
+  // ============= BATCH 2: Strategic + Deep Dive (P1 Optimized) =============
+  // Skeptic runs async (non-blocking) to reduce critical path
+  console.log('[Pipeline] Batch 2/2: Running Profiler, Strategist, Referee, Interrogator, Negotiator + Skeptic (async)...');
   const batch2Start = performance.now();
 
   // Build context-aware prompts
   const profilerPrompt = buildProfilerPrompt(transcript, primaryDecisionMaker?.name);
   const strategistPrompt = buildStrategistPrompt(transcript, callSummary);
   const behaviorPrompt = buildBehaviorPrompt(transcript, callSummary);
+  const competitorNames = spyResult.success 
+    ? spy.competitive_intel.map(c => c.competitor_name) 
+    : undefined;
+  const negotiatorPrompt = buildNegotiatorPrompt(transcript, competitorNames, undefined);
 
-  const [profilerResult, strategistResult, refereeResult, interrogatorResult] = await Promise.all([
+  // Fire Skeptic async (non-blocking) - P1 optimization
+  // This runs independently and we'll await it before Coach
+  const skepticPrompt = buildSkepticPrompt(transcript, undefined); // No context needed for P1
+  pendingSkepticResult = executeAgentWithPrompt(skepticConfig, skepticPrompt, supabase, callId);
+  console.log('[Pipeline] Skeptic fired async (non-blocking)');
+
+  // Run remaining agents in parallel
+  const [profilerResult, strategistResult, refereeResult, interrogatorResult, negotiatorResult] = await Promise.all([
     executeAgentWithPrompt(profilerConfig, profilerPrompt, supabase, callId),
     executeAgentWithPrompt(strategistConfig, strategistPrompt, supabase, callId),
     executeAgentWithPrompt(refereeConfig, behaviorPrompt, supabase, callId),
-    executeAgent(interrogatorConfig, transcript, supabase, callId), // No extra context needed
+    executeAgent(interrogatorConfig, transcript, supabase, callId),
+    executeAgentWithPrompt(negotiatorConfig, negotiatorPrompt, supabase, callId),
   ]);
 
   const batch2Duration = performance.now() - batch2Start;
@@ -328,48 +347,24 @@ export async function runAnalysisPipeline(
   if (!strategistResult.success) warnings.push(`Strategy analysis failed: ${strategistResult.error}`);
   if (!refereeResult.success) warnings.push(`Behavior analysis failed: ${refereeResult.error}`);
   if (!interrogatorResult.success) warnings.push(`Question analysis failed: ${interrogatorResult.error}`);
-
-  // Extract context from Batch 2 for Batch 3
-  const strategist = strategistResult.data as StrategistOutput;
-  const missedOpportunities = strategistResult.success 
-    ? strategist.strategic_threading.missed_opportunities 
-    : undefined;
-  const competitorNames = spyResult.success 
-    ? spy.competitive_intel.map(c => c.competitor_name) 
-    : undefined;
-  const pitchedFeatures = strategistResult.success 
-    ? strategist.strategic_threading.relevance_map.map(r => r.feature_pitched) 
-    : undefined;
-
-  // Small delay between batches
-  await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
-
-  // ============= BATCH 3: Deep Dive Agents (Skeptic, Negotiator) =============
-  console.log('[Pipeline] Batch 3/3: Running Skeptic, Negotiator (context-aware)...');
-  const batch3Start = performance.now();
-
-  // Build context-aware prompts using Batch 1 & 2 outputs
-  const skepticPrompt = buildSkepticPrompt(transcript, missedOpportunities);
-  const negotiatorPrompt = buildNegotiatorPrompt(transcript, competitorNames, pitchedFeatures);
-
-  const [skepticResult, negotiatorResult] = await Promise.all([
-    executeAgentWithPrompt(skepticConfig, skepticPrompt, supabase, callId),
-    executeAgentWithPrompt(negotiatorConfig, negotiatorPrompt, supabase, callId),
-  ]);
-
-  const batch3Duration = performance.now() - batch3Start;
-  console.log(`[Pipeline] Batch 3 complete in ${Math.round(batch3Duration)}ms`);
-
-  if (!skepticResult.success) warnings.push(`Deal gaps analysis failed: ${skepticResult.error}`);
   if (!negotiatorResult.success) warnings.push(`Objection handling analysis failed: ${negotiatorResult.error}`);
+
+  // Now await Skeptic (should be done or nearly done)
+  console.log('[Pipeline] Awaiting async Skeptic result...');
+  const skepticResult = await pendingSkepticResult;
+  pendingSkepticResult = null; // Clear for next run
+  
+  if (!skepticResult.success) warnings.push(`Deal gaps analysis failed: ${skepticResult.error}`);
+  console.log(`[Pipeline] Skeptic complete (was running async)`);
   
   // Check timeout before Phase 2
   checkTimeout(pipelineStart, 'Before Phase 2');
 
-  const phase1Duration = batch1Duration + batch2Duration + batch3Duration + (BATCH_DELAY_MS * 2);
+  const phase1Duration = batch1Duration + batch2Duration + BATCH_DELAY_MS;
   console.log(`[Pipeline] Phase 1 (all 3 batches) complete in ${Math.round(phase1Duration)}ms (${warnings.length} warnings)`);
 
   // ============= MERGE PHASE 1 RESULTS =============
+  const strategist = strategistResult.data as StrategistOutput;
   const referee = refereeResult.data as RefereeOutput;
   const interrogator = interrogatorResult.data as InterrogatorOutput;
   const skeptic = skepticResult.data as SkepticOutput;
