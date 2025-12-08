@@ -139,7 +139,7 @@ ${objections.objections_detected?.length > 0 ? objections.objections_detected.ma
 - Don't: ${psychology.dos_and_donts.dont?.join(', ') || 'N/A'}
 
 ### 8. COMPETITIVE INTEL (The Spy)
-${competitors.competitive_intel?.length > 0 ? competitors.competitive_intel.map(c => `- ${c.competitor_name} (${c.usage_status}, Threat: ${c.threat_level}): Strengths: ${c.strengths_mentioned?.join(', ') || 'None'}; Weaknesses: ${c.weaknesses_mentioned?.join(', ') || 'None'}`).join('\n') : 'No competitors mentioned.'}
+${competitors.competitive_intel?.length > 0 ? competitors.competitive_intel.map(c => `- ${c.competitor_name} (${c.usage_status}, Position: ${c.competitive_position}): Strengths: ${c.strengths_mentioned?.join(', ') || 'None'}; Weaknesses: ${c.weaknesses_mentioned?.join(', ') || 'None'}; Strategy: ${c.positioning_strategy}`).join('\n') : 'No competitors mentioned.'}
 `;
 }
 
