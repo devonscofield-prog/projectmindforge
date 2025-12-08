@@ -1359,3 +1359,200 @@ export async function analyzeCompetitors(transcript: string): Promise<Competitiv
   console.log('[analyzeCompetitors] Analysis complete, found', result.competitive_intel?.length || 0, 'competitors');
   return result as CompetitiveIntel;
 }
+
+// ============= AGENT 9: THE COACH =============
+
+// Type definitions for coaching synthesis
+export interface CoachingSynthesis {
+  overall_grade: 'A+' | 'A' | 'B' | 'C' | 'D' | 'F';
+  executive_summary: string;
+  top_3_strengths: string[];
+  top_3_areas_for_improvement: string[];
+  primary_focus_area: 'Discovery Depth' | 'Behavioral Polish' | 'Closing/Next Steps' | 'Objection Handling' | 'Strategic Alignment';
+  coaching_prescription: string;
+  grade_reasoning: string;
+}
+
+// Input type for The Coach - aggregated outputs from all agents
+export interface CoachingInputs {
+  metadata: CallMetadata | null;
+  behavior: BehaviorScore | null;
+  questions: QuestionLeverage | null;
+  strategy: StrategicThreading | null;
+  gaps: DealGaps | null;
+  objections: ObjectionHandling | null;
+  psychology: PsychologyProfile | null;
+  competitors: CompetitiveIntel | null;
+}
+
+const CoachingSynthesisValidation = z.object({
+  overall_grade: z.enum(['A+', 'A', 'B', 'C', 'D', 'F']),
+  executive_summary: z.string(),
+  top_3_strengths: z.array(z.string()),
+  top_3_areas_for_improvement: z.array(z.string()),
+  primary_focus_area: z.enum(['Discovery Depth', 'Behavioral Polish', 'Closing/Next Steps', 'Objection Handling', 'Strategic Alignment']),
+  coaching_prescription: z.string(),
+  grade_reasoning: z.string(),
+});
+
+const COACHING_SYNTHESIS_TOOL = {
+  type: "function",
+  function: {
+    name: "synthesize_coaching",
+    description: "Synthesize all analysis into a prioritized coaching plan",
+    parameters: {
+      type: "object",
+      properties: {
+        overall_grade: { 
+          type: "string", 
+          enum: ["A+", "A", "B", "C", "D", "F"],
+          description: "Letter grade for overall call performance"
+        },
+        executive_summary: { 
+          type: "string", 
+          description: "A 2-sentence Manager's summary of the rep's performance"
+        },
+        top_3_strengths: { 
+          type: "array", 
+          items: { type: "string" },
+          description: "The 3 things the rep did best on this call"
+        },
+        top_3_areas_for_improvement: { 
+          type: "array", 
+          items: { type: "string" },
+          description: "The 3 things the rep needs to work on most"
+        },
+        primary_focus_area: { 
+          type: "string", 
+          enum: ["Discovery Depth", "Behavioral Polish", "Closing/Next Steps", "Objection Handling", "Strategic Alignment"],
+          description: "The ONE category that needs the most work"
+        },
+        coaching_prescription: { 
+          type: "string", 
+          description: "Specific actionable advice to fix the primary focus area"
+        },
+        grade_reasoning: { 
+          type: "string", 
+          description: "The why behind the grade - what drove this assessment"
+        }
+      },
+      required: ["overall_grade", "executive_summary", "top_3_strengths", "top_3_areas_for_improvement", "primary_focus_area", "coaching_prescription", "grade_reasoning"]
+    }
+  }
+};
+
+const COACH_SYSTEM_PROMPT = `You are 'The Coach', a VP of Sales. You have received detailed reports from 9 specialized analysts about a specific call.
+
+**YOUR GOAL:**
+Cut through the noise. Don't just repeat the data points. Identify the **Root Cause** of success or failure.
+
+**LOGIC TREE (Priority Order):**
+1. **Check Strategy First:** Did they pitch the wrong thing? (Relevance Map shows misalignment). Did they miss Budget or Authority? (Critical Gaps). If Strategy is 'Fail', nothing else matters. The primary focus is "Strategic Alignment."
+2. **Check Discovery Second:** If Strategy is fine, were questions superficial? (Low yield ratio < 1.5, few high-leverage questions). Focus on "Discovery Depth."
+3. **Check Objections Third:** If Discovery was good, did they fumble objections? (Objection handling score < 60 or multiple "Bad" ratings). Focus on "Objection Handling."
+4. **Check Mechanics Fourth:** If all above are good, but they interrupted 5+ times or monologued excessively? Focus on "Behavioral Polish."
+5. **Check Closing Last:** If everything else was solid but no next steps secured? Focus on "Closing/Next Steps."
+
+**GRADING RUBRIC:**
+- A+ (95-100): Exceptional - textbook call, would use for training
+- A (85-94): Excellent - minor polish points only
+- B (70-84): Good - solid fundamentals, 1-2 clear improvement areas
+- C (55-69): Average - multiple gaps, needs coaching
+- D (40-54): Below expectations - significant issues
+- F (<40): Poor - fundamental problems, needs immediate intervention
+
+**OUTPUT RULES:**
+- Strengths and improvements must be SPECIFIC (not "good discovery" but "asked 3 questions that uncovered the security budget")
+- Coaching prescription must be ACTIONABLE (not "improve objection handling" but "When they said price was too high, you deflected. Next time, use 'Compared to what?' to anchor value.")
+- Executive summary is for a busy manager - 2 sentences max, get to the point`;
+
+/**
+ * Agent 9: The Coach - Synthesize all insights into prioritized coaching plan
+ * Uses gemini-2.5-pro for high-level reasoning and synthesis
+ * MUST run AFTER all other agents complete (sequential, not parallel)
+ */
+export async function synthesizeCoaching(inputs: CoachingInputs): Promise<CoachingSynthesis> {
+  console.log('[synthesizeCoaching] Starting coaching synthesis with Pro model...');
+  
+  // Format all agent outputs into a structured report for The Coach
+  const analysisReport = `
+## AGENT REPORTS FOR THIS CALL
+
+### 1. CALL METADATA (The Census & Historian)
+${inputs.metadata ? `
+- Summary: ${inputs.metadata.summary}
+- Key Topics: ${inputs.metadata.topics?.join(', ') || 'None identified'}
+- Participants: ${inputs.metadata.participants?.map(p => `${p.name} (${p.role}, ${p.sentiment}${p.is_decision_maker ? ', Decision Maker' : ''})`).join('; ') || 'Unknown'}
+- Duration: ${inputs.metadata.logistics?.duration_minutes || 'Unknown'} minutes
+` : 'No metadata available.'}
+
+### 2. BEHAVIORAL SCORE (The Referee)
+${inputs.behavior ? `
+- Overall Score: ${inputs.behavior.overall_score}/100 (${inputs.behavior.grade})
+- Patience: ${inputs.behavior.metrics.patience.score}/30 (${inputs.behavior.metrics.patience.interruption_count} interruptions, ${inputs.behavior.metrics.patience.status})
+- Monologue: ${inputs.behavior.metrics.monologue.score}/20 (${inputs.behavior.metrics.monologue.violation_count} violations, longest turn ${inputs.behavior.metrics.monologue.longest_turn_word_count} words)
+- Talk/Listen Ratio: ${inputs.behavior.metrics.talk_listen_ratio.score}/15 (Rep talked ${inputs.behavior.metrics.talk_listen_ratio.rep_talk_percentage}%)
+- Next Steps: ${inputs.behavior.metrics.next_steps.score}/15 (${inputs.behavior.metrics.next_steps.secured ? 'SECURED' : 'NOT SECURED'}: ${inputs.behavior.metrics.next_steps.details})
+` : 'No behavioral data available.'}
+
+### 3. QUESTION LEVERAGE (The Interrogator)
+${inputs.questions ? `
+- Score: ${inputs.questions.score}/20
+- Yield Ratio: ${inputs.questions.yield_ratio}x (Avg Question: ${inputs.questions.average_question_length} words, Avg Answer: ${inputs.questions.average_answer_length} words)
+- High Leverage Questions: ${inputs.questions.high_leverage_count} | Low Leverage: ${inputs.questions.low_leverage_count}
+- Best Questions: ${inputs.questions.high_leverage_examples?.slice(0, 2).map(q => `"${q}"`).join(', ') || 'None'}
+- Worst Questions: ${inputs.questions.low_leverage_examples?.slice(0, 2).map(q => `"${q}"`).join(', ') || 'None'}
+` : 'No question analysis available.'}
+
+### 4. STRATEGIC THREADING (The Strategist)
+${inputs.strategy ? `
+- Score: ${inputs.strategy.strategic_threading.score}/100 (${inputs.strategy.strategic_threading.grade})
+- Relevance Map:
+${inputs.strategy.strategic_threading.relevance_map?.map(r => `  - Pain: "${r.pain_identified}" → Feature: "${r.feature_pitched}" | ${r.is_relevant ? '✓ RELEVANT' : '✗ MISMATCH'}: ${r.reasoning}`).join('\n') || '  No mappings found.'}
+- Missed Opportunities: ${inputs.strategy.strategic_threading.missed_opportunities?.join(', ') || 'None'}
+` : 'No strategy data available.'}
+
+### 5. CRITICAL GAPS (The Skeptic)
+${inputs.gaps && inputs.gaps.critical_gaps?.length > 0 ? `
+${inputs.gaps.critical_gaps.map(g => `- [${g.impact}] ${g.category}: ${g.description} → Ask: "${g.suggested_question}"`).join('\n')}
+` : 'No critical gaps identified.'}
+
+### 6. OBJECTION HANDLING (The Negotiator)
+${inputs.objections?.objection_handling ? `
+- Score: ${inputs.objections.objection_handling.score}/100 (${inputs.objections.objection_handling.grade})
+${inputs.objections.objection_handling.objections_detected?.length > 0 ? inputs.objections.objection_handling.objections_detected.map((o: { handling_rating: string; objection: string; category: string; rep_response: string; coaching_tip: string }) => `- [${o.handling_rating}] "${o.objection}" (${o.category}): ${o.rep_response} | Tip: ${o.coaching_tip}`).join('\n') : '- No objections detected in this call.'}
+` : 'No objection data available.'}
+
+### 7. PROSPECT PSYCHOLOGY (The Profiler)
+${inputs.psychology ? `
+- Persona: ${inputs.psychology.prospect_persona}
+- DISC Profile: ${inputs.psychology.disc_profile}
+- Communication Style: ${inputs.psychology.communication_style.tone}, ${inputs.psychology.communication_style.preference}
+- Do: ${inputs.psychology.dos_and_donts.do?.join(', ') || 'N/A'}
+- Don't: ${inputs.psychology.dos_and_donts.dont?.join(', ') || 'N/A'}
+` : 'No psychology profile available.'}
+
+### 8. COMPETITIVE INTEL (The Spy)
+${inputs.competitors && inputs.competitors.competitive_intel?.length > 0 ? `
+${inputs.competitors.competitive_intel.map(c => `- ${c.competitor_name} (${c.usage_status}, Threat: ${c.threat_level}): Strengths: ${c.strengths_mentioned?.join(', ') || 'None'}; Weaknesses: ${c.weaknesses_mentioned?.join(', ') || 'None'}`).join('\n')}
+` : 'No competitors mentioned.'}
+`;
+
+  const userPrompt = `Based on the following analysis reports from 9 specialized agents, synthesize a coaching plan for the sales rep:\n\n${analysisReport}`;
+  
+  const result = await callLovableAI(
+    COACH_SYSTEM_PROMPT,
+    userPrompt,
+    COACHING_SYNTHESIS_TOOL,
+    'synthesize_coaching',
+    {
+      model: 'google/gemini-2.5-pro',
+      temperature: 0.3,
+      maxTokens: 4096,
+      validationSchema: CoachingSynthesisValidation,
+    }
+  );
+  
+  console.log('[synthesizeCoaching] Synthesis complete, grade:', result.overall_grade, ', focus:', result.primary_focus_area);
+  return result as CoachingSynthesis;
+}
