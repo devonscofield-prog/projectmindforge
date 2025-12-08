@@ -12,6 +12,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { AnalysisProgress } from '@/components/calls/AnalysisProgress';
 import type { CallAnalysis, CallTranscript } from '@/api/aiCallAnalysis';
 
 interface CallAnalysisResultsViewProps {
@@ -122,26 +123,14 @@ export function CallAnalysisResultsView({
     );
   }
 
-  // Loading state for pending/processing
+  // Loading state for pending/processing - show animated progress
+  if (!analysis && (call?.analysis_status === 'pending' || call?.analysis_status === 'processing')) {
+    return <AnalysisProgress isComplete={false} />;
+  }
+
+  // No analysis and not in progress - shouldn't normally reach here
   if (!analysis) {
-    return (
-      <Card>
-        <CardContent className="py-12 text-center">
-          <div className="space-y-4">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mx-auto" />
-            <div>
-              <p className="text-muted-foreground">Analysis in progress...</p>
-              {call?.analysis_status === 'processing' && (
-                <p className="text-sm text-muted-foreground mt-2">Your call is being analyzed by AI. This usually takes 30-60 seconds.</p>
-              )}
-              {call?.analysis_status === 'pending' && (
-                <p className="text-sm text-muted-foreground mt-2">Your call is queued for analysis.</p>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
+    return null;
   }
 
   // Analysis completed - the CallAnalysisLayout component handles rendering
