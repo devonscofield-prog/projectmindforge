@@ -4,7 +4,6 @@
  * Uses the Agent Registry pattern for clean, maintainable agent orchestration.
  */
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 import { UUID_REGEX } from './lib/constants.ts';
@@ -39,7 +38,7 @@ async function triggerBackgroundChunking(callId: string, supabaseUrl: string, se
   }
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   const origin = req.headers.get('Origin');
   const corsHeaders = getCorsHeaders(origin);
   

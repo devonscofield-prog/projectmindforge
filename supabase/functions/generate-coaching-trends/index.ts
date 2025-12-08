@@ -1,4 +1,4 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+// Edge function for generating coaching trends analysis
 
 // CORS: Restrict to production domains
 function getCorsHeaders(origin?: string | null): Record<string, string> {
@@ -470,7 +470,7 @@ function formatChunkSummariesForPrompt(chunks: ChunkSummary[]): string {
   }).join('\n');
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   const origin = req.headers.get('Origin');
   const corsHeaders = getCorsHeaders(origin);
   

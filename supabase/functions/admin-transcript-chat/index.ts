@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // Rate limiting: 15 requests per minute per user
@@ -594,7 +593,7 @@ Extract:
   }
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   const startTime = Date.now();
   const origin = req.headers.get('Origin');
   const corsHeaders = getCorsHeaders(origin);

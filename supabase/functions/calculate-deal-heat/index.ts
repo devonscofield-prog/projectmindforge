@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -98,7 +97,7 @@ Generate a 0-100 \`heat_score\` and explain the \`key_factors\`.
 - Trend: Based on whether momentum indicators are strengthening or weakening
 - Always provide estimated_close_date and close_date_evidence based on timing clues found`;
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
