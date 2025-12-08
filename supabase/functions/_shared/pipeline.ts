@@ -259,7 +259,7 @@ function buildSkepticPrompt(
 // ============= SPY PROMPT BUILDER =============
 
 function buildSpyPrompt(transcript: string, callType?: string): string {
-  const basePrompt = `Analyze this sales call transcript for competitive intelligence. Extract competitor mentions and build battlecard:\n\n${transcript}`;
+  const basePrompt = `Analyze this sales call transcript for competitive intelligence. Extract ONLY training/eLearning competitors and build battlecard:\n\n${transcript}`;
   
   const contextParts: string[] = [];
   
@@ -267,16 +267,23 @@ function buildSpyPrompt(transcript: string, callType?: string): string {
     contextParts.push(`Call Type: ${callType}`);
     
     if (callType === 'pricing_negotiation') {
-      contextParts.push(`NOTE: This is a PRICING NEGOTIATION call. Competitors are more likely to be mentioned as pricing benchmarks. Pay special attention to comparative pricing statements.`);
+      contextParts.push(`NOTE: This is a PRICING NEGOTIATION call. Training competitors are more likely to be mentioned as pricing benchmarks. Pay special attention to comparative pricing statements about OTHER TRAINING PLATFORMS. Ignore pricing discussions about unrelated tools.`);
     } else if (callType === 'technical_deep_dive') {
-      contextParts.push(`NOTE: This is a TECHNICAL DEEP DIVE. Look for competitors mentioned in technical context (features, integrations, APIs). Technical stakeholders often reference alternatives.`);
+      contextParts.push(`NOTE: This is a TECHNICAL DEEP DIVE. The prospect may reference many tools for integrations (SSO, HRIS, cloud platforms). These are INTEGRATION PARTNERS, not competitors. Only flag tools that are competing to provide TRAINING CONTENT.`);
     } else if (callType === 'reconnect') {
-      contextParts.push(`NOTE: This is a RECONNECT call. The prospect may have evaluated competitors since the last meeting. Look for new competitor mentions or changes in evaluation status.`);
+      contextParts.push(`NOTE: This is a RECONNECT call. The prospect may have evaluated NEW training competitors since the last meeting. Look for new eLearning/training platform mentions or changes in evaluation status.`);
+    } else if (callType === 'group_demo') {
+      contextParts.push(`NOTE: This is a GROUP DEMO with multiple stakeholders. Different attendees may reference different tools from their departments. Only flag tools that are TRAINING PLATFORM competitors, not departmental productivity tools.`);
+    } else if (callType === 'executive_alignment') {
+      contextParts.push(`NOTE: This is an EXECUTIVE ALIGNMENT call. Executives may mention high-level vendor relationships. Only flag vendors competing for TRAINING BUDGET, not general enterprise software.`);
     }
   }
   
+  // Always add reminder about focus
+  contextParts.push(`REMINDER: Stormwind sells IT training, security awareness, and eLearning. Only extract competitors selling similar training/learning products. Ignore project management tools, cloud platforms, HR software, and general productivity apps.`);
+  
   if (contextParts.length > 0) {
-    return `${basePrompt}\n\n--- CONTEXT ---\n${contextParts.join('\n')}`;
+    return `${basePrompt}\n\n--- CONTEXT ---\n${contextParts.join('\n\n')}`;
   }
   return basePrompt;
 }
