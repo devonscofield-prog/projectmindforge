@@ -163,8 +163,10 @@ const ObjectionHandlingValidation = z.object({
 });
 
 const PsychologyProfileValidation = z.object({
+  primary_speaker_name: z.string(),
   prospect_persona: z.string(),
   disc_profile: z.enum(['D - Dominance', 'I - Influence', 'S - Steadiness', 'C - Compliance', 'Unknown']),
+  evidence_quote: z.string(),
   communication_style: z.object({
     tone: z.string(),
     preference: z.string(),
@@ -173,6 +175,7 @@ const PsychologyProfileValidation = z.object({
     do: z.array(z.string()),
     dont: z.array(z.string()),
   }),
+  suggested_email_subject: z.string(),
 });
 
 // Tool schemas for structured output extraction
@@ -529,16 +532,18 @@ const PSYCHOLOGY_PROFILE_TOOL = {
   type: "function",
   function: {
     name: "analyze_prospect_psychology",
-    description: "Analyze the prospect's communication style and create a behavioral profile",
+    description: "Analyze the primary decision maker's communication style and create a behavioral profile",
     parameters: {
       type: "object",
       properties: {
+        primary_speaker_name: { type: "string", description: "Name of the person being profiled (the dominant buying voice)" },
         prospect_persona: { type: "string", description: "Archetype (e.g., 'The Data-Driven Skeptic', 'The Busy Executive')" },
         disc_profile: { 
           type: "string", 
           enum: ["D - Dominance", "I - Influence", "S - Steadiness", "C - Compliance", "Unknown"],
           description: "Estimated DISC profile based on speech patterns. Use 'Unknown' if insufficient evidence."
         },
+        evidence_quote: { type: "string", description: "The specific quote or behavior that revealed this profile" },
         communication_style: {
           type: "object",
           properties: {
@@ -562,9 +567,10 @@ const PSYCHOLOGY_PROFILE_TOOL = {
             }
           },
           required: ["do", "dont"]
-        }
+        },
+        suggested_email_subject: { type: "string", description: "Subject line tailored to this persona for follow-up email" }
       },
-      required: ["prospect_persona", "disc_profile", "communication_style", "dos_and_donts"]
+      required: ["primary_speaker_name", "prospect_persona", "disc_profile", "evidence_quote", "communication_style", "dos_and_donts", "suggested_email_subject"]
     }
   }
 };
@@ -1010,8 +1016,10 @@ export interface ObjectionHandling {
 
 // Psychology profile (from The Profiler)
 export interface PsychologyProfile {
+  primary_speaker_name: string;
   prospect_persona: string;
   disc_profile: 'D - Dominance' | 'I - Influence' | 'S - Steadiness' | 'C - Compliance' | 'Unknown';
+  evidence_quote: string;
   communication_style: {
     tone: string;
     preference: string;
@@ -1020,6 +1028,7 @@ export interface PsychologyProfile {
     do: string[];
     dont: string[];
   };
+  suggested_email_subject: string;
 }
 
 // Competitive intel (from The Spy)
@@ -1330,25 +1339,34 @@ export async function analyzeObjections(transcript: string): Promise<ObjectionHa
 }
 
 // The Profiler system prompt
-const PROFILER_SYSTEM_PROMPT = `You are 'The Profiler', a Behavioral Psychologist. Your job is to analyze the PROSPECT'S speech patterns to create a Buying Persona.
+const PROFILER_SYSTEM_PROMPT = `You are 'The Profiler', a Behavioral Psychologist. Your job is to analyze the PRIMARY DECISION MAKER'S speech patterns to create a Buying Persona.
 
-**1. ANALYZE SPEECH CUES**
-- **Short, curt answers?** -> Likely "High D" (Dominance). Wants brevity.
-- **Chatty, enthusiastic, uses emojis/slang?** -> Likely "High I" (Influence). Wants energy.
-- **Slow, hesitant, asks about process?** -> Likely "High S" (Steadiness). Wants safety.
-- **Detailed questions, focuses on accuracy/data?** -> Likely "High C" (Compliance). Wants proof.
+**1. TARGET IDENTIFICATION:**
+- Focus your analysis on the **Primary Decision Maker** (or the external participant who spoke the most).
+- Do NOT "average" multiple people. Pick the single dominant buying voice.
+- Record their name in primary_speaker_name.
 
-**2. PERSONA ARCHETYPES**
+**2. DISC DECODER:**
+- **High D (Dominance):** "Bottom line?", "What's the cost?", Interrupts, Short/curt answers, Impatient.
+- **High I (Influence):** "My team loves...", "I feel...", Jokes/Stories, Enthusiastic, Relationship-focused.
+- **High S (Steadiness):** "How does implementation work?", "I need to check with...", Passive, Risk-averse, Process-focused.
+- **High C (Compliance):** "Does it have SOC2?", "What is the exact API rate limit?", Detailed questions, Data-driven, Skeptical.
+
+**3. PERSONA ARCHETYPES:**
 Create a memorable archetype name that captures their essence:
 - "The Data-Driven Skeptic" (High C who needs evidence)
 - "The Busy Executive" (High D who values time)
 - "The Relationship Builder" (High I who wants connection)
 - "The Risk-Averse Evaluator" (High S who fears change)
 
-**3. OUTPUT**
-- Determine the DISC profile based on language patterns.
-- Prescribe strict "Dos and Donts" for the sales rep's next email/call.
-- Be specific and actionable - not generic advice.`;
+**4. OUTPUT REQUIREMENTS:**
+- **Evidence Quote:** Cite the SPECIFIC quote or behavior that revealed this profile (e.g., "When they said 'Just give me the bottom line'...").
+- **Subject Line:** Write a follow-up email subject line tailored to trigger this persona:
+  - High D: Short, punchy, ROI-focused (e.g., "Quick recap: 3 action items")
+  - High I: Warm, personal, connecting (e.g., "Great chatting today, [Name]!")
+  - High S: Safe, process-oriented (e.g., "Next steps & implementation timeline")
+  - High C: Specific, data-rich (e.g., "Technical specs & compliance docs attached")
+- **Dos/Donts:** Be specific and actionable - not generic advice.`;
 
 /**
  * Agent 7: The Profiler - Analyze prospect psychology and communication style
