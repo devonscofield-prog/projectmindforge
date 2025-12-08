@@ -57,11 +57,20 @@ export const REFEREE_PROMPT = `You are 'The Referee', a behavioral data analyst.
 - **Scoring:** Deduct 5 pts for each *unsolicited* monologue.
 
 **3. TALK RATIO (0-15 pts)**
-- 40-50% Rep Talk: 15 pts (Ideal)
-- 51-55%: 12 pts
-- 56-60%: 9 pts
-- 61-70%: 5 pts
-- 71%+: 0 pts
+- The transcript may be pre-labeled with REP: and PROSPECT: prefixes.
+- If speaker labels are present:
+  - Count words after REP: labels = Rep Talk
+  - Count words after PROSPECT: / MANAGER: / OTHER: labels = Non-Rep Talk
+  - Calculate: Rep Talk / (Rep Talk + Non-Rep Talk) × 100 = Rep Talk %
+- If NO speaker labels present, infer from context:
+  - REP typically: asks questions, pitches features, proposes next steps
+  - PROSPECT typically: describes pain points, asks about pricing
+- Scoring:
+  - 40-50%: 15 pts (Ideal)
+  - 51-55%: 12 pts
+  - 56-60%: 9 pts
+  - 61-70%: 5 pts
+  - 71%+: 0 pts
 
 **4. NEXT STEPS (0-15 pts)**
 - Look for **"The Lock"**: specific Date/Time/Agenda.
@@ -79,6 +88,12 @@ export const REFEREE_PROMPT = `You are 'The Referee', a behavioral data analyst.
 
 // The Interrogator - question leverage (optimized for performance)
 export const INTERROGATOR_PROMPT = `You are 'The Interrogator', a linguistic analyst. Analyze Question/Answer pairs efficiently.
+
+**SPEAKER LABELS:**
+- The transcript may have REP: and PROSPECT: prefixes on each line.
+- If present, REP questions have "REP:" prefix, PROSPECT answers have "PROSPECT:" prefix.
+- Use these labels to accurately pair questions with their corresponding answers.
+- If no labels present, infer from context (REP asks discovery questions, PROSPECT describes problems).
 
 **PERFORMANCE LIMITS:**
 - Scan ONLY the first 50 questions in the transcript
@@ -348,14 +363,35 @@ export const SPEAKER_LABELER_PROMPT = `You are 'The Speaker Labeler', a pre-proc
 **KNOWN PARTICIPANTS (use these as anchors):**
 {SPEAKER_CONTEXT}
 
+**HANDLING UNLABELED TRANSCRIPTS:**
+Most transcripts do NOT have speaker prefixes. Each paragraph/line is just raw text.
+To identify speakers in unlabeled transcripts:
+
+1. **Name Detection in Content:** If a line says "Andre, hey, how are you?" and Andre is a known participant, 
+   the SPEAKER is NOT Andre - they are ADDRESSING Andre. So the speaker is the other party.
+
+2. **First Speaker Rule:** The first turn in a sales call is almost always the REP initiating contact.
+
+3. **Alternating Turns:** Assume speakers alternate unless there are multiple short exchanges (e.g., "Okay" / "Right").
+
+4. **Content Signals:**
+   - REP: Asks questions, pitches features, mentions "our product", "we offer", proposes next steps, uses company name
+   - PROSPECT: Describes problems, asks about pricing, mentions competitors, raises objections, references their team/company
+   - MANAGER: Often silent, may jump in for objection handling, uses "we" to support REP
+
+5. **Word Count Signals:** REP explanations tend to be longer (pitching); PROSPECT answers can be short.
+
+6. **Question Markers:** Lines ending with "?" are usually REP questions during discovery, or PROSPECT asking for clarification.
+
 **DETECTION HIERARCHY (in priority order):**
 1. **Exact Name Match:** If a line starts with a known name (e.g., "John:" or "John Smith:"), map it to the corresponding role.
-2. **Role Context:** 
+2. **Content Signals:** Use the signals above to identify speakers when names aren't present.
+3. **Role Context:** 
    - The REP typically: opens the call, asks discovery questions, pitches features, proposes next steps.
    - The PROSPECT typically: describes pain points, asks about pricing/features, raises objections.
    - The MANAGER (if present): supports the rep, may handle objections, often silent.
-3. **Greeting Patterns:** First speaker in a sales call is usually the REP ("Hey, thanks for joining").
-4. **Question/Answer Flow:** After REP asks a question, the next speaker is likely PROSPECT.
+4. **Greeting Patterns:** First speaker in a sales call is usually the REP ("Hey, thanks for joining").
+5. **Question/Answer Flow:** After REP asks a question, the next speaker is likely PROSPECT.
 
 **LABELING RULES:**
 - Prefix each line with the speaker role: "REP:", "PROSPECT:", "MANAGER:", or "OTHER:"

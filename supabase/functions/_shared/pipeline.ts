@@ -64,6 +64,10 @@ const BATCH_DELAY_MS = 300;
 // Minimum ratio of labeled transcript to original (truncation guard)
 const MIN_LABELED_TRANSCRIPT_RATIO = 0.8;
 
+// Maximum transcript length for speaker labeling (80k chars ~ 20k words)
+// Longer transcripts skip labeling to prevent timeout/overflow
+const MAX_TRANSCRIPT_LENGTH_FOR_LABELING = 80000;
+
 // ============= CONTEXT-AWARE PROMPT BUILDERS =============
 
 function buildProfilerPrompt(transcript: string, primarySpeakerName?: string): string {
@@ -304,47 +308,55 @@ export async function runAnalysisPipeline(
 
   // ============= PHASE 0: Speaker Labeler (Pre-processing) =============
   if (speakerContext) {
-    console.log('[Pipeline] Phase 0: Running Speaker Labeler...');
-    const phase0Start = performance.now();
-    
-    const speakerLabelerConfig = getPhase0Agent();
-    if (speakerLabelerConfig) {
-      const labelerPrompt = buildSpeakerLabelerPrompt(transcript, speakerContext);
-      const labelerResult = await executeAgentWithPrompt(
-        speakerLabelerConfig,
-        labelerPrompt,
-        supabase,
-        callId
-      );
+    // Length guard: skip labeling for very long transcripts to prevent timeout/overflow
+    if (transcript.length > MAX_TRANSCRIPT_LENGTH_FOR_LABELING) {
+      const lengthKb = Math.round(transcript.length / 1000);
+      warnings.push(`Transcript too long for speaker labeling (${lengthKb}k chars), using raw transcript`);
+      console.log(`[Pipeline] Phase 0 skipped: Transcript length ${lengthKb}k chars exceeds ${MAX_TRANSCRIPT_LENGTH_FOR_LABELING / 1000}k limit`);
+    } else {
+      console.log('[Pipeline] Phase 0: Running Speaker Labeler...');
+      const phase0Start = performance.now();
       
-      const phase0Duration = performance.now() - phase0Start;
-      
-      if (labelerResult.success) {
-        const labelerData = labelerResult.data as SpeakerLabelerOutput;
-        if (labelerData.labeled_transcript) {
-          // Truncation guard: verify labeled transcript is at least 80% of original length
-          const labeledLength = labelerData.labeled_transcript.length;
-          const originalLength = transcript.length;
-          const ratio = labeledLength / originalLength;
-          
-          if (ratio >= MIN_LABELED_TRANSCRIPT_RATIO) {
-            processedTranscript = labelerData.labeled_transcript;
-            console.log(`[Pipeline] Phase 0 complete in ${Math.round(phase0Duration)}ms - ${labelerData.speaker_count} speakers detected (${labelerData.detection_confidence} confidence)`);
-            // Log speaker mapping for debugging
-            if (labelerData.speaker_mapping && labelerData.speaker_mapping.length > 0) {
-              console.log(`[Pipeline] Speaker mapping: ${JSON.stringify(labelerData.speaker_mapping)}`);
+      const speakerLabelerConfig = getPhase0Agent();
+      if (speakerLabelerConfig) {
+        const labelerPrompt = buildSpeakerLabelerPrompt(transcript, speakerContext);
+        const labelerResult = await executeAgentWithPrompt(
+          speakerLabelerConfig,
+          labelerPrompt,
+          supabase,
+          callId
+        );
+        
+        const phase0Duration = performance.now() - phase0Start;
+        
+        if (labelerResult.success) {
+          const labelerData = labelerResult.data as SpeakerLabelerOutput;
+          if (labelerData.labeled_transcript) {
+            // Truncation guard: verify labeled transcript is at least 80% of original length
+            const labeledLength = labelerData.labeled_transcript.length;
+            const originalLength = transcript.length;
+            const ratio = labeledLength / originalLength;
+            
+            if (ratio >= MIN_LABELED_TRANSCRIPT_RATIO) {
+              processedTranscript = labelerData.labeled_transcript;
+              console.log(`[Pipeline] Phase 0 complete in ${Math.round(phase0Duration)}ms - ${labelerData.speaker_count} speakers detected (${labelerData.detection_confidence} confidence)`);
+              // Log speaker mapping for debugging
+              if (labelerData.speaker_mapping && labelerData.speaker_mapping.length > 0) {
+                console.log(`[Pipeline] Speaker mapping: ${JSON.stringify(labelerData.speaker_mapping)}`);
+              }
+            } else {
+              warnings.push(`Speaker labeling truncated (${Math.round(ratio * 100)}% of original), using raw transcript`);
+              console.log(`[Pipeline] Phase 0 fallback: Truncation detected - labeled=${labeledLength} chars, original=${originalLength} chars (${Math.round(ratio * 100)}%)`);
             }
           } else {
-            warnings.push(`Speaker labeling truncated (${Math.round(ratio * 100)}% of original), using raw transcript`);
-            console.log(`[Pipeline] Phase 0 truncated: labeled=${labeledLength} chars, original=${originalLength} chars (${Math.round(ratio * 100)}%), falling back to raw`);
+            warnings.push('Speaker labeling returned empty transcript, using raw transcript');
+            console.log(`[Pipeline] Phase 0 fallback: Empty labeled_transcript returned`);
           }
         } else {
-          warnings.push('Speaker labeling succeeded but returned empty transcript, using raw transcript');
-          console.log(`[Pipeline] Phase 0 returned empty labeled transcript, falling back to raw`);
+          const errorReason = labelerResult.error || 'Unknown error';
+          warnings.push(`Speaker labeling failed: ${errorReason}, using raw transcript`);
+          console.log(`[Pipeline] Phase 0 fallback: Agent failed after ${Math.round(phase0Duration)}ms - ${errorReason}`);
         }
-      } else {
-        warnings.push(`Speaker labeling failed: ${labelerResult.error || 'Unknown error'}, using raw transcript`);
-        console.log(`[Pipeline] Phase 0 failed in ${Math.round(phase0Duration)}ms, falling back to raw transcript`);
       }
     }
   } else {
