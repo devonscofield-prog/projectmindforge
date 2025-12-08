@@ -167,11 +167,12 @@ const BEHAVIOR_SCORE_TOOL = {
   }
 };
 
+// Simplified Strategy Tool - ONLY strategic threading (no gaps)
 const STRATEGY_AUDIT_TOOL = {
   type: "function",
   function: {
     name: "audit_call_strategy",
-    description: "Audit the strategic alignment and identify critical gaps in a sales call",
+    description: "Audit the strategic alignment in a sales call - mapping pains to pitches",
     parameters: {
       type: "object",
       properties: {
@@ -200,7 +201,22 @@ const STRATEGY_AUDIT_TOOL = {
             }
           },
           required: ["score", "grade", "relevance_map", "missed_opportunities"]
-        },
+        }
+      },
+      required: ["strategic_threading"]
+    }
+  }
+};
+
+// Tool for The Skeptic - dedicated deal gaps analysis
+const DEAL_GAPS_TOOL = {
+  type: "function",
+  function: {
+    name: "identify_deal_gaps",
+    description: "Identify critical information gaps blocking a sales deal",
+    parameters: {
+      type: "object",
+      properties: {
         critical_gaps: {
           type: "array",
           items: {
@@ -224,7 +240,7 @@ const STRATEGY_AUDIT_TOOL = {
           description: "3-5 critical pieces of information blocking the deal"
         }
       },
-      required: ["strategic_threading", "critical_gaps"]
+      required: ["critical_gaps"]
     }
   }
 };
@@ -329,32 +345,78 @@ Scoring:
 - Grade is "Pass" if overall_score >= 48 (60% of 80), otherwise "Fail".
 - Note: Final score will include question_quality (20 pts) added by a separate agent.`;
 
-const AUDITOR_SYSTEM_PROMPT = `You are a Senior Sales Auditor. Your goal is to measure Deal Health and Strategic Alignment objectively.
+// The Strategist - ONLY focuses on pain-to-pitch alignment (no gaps)
+const AUDITOR_SYSTEM_PROMPT = `You are 'The Strategist', a Senior Sales Auditor. Your job is STRICTLY to map 'Prospect Pains' to 'Rep Pitches' and score the relevance.
 
-**PHASE 1: STRATEGIC THREADING (The Relevance Map)**
-1. Extract specific 'Pains/Goals' the Prospect explicitly stated.
-2. Extract specific 'Features/Solutions' the Rep pitched.
-3. Create a 'Relevance Map' connecting Pains to Features.
-   - If a Rep pitches a feature that maps to a pain -> Relevant.
-   - If a Rep pitches a feature with NO connection to a stated pain -> Irrelevant (Spray and Pray).
-4. Score (0-100) based on the ratio of Relevant vs. Irrelevant pitches.
-5. Grade is "Pass" if score >= 60, otherwise "Fail".
+**YOUR TASK: STRATEGIC THREADING (The Relevance Map)**
 
-**PHASE 2: CRITICAL GAP SCANNER**
-Instead of grading a framework, identify the 3-5 most dangerous 'Unknowns' in this deal based on the transcript.
+1. **Extract Pains/Goals:** Find every specific need, problem, or goal the Prospect explicitly stated.
+   - Look for phrases like "we struggle with...", "our challenge is...", "we need...", "we're looking for..."
 
-Rules for identifying gaps:
-- **Missing Logic**: If they discussed a '2027 contract expiry', a Critical Gap is 'Did not ask about early cancellation terms.'
-- **Missing Stakeholders**: If they mentioned a 'Boss' or manager, did we get the Boss's name? Their role in the decision?
-- **Missing Budget Info**: If price was discussed, do we know the actual budget range or approval process?
-- **Missing Timeline Details**: If a deadline was mentioned, do we know WHY that deadline matters?
-- **Missing Competition Intel**: If they're evaluating alternatives, do we know which ones and what they like about them?
-- **Missing Technical Requirements**: If they mentioned integrations or requirements, do we have specifics?
+2. **Extract Pitches:** Find every feature, solution, or capability the Rep presented.
+   - Look for phrases like "our platform does...", "we can help with...", "the solution includes..."
 
-Categories: Budget, Authority, Need, Timeline, Competition, Technical
-Impact levels: High (deal-blocking), Medium (creates friction), Low (nice to know)
+3. **Build the Relevance Map:** Connect each Pain to each Pitch.
+   - **Relevant:** Rep pitched a feature that directly addresses the stated pain.
+   - **Irrelevant (Spray and Pray):** Rep pitched a feature with NO connection to any stated pain.
 
-For each gap, provide a specific 'suggested_question' - the exact question the rep should ask to close the gap.`;
+4. **Score (0-100):**
+   - 100%: Every pitch addressed a specific pain, no wasted features.
+   - 80%+: Most pitches were relevant, minor spray-and-pray.
+   - 60%+: Pass - majority of pitches had some connection.
+   - <60%: Fail - too much generic pitching, not enough pain mapping.
+
+5. **Missed Opportunities:** List pains the Prospect mentioned that the Rep NEVER addressed.
+
+**DO NOT:**
+- Critique the rep's conversational style.
+- Identify "gaps" or "missing information" - that's another agent's job.
+- Score anything related to qualification (Budget, Authority, Timeline, etc).
+
+**DO:**
+- Focus ONLY on the Pain → Pitch connection.
+- Be specific with quotes from the transcript.`;
+
+// The Skeptic - dedicated agent for finding deal-blocking gaps
+const SKEPTIC_SYSTEM_PROMPT = `You are 'The Skeptic', a Senior Deal Desk Analyst. Your ONLY job is to find what is MISSING from this sales call.
+
+**INPUT:** Sales Call Transcript.
+
+**TASK:** Identify the 3-5 most dangerous **Unknowns** that block this deal.
+
+**RULES:**
+- **Don't** critique the rep's style.
+- **Don't** summarize what happened.
+- **Don't** score anything.
+- **DO** hunt for missing logic and unanswered questions.
+
+**WHAT TO LOOK FOR:**
+
+1. **Missing Stakeholders:**
+   - Prospect mentioned a "Boss", "Manager", or "Team Lead" → Did Rep get their NAME?
+   - Prospect said "I'll need to check with..." → Did Rep ask WHO that person is and their role in the decision?
+
+2. **Missing Budget Intel:**
+   - Price or cost was discussed → Do we know their ACTUAL budget range?
+   - They asked for a quote → Did Rep ask about their procurement/approval process?
+
+3. **Missing Timeline Clarity:**
+   - Prospect mentioned a deadline or renewal date → Did Rep ask WHY that date matters?
+   - They said "end of quarter" or "next year" → Did Rep clarify the exact date and what happens if they miss it?
+
+4. **Missing Competition Intel:**
+   - Prospect is evaluating alternatives → Do we know WHICH vendors and what they like about them?
+   - They mentioned a current solution → Did Rep ask what they dislike about it?
+
+5. **Missing Technical Requirements:**
+   - Prospect mentioned integrations, SSO, or specific needs → Do we have the SPECIFICS?
+   - They asked technical questions → Did Rep confirm their exact environment/setup?
+
+**OUTPUT:**
+Return ONLY the critical_gaps array with 3-5 items.
+- Category: Budget, Authority, Need, Timeline, Competition, Technical
+- Impact: High (deal-blocking), Medium (creates friction), Low (nice to know)
+- suggested_question: The EXACT question the rep should ask to close this gap.`;
 
 export interface CallMetadata {
   summary: string;
@@ -430,7 +492,8 @@ export interface QuestionLeverage {
   yield_ratio: number;
 }
 
-export interface StrategyAudit {
+// Strategic threading only (from The Strategist)
+export interface StrategicThreading {
   strategic_threading: {
     score: number;
     grade: 'Pass' | 'Fail';
@@ -442,6 +505,10 @@ export interface StrategyAudit {
     }>;
     missed_opportunities: string[];
   };
+}
+
+// Critical gaps only (from The Skeptic)
+export interface DealGaps {
   critical_gaps: Array<{
     category: 'Budget' | 'Authority' | 'Need' | 'Timeline' | 'Competition' | 'Technical';
     description: string;
@@ -449,6 +516,9 @@ export interface StrategyAudit {
     suggested_question: string;
   }>;
 }
+
+// Combined interface for backward compatibility
+export interface StrategyAudit extends StrategicThreading, DealGaps {}
 
 interface CallLovableAIOptions {
   model?: string;
@@ -586,13 +656,13 @@ export async function analyzeCallBehavior(transcript: string): Promise<BehaviorS
 }
 
 /**
- * Agent 3: The Auditor - Analyze strategic alignment and MEDDPICC
- * Uses gemini-2.5-pro for complex reasoning with low temperature for strict logic
+ * Agent 3: The Strategist - Analyze strategic alignment (pain-to-pitch mapping ONLY)
+ * Uses gemini-2.5-flash for efficient relevance mapping
  */
-export async function analyzeCallStrategy(transcript: string): Promise<StrategyAudit> {
-  console.log('[analyzeCallStrategy] Starting strategy audit with Pro model...');
+export async function analyzeCallStrategy(transcript: string): Promise<StrategicThreading> {
+  console.log('[analyzeCallStrategy] Starting strategic threading analysis...');
   
-  const userPrompt = `Perform a comprehensive strategic audit of this sales call transcript. Analyze the rep's strategic alignment (pain-to-feature mapping) and MEDDPICC qualification rigor:\n\n${transcript}`;
+  const userPrompt = `Analyze this sales call transcript for strategic alignment. Map every prospect pain to every rep pitch and score the relevance:\n\n${transcript}`;
   
   const result = await callLovableAI(
     AUDITOR_SYSTEM_PROMPT,
@@ -600,14 +670,39 @@ export async function analyzeCallStrategy(transcript: string): Promise<StrategyA
     STRATEGY_AUDIT_TOOL,
     'audit_call_strategy',
     {
-      model: 'google/gemini-2.5-pro',
-      temperature: 0.1,
-      maxTokens: 8192, // More tokens for complex analysis
+      model: 'google/gemini-2.5-flash',
+      temperature: 0.2,
+      maxTokens: 4096,
     }
   );
   
-  console.log('[analyzeCallStrategy] Audit complete, threading score:', result.strategic_threading?.score);
-  return result as StrategyAudit;
+  console.log('[analyzeCallStrategy] Threading complete, score:', result.strategic_threading?.score);
+  return result as StrategicThreading;
+}
+
+/**
+ * Agent 5: The Skeptic - Identify critical deal gaps and missing information
+ * Uses gemini-2.5-pro for complex reasoning with low temperature for strict logic
+ */
+export async function analyzeDealGaps(transcript: string): Promise<DealGaps> {
+  console.log('[analyzeDealGaps] Starting deal gaps analysis with Pro model...');
+  
+  const userPrompt = `Analyze this sales call transcript. Find the 3-5 most dangerous UNKNOWNS or MISSING INFORMATION that could block this deal:\n\n${transcript}`;
+  
+  const result = await callLovableAI(
+    SKEPTIC_SYSTEM_PROMPT,
+    userPrompt,
+    DEAL_GAPS_TOOL,
+    'identify_deal_gaps',
+    {
+      model: 'google/gemini-2.5-pro',
+      temperature: 0.1,
+      maxTokens: 4096,
+    }
+  );
+  
+  console.log('[analyzeDealGaps] Analysis complete, found', result.critical_gaps?.length || 0, 'gaps');
+  return result as DealGaps;
 }
 
 /**
