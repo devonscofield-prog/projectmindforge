@@ -3,8 +3,11 @@
  * 
  * Agent 1: The Clerk - Metadata & Facts extraction
  * Agent 2: The Referee - Behavioral scoring
- * Agent 3: The Auditor - Strategy & MEDDPICC analysis
+ * Agent 3: The Auditor - Strategy & pain-to-pitch alignment
  * Agent 4: The Interrogator - Question leverage analysis
+ * Agent 5: The Skeptic - Deal gaps analysis
+ * Agent 6: The Negotiator - Objection handling analysis
+ * Agent 7: The Profiler - Prospect psychology profiling
  */
 
 const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
@@ -281,6 +284,51 @@ const OBJECTION_HANDLING_TOOL = {
         }
       },
       required: ["score", "grade", "objections_detected"]
+    }
+  }
+};
+
+// Tool for The Profiler - psychological profiling of prospect
+const PSYCHOLOGY_PROFILE_TOOL = {
+  type: "function",
+  function: {
+    name: "analyze_prospect_psychology",
+    description: "Analyze the prospect's communication style and create a behavioral profile",
+    parameters: {
+      type: "object",
+      properties: {
+        prospect_persona: { type: "string", description: "Archetype (e.g., 'The Data-Driven Skeptic', 'The Busy Executive')" },
+        disc_profile: { 
+          type: "string", 
+          enum: ["D - Dominance", "I - Influence", "S - Steadiness", "C - Compliance"],
+          description: "Estimated DISC profile based on speech patterns"
+        },
+        communication_style: {
+          type: "object",
+          properties: {
+            tone: { type: "string", description: "e.g., 'Formal', 'Casual', 'Urgent'" },
+            preference: { type: "string", description: "e.g., 'Wants bullet points and ROI', 'Wants rapport and stories'" }
+          },
+          required: ["tone", "preference"]
+        },
+        dos_and_donts: {
+          type: "object",
+          properties: {
+            do: { 
+              type: "array", 
+              items: { type: "string" },
+              description: "2-3 specific communication tactics to use"
+            },
+            dont: { 
+              type: "array", 
+              items: { type: "string" },
+              description: "2-3 specific tactics to avoid (e.g., 'Don't use fluff')"
+            }
+          },
+          required: ["do", "dont"]
+        }
+      },
+      required: ["prospect_persona", "disc_profile", "communication_style", "dos_and_donts"]
     }
   }
 };
@@ -614,6 +662,20 @@ export interface ObjectionHandling {
   };
 }
 
+// Psychology profile (from The Profiler)
+export interface PsychologyProfile {
+  prospect_persona: string;
+  disc_profile: 'D - Dominance' | 'I - Influence' | 'S - Steadiness' | 'C - Compliance';
+  communication_style: {
+    tone: string;
+    preference: string;
+  };
+  dos_and_donts: {
+    do: string[];
+    dont: string[];
+  };
+}
+
 // Combined interface for backward compatibility
 export interface StrategyAudit extends StrategicThreading, DealGaps, ObjectionHandling {}
 
@@ -848,4 +910,50 @@ export async function analyzeObjections(transcript: string): Promise<ObjectionHa
   
   console.log('[analyzeObjections] Analysis complete, score:', result.score, ', objections found:', result.objections_detected?.length || 0);
   return { objection_handling: result } as ObjectionHandling;
+}
+
+// The Profiler system prompt
+const PROFILER_SYSTEM_PROMPT = `You are 'The Profiler', a Behavioral Psychologist. Your job is to analyze the PROSPECT'S speech patterns to create a Buying Persona.
+
+**1. ANALYZE SPEECH CUES**
+- **Short, curt answers?** -> Likely "High D" (Dominance). Wants brevity.
+- **Chatty, enthusiastic, uses emojis/slang?** -> Likely "High I" (Influence). Wants energy.
+- **Slow, hesitant, asks about process?** -> Likely "High S" (Steadiness). Wants safety.
+- **Detailed questions, focuses on accuracy/data?** -> Likely "High C" (Compliance). Wants proof.
+
+**2. PERSONA ARCHETYPES**
+Create a memorable archetype name that captures their essence:
+- "The Data-Driven Skeptic" (High C who needs evidence)
+- "The Busy Executive" (High D who values time)
+- "The Relationship Builder" (High I who wants connection)
+- "The Risk-Averse Evaluator" (High S who fears change)
+
+**3. OUTPUT**
+- Determine the DISC profile based on language patterns.
+- Prescribe strict "Dos and Donts" for the sales rep's next email/call.
+- Be specific and actionable - not generic advice.`;
+
+/**
+ * Agent 7: The Profiler - Analyze prospect psychology and communication style
+ * Uses gemini-2.5-flash for fast sentiment/tone analysis
+ */
+export async function analyzePsychology(transcript: string): Promise<PsychologyProfile> {
+  console.log('[analyzePsychology] Starting psychological profiling...');
+  
+  const userPrompt = `Analyze this sales call transcript to profile the PROSPECT's communication style and create a behavioral persona. Focus on how THEY speak, respond, and what they seem to value:\n\n${transcript}`;
+  
+  const result = await callLovableAI(
+    PROFILER_SYSTEM_PROMPT,
+    userPrompt,
+    PSYCHOLOGY_PROFILE_TOOL,
+    'analyze_prospect_psychology',
+    {
+      model: 'google/gemini-2.5-flash',
+      temperature: 0.3, // Slightly higher for persona creativity
+      maxTokens: 2048,
+    }
+  );
+  
+  console.log('[analyzePsychology] Profiling complete, persona:', result.prospect_persona, ', DISC:', result.disc_profile);
+  return result as PsychologyProfile;
 }
