@@ -5,7 +5,8 @@
  * - Agent 1: The Clerk (metadata extraction) - gemini-2.5-flash [CRITICAL]
  * - Agent 2: The Referee (behavioral scoring) - gemini-2.5-flash
  * - Agent 3: The Interrogator (question leverage) - gemini-2.5-flash
- * - Agent 4: The Auditor (strategy audit) - gemini-2.5-pro
+ * - Agent 4: The Strategist (pain-to-pitch mapping) - gemini-2.5-flash
+ * - Agent 5: The Skeptic (deal gaps analysis) - gemini-2.5-pro
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -18,9 +19,12 @@ import {
   analyzeCallBehavior, 
   analyzeCallStrategy,
   analyzeQuestionLeverage,
+  analyzeDealGaps,
   type CallMetadata,
   type BehaviorScore,
   type QuestionLeverage,
+  type StrategicThreading,
+  type DealGaps,
   type StrategyAudit,
   type MergedBehaviorScore,
 } from '../_shared/analysis-agents.ts';
@@ -53,13 +57,16 @@ const DEFAULT_QUESTION_LEVERAGE: QuestionLeverage = {
   yield_ratio: 0,
 };
 
-const DEFAULT_STRATEGY: StrategyAudit = {
+const DEFAULT_STRATEGY: StrategicThreading = {
   strategic_threading: {
     score: 0,
     grade: 'Fail',
     relevance_map: [],
     missed_opportunities: [],
   },
+};
+
+const DEFAULT_GAPS: DealGaps = {
   critical_gaps: [],
 };
 
@@ -311,14 +318,31 @@ serve(async (req) => {
       const start = performance.now();
       try {
         const result = await analyzeCallStrategy(transcript.raw_text);
-        await logPerformance(supabaseAdmin, 'agent_auditor_strategy', performance.now() - start, 'success', { 
+        await logPerformance(supabaseAdmin, 'agent_strategist_threading', performance.now() - start, 'success', { 
           call_id: targetCallId,
           threading_score: result.strategic_threading.score,
+        });
+        return result;
+      } catch (err) {
+        await logPerformance(supabaseAdmin, 'agent_strategist_threading', performance.now() - start, 'error', { 
+          call_id: targetCallId, 
+          error: err instanceof Error ? err.message : String(err),
+        });
+        throw err;
+      }
+    };
+
+    const timedGaps = async () => {
+      const start = performance.now();
+      try {
+        const result = await analyzeDealGaps(transcript.raw_text);
+        await logPerformance(supabaseAdmin, 'agent_skeptic_gaps', performance.now() - start, 'success', { 
+          call_id: targetCallId,
           gaps_count: result.critical_gaps.length,
         });
         return result;
       } catch (err) {
-        await logPerformance(supabaseAdmin, 'agent_auditor_strategy', performance.now() - start, 'error', { 
+        await logPerformance(supabaseAdmin, 'agent_skeptic_gaps', performance.now() - start, 'error', { 
           call_id: targetCallId, 
           error: err instanceof Error ? err.message : String(err),
         });
@@ -326,11 +350,12 @@ serve(async (req) => {
       }
     };
     
-    const [metadataSettled, behaviorSettled, questionSettled, strategySettled] = await Promise.allSettled([
+    const [metadataSettled, behaviorSettled, questionSettled, strategySettled, gapsSettled] = await Promise.allSettled([
       timedMetadata(),
       timedBehavior(),
       timedQuestions(),
       timedStrategy(),
+      timedGaps(),
     ]);
 
     // Metadata is CRITICAL - if it fails, the whole analysis fails
@@ -363,16 +388,33 @@ serve(async (req) => {
       questionQuality = questionSettled.value;
     }
 
-    // Strategy agent - use fallback on failure
-    let strategyResult: StrategyAudit;
+    // Strategy agent (threading only) - use fallback on failure
+    let strategyThreading: StrategicThreading;
     if (strategySettled.status === 'rejected') {
       const error = strategySettled.reason instanceof Error ? strategySettled.reason.message : String(strategySettled.reason);
       console.warn('[analyze-call] Strategy agent failed, using defaults:', error);
       analysisWarnings.push(`Strategy analysis failed: ${error}`);
-      strategyResult = DEFAULT_STRATEGY;
+      strategyThreading = DEFAULT_STRATEGY;
     } else {
-      strategyResult = strategySettled.value;
+      strategyThreading = strategySettled.value;
     }
+
+    // Gaps agent (The Skeptic) - use fallback on failure
+    let gapsResult: DealGaps;
+    if (gapsSettled.status === 'rejected') {
+      const error = gapsSettled.reason instanceof Error ? gapsSettled.reason.message : String(gapsSettled.reason);
+      console.warn('[analyze-call] Gaps agent failed, using defaults:', error);
+      analysisWarnings.push(`Deal gaps analysis failed: ${error}`);
+      gapsResult = DEFAULT_GAPS;
+    } else {
+      gapsResult = gapsSettled.value;
+    }
+
+    // Combine strategy threading and gaps into full StrategyAudit for storage
+    const strategyResult: StrategyAudit = {
+      ...strategyThreading,
+      ...gapsResult,
+    };
 
     const pipelineDuration = performance.now() - pipelineStartTime;
     console.log(`[analyze-call] All agents completed in ${Math.round(pipelineDuration)}ms (${analysisWarnings.length} warnings)`);
