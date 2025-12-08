@@ -73,6 +73,7 @@ export const RefereeSchema = z.object({
 export const InterrogatorSchema = z.object({
   score: z.number(),
   explanation: z.string(),
+  no_questions_reason: z.enum(['no_discovery_attempted', 'poor_engagement']).nullable(),
   average_question_length: z.number(),
   average_answer_length: z.number(),
   high_leverage_count: z.number(),

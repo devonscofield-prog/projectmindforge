@@ -79,6 +79,7 @@ const DEFAULT_REFEREE = {
 const DEFAULT_INTERROGATOR = {
   score: 0,
   explanation: 'Question analysis failed',
+  no_questions_reason: 'no_discovery_attempted' as const,
   average_question_length: 0,
   average_answer_length: 0,
   high_leverage_count: 0,

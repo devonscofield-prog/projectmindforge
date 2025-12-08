@@ -106,7 +106,23 @@ Scan the transcript for "?" symbols.
 - Ratio >= 1.0: 10 pts
 - Ratio < 0.5: 0 pts
 
-**EDGE CASE:** If 0 sales questions found, return 0 score and "No qualifying sales questions detected."`;
+**6. EDGE CASE EXPLANATIONS (Critical for coaching)**
+You MUST distinguish between these scenarios in your explanation and no_questions_reason:
+
+- **Scenario A: No Discovery Attempted**
+  If rep asked 0 qualifying sales questions (all filtered as logistical/tie-downs):
+  - no_questions_reason: "no_discovery_attempted"
+  - explanation: "Rep asked no discovery questions. All questions were logistical (e.g., 'Can you hear me?') or tie-downs (e.g., 'Does that make sense?'). Discovery is critical for understanding customer needs."
+
+- **Scenario B: Discovery Attempted, Poor Engagement**
+  If rep asked sales questions but got very short answers (yield_ratio < 0.5):
+  - no_questions_reason: "poor_engagement"
+  - explanation: "Rep asked [X] sales questions but received brief responses (avg [Y] words). This suggests closed-ended questions, question stacking, or prospect disengagement. Focus on open-ended 'What/How/Tell me about' questions."
+
+- **Scenario C: Good Discovery**
+  If rep achieved yield_ratio >= 1.0:
+  - no_questions_reason: null
+  - explanation: Describe the questioning technique and highlight effective examples.`;
 
 // The Strategist - pain-to-pitch mapping
 export const STRATEGIST_PROMPT = `You are 'The Strategist', a Senior Sales Auditor. Your job is STRICTLY to map 'Prospect Pains' to 'Rep Pitches' and score the relevance.
