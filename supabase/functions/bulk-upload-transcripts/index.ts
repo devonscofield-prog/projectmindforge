@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
 
 // ============= CORS Utilities =============
 function getCorsHeaders(origin?: string | null): Record<string, string> {
@@ -38,6 +39,46 @@ function jsonResponse(data: unknown, corsHeaders: Record<string, string>, status
   );
 }
 
+// ============= Security Utilities =============
+const MAX_TRANSCRIPT_LENGTH = 500_000; // 500KB per transcript
+const MIN_TRANSCRIPT_LENGTH = 100;
+
+function sanitizeUserInput(input: string): string {
+  if (typeof input !== 'string') return '';
+  // Remove null bytes and script tags
+  return input
+    .replace(/\0/g, '')
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '[REMOVED]')
+    .replace(/\bon\w+\s*=/gi, '[REMOVED]=')
+    .trim();
+}
+
+// ============= Zod Validation Schemas =============
+const uuidSchema = z.string().uuid({ message: "Invalid UUID format" });
+const dateStringSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: "Date must be in YYYY-MM-DD format" });
+
+const transcriptItemSchema = z.object({
+  fileName: z.string().min(1, "File name required").max(255, "File name too long"),
+  rawText: z.string()
+    .min(MIN_TRANSCRIPT_LENGTH, `Transcript too short (min ${MIN_TRANSCRIPT_LENGTH} chars)`)
+    .max(MAX_TRANSCRIPT_LENGTH, `Transcript too long (max ${MAX_TRANSCRIPT_LENGTH} chars)`)
+    .transform(sanitizeUserInput),
+  repId: uuidSchema,
+  callDate: dateStringSchema.optional(),
+  callType: z.string().max(50).optional(),
+  callTypeOther: z.string().max(100).transform(sanitizeUserInput).optional(),
+  accountName: z.string().max(200).transform(sanitizeUserInput).optional(),
+  stakeholderName: z.string().max(200).transform(sanitizeUserInput).optional(),
+  salesforceLink: z.string().url("Invalid Salesforce URL").max(500).optional().or(z.literal(''))
+});
+
+const bulkUploadSchema = z.object({
+  transcripts: z.array(transcriptItemSchema)
+    .min(1, "At least one transcript required")
+    .max(100, "Maximum 100 transcripts per upload"),
+  processingMode: z.enum(['analyze', 'index_only']).optional().default('analyze')
+});
+
 // ============= Constants =============
 const BASE_DELAY_MS = 500;       // Starting delay (higher for analyze-call)
 const MAX_DELAY_MS = 10000;      // 10 seconds max backoff
@@ -50,11 +91,11 @@ interface TranscriptInput {
   fileName: string;
   rawText: string;
   repId: string;
-  callDate?: string;        // Optional - defaults to today
-  callType?: string;        // Optional - defaults to 'first_demo'
+  callDate?: string;
+  callType?: string;
   callTypeOther?: string;
-  accountName?: string;     // Optional for raw upload mode
-  stakeholderName?: string; // Optional for raw upload mode
+  accountName?: string;
+  stakeholderName?: string;
   salesforceLink?: string;
 }
 
@@ -279,36 +320,27 @@ async function validateRepIds(
   return { valid: invalidIds.length === 0, invalidIds };
 }
 
-// ============= Validation =============
-function validateRequest(body: unknown): { valid: true; data: BulkUploadRequest } | { valid: false; error: string } {
-  if (!body || typeof body !== 'object') {
-    return { valid: false, error: 'Request body must be an object' };
-  }
-
-  const request = body as BulkUploadRequest;
+// ============= Validation using Zod =============
+function validateRequestWithZod(body: unknown): 
+  { valid: true; data: z.infer<typeof bulkUploadSchema> } | 
+  { valid: false; error: string; issues?: Array<{ path: string; message: string }> } {
   
-  if (!Array.isArray(request.transcripts)) {
-    return { valid: false, error: 'transcripts must be an array' };
+  const result = bulkUploadSchema.safeParse(body);
+  
+  if (result.success) {
+    return { valid: true, data: result.data };
   }
-
-  if (request.transcripts.length === 0) {
-    return { valid: false, error: 'transcripts array cannot be empty' };
-  }
-
-  if (request.transcripts.length > MAX_TRANSCRIPTS) {
-    return { valid: false, error: `Maximum ${MAX_TRANSCRIPTS} transcripts per upload` };
-  }
-
-  // Validate each transcript - only fileName, rawText, and repId are required
-  for (let i = 0; i < request.transcripts.length; i++) {
-    const t = request.transcripts[i];
-    if (!t.fileName) return { valid: false, error: `Transcript ${i + 1}: fileName is required` };
-    if (!t.rawText) return { valid: false, error: `Transcript ${i + 1}: rawText is required` };
-    if (!t.repId) return { valid: false, error: `Transcript ${i + 1}: repId is required` };
-    // callDate, callType, accountName, stakeholderName are now optional for raw upload mode
-  }
-
-  return { valid: true, data: request };
+  
+  const issues = result.error.errors.map(err => ({
+    path: err.path.join('.'),
+    message: err.message
+  }));
+  
+  return { 
+    valid: false, 
+    error: `Validation failed: ${issues[0]?.message || 'Invalid request'}`,
+    issues 
+  };
 }
 
 // ============= Main Handler =============
@@ -371,16 +403,17 @@ serve(async (req) => {
       return errorResponse('Invalid JSON in request body', 400, corsHeaders);
     }
 
-    const validation = validateRequest(body);
+    const validation = validateRequestWithZod(body);
     if (!validation.valid) {
+      console.warn('[bulk-upload] Validation failed:', validation.issues);
       return errorResponse(validation.error, 400, corsHeaders);
     }
 
-    const { transcripts, processingMode = 'analyze' } = validation.data;
+    const { transcripts, processingMode } = validation.data;
     console.log(`[bulk-upload] Processing ${transcripts.length} transcripts in ${processingMode} mode`);
 
     // ============= Validate RepIds Exist =============
-    const repIds = transcripts.map(t => t.repId);
+    const repIds = transcripts.map((t: TranscriptInput) => t.repId);
     const { valid: repIdsValid, invalidIds } = await validateRepIds(supabase, repIds);
     
     if (!repIdsValid) {

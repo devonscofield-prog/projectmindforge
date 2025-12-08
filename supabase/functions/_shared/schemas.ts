@@ -1,5 +1,62 @@
 import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
 
+// ==================== Security Constants ====================
+
+// Maximum lengths for user-generated content
+const MAX_TRANSCRIPT_LENGTH = 500_000; // 500KB - large transcripts
+const MAX_CHAT_MESSAGE_LENGTH = 50_000; // 50KB per message
+const MAX_EMAIL_BODY_LENGTH = 100_000; // 100KB for emails
+const MAX_SHORT_TEXT_LENGTH = 500; // Short inputs like instructions
+const MAX_MEDIUM_TEXT_LENGTH = 5_000; // Medium inputs like descriptions
+const MAX_LONG_TEXT_LENGTH = 50_000; // Long inputs like email drafts
+
+// Patterns for detecting potential injection attempts
+const SCRIPT_INJECTION_PATTERN = /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi;
+const EVENT_HANDLER_PATTERN = /\bon\w+\s*=/gi;
+const SQL_INJECTION_KEYWORDS = /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|UNION|ALTER|CREATE|EXEC)\b.*\b(FROM|INTO|WHERE|TABLE|DATABASE)\b)/gi;
+
+// ==================== Sanitization Utilities ====================
+
+/**
+ * Sanitizes user input by removing potentially dangerous content
+ * while preserving legitimate text content
+ */
+export function sanitizeUserInput(input: string): string {
+  if (typeof input !== 'string') return '';
+  
+  // Remove null bytes
+  let sanitized = input.replace(/\0/g, '');
+  
+  // Remove script tags (for any HTML that might be rendered)
+  sanitized = sanitized.replace(SCRIPT_INJECTION_PATTERN, '[REMOVED]');
+  
+  // Remove event handlers
+  sanitized = sanitized.replace(EVENT_HANDLER_PATTERN, '[REMOVED]=');
+  
+  // Normalize whitespace (collapse multiple spaces/newlines but preserve structure)
+  sanitized = sanitized.replace(/[\t\r]+/g, ' ');
+  
+  return sanitized.trim();
+}
+
+/**
+ * Validates that content doesn't contain suspicious patterns
+ * Returns validation result with specific warning if detected
+ */
+export function detectSuspiciousPatterns(input: string): { safe: boolean; warning?: string } {
+  if (SQL_INJECTION_KEYWORDS.test(input)) {
+    return { safe: false, warning: 'Content contains SQL-like patterns that may indicate injection attempt' };
+  }
+  
+  // Check for excessive special characters that might indicate encoded attacks
+  const specialCharRatio = (input.match(/[<>{}[\]\\]/g) || []).length / Math.max(input.length, 1);
+  if (specialCharRatio > 0.3) {
+    return { safe: false, warning: 'Content contains suspicious character patterns' };
+  }
+  
+  return { safe: true };
+}
+
 // ==================== Common Schemas ====================
 
 export const uuidSchema = z.string().uuid({ message: "Invalid UUID format" });
@@ -8,12 +65,33 @@ export const dateStringSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, {
   message: "Date must be in YYYY-MM-DD format"
 });
 
-export const emailSchema = z.string().email({ message: "Invalid email address" });
+export const emailSchema = z.string().email({ message: "Invalid email address" }).max(255);
 
 export const paginationSchema = z.object({
   limit: z.number().int().positive().max(100).optional().default(50),
   offset: z.number().int().nonnegative().optional().default(0)
 });
+
+// Sanitized string schemas for user content
+export const sanitizedShortTextSchema = z.string()
+  .min(1, "Text cannot be empty")
+  .max(MAX_SHORT_TEXT_LENGTH, `Text too long (max ${MAX_SHORT_TEXT_LENGTH} chars)`)
+  .transform(sanitizeUserInput);
+
+export const sanitizedMediumTextSchema = z.string()
+  .min(1, "Text cannot be empty")
+  .max(MAX_MEDIUM_TEXT_LENGTH, `Text too long (max ${MAX_MEDIUM_TEXT_LENGTH} chars)`)
+  .transform(sanitizeUserInput);
+
+export const sanitizedLongTextSchema = z.string()
+  .min(1, "Text cannot be empty")
+  .max(MAX_LONG_TEXT_LENGTH, `Text too long (max ${MAX_LONG_TEXT_LENGTH} chars)`)
+  .transform(sanitizeUserInput);
+
+export const transcriptTextSchema = z.string()
+  .min(100, "Transcript too short (min 100 chars)")
+  .max(MAX_TRANSCRIPT_LENGTH, `Transcript too long (max ${MAX_TRANSCRIPT_LENGTH} chars)`)
+  .transform(sanitizeUserInput);
 
 // ==================== Account Research ====================
 
@@ -46,7 +124,14 @@ export type AccountResearchRequest = z.infer<typeof accountResearchSchema>;
 
 export const chatMessageSchema = z.object({
   role: z.enum(['user', 'assistant', 'system']),
-  content: z.string().min(1, "Message content cannot be empty").max(50000, "Message too long")
+  content: z.string()
+    .min(1, "Message content cannot be empty")
+    .max(MAX_CHAT_MESSAGE_LENGTH, `Message too long (max ${MAX_CHAT_MESSAGE_LENGTH} chars)`)
+    .transform(sanitizeUserInput)
+    .refine(
+      (val) => detectSuspiciousPatterns(val).safe,
+      (val) => ({ message: detectSuspiciousPatterns(val).warning || 'Suspicious content detected' })
+    )
 });
 
 export const adminTranscriptChatSchema = z.object({
@@ -93,9 +178,16 @@ export type RegenerateAccountInsightsRequest = z.infer<typeof regenerateAccountI
 // ==================== Edit Recap Email ====================
 
 export const editRecapEmailSchema = z.object({
-  original_recap_email_draft: z.string().min(10, "Email draft too short").max(10000, "Email draft too long"),
-  edit_instructions: z.string().min(1, "Edit instructions required").max(500, "Instructions too long"),
-  call_summary: z.string().max(2000, "Call summary too long").optional().nullable()
+  original_recap_email_draft: z.string()
+    .min(10, "Email draft too short")
+    .max(MAX_EMAIL_BODY_LENGTH, `Email draft too long (max ${MAX_EMAIL_BODY_LENGTH} chars)`)
+    .transform(sanitizeUserInput),
+  edit_instructions: sanitizedShortTextSchema,
+  call_summary: z.string()
+    .max(MAX_MEDIUM_TEXT_LENGTH, `Call summary too long (max ${MAX_MEDIUM_TEXT_LENGTH} chars)`)
+    .transform(sanitizeUserInput)
+    .optional()
+    .nullable()
 });
 
 export type EditRecapEmailRequest = z.infer<typeof editRecapEmailSchema>;
@@ -115,6 +207,68 @@ export const chunkTranscriptsSchema = z.object({
 });
 
 export type ChunkTranscriptsRequest = z.infer<typeof chunkTranscriptsSchema>;
+
+// ==================== Bulk Upload Transcripts ====================
+
+export const bulkTranscriptItemSchema = z.object({
+  fileName: z.string().min(1, "File name required").max(255, "File name too long"),
+  rawText: transcriptTextSchema,
+  repId: uuidSchema,
+  callDate: dateStringSchema.optional(),
+  callType: z.string().max(50).optional(),
+  callTypeOther: z.string().max(100).transform(sanitizeUserInput).optional(),
+  accountName: z.string().max(200).transform(sanitizeUserInput).optional(),
+  stakeholderName: z.string().max(200).transform(sanitizeUserInput).optional(),
+  salesforceLink: z.string().url("Invalid Salesforce URL").max(500).optional().or(z.literal(''))
+});
+
+export const bulkUploadTranscriptsSchema = z.object({
+  transcripts: z.array(bulkTranscriptItemSchema)
+    .min(1, "At least one transcript required")
+    .max(100, "Maximum 100 transcripts per upload"),
+  processingMode: z.enum(['analyze', 'index_only']).optional().default('analyze')
+});
+
+export type BulkUploadTranscriptsRequest = z.infer<typeof bulkUploadTranscriptsSchema>;
+
+// ==================== Generate Sales Assets ====================
+
+export const generateSalesAssetsSchema = z.object({
+  transcript: transcriptTextSchema,
+  strategic_context: z.object({
+    strategic_threading: z.object({
+      relevance_map: z.array(z.object({
+        pain_identified: z.string(),
+        feature_pitched: z.string(),
+        is_relevant: z.boolean(),
+        reasoning: z.string()
+      })).optional(),
+      missed_opportunities: z.array(z.string()).optional()
+    }).optional(),
+    critical_gaps: z.array(z.object({
+      category: z.string(),
+      description: z.string(),
+      impact: z.string(),
+      suggested_question: z.string()
+    })).optional()
+  }).optional(),
+  psychology_context: z.object({
+    prospect_persona: z.string().optional(),
+    disc_profile: z.string().optional(),
+    communication_style: z.object({
+      tone: z.string().optional(),
+      preference: z.string().optional()
+    }).optional(),
+    dos_and_donts: z.object({
+      do: z.array(z.string()).optional(),
+      dont: z.array(z.string()).optional()
+    }).optional()
+  }).optional(),
+  account_name: z.string().max(200).transform(sanitizeUserInput).optional(),
+  stakeholder_name: z.string().max(200).transform(sanitizeUserInput).optional()
+});
+
+export type GenerateSalesAssetsRequest = z.infer<typeof generateSalesAssetsSchema>;
 
 // ==================== Coaching Trends ====================
 
