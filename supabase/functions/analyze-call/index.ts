@@ -1,4 +1,5 @@
 /**
+/**
  * analyze-call Edge Function - Analysis 2.0 Pipeline
  * 
  * Multi-agent analysis system with graceful error recovery:
@@ -8,6 +9,7 @@
  * - Agent 4: The Strategist (pain-to-pitch mapping) - gemini-2.5-flash
  * - Agent 5: The Skeptic (deal gaps analysis) - gemini-2.5-pro
  * - Agent 6: The Negotiator (objection handling) - gemini-2.5-pro
+ * - Agent 7: The Profiler (psychological profiling) - gemini-2.5-flash
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -22,6 +24,7 @@ import {
   analyzeQuestionLeverage,
   analyzeDealGaps,
   analyzeObjections,
+  analyzePsychology,
   type CallMetadata,
   type BehaviorScore,
   type QuestionLeverage,
@@ -30,6 +33,7 @@ import {
   type ObjectionHandling,
   type StrategyAudit,
   type MergedBehaviorScore,
+  type PsychologyProfile,
 } from '../_shared/analysis-agents.ts';
 
 // Minimum transcript length for meaningful analysis
@@ -78,6 +82,19 @@ const DEFAULT_OBJECTIONS: ObjectionHandling = {
     score: 100,
     grade: 'Pass',
     objections_detected: [],
+  },
+};
+
+const DEFAULT_PSYCHOLOGY: PsychologyProfile = {
+  prospect_persona: 'Unknown',
+  disc_profile: 'C - Compliance',
+  communication_style: {
+    tone: 'Unknown',
+    preference: 'Unknown',
+  },
+  dos_and_donts: {
+    do: [],
+    dont: [],
   },
 };
 
@@ -379,14 +396,33 @@ serve(async (req) => {
         throw err;
       }
     };
+
+    const timedPsychology = async () => {
+      const start = performance.now();
+      try {
+        const result = await analyzePsychology(transcript.raw_text);
+        await logPerformance(supabaseAdmin, 'agent_profiler_psychology', performance.now() - start, 'success', { 
+          call_id: targetCallId,
+          disc_profile: result.disc_profile,
+        });
+        return result;
+      } catch (err) {
+        await logPerformance(supabaseAdmin, 'agent_profiler_psychology', performance.now() - start, 'error', { 
+          call_id: targetCallId, 
+          error: err instanceof Error ? err.message : String(err),
+        });
+        throw err;
+      }
+    };
     
-    const [metadataSettled, behaviorSettled, questionSettled, strategySettled, gapsSettled, objectionsSettled] = await Promise.allSettled([
+    const [metadataSettled, behaviorSettled, questionSettled, strategySettled, gapsSettled, objectionsSettled, psychologySettled] = await Promise.allSettled([
       timedMetadata(),
       timedBehavior(),
       timedQuestions(),
       timedStrategy(),
       timedGaps(),
       timedObjections(),
+      timedPsychology(),
     ]);
 
     // Metadata is CRITICAL - if it fails, the whole analysis fails
@@ -452,6 +488,17 @@ serve(async (req) => {
       objectionsResult = objectionsSettled.value;
     }
 
+    // Psychology agent (The Profiler) - use fallback on failure
+    let psychologyResult: PsychologyProfile;
+    if (psychologySettled.status === 'rejected') {
+      const error = psychologySettled.reason instanceof Error ? psychologySettled.reason.message : String(psychologySettled.reason);
+      console.warn('[analyze-call] Psychology agent failed, using defaults:', error);
+      analysisWarnings.push(`Psychology profiling failed: ${error}`);
+      psychologyResult = DEFAULT_PSYCHOLOGY;
+    } else {
+      psychologyResult = psychologySettled.value;
+    }
+
     // Combine strategy threading, gaps, and objections into full StrategyAudit for storage
     const strategyResult: StrategyAudit = {
       ...strategyThreading,
@@ -487,6 +534,7 @@ serve(async (req) => {
       analysis_metadata: metadataResult,
       analysis_behavior: behaviorResult,
       analysis_strategy: strategyResult,
+      analysis_psychology: psychologyResult,
       analysis_pipeline_version: 'v2',
       call_summary: metadataResult.summary,
       // Store warnings in raw_json for debugging/transparency

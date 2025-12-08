@@ -41,6 +41,13 @@ const COPYWRITER_SYSTEM_PROMPT = `You are an expert Sales Copywriter. Write a fo
 - Use explicit format: 'Because you mentioned [Pain Identified], I recommend [Feature Pitched]...'
 - Keep the tone professional but conversational.
 
+**COMMUNICATION STYLE ADAPTATION:**
+If a 'prospect_psychology' profile is provided, adapt your writing style:
+- **High D (Dominance):** Be brief, direct, bottom-line focused. Skip small talk. Use bullet points.
+- **High I (Influence):** Be enthusiastic, warm, storytelling. Use emojis sparingly. Keep energy high.
+- **High S (Steadiness):** Be calm, reassuring, process-oriented. Emphasize stability and support.
+- **High C (Compliance):** Be detailed, data-driven, precise. Include specifics and avoid vague claims.
+
 **EMAIL STRUCTURE:**
 1. Warm opening thanking them for their time
 2. Brief recap of what was discussed
@@ -77,6 +84,19 @@ interface CriticalGap {
   description: string;
   impact: string;
   suggested_question: string;
+}
+
+interface PsychologyContext {
+  prospect_persona?: string;
+  disc_profile?: string;
+  communication_style?: {
+    tone?: string;
+    preference?: string;
+  };
+  dos_and_donts?: {
+    do?: string[];
+    dont?: string[];
+  };
 }
 
 interface StrategicContext {
@@ -126,7 +146,7 @@ serve(async (req) => {
       });
     }
 
-    const { transcript, strategic_context, account_name, stakeholder_name } = await req.json();
+    const { transcript, strategic_context, psychology_context, account_name, stakeholder_name } = await req.json();
 
     if (!transcript || typeof transcript !== 'string') {
       return new Response(JSON.stringify({ error: 'transcript is required and must be a string' }), {
@@ -166,11 +186,25 @@ serve(async (req) => {
       }
     }
 
+    // Add psychology context if available
+    let psychologySection = '';
+    if (psychology_context) {
+      const pc = psychology_context as PsychologyContext;
+      psychologySection = `\n\n**PROSPECT PSYCHOLOGY:**
+- **Persona:** ${pc.prospect_persona || 'Unknown'}
+- **DISC Profile:** ${pc.disc_profile || 'Unknown'}
+- **Preferred Tone:** ${pc.communication_style?.tone || 'Unknown'}
+- **Communication Preference:** ${pc.communication_style?.preference || 'Unknown'}
+- **DO:** ${pc.dos_and_donts?.do?.join('; ') || 'No specific guidance'}
+- **DON'T:** ${pc.dos_and_donts?.dont?.join('; ') || 'No specific guidance'}`;
+    }
+
     const userPrompt = `Generate a professional follow-up email and internal CRM notes for this sales call.
 
 ${account_name ? `**Account:** ${account_name}` : ''}
 ${stakeholder_name ? `**Primary Contact:** ${stakeholder_name}` : ''}
 ${contextSection}
+${psychologySection}
 
 **CALL TRANSCRIPT:**
 ${transcript.substring(0, 30000)}`;

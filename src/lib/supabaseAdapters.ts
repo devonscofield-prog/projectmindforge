@@ -30,6 +30,7 @@ import type {
   CallMetadata,
   StrategyAudit,
   DealHeat,
+  PsychologyProfile,
 } from '@/api/aiCallAnalysis/types';
 import type { UserActivityLog, UserActivityType } from '@/api/userActivityLogs';
 import { parseJsonField, isObject, isString, isStringArray, isNumber } from './typeUtils';
@@ -115,6 +116,14 @@ export function isStrategyAudit(value: unknown): value is StrategyAudit {
 export function isDealHeat(value: unknown): value is DealHeat {
   if (!isObject(value)) return false;
   return 'heat_score' in value && 'temperature' in value && 'key_factors' in value;
+}
+
+/**
+ * Type guard for PsychologyProfile (Analysis 2.0)
+ */
+export function isPsychologyProfile(value: unknown): value is PsychologyProfile {
+  if (!isObject(value)) return false;
+  return 'prospect_persona' in value && 'disc_profile' in value && 'communication_style' in value;
 }
 
 /**
@@ -285,6 +294,7 @@ export function toCallAnalysis(row: AiCallAnalysisRow): CallAnalysis {
     analysis_metadata: parseJsonField<CallMetadata>(row.analysis_metadata, isCallMetadata),
     analysis_behavior: parseJsonField<BehaviorScore>(row.analysis_behavior, isBehaviorScore),
     analysis_strategy: parseJsonField<StrategyAudit>(row.analysis_strategy, isStrategyAudit),
+    analysis_psychology: parseJsonField<PsychologyProfile>(row.analysis_psychology, isPsychologyProfile),
     deal_heat_analysis: parseJsonField<DealHeat>(row.deal_heat_analysis, isDealHeat),
   };
 }
