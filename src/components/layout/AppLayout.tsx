@@ -68,6 +68,7 @@ function SidebarNav() {
     : role === 'manager'
     ? [
         { href: '/manager', label: 'Team Overview', icon: LayoutDashboard },
+        { href: '/manager/history', label: 'Call History', icon: History },
         { href: '/manager/accounts', label: 'Accounts', icon: UserCheck },
         { href: '/manager/coaching', label: 'Coaching', icon: MessageSquare },
         { href: '/manager/transcripts', label: 'Transcripts', icon: FileText },

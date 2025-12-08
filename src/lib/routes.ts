@@ -91,7 +91,7 @@ export function getAccountsLabel(role: UserRole | null): string {
 /**
  * Generates the correct call history URL based on user role.
  * - Admin: /admin (dashboard)
- * - Manager: /manager/coaching
+ * - Manager: /manager/history
  * - Rep: /rep/history
  */
 export function getCallHistoryUrl(role: UserRole | null): string {
@@ -99,7 +99,7 @@ export function getCallHistoryUrl(role: UserRole | null): string {
     case 'admin':
       return '/admin';
     case 'manager':
-      return '/manager/coaching';
+      return '/manager/history';
     case 'rep':
     default:
       return '/rep/history';
@@ -114,7 +114,7 @@ export function getCallHistoryLabel(role: UserRole | null): string {
     case 'admin':
       return 'Dashboard';
     case 'manager':
-      return 'Coaching';
+      return 'Team Call History';
     case 'rep':
     default:
       return 'Call History';

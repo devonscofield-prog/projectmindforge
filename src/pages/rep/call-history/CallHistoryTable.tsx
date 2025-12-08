@@ -33,7 +33,7 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/comp
 import { PAGE_SIZE_OPTIONS, SortColumn } from './constants';
 
 interface CallHistoryTableProps {
-  transcripts: CallTranscriptWithHeat[];
+  transcripts: (CallTranscriptWithHeat & { rep_name?: string | null })[];
   totalCount: number;
   isLoading: boolean;
   hasActiveFilters: boolean;
@@ -45,6 +45,7 @@ interface CallHistoryTableProps {
   onToggleSort: (column: SortColumn) => void;
   onGoToPage: (page: number) => void;
   onPageSizeChange: (size: number) => void;
+  showRepName?: boolean;
 }
 
 export function CallHistoryTable({
@@ -60,6 +61,7 @@ export function CallHistoryTable({
   onToggleSort,
   onGoToPage,
   onPageSizeChange,
+  showRepName = false,
 }: CallHistoryTableProps) {
   const navigate = useNavigate();
 
@@ -178,6 +180,7 @@ export function CallHistoryTable({
                         <ArrowUpDown className="h-3 w-3" />
                       </div>
                     </TableHead>
+                    {showRepName && <TableHead>Rep</TableHead>}
                     <TableHead>Stakeholder</TableHead>
                     <TableHead 
                       className="cursor-pointer hover:bg-muted/50"
@@ -226,6 +229,11 @@ export function CallHistoryTable({
                           )}
                         </div>
                       </TableCell>
+                      {showRepName && (
+                        <TableCell className="text-muted-foreground">
+                          {(t as { rep_name?: string | null }).rep_name || '-'}
+                        </TableCell>
+                      )}
                       <TableCell>{t.primary_stakeholder_name || '-'}</TableCell>
                       <TableCell>{t.account_name || '-'}</TableCell>
                       <TableCell>
