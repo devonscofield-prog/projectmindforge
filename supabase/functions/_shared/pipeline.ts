@@ -1,13 +1,14 @@
 /**
- * Analysis Pipeline Orchestrator - P1 Optimized with Speaker Labeling
+ * Analysis Pipeline Orchestrator - P1 Optimized with Speaker Labeling + Call Classification
  * 
  * Performance optimizations (P1):
- * - Phase 0: Speaker Labeler pre-processes transcript for accurate talk ratio
+ * - Phase 0: Speaker Labeler + Sentinel (call classifier) run in parallel
+ * - Sentinel provides scoring hints to calibrate downstream agents
  * - Skeptic runs async (non-blocking) at start of Batch 2
  * - Per-agent timeouts with graceful degradation
  * - Reduced batch count from 3 to 2 + async Skeptic
  * 
- * Phase 0: Speaker Labeler (pre-processing)
+ * Phase 0: Speaker Labeler + Sentinel (parallel pre-processing)
  * Batch 1: Critical (Census, Historian, Spy)
  * Batch 2: Strategic (Profiler, Strategist, Referee, Interrogator, Negotiator) + Skeptic (async)
  * Phase 2: Coach (synthesis)
@@ -28,6 +29,7 @@ import {
   SpyOutput,
   CoachOutput,
   SpeakerLabelerOutput,
+  SentinelOutput,
   CallMetadata,
   MergedBehaviorScore,
   StrategyAudit,
@@ -44,6 +46,15 @@ export interface SpeakerContext {
   additionalSpeakers: string[];
 }
 
+// ============= CALL CLASSIFICATION TYPE =============
+
+export interface CallClassification {
+  detected_call_type: SentinelOutput['detected_call_type'];
+  confidence: SentinelOutput['confidence'];
+  detection_signals: string[];
+  scoring_hints: SentinelOutput['scoring_hints'];
+}
+
 // ============= PIPELINE RESULT TYPE =============
 
 export interface PipelineResult {
@@ -52,6 +63,7 @@ export interface PipelineResult {
   strategy: StrategyAudit;
   psychology: ProfilerOutput;
   coaching: CoachOutput;
+  callClassification?: CallClassification;
   warnings: string[];
   phase1DurationMs: number;
   phase2DurationMs: number;
@@ -88,15 +100,30 @@ function buildStrategistPrompt(transcript: string, callSummary?: string): string
   return basePrompt;
 }
 
-function buildBehaviorPrompt(transcript: string, callSummary?: string): string {
+function buildBehaviorPrompt(transcript: string, callSummary?: string, scoringHints?: SentinelOutput['scoring_hints']): string {
   const basePrompt = `Analyze this sales call transcript for behavioral dynamics and score the rep's performance:\n\n${transcript}`;
   
+  const contextParts: string[] = [];
+  
   if (callSummary) {
-    const isDemoCall = callSummary.toLowerCase().includes('demo') || callSummary.toLowerCase().includes('walkthrough');
-    const leniencyNote = isDemoCall 
-      ? "\n\nNOTE: This summary indicates the call was a 'Demo' or 'Walkthrough'. Be lenient on the Monologue score, as long turns are expected in demos." 
-      : "";
-    return `${basePrompt}\n\n--- CONTEXT ---\nCall Summary: ${callSummary}${leniencyNote}`;
+    contextParts.push(`Call Summary: ${callSummary}`);
+  }
+  
+  // Apply scoring hints from Sentinel
+  if (scoringHints) {
+    if (scoringHints.monologue_tolerance === 'lenient') {
+      contextParts.push(`NOTE: This call type expects extended monologues (demo/presentation). Be LENIENT on the Monologue score - do not penalize long turns that are appropriate for demos.`);
+    }
+    if (scoringHints.talk_ratio_ideal > 55) {
+      contextParts.push(`NOTE: For this call type, rep talk % of ${scoringHints.talk_ratio_ideal}% is ideal. Adjust Talk Ratio scoring accordingly.`);
+    }
+    if (scoringHints.discovery_expectation === 'none' || scoringHints.discovery_expectation === 'light') {
+      contextParts.push(`NOTE: This call type has ${scoringHints.discovery_expectation} discovery expectation. Light questioning is acceptable.`);
+    }
+  }
+  
+  if (contextParts.length > 0) {
+    return `${basePrompt}\n\n--- CONTEXT ---\n${contextParts.join('\n')}`;
   }
   return basePrompt;
 }
@@ -338,80 +365,120 @@ export async function runAnalysisPipeline(
 
   // Determine which transcript to use (labeled or raw)
   let processedTranscript = transcript;
+  
+  // Store call classification for downstream context
+  let callClassification: CallClassification | undefined;
 
-  // ============= PHASE 0: Speaker Labeler (Pre-processing) =============
-  if (speakerContext) {
-    // Length guard: skip labeling for very long transcripts to prevent timeout/overflow
-    if (transcript.length > MAX_TRANSCRIPT_LENGTH_FOR_LABELING) {
-      const lengthKb = Math.round(transcript.length / 1000);
-      warnings.push(`Transcript too long for speaker labeling (${lengthKb}k chars), using raw transcript`);
-      console.log(`[Pipeline] Phase 0 skipped: Transcript length ${lengthKb}k chars exceeds ${MAX_TRANSCRIPT_LENGTH_FOR_LABELING / 1000}k limit`);
-    } else {
-      console.log('[Pipeline] Phase 0: Running Speaker Labeler...');
-      const phase0Start = performance.now();
+  // ============= PHASE 0: Speaker Labeler + Sentinel (Pre-processing, parallel) =============
+  console.log('[Pipeline] Phase 0: Running Speaker Labeler + Sentinel in parallel...');
+  const phase0Start = performance.now();
+  
+  // Get Phase 0 agents
+  const speakerLabelerConfig = getPhase0Agent('speaker_labeler');
+  const sentinelConfig = getPhase0Agent('sentinel');
+  
+  // Build prompts
+  const labelerPrompt = speakerContext 
+    ? buildSpeakerLabelerPrompt(transcript, speakerContext)
+    : null;
+  const sentinelPrompt = `Classify this sales call transcript by type:\n\n${transcript.slice(0, 50000)}`; // Limit for classifier
+  
+  // Create timeout race for Phase 0 (20 second budget)
+  const phase0Timeout = new Promise<'timeout'>((resolve) => 
+    setTimeout(() => resolve('timeout'), PHASE0_BUDGET_MS)
+  );
+  
+  // Length guard: skip speaker labeling for very long transcripts
+  const skipLabeling = transcript.length > MAX_TRANSCRIPT_LENGTH_FOR_LABELING;
+  if (skipLabeling) {
+    const lengthKb = Math.round(transcript.length / 1000);
+    warnings.push(`Transcript too long for speaker labeling (${lengthKb}k chars), using raw transcript`);
+    console.log(`[Pipeline] Phase 0: Skipping speaker labeling (${lengthKb}k chars exceeds limit)`);
+  }
+  
+  // Run Phase 0 agents in parallel (within timeout)
+  const phase0Promises: Promise<AgentResult<unknown>>[] = [];
+  
+  // Add Sentinel (always runs)
+  if (sentinelConfig) {
+    phase0Promises.push(executeAgentWithPrompt(sentinelConfig, sentinelPrompt, supabase, callId));
+  }
+  
+  // Add Speaker Labeler (only if context provided and not too long)
+  if (speakerLabelerConfig && labelerPrompt && !skipLabeling) {
+    phase0Promises.push(executeAgentWithPrompt(speakerLabelerConfig, labelerPrompt, supabase, callId));
+  }
+  
+  // Race against timeout
+  const phase0RaceResult = await Promise.race([
+    Promise.all(phase0Promises),
+    phase0Timeout
+  ]);
+  
+  const phase0Duration = performance.now() - phase0Start;
+  
+  if (phase0RaceResult === 'timeout') {
+    warnings.push(`Phase 0 timed out (${PHASE0_BUDGET_MS / 1000}s budget), using defaults`);
+    console.log(`[Pipeline] Phase 0 aborted: exceeded ${PHASE0_BUDGET_MS / 1000}s budget after ${Math.round(phase0Duration)}ms`);
+  } else {
+    const results = phase0RaceResult;
+    let resultIndex = 0;
+    
+    // Process Sentinel result
+    if (sentinelConfig && results[resultIndex]) {
+      const sentinelResult = results[resultIndex] as AgentResult<SentinelOutput>;
+      resultIndex++;
       
-      const speakerLabelerConfig = getPhase0Agent();
-      if (speakerLabelerConfig) {
-        const labelerPrompt = buildSpeakerLabelerPrompt(transcript, speakerContext);
-        
-        // Create timeout race for Phase 0 (20 second budget)
-        const labelerTimeout = new Promise<null>((resolve) => 
-          setTimeout(() => resolve(null), PHASE0_BUDGET_MS)
-        );
-        
-        const labelerResultOrTimeout = await Promise.race([
-          executeAgentWithPrompt(speakerLabelerConfig, labelerPrompt, supabase, callId),
-          labelerTimeout
-        ]);
-        
-        const phase0Duration = performance.now() - phase0Start;
-        
-        // Check if timed out
-        if (labelerResultOrTimeout === null) {
-          warnings.push(`Speaker labeling timed out (${PHASE0_BUDGET_MS / 1000}s budget), using raw transcript`);
-          console.log(`[Pipeline] Phase 0 aborted: exceeded ${PHASE0_BUDGET_MS / 1000}s budget after ${Math.round(phase0Duration)}ms`);
-        } else {
-          const labelerResult = labelerResultOrTimeout;
-          
-          if (labelerResult.success) {
-            const labelerData = labelerResult.data as SpeakerLabelerOutput;
-            
-            // Check if we have line labels
-            if (labelerData.line_labels && labelerData.line_labels.length > 0) {
-              // Apply labels client-side
-              const labeledTranscript = applyLabelsToTranscript(transcript, labelerData.line_labels);
-              
-              // Validate: check label coverage (at least 10% of non-empty lines should be labeled)
-              const lines = labeledTranscript.split('\n').filter((l: string) => l.trim());
-              const labeledLines = lines.filter((l: string) => /^(REP|PROSPECT|MANAGER|OTHER):/i.test(l.trim()));
-              const labelCoverage = lines.length > 0 ? labeledLines.length / lines.length : 0;
-              
-              if (labelCoverage >= 0.1) {
-                processedTranscript = labeledTranscript;
-                console.log(`[Pipeline] Phase 0 complete in ${Math.round(phase0Duration)}ms - ${labelerData.speaker_count} speakers detected (${labelerData.detection_confidence} confidence), ${labelerData.line_labels.length} lines labeled, ${Math.round(labelCoverage * 100)}% coverage`);
-                // Log speaker mapping for debugging
-                if (labelerData.speaker_mapping && labelerData.speaker_mapping.length > 0) {
-                  console.log(`[Pipeline] Speaker mapping: ${JSON.stringify(labelerData.speaker_mapping)}`);
-                }
-              } else {
-                warnings.push(`Low label coverage (${Math.round(labelCoverage * 100)}% of lines labeled), using raw transcript`);
-                console.log(`[Pipeline] Phase 0 fallback: Low label coverage - only ${labeledLines.length}/${lines.length} lines have valid prefixes (${Math.round(labelCoverage * 100)}%)`);
-              }
-            } else {
-              warnings.push('Speaker labeling returned no line labels, using raw transcript');
-              console.log(`[Pipeline] Phase 0 fallback: Empty line_labels array returned`);
-            }
-          } else {
-            const errorReason = labelerResult.error || 'Unknown error';
-            warnings.push(`Speaker labeling failed: ${errorReason}, using raw transcript`);
-            console.log(`[Pipeline] Phase 0 fallback: Agent failed after ${Math.round(phase0Duration)}ms - ${errorReason}`);
-          }
-        }
+      if (sentinelResult.success) {
+        const sentinelData = sentinelResult.data;
+        callClassification = {
+          detected_call_type: sentinelData.detected_call_type,
+          confidence: sentinelData.confidence,
+          detection_signals: sentinelData.detection_signals,
+          scoring_hints: sentinelData.scoring_hints,
+        };
+        console.log(`[Pipeline] Sentinel: Call type = ${sentinelData.detected_call_type} (${sentinelData.confidence} confidence)`);
+        console.log(`[Pipeline] Scoring hints: discovery=${sentinelData.scoring_hints.discovery_expectation}, monologue=${sentinelData.scoring_hints.monologue_tolerance}, talk_ratio=${sentinelData.scoring_hints.talk_ratio_ideal}%`);
+      } else {
+        warnings.push(`Call classification failed: ${sentinelResult.error}`);
+        console.log(`[Pipeline] Sentinel fallback: ${sentinelResult.error}`);
       }
     }
-  } else {
-    console.log('[Pipeline] Phase 0 skipped: No speaker context provided');
+    
+    // Process Speaker Labeler result
+    if (speakerLabelerConfig && labelerPrompt && !skipLabeling && results[resultIndex]) {
+      const labelerResult = results[resultIndex] as AgentResult<SpeakerLabelerOutput>;
+      
+      if (labelerResult.success) {
+        const labelerData = labelerResult.data;
+        
+        if (labelerData.line_labels && labelerData.line_labels.length > 0) {
+          const labeledTranscript = applyLabelsToTranscript(transcript, labelerData.line_labels);
+          
+          // Validate label coverage
+          const lines = labeledTranscript.split('\n').filter((l: string) => l.trim());
+          const labeledLines = lines.filter((l: string) => /^(REP|PROSPECT|MANAGER|OTHER):/i.test(l.trim()));
+          const labelCoverage = lines.length > 0 ? labeledLines.length / lines.length : 0;
+          
+          if (labelCoverage >= 0.1) {
+            processedTranscript = labeledTranscript;
+            console.log(`[Pipeline] Speaker Labeler: ${labelerData.speaker_count} speakers, ${Math.round(labelCoverage * 100)}% coverage (${labelerData.detection_confidence} confidence)`);
+          } else {
+            warnings.push(`Low label coverage (${Math.round(labelCoverage * 100)}%), using raw transcript`);
+            console.log(`[Pipeline] Speaker Labeler fallback: Low coverage ${Math.round(labelCoverage * 100)}%`);
+          }
+        } else {
+          warnings.push('Speaker labeling returned no line labels, using raw transcript');
+          console.log(`[Pipeline] Speaker Labeler fallback: Empty line_labels array`);
+        }
+      } else {
+        warnings.push(`Speaker labeling failed: ${labelerResult.error}, using raw transcript`);
+        console.log(`[Pipeline] Speaker Labeler fallback: ${labelerResult.error}`);
+      }
+    }
   }
+  
+  console.log(`[Pipeline] Phase 0 complete in ${Math.round(phase0Duration)}ms`);
 
   // Get all agent configs
   const censusConfig = getAgent('census')!;
@@ -473,7 +540,7 @@ export async function runAnalysisPipeline(
   // Build context-aware prompts using processedTranscript
   const profilerPrompt = buildProfilerPrompt(processedTranscript, primaryDecisionMaker?.name);
   const strategistPrompt = buildStrategistPrompt(processedTranscript, callSummary);
-  const behaviorPrompt = buildBehaviorPrompt(processedTranscript, callSummary);
+  const behaviorPrompt = buildBehaviorPrompt(processedTranscript, callSummary, callClassification?.scoring_hints);
   const competitorNames = spyResult.success 
     ? spy.competitive_intel.map(c => c.competitor_name) 
     : undefined;
@@ -569,6 +636,7 @@ export async function runAnalysisPipeline(
     strategy,
     psychology: profiler,
     coaching: coachResult.data,
+    callClassification,
     warnings,
     phase1DurationMs: phase1Duration,
     phase2DurationMs: phase2Duration,

@@ -195,6 +195,27 @@ export const SpeakerLabelerSchema = z.object({
   detection_confidence: z.enum(['high', 'medium', 'low']),
 });
 
+// The Sentinel - call type classifier (Phase 0, runs with Speaker Labeler)
+export const SentinelSchema = z.object({
+  detected_call_type: z.enum([
+    'full_cycle_sales',     // Discovery → Pitch → Pricing → Close attempt
+    'reconnect',            // Follow-up meeting, internal feedback discussion
+    'group_demo',           // Demo to multiple stakeholders/team
+    'technical_deep_dive',  // Heavy Q&A on integration, APIs, security
+    'executive_alignment',  // Strategic discussion with decision-maker
+    'pricing_negotiation',  // Focus on pricing, discounts, contract terms
+    'unknown'               // Cannot reliably classify
+  ]),
+  confidence: z.enum(['high', 'medium', 'low']),
+  detection_signals: z.array(z.string()).max(5).describe("Evidence phrases from transcript supporting classification"),
+  user_submitted_type_match: z.boolean().optional().describe("Whether AI classification matches user-submitted call type"),
+  scoring_hints: z.object({
+    discovery_expectation: z.enum(['heavy', 'moderate', 'light', 'none']).describe("How much new discovery should we expect?"),
+    monologue_tolerance: z.enum(['strict', 'moderate', 'lenient']).describe("How forgiving on long rep turns?"),
+    talk_ratio_ideal: z.number().min(20).max(70).describe("Target rep talk % for this call type"),
+  }),
+});
+
 // ============= INFERRED TYPES =============
 
 export type CensusOutput = z.infer<typeof CensusSchema>;
@@ -208,6 +229,7 @@ export type ProfilerOutput = z.infer<typeof ProfilerSchema>;
 export type SpyOutput = z.infer<typeof SpySchema>;
 export type CoachOutput = z.infer<typeof CoachSchema>;
 export type SpeakerLabelerOutput = z.infer<typeof SpeakerLabelerSchema>;
+export type SentinelOutput = z.infer<typeof SentinelSchema>;
 
 // ============= COMBINED TYPES FOR BACKWARD COMPATIBILITY =============
 
