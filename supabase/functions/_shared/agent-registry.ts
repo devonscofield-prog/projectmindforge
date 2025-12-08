@@ -16,6 +16,7 @@ import {
   NegotiatorSchema,
   ProfilerSchema,
   SpySchema,
+  AuditorSchema,
   CoachSchema,
   SpeakerLabelerSchema,
   SentinelSchema,
@@ -30,6 +31,7 @@ import {
   NEGOTIATOR_PROMPT,
   PROFILER_PROMPT,
   SPY_PROMPT,
+  AUDITOR_PROMPT,
   COACH_PROMPT,
   SPEAKER_LABELER_PROMPT,
   SENTINEL_PROMPT,
@@ -133,6 +135,14 @@ const DEFAULT_PROFILER = {
 
 const DEFAULT_SPY = {
   competitive_intel: [],
+};
+
+const DEFAULT_AUDITOR = {
+  discounts_offered: [],
+  pricing_score: 100,
+  grade: 'Pass' as const,
+  summary: 'No discounts were offered during this call.',
+  coaching_tips: [],
 };
 
 const DEFAULT_COACH = {
@@ -320,6 +330,20 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     options: { model: 'google/gemini-2.5-flash', temperature: 0.2, maxTokens: 4096 },
     isCritical: false,
     default: DEFAULT_SPY,
+    phase: 1,
+  },
+  {
+    id: 'auditor',
+    name: 'The Auditor',
+    description: 'Analyze pricing discipline and discount offers',
+    schema: AuditorSchema,
+    systemPrompt: AUDITOR_PROMPT,
+    userPromptTemplate: (t) => `Analyze this sales call transcript for pricing discipline. Find ALL discounts, concessions, or price reductions offered and assess whether the timing was appropriate:\n\n${t}`,
+    toolName: 'analyze_pricing_discipline',
+    toolDescription: 'Analyze pricing discipline and discount behavior in a sales call',
+    options: { model: 'google/gemini-2.5-flash', temperature: 0.1, maxTokens: 2048 },
+    isCritical: false,
+    default: DEFAULT_AUDITOR,
     phase: 1,
   },
   // Phase 2 Agent (runs after phase 1 completes)

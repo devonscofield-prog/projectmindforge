@@ -286,6 +286,7 @@ export type Database = {
           analysis_coaching: Json | null
           analysis_metadata: Json | null
           analysis_pipeline_version: string | null
+          analysis_pricing: Json | null
           analysis_psychology: Json | null
           analysis_strategy: Json | null
           call_effectiveness_score: number | null
@@ -324,6 +325,7 @@ export type Database = {
           analysis_coaching?: Json | null
           analysis_metadata?: Json | null
           analysis_pipeline_version?: string | null
+          analysis_pricing?: Json | null
           analysis_psychology?: Json | null
           analysis_strategy?: Json | null
           call_effectiveness_score?: number | null
@@ -362,6 +364,7 @@ export type Database = {
           analysis_coaching?: Json | null
           analysis_metadata?: Json | null
           analysis_pipeline_version?: string | null
+          analysis_pricing?: Json | null
           analysis_psychology?: Json | null
           analysis_strategy?: Json | null
           call_effectiveness_score?: number | null

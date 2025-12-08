@@ -27,6 +27,7 @@ import {
   NegotiatorOutput,
   ProfilerOutput,
   SpyOutput,
+  AuditorOutput,
   CoachOutput,
   SpeakerLabelerOutput,
   SentinelOutput,
@@ -62,6 +63,7 @@ export interface PipelineResult {
   behavior: MergedBehaviorScore;
   strategy: StrategyAudit;
   psychology: ProfilerOutput;
+  pricing: AuditorOutput;
   coaching: CoachOutput;
   callClassification?: CallClassification;
   warnings: string[];
@@ -706,6 +708,7 @@ export async function runAnalysisPipeline(
   const interrogatorConfig = getAgent('interrogator')!;
   const skepticConfig = getAgent('skeptic')!;
   const negotiatorConfig = getAgent('negotiator')!;
+  const auditorConfig = getAgent('auditor')!;
   const coachConfig = getAgent('coach')!;
 
   // ============= BATCH 1: Critical Agents (Census, Historian, Spy) =============
@@ -797,11 +800,13 @@ export async function runAnalysisPipeline(
   console.log('[Pipeline] Skeptic fired async (non-blocking)');
 
   // Run Batch 2a: Strategist runs first so we can extract pitched features for Negotiator
-  const [profilerResult, strategistResult, refereeResult, interrogatorResult] = await Promise.all([
+  // Auditor runs in parallel - no dependencies on other agents
+  const [profilerResult, strategistResult, refereeResult, interrogatorResult, auditorResult] = await Promise.all([
     executeAgentWithPrompt(profilerConfig, profilerPrompt, supabase, callId),
     executeAgentWithPrompt(strategistConfig, strategistPrompt, supabase, callId),
     executeAgentWithPrompt(refereeConfig, behaviorPrompt, supabase, callId),
     executeAgentWithPrompt(interrogatorConfig, interrogatorPrompt, supabase, callId),
+    executeAgent(auditorConfig, processedTranscript, supabase, callId),
   ]);
 
   // Extract pitched features from Strategist for Negotiator context
@@ -830,6 +835,7 @@ export async function runAnalysisPipeline(
   if (!strategistResult.success) warnings.push(`Strategy analysis failed: ${strategistResult.error}`);
   if (!refereeResult.success) warnings.push(`Behavior analysis failed: ${refereeResult.error}`);
   if (!interrogatorResult.success) warnings.push(`Question analysis failed: ${interrogatorResult.error}`);
+  if (!auditorResult.success) warnings.push(`Pricing discipline analysis failed: ${auditorResult.error}`);
   if (!negotiatorResult.success) warnings.push(`Objection handling analysis failed: ${negotiatorResult.error}`);
 
   // Now await Skeptic (should be done or nearly done)
@@ -853,12 +859,13 @@ export async function runAnalysisPipeline(
   const skeptic = skepticResult.data as SkepticOutput;
   const negotiator = negotiatorResult.data as NegotiatorOutput;
   const profiler = profilerResult.data as ProfilerOutput;
+  const auditor = auditorResult.data as AuditorOutput;
 
   const metadata = mergeCallMetadata(census, historian);
   const behavior = mergeBehaviorWithQuestions(referee, interrogator);
   const strategy = mergeStrategy(strategist, skeptic, negotiator, spy);
 
-  console.log(`[Pipeline] Scores - Behavior: ${behavior.overall_score} (base: ${referee.overall_score}, questions: ${interrogator.score}), Threading: ${strategy.strategic_threading.score}, Critical Gaps: ${strategy.critical_gaps.length}`);
+  console.log(`[Pipeline] Scores - Behavior: ${behavior.overall_score} (base: ${referee.overall_score}, questions: ${interrogator.score}), Threading: ${strategy.strategic_threading.score}, Critical Gaps: ${strategy.critical_gaps.length}, Pricing: ${auditor.pricing_score}`);
 
   // ============= PHASE 2: The Coach =============
   console.log('[Pipeline] Phase 2: Running The Coach (synthesis agent)...');
@@ -894,6 +901,7 @@ export async function runAnalysisPipeline(
     behavior,
     strategy,
     psychology: profiler,
+    pricing: auditor,
     coaching: coachResult.data,
     callClassification,
     warnings,
