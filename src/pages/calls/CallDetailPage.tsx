@@ -17,8 +17,7 @@ import { CallAnalysisResultsView } from '@/components/calls/CallAnalysisResultsV
 import { CallProductsSummary } from '@/components/calls/CallProductsSummary';
 import { EditCallDetailsDialog } from '@/components/calls/EditCallDetailsDialog';
 import { EditUserCountsDialog } from '@/components/calls/EditUserCountsDialog';
-import { BehaviorScorecard } from '@/components/analysis/BehaviorScorecard';
-import { PainToPitchAlignment, CriticalGapsPanel } from '@/components/analysis/StrategicRelevanceMap';
+import { BehaviorScorecard, PainToPitchAlignment, CriticalGapsPanel, ObjectionHandlingPanel, CompetitiveIntelPanel } from '@/components/analysis';
 import { SalesAssetsGenerator } from '@/components/calls/SalesAssetsGenerator';
 import { CallAnalysisLayout } from '@/components/calls/CallAnalysisLayout';
 import { TranscriptViewer } from '@/components/calls/TranscriptViewer';
@@ -381,8 +380,18 @@ function CallDetailPage() {
             onReanalyze={() => reanalyzeMutation.mutate()}
             isReanalyzing={reanalyzeMutation.isPending}
             behaviorContent={<BehaviorScorecard data={analysis.analysis_behavior} />}
-            strategyContent={<PainToPitchAlignment data={analysis.analysis_strategy} />}
-            hazardsContent={<CriticalGapsPanel data={analysis.analysis_strategy} />}
+            strategyContent={
+              <div className="space-y-6">
+                <PainToPitchAlignment data={analysis.analysis_strategy} />
+                <ObjectionHandlingPanel data={analysis.analysis_strategy?.objection_handling} />
+              </div>
+            }
+            hazardsContent={
+              <div className="space-y-6">
+                <CriticalGapsPanel data={analysis.analysis_strategy} />
+                <CompetitiveIntelPanel data={analysis.analysis_strategy?.competitive_intel} />
+              </div>
+            }
             recapContent={
               <SalesAssetsGenerator
                 transcript={transcript.raw_text}
