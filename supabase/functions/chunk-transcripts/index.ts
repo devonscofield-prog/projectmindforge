@@ -85,6 +85,75 @@ const NER_ERROR_DELAY_MS = 2000;
 const NER_RETRY_MAX = 3;
 const NER_RETRY_BASE_DELAY_MS = 500;
 
+// ========== HMAC SIGNATURE VALIDATION ==========
+async function validateHmacSignature(
+  headers: Headers,
+  body: string,
+  serviceRoleKey: string,
+  maxAgeMs: number = 300000 // 5 minutes
+): Promise<{ valid: boolean; error?: string }> {
+  const signature = headers.get('X-Request-Signature');
+  const timestamp = headers.get('X-Request-Timestamp');
+  const nonce = headers.get('X-Request-Nonce');
+  
+  // Check for required headers
+  if (!signature || !timestamp || !nonce) {
+    return { valid: false, error: 'Missing signature headers' };
+  }
+  
+  // Validate timestamp to prevent replay attacks
+  const requestTime = parseInt(timestamp, 10);
+  if (isNaN(requestTime)) {
+    return { valid: false, error: 'Invalid timestamp format' };
+  }
+  
+  const now = Date.now();
+  if (now - requestTime > maxAgeMs) {
+    return { valid: false, error: 'Request expired' };
+  }
+  
+  if (requestTime > now + 60000) { // Allow 1 minute clock skew
+    return { valid: false, error: 'Request timestamp in future' };
+  }
+  
+  // Reconstruct and validate signature
+  const signaturePayload = `${timestamp}.${nonce}.${body}`;
+  const secret = serviceRoleKey.substring(0, 32);
+  
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(secret);
+  const messageData = encoder.encode(signaturePayload);
+  
+  const key = await crypto.subtle.importKey(
+    'raw',
+    keyData,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  
+  const expectedBuffer = await crypto.subtle.sign('HMAC', key, messageData);
+  const expectedSignature = Array.from(new Uint8Array(expectedBuffer))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+  
+  // Constant-time comparison to prevent timing attacks
+  if (signature.length !== expectedSignature.length) {
+    return { valid: false, error: 'Invalid signature' };
+  }
+  
+  let result = 0;
+  for (let i = 0; i < signature.length; i++) {
+    result |= signature.charCodeAt(i) ^ expectedSignature.charCodeAt(i);
+  }
+  
+  if (result !== 0) {
+    return { valid: false, error: 'Invalid signature' };
+  }
+  
+  return { valid: true };
+}
+
 // Types
 interface TranscriptChunk {
   transcript_id: string;
@@ -1161,7 +1230,18 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const body = await req.json();
+    // Clone request to read body twice (for signature validation and parsing)
+    const bodyText = await req.text();
+    let body: unknown;
+    try {
+      body = JSON.parse(bodyText);
+    } catch {
+      return new Response(
+        JSON.stringify({ error: 'Invalid JSON body' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
     const parseResult = chunkTranscriptsSchema.safeParse(body);
 
     if (!parseResult.success) {
@@ -1190,27 +1270,49 @@ Deno.serve(async (req) => {
     // Mark job as processing if job_id provided
     await updateJobStatus('processing');
 
-    // Auth check
+    // Auth check with HMAC signature validation for service-to-service calls
     const authHeader = req.headers.get('Authorization');
     let userId: string | null = null;
     let userRole: string | null = null;
+    let isSignedRequest = false;
 
-    if (authHeader?.startsWith('Bearer ')) {
+    // Check if this is a signed service-to-service request
+    if (req.headers.has('X-Request-Signature')) {
+      const validation = await validateHmacSignature(req.headers, bodyText, supabaseServiceKey);
+      if (!validation.valid) {
+        console.warn('[chunk-transcripts] Invalid HMAC signature:', validation.error);
+        return new Response(
+          JSON.stringify({ error: 'Invalid request signature', details: validation.error }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      isSignedRequest = true;
+      userId = 'service-internal';
+      console.log('[chunk-transcripts] Validated signed service-to-service request');
+    } else if (authHeader?.startsWith('Bearer ')) {
       const token = authHeader.replace('Bearer ', '');
-      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+      
+      // Check if this is the service role key (internal call without signature - legacy support)
+      if (token === supabaseServiceKey) {
+        userId = 'service-internal-legacy';
+        console.log('[chunk-transcripts] Legacy service role key auth (consider using HMAC signatures)');
+      } else {
+        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
-      if (!authError && user) {
-        userId = user.id;
-        const { data: roleData } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', user.id)
-          .single();
-        userRole = roleData?.role || null;
+        if (!authError && user) {
+          userId = user.id;
+          const { data: roleData } = await supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', user.id)
+            .single();
+          userRole = roleData?.role || null;
+        }
       }
     }
 
     const isAdmin = userRole === 'admin';
+    const isInternalCall = isSignedRequest || userId === 'service-internal-legacy';
 
     // Rate limiting for non-admin
     if (userId && !isAdmin) {

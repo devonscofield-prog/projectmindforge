@@ -20,17 +20,45 @@ import { runAnalysisPipeline, SpeakerContext } from '../_shared/pipeline.ts';
 const MIN_TRANSCRIPT_LENGTH = 500;
 
 /**
- * Trigger background chunking for RAG indexing
+ * Trigger background chunking for RAG indexing with HMAC signing
  */
 async function triggerBackgroundChunking(callId: string, supabaseUrl: string, serviceKey: string): Promise<void> {
   try {
+    const body = JSON.stringify({ transcript_ids: [callId] });
+    
+    // Generate HMAC signature for service-to-service authentication
+    const timestamp = Date.now().toString();
+    const nonce = crypto.randomUUID();
+    const signaturePayload = `${timestamp}.${nonce}.${body}`;
+    const secret = serviceKey.substring(0, 32);
+    
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(secret);
+    const messageData = encoder.encode(signaturePayload);
+    
+    const key = await crypto.subtle.importKey(
+      'raw',
+      keyData,
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    );
+    
+    const signatureBuffer = await crypto.subtle.sign('HMAC', key, messageData);
+    const signature = Array.from(new Uint8Array(signatureBuffer))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+
     const response = await fetch(`${supabaseUrl}/functions/v1/chunk-transcripts`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${serviceKey}`,
+        'X-Request-Signature': signature,
+        'X-Request-Timestamp': timestamp,
+        'X-Request-Nonce': nonce,
       },
-      body: JSON.stringify({ transcript_ids: [callId] }),
+      body,
     });
 
     if (!response.ok) {

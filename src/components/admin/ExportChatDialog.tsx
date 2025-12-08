@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { createLogger } from '@/lib/logger';
+import { sanitizeHtmlForPdf } from '@/lib/sanitize';
 import { format } from 'date-fns';
 import {
   Dialog,
@@ -120,7 +121,8 @@ export function ExportChatDialog({
       const html = convertMarkdownToHtml(md);
       
       const element = document.createElement('div');
-      element.innerHTML = html;
+      // Sanitize HTML for defense-in-depth against XSS
+      element.innerHTML = sanitizeHtmlForPdf(html);
       element.style.position = 'absolute';
       element.style.left = '-9999px';
       document.body.appendChild(element);

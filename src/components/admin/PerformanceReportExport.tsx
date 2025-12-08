@@ -28,6 +28,7 @@ import {
 import { getAlertHistory } from '@/api/performanceAlerts';
 import { useAuth } from '@/contexts/AuthContext';
 import { createLogger } from '@/lib/logger';
+import { sanitizeHtmlForPdf } from '@/lib/sanitize';
 
 interface PerformanceReportExportProps {
   className?: string;
@@ -78,7 +79,8 @@ export function PerformanceReportExport({ className }: PerformanceReportExportPr
       const reportContent = generateReportHTML();
       
       const element = document.createElement('div');
-      element.innerHTML = reportContent;
+      // Sanitize HTML for defense-in-depth against XSS
+      element.innerHTML = sanitizeHtmlForPdf(reportContent);
       element.style.padding = '20px';
       document.body.appendChild(element);
 

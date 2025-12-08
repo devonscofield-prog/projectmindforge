@@ -153,14 +153,41 @@ Deno.serve(async (req) => {
 
     console.log(`[reanalyze-call] Status reset to processing, invoking analyze-call`);
 
+    // Generate HMAC signature for service-to-service authentication
+    const body = JSON.stringify({ call_id, force_reanalyze: true });
+    const timestamp = Date.now().toString();
+    const nonce = crypto.randomUUID();
+    const signaturePayload = `${timestamp}.${nonce}.${body}`;
+    const secret = serviceRoleKey.substring(0, 32);
+    
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(secret);
+    const messageData = encoder.encode(signaturePayload);
+    
+    const key = await crypto.subtle.importKey(
+      'raw',
+      keyData,
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    );
+    
+    const signatureBuffer = await crypto.subtle.sign('HMAC', key, messageData);
+    const signature = Array.from(new Uint8Array(signatureBuffer))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+
     // Trigger the analyze-call function with force flag to bypass idempotency check
     const analyzeResponse = await fetch(`${supabaseUrl}/functions/v1/analyze-call`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${serviceRoleKey}`,
         'Content-Type': 'application/json',
+        'X-Request-Signature': signature,
+        'X-Request-Timestamp': timestamp,
+        'X-Request-Nonce': nonce,
       },
-      body: JSON.stringify({ call_id, force_reanalyze: true }),
+      body,
     });
 
     if (!analyzeResponse.ok) {
