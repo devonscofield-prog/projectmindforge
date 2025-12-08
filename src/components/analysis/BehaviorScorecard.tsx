@@ -213,6 +213,8 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
   const avgAnswerLength = metrics.question_quality?.average_answer_length ?? 0;
   const highLeverageCount = metrics.question_quality?.high_leverage_count ?? 0;
   const lowLeverageCount = metrics.question_quality?.low_leverage_count ?? 0;
+  const highLeverageExamples = metrics.question_quality?.high_leverage_examples ?? [];
+  const lowLeverageExamples = metrics.question_quality?.low_leverage_examples ?? [];
 
   // Detect legacy data (pre-leverage fields)
   const isLegacyData = (metrics.question_quality as any)?.open_ended_count !== undefined;
@@ -461,6 +463,60 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
                 </div>
               </div>
             </div>
+
+            {/* Question Examples - Only show if examples exist (V2+ data) */}
+            {(highLeverageExamples.length > 0 || lowLeverageExamples.length > 0) && (
+              <div className="space-y-4">
+                <h4 className="font-medium text-sm text-muted-foreground">Question Examples</h4>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {/* High Leverage Examples */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
+                      <CheckCircle2 className="h-4 w-4" />
+                      <span className="font-medium text-sm">Best Questions</span>
+                    </div>
+                    <div className="space-y-2">
+                      {highLeverageExamples.length > 0 ? (
+                        highLeverageExamples.map((example, idx) => (
+                          <div 
+                            key={idx}
+                            className="flex items-start gap-2 p-2 rounded border border-green-500/20 bg-green-500/5 text-sm"
+                          >
+                            <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
+                            <span className="text-muted-foreground italic">"{example}"</span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">No examples extracted</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Low Leverage Examples */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400">
+                      <AlertTriangle className="h-4 w-4" />
+                      <span className="font-medium text-sm">Missed Opportunities</span>
+                    </div>
+                    <div className="space-y-2">
+                      {lowLeverageExamples.length > 0 ? (
+                        lowLeverageExamples.map((example, idx) => (
+                          <div 
+                            key={idx}
+                            className="flex items-start gap-2 p-2 rounded border border-orange-500/20 bg-orange-500/5 text-sm"
+                          >
+                            <AlertTriangle className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
+                            <span className="text-muted-foreground italic">"{example}"</span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-xs text-green-600 italic">None detected (Great job!)</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </SheetContent>
       </Sheet>
