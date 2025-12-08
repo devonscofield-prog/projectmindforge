@@ -634,6 +634,7 @@ export type Database = {
       call_transcripts: {
         Row: {
           account_name: string | null
+          additional_speakers: string[] | null
           analysis_error: string | null
           analysis_status: Database["public"]["Enums"]["call_analysis_status"]
           analysis_version: string
@@ -657,6 +658,7 @@ export type Database = {
         }
         Insert: {
           account_name?: string | null
+          additional_speakers?: string[] | null
           analysis_error?: string | null
           analysis_status?: Database["public"]["Enums"]["call_analysis_status"]
           analysis_version?: string
@@ -680,6 +682,7 @@ export type Database = {
         }
         Update: {
           account_name?: string | null
+          additional_speakers?: string[] | null
           analysis_error?: string | null
           analysis_status?: Database["public"]["Enums"]["call_analysis_status"]
           analysis_version?: string

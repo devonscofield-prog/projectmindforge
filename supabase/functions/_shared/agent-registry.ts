@@ -17,6 +17,7 @@ import {
   ProfilerSchema,
   SpySchema,
   CoachSchema,
+  SpeakerLabelerSchema,
 } from './agent-schemas.ts';
 import {
   CENSUS_PROMPT,
@@ -29,6 +30,7 @@ import {
   PROFILER_PROMPT,
   SPY_PROMPT,
   COACH_PROMPT,
+  SPEAKER_LABELER_PROMPT,
 } from './agent-prompts.ts';
 
 // ============= AGENT CONFIGURATION TYPE =============
@@ -49,7 +51,7 @@ export interface AgentConfig<T extends z.ZodTypeAny = z.ZodTypeAny> {
   };
   isCritical: boolean;                     // If true, failure stops pipeline
   default: z.infer<T>;                     // Fallback value on failure
-  phase: 1 | 2;                            // 1 = parallel, 2 = sequential (after phase 1)
+  phase: 0 | 1 | 2;                        // 0 = pre-processing, 1 = parallel, 2 = sequential (after phase 1)
 }
 
 // ============= DEFAULT FALLBACK VALUES =============
@@ -141,9 +143,31 @@ const DEFAULT_COACH = {
   grade_reasoning: 'Analysis incomplete',
 };
 
+const DEFAULT_SPEAKER_LABELER = {
+  labeled_transcript: '', // Will use original transcript as fallback
+  speaker_mapping: [],
+  speaker_count: 2,
+  detection_confidence: 'low' as const,
+};
+
 // ============= AGENT REGISTRY =============
 
 export const AGENT_REGISTRY: AgentConfig[] = [
+  // Phase 0 Agent (pre-processing)
+  {
+    id: 'speaker_labeler',
+    name: 'The Speaker Labeler',
+    description: 'Pre-process transcript to identify and label speakers (REP/PROSPECT/MANAGER/OTHER)',
+    schema: SpeakerLabelerSchema,
+    systemPrompt: SPEAKER_LABELER_PROMPT,
+    userPromptTemplate: (t) => `Label all speakers in this sales call transcript:\n\n${t}`,
+    toolName: 'label_speakers',
+    toolDescription: 'Identify and label all speakers in a sales call transcript',
+    options: { model: 'google/gemini-2.5-flash', maxTokens: 16384 },
+    isCritical: false, // Falls back to raw transcript if fails
+    default: DEFAULT_SPEAKER_LABELER,
+    phase: 0,
+  },
   // Phase 1 Agents (run in parallel)
   {
     id: 'census',
@@ -295,6 +319,13 @@ export const AGENT_REGISTRY: AgentConfig[] = [
  */
 export function getAgent(id: string): AgentConfig | undefined {
   return AGENT_REGISTRY.find(a => a.id === id);
+}
+
+/**
+ * Get Phase 0 agent (pre-processing - Speaker Labeler)
+ */
+export function getPhase0Agent(): AgentConfig | undefined {
+  return AGENT_REGISTRY.find(a => a.phase === 0);
 }
 
 /**

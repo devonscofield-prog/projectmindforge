@@ -14,7 +14,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 import { UUID_REGEX } from './lib/constants.ts';
 import { getCorsHeaders, checkRateLimit } from './lib/cors.ts';
-import { runAnalysisPipeline } from '../_shared/pipeline.ts';
+import { runAnalysisPipeline, SpeakerContext } from '../_shared/pipeline.ts';
 
 // Minimum transcript length for meaningful analysis
 const MIN_TRANSCRIPT_LENGTH = 500;
@@ -116,10 +116,10 @@ Deno.serve(async (req) => {
 
     console.log(`[analyze-call] Starting Analysis 2.0 for call_id: ${targetCallId}, user: ${userId}`);
 
-    // Fetch transcript
+    // Fetch transcript with speaker context
     const { data: transcript, error: fetchError } = await supabaseAdmin
       .from('call_transcripts')
-      .select('id, raw_text, rep_id, account_name, analysis_status')
+      .select('id, raw_text, rep_id, account_name, primary_stakeholder_name, manager_id, additional_speakers, analysis_status')
       .eq('id', targetCallId)
       .is('deleted_at', null)
       .maybeSingle();
@@ -136,6 +136,28 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: `Transcript too short. Minimum ${MIN_TRANSCRIPT_LENGTH} characters required.` }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Fetch rep name for speaker context
+    const { data: repProfile } = await supabaseAdmin
+      .from('profiles')
+      .select('name')
+      .eq('id', transcript.rep_id)
+      .maybeSingle();
+
+    // Build speaker context for Speaker Labeler
+    const speakerContext: SpeakerContext | undefined = repProfile?.name && transcript.primary_stakeholder_name ? {
+      repName: repProfile.name,
+      stakeholderName: transcript.primary_stakeholder_name,
+      accountName: transcript.account_name || 'Unknown Company',
+      managerOnCall: !!transcript.manager_id,
+      additionalSpeakers: transcript.additional_speakers || [],
+    } : undefined;
+
+    if (speakerContext) {
+      console.log(`[analyze-call] Speaker context: REP=${speakerContext.repName}, PROSPECT=${speakerContext.stakeholderName}, Manager=${speakerContext.managerOnCall}, Others=${speakerContext.additionalSpeakers.length}`);
+    } else {
+      console.log(`[analyze-call] No speaker context available (missing rep name or stakeholder name)`);
     }
 
     const { force_reanalyze } = body;
@@ -172,8 +194,8 @@ Deno.serve(async (req) => {
       await supabaseAdmin.from('call_transcripts').update({ analysis_status: 'processing', analysis_error: null }).eq('id', targetCallId);
     }
 
-    // Run the pipeline (uses Agent Registry pattern)
-    const result = await runAnalysisPipeline(transcript.raw_text, supabaseAdmin, targetCallId);
+    // Run the pipeline with speaker context (uses Agent Registry pattern)
+    const result = await runAnalysisPipeline(transcript.raw_text, supabaseAdmin, targetCallId, speakerContext);
 
     // Save results
     const { data: existingAnalysis } = await supabaseAdmin.from('ai_call_analysis').select('id').eq('call_id', targetCallId).maybeSingle();

@@ -1,18 +1,20 @@
 /**
- * Analysis Pipeline Orchestrator - P1 Optimized
+ * Analysis Pipeline Orchestrator - P1 Optimized with Speaker Labeling
  * 
  * Performance optimizations (P1):
+ * - Phase 0: Speaker Labeler pre-processes transcript for accurate talk ratio
  * - Skeptic runs async (non-blocking) at start of Batch 2
  * - Per-agent timeouts with graceful degradation
  * - Reduced batch count from 3 to 2 + async Skeptic
  * 
+ * Phase 0: Speaker Labeler (pre-processing)
  * Batch 1: Critical (Census, Historian, Spy)
  * Batch 2: Strategic (Profiler, Strategist, Referee, Interrogator, Negotiator) + Skeptic (async)
  * Phase 2: Coach (synthesis)
  */
 
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getAgent, AgentConfig } from './agent-registry.ts';
+import { getAgent, getPhase0Agent, AgentConfig } from './agent-registry.ts';
 import { executeAgent, executeAgentWithPrompt, AgentResult, getAgentTimeout } from './agent-factory.ts';
 import {
   CensusOutput,
@@ -25,10 +27,22 @@ import {
   ProfilerOutput,
   SpyOutput,
   CoachOutput,
+  SpeakerLabelerOutput,
   CallMetadata,
   MergedBehaviorScore,
   StrategyAudit,
 } from './agent-schemas.ts';
+import { SPEAKER_LABELER_PROMPT } from './agent-prompts.ts';
+
+// ============= SPEAKER CONTEXT TYPE =============
+
+export interface SpeakerContext {
+  repName: string;
+  stakeholderName: string;
+  accountName: string;
+  managerOnCall: boolean;
+  additionalSpeakers: string[];
+}
 
 // ============= PIPELINE RESULT TYPE =============
 
@@ -114,6 +128,30 @@ function buildNegotiatorPrompt(
     return `${basePrompt}\n\n--- CONTEXT ---\n${contextParts.join(' ')}\n\nCheck if the rep handled objections related to these specific vendors or features.`;
   }
   return basePrompt;
+}
+
+// ============= SPEAKER LABELER PROMPT BUILDER =============
+
+function buildSpeakerLabelerPrompt(transcript: string, context: SpeakerContext): string {
+  const contextLines: string[] = [];
+  
+  contextLines.push(`- REP: ${context.repName}`);
+  contextLines.push(`- PROSPECT (Primary): ${context.stakeholderName} from ${context.accountName}`);
+  
+  if (context.managerOnCall) {
+    contextLines.push(`- MANAGER: Present on call (supports the REP)`);
+  }
+  
+  if (context.additionalSpeakers.length > 0) {
+    context.additionalSpeakers.forEach((name, i) => {
+      contextLines.push(`- OTHER ${i + 1}: ${name}`);
+    });
+  }
+  
+  const speakerContext = contextLines.join('\n');
+  const prompt = SPEAKER_LABELER_PROMPT.replace('{SPEAKER_CONTEXT}', speakerContext);
+  
+  return `${prompt}\n\n--- TRANSCRIPT TO LABEL ---\n${transcript}`;
 }
 
 // ============= RESULT MERGING =============
@@ -244,6 +282,7 @@ function checkTimeout(startTime: number, phase: string): void {
 /**
  * Run the full analysis pipeline with context-aware batched execution
  * 
+ * Phase 0: Speaker Labeler (pre-processing with speaker context)
  * Batch 1 (Critical): Census, Historian, Spy
  * Batch 2 (Strategic): Profiler, Strategist, Referee, Interrogator - uses Batch 1 outputs
  * Batch 3 (Deep Dive): Skeptic, Negotiator - uses Batch 1 & 2 outputs
@@ -252,10 +291,49 @@ function checkTimeout(startTime: number, phase: string): void {
 export async function runAnalysisPipeline(
   transcript: string,
   supabase: SupabaseClient,
-  callId: string
+  callId: string,
+  speakerContext?: SpeakerContext
 ): Promise<PipelineResult> {
   const pipelineStart = performance.now();
   const warnings: string[] = [];
+
+  // Determine which transcript to use (labeled or raw)
+  let processedTranscript = transcript;
+
+  // ============= PHASE 0: Speaker Labeler (Pre-processing) =============
+  if (speakerContext) {
+    console.log('[Pipeline] Phase 0: Running Speaker Labeler...');
+    const phase0Start = performance.now();
+    
+    const speakerLabelerConfig = getPhase0Agent();
+    if (speakerLabelerConfig) {
+      const labelerPrompt = buildSpeakerLabelerPrompt(transcript, speakerContext);
+      const labelerResult = await executeAgentWithPrompt(
+        speakerLabelerConfig,
+        labelerPrompt,
+        supabase,
+        callId
+      );
+      
+      const phase0Duration = performance.now() - phase0Start;
+      
+      if (labelerResult.success) {
+        const labelerData = labelerResult.data as SpeakerLabelerOutput;
+        if (labelerData.labeled_transcript) {
+          processedTranscript = labelerData.labeled_transcript;
+          console.log(`[Pipeline] Phase 0 complete in ${Math.round(phase0Duration)}ms - ${labelerData.speaker_count} speakers detected (${labelerData.detection_confidence} confidence)`);
+        } else {
+          warnings.push('Speaker labeling succeeded but returned empty transcript, using raw transcript');
+          console.log(`[Pipeline] Phase 0 returned empty labeled transcript, falling back to raw`);
+        }
+      } else {
+        warnings.push(`Speaker labeling failed: ${labelerResult.error || 'Unknown error'}, using raw transcript`);
+        console.log(`[Pipeline] Phase 0 failed in ${Math.round(phase0Duration)}ms, falling back to raw transcript`);
+      }
+    }
+  } else {
+    console.log('[Pipeline] Phase 0 skipped: No speaker context provided');
+  }
 
   // Get all agent configs
   const censusConfig = getAgent('census')!;
@@ -270,13 +348,14 @@ export async function runAnalysisPipeline(
   const coachConfig = getAgent('coach')!;
 
   // ============= BATCH 1: Critical Agents (Census, Historian, Spy) =============
+  // Note: Use processedTranscript (labeled) for analysis
   console.log('[Pipeline] Batch 1/3: Running Census, Historian, Spy...');
   const batch1Start = performance.now();
 
   const [censusResult, historianResult, spyResult] = await Promise.all([
-    executeAgent(censusConfig, transcript, supabase, callId),
-    executeAgent(historianConfig, transcript, supabase, callId),
-    executeAgent(spyConfig, transcript, supabase, callId),
+    executeAgent(censusConfig, processedTranscript, supabase, callId),
+    executeAgent(historianConfig, processedTranscript, supabase, callId),
+    executeAgent(spyConfig, processedTranscript, supabase, callId),
   ]);
 
   const batch1Duration = performance.now() - batch1Start;
@@ -309,21 +388,22 @@ export async function runAnalysisPipeline(
 
   // ============= BATCH 2: Strategic + Deep Dive (P1 Optimized) =============
   // Skeptic runs async (non-blocking) to reduce critical path
+  // Note: Use processedTranscript (labeled) for analysis
   console.log('[Pipeline] Batch 2/2: Running Profiler, Strategist, Referee, Interrogator, Negotiator + Skeptic (async)...');
   const batch2Start = performance.now();
 
-  // Build context-aware prompts
-  const profilerPrompt = buildProfilerPrompt(transcript, primaryDecisionMaker?.name);
-  const strategistPrompt = buildStrategistPrompt(transcript, callSummary);
-  const behaviorPrompt = buildBehaviorPrompt(transcript, callSummary);
+  // Build context-aware prompts using processedTranscript
+  const profilerPrompt = buildProfilerPrompt(processedTranscript, primaryDecisionMaker?.name);
+  const strategistPrompt = buildStrategistPrompt(processedTranscript, callSummary);
+  const behaviorPrompt = buildBehaviorPrompt(processedTranscript, callSummary);
   const competitorNames = spyResult.success 
     ? spy.competitive_intel.map(c => c.competitor_name) 
     : undefined;
-  const negotiatorPrompt = buildNegotiatorPrompt(transcript, competitorNames, undefined);
+  const negotiatorPrompt = buildNegotiatorPrompt(processedTranscript, competitorNames, undefined);
 
   // Fire Skeptic async (non-blocking) - P1 optimization
   // This runs independently and we'll await it before Coach
-  const skepticPrompt = buildSkepticPrompt(transcript, undefined); // No context needed for P1
+  const skepticPrompt = buildSkepticPrompt(processedTranscript, undefined); // No context needed for P1
   pendingSkepticResult = executeAgentWithPrompt(skepticConfig, skepticPrompt, supabase, callId);
   console.log('[Pipeline] Skeptic fired async (non-blocking)');
 
@@ -332,7 +412,7 @@ export async function runAnalysisPipeline(
     executeAgentWithPrompt(profilerConfig, profilerPrompt, supabase, callId),
     executeAgentWithPrompt(strategistConfig, strategistPrompt, supabase, callId),
     executeAgentWithPrompt(refereeConfig, behaviorPrompt, supabase, callId),
-    executeAgent(interrogatorConfig, transcript, supabase, callId),
+    executeAgent(interrogatorConfig, processedTranscript, supabase, callId),
     executeAgentWithPrompt(negotiatorConfig, negotiatorPrompt, supabase, callId),
   ]);
 
