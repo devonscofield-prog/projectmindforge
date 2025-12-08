@@ -299,6 +299,7 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
           onClick={() => setQuestionsSheetOpen(true)}
         >
           <CardContent className="pt-6">
+            {/* Header with Score */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <HelpCircle className="h-4 w-4 text-muted-foreground" />
@@ -325,73 +326,86 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
                 <p className="text-xs text-center text-muted-foreground italic">Legacy analysis data</p>
               </div>
             ) : (
-              /* New Data: Show Conversation Yield Chart */
-              <div className="space-y-3">
-                {/* Yield Ratio Label */}
-                <div 
-                  className="flex items-center justify-center gap-2"
-                  title={`For every 1 word you asked, the prospect spoke ${leverageRatio} words.`}
-                >
-                  <span className="text-2xl font-bold">1 : {leverageRatio}</span>
-                  <span className="text-sm text-muted-foreground">Yield</span>
+              /* New Data: Redesigned Yield Display */
+              <div className="space-y-4">
+                {/* Prominent Yield Ratio */}
+                <div className="flex flex-col items-center justify-center py-2">
+                  <div 
+                    className={cn(
+                      "text-4xl font-bold tabular-nums",
+                      parseFloat(leverageRatio) >= 2 ? "text-green-600" :
+                      parseFloat(leverageRatio) >= 1 ? "text-yellow-600" :
+                      "text-orange-600"
+                    )}
+                  >
+                    {leverageRatio}x
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">Yield Ratio</p>
                 </div>
                 
-                {/* Horizontal Bars */}
-                <div className="space-y-2">
-                  {/* Question Bar (Gray) */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground w-16 shrink-0">Avg Q</span>
-                    <div className="flex-1 h-5 bg-secondary rounded overflow-hidden">
+                {/* Simplified Bar Visualization */}
+                <div className="space-y-3">
+                  {/* Your Question */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Your Question</span>
+                      <span>{avgQuestionLength} words</span>
+                    </div>
+                    <div className="h-3 w-full bg-secondary rounded-full overflow-hidden">
                       <div 
-                        className="h-full bg-muted-foreground/50 rounded transition-all"
-                        style={{ 
-                          width: `${Math.min((avgQuestionLength / maxLength) * 100, 100)}%` 
-                        }}
+                        className="h-full bg-muted-foreground/60 rounded-full transition-all"
+                        style={{ width: `${Math.min((avgQuestionLength / maxLength) * 100, 100)}%` }}
                       />
                     </div>
-                    <span className="text-xs font-medium w-12 text-right">{avgQuestionLength}w</span>
                   </div>
                   
-                  {/* Answer Bar (Conditional Color) */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground w-16 shrink-0">Avg A</span>
-                    <div className="flex-1 h-5 bg-secondary rounded overflow-hidden">
+                  {/* Their Answer */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Their Answer</span>
+                      <span>{avgAnswerLength} words</span>
+                    </div>
+                    <div className="h-3 w-full bg-secondary rounded-full overflow-hidden">
                       <div 
                         className={cn(
-                          "h-full rounded transition-all",
-                          avgAnswerLength < avgQuestionLength 
-                            ? "bg-orange-500" 
-                            : "bg-green-500"
+                          "h-full rounded-full transition-all",
+                          avgAnswerLength < avgQuestionLength ? "bg-orange-500" : "bg-green-500"
                         )}
-                        style={{ 
-                          width: `${Math.min((avgAnswerLength / maxLength) * 100, 100)}%` 
-                        }}
+                        style={{ width: `${Math.min((avgAnswerLength / maxLength) * 100, 100)}%` }}
                       />
                     </div>
-                    <span className="text-xs font-medium w-12 text-right">{avgAnswerLength}w</span>
                   </div>
                 </div>
+                
+                {/* High Leverage Count Preview */}
+                {highLeverageCount > 0 && (
+                  <p className="text-xs text-center text-muted-foreground">
+                    <span className="text-green-600 font-medium">{highLeverageCount}</span> great question{highLeverageCount !== 1 ? 's' : ''} identified
+                  </p>
+                )}
               </div>
             )}
             
-            <div className="mt-3 flex items-center justify-between">
-              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <ChevronRight className="h-3 w-3" />
-                Click for details
-              </span>
+            {/* Footer */}
+            <div className="mt-4 flex items-center justify-between pt-3 border-t border-border/50">
               <Badge 
                 variant="secondary"
                 className={cn(
+                  "text-xs",
                   isLegacyData ? 'bg-muted text-muted-foreground' :
-                  parseFloat(leverageRatio) >= 2 ? 'bg-green-500/20 text-green-700' :
-                  parseFloat(leverageRatio) >= 1 ? 'bg-yellow-500/20 text-yellow-700' : 
-                  'bg-orange-500/20 text-orange-700'
+                  parseFloat(leverageRatio) >= 2 ? 'bg-green-500/20 text-green-700 dark:text-green-400' :
+                  parseFloat(leverageRatio) >= 1 ? 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400' : 
+                  'bg-orange-500/20 text-orange-700 dark:text-orange-400'
                 )}
               >
                 {isLegacyData ? 'Legacy Data' : 
                   parseFloat(leverageRatio) >= 2 ? 'Good Yield' : 
                   parseFloat(leverageRatio) >= 1 ? 'Fair Yield' : 'Low Yield'}
               </Badge>
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                View details
+                <ChevronRight className="h-3 w-3" />
+              </span>
             </div>
           </CardContent>
         </Card>
@@ -399,11 +413,11 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
 
       {/* Questions Detail Sheet */}
       <Sheet open={questionsSheetOpen} onOpenChange={setQuestionsSheetOpen}>
-        <SheetContent className="overflow-y-auto">
+        <SheetContent className="overflow-y-auto sm:max-w-lg">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
               <HelpCircle className="h-5 w-5" />
-              Question Leverage Breakdown
+              Question Leverage
             </SheetTitle>
             <SheetDescription>
               {metrics.question_quality.explanation}
@@ -411,112 +425,154 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
           </SheetHeader>
           
           <div className="mt-6 space-y-6">
-            {/* Leverage Stats */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 rounded-lg border bg-card">
-                <p className="text-xs text-muted-foreground">Avg Question Length</p>
+            {/* Explanation Box */}
+            <div className="p-4 rounded-lg bg-muted/50 border border-border/50">
+              <h4 className="font-medium text-sm mb-2">What is Question Leverage?</h4>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Leverage measures how much talking your questions trigger. High-leverage 
+                questions get prospects to share detailed information, while low-leverage 
+                questions get one-word answers.
+              </p>
+            </div>
+
+            {/* Hero Ratio Display */}
+            <div className="flex flex-col items-center py-4 border rounded-lg bg-card">
+              <div 
+                className={cn(
+                  "text-5xl font-bold tabular-nums",
+                  parseFloat(leverageRatio) >= 2 ? "text-green-600" :
+                  parseFloat(leverageRatio) >= 1 ? "text-yellow-600" :
+                  "text-orange-600"
+                )}
+              >
+                {leverageRatio}x
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">Yield Ratio</p>
+              <p className="text-xs text-muted-foreground mt-2 px-4 text-center">
+                For every word you ask, the prospect speaks <span className="font-medium">{leverageRatio}</span> words
+              </p>
+              <Badge 
+                variant="secondary"
+                className={cn(
+                  "mt-3",
+                  parseFloat(leverageRatio) >= 2 ? 'bg-green-500/20 text-green-700 dark:text-green-400' :
+                  parseFloat(leverageRatio) >= 1 ? 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400' : 
+                  'bg-orange-500/20 text-orange-700 dark:text-orange-400'
+                )}
+              >
+                {parseFloat(leverageRatio) >= 2 ? '✓ Good Yield (2x+ is ideal)' : 
+                  parseFloat(leverageRatio) >= 1 ? 'Fair Yield (aim for 2x+)' : 'Low Yield (needs improvement)'}
+              </Badge>
+            </div>
+
+            {/* Stats Cards - Responsive */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1 p-4 rounded-lg border bg-card">
+                <div className="flex items-center gap-2 mb-2">
+                  <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                  <p className="text-xs text-muted-foreground font-medium">Avg Question</p>
+                </div>
                 <p className="text-2xl font-bold">{avgQuestionLength} <span className="text-sm font-normal text-muted-foreground">words</span></p>
               </div>
-              <div className="p-4 rounded-lg border bg-card">
-                <p className="text-xs text-muted-foreground">Avg Answer Length</p>
+              <div className="flex-1 p-4 rounded-lg border bg-card">
+                <div className="flex items-center gap-2 mb-2">
+                  <Mic className="h-4 w-4 text-muted-foreground" />
+                  <p className="text-xs text-muted-foreground font-medium">Avg Answer</p>
+                </div>
                 <p className="text-2xl font-bold">{avgAnswerLength} <span className="text-sm font-normal text-muted-foreground">words</span></p>
               </div>
             </div>
 
-            {/* Leverage Ratio */}
-            <div className="p-4 rounded-lg border bg-primary/5">
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-medium">Leverage Ratio</span>
-                <Badge className={cn(
-                  "text-lg px-3",
-                  parseFloat(leverageRatio) >= 3 ? "bg-green-500" :
-                  parseFloat(leverageRatio) >= 2 ? "bg-yellow-500" :
-                  "bg-orange-500"
-                )}>
-                  {leverageRatio}x
-                </Badge>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                For every word you ask, the prospect speaks {leverageRatio} words. Higher is better!
-              </p>
-            </div>
-
-            {/* High vs Low Leverage */}
+            {/* Question Impact Summary */}
             <div className="space-y-3">
-              <h4 className="font-medium text-sm text-muted-foreground">Question Impact</h4>
-              <div className="flex items-center gap-3 p-3 rounded-lg border border-green-500/30 bg-green-500/5">
-                <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
-                <div>
-                  <p className="font-medium text-green-700 dark:text-green-400">
-                    {highLeverageCount} High-Leverage Questions
-                  </p>
-                  <p className="text-xs text-muted-foreground">Triggered detailed, long responses</p>
+              <h4 className="font-medium text-sm">Question Impact</h4>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1 flex items-center gap-3 p-3 rounded-lg border border-green-500/30 bg-green-500/5">
+                  <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+                  <div>
+                    <p className="font-semibold text-green-700 dark:text-green-400">{highLeverageCount}</p>
+                    <p className="text-xs text-muted-foreground">High-Leverage</p>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center gap-3 p-3 rounded-lg border border-orange-500/30 bg-orange-500/5">
-                <XCircle className="h-5 w-5 text-orange-600 shrink-0" />
-                <div>
-                  <p className="font-medium text-orange-700 dark:text-orange-400">
-                    {lowLeverageCount} Low-Leverage Questions
-                  </p>
-                  <p className="text-xs text-muted-foreground">Received 1-word or brief answers</p>
+                <div className="flex-1 flex items-center gap-3 p-3 rounded-lg border border-orange-500/30 bg-orange-500/5">
+                  <XCircle className="h-5 w-5 text-orange-600 shrink-0" />
+                  <div>
+                    <p className="font-semibold text-orange-700 dark:text-orange-400">{lowLeverageCount}</p>
+                    <p className="text-xs text-muted-foreground">Low-Leverage</p>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Question Examples - Only show if examples exist (V2+ data) */}
-            {(highLeverageExamples.length > 0 || lowLeverageExamples.length > 0) && (
-              <div className="space-y-4">
-                <h4 className="font-medium text-sm text-muted-foreground">Question Examples</h4>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {/* High Leverage Examples */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
-                      <CheckCircle2 className="h-4 w-4" />
-                      <span className="font-medium text-sm">Best Questions</span>
+            {/* Question Examples - Single Column Layout */}
+            {highLeverageExamples.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="font-medium text-sm flex items-center gap-2 text-green-700 dark:text-green-400">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Best Questions
+                </h4>
+                <div className="space-y-2">
+                  {highLeverageExamples.map((example, idx) => (
+                    <div 
+                      key={idx}
+                      className="p-3 rounded-lg border border-green-500/20 bg-green-500/5"
+                    >
+                      <p className="text-sm text-foreground/90 italic leading-relaxed">"{example}"</p>
                     </div>
-                    <div className="space-y-2">
-                      {highLeverageExamples.length > 0 ? (
-                        highLeverageExamples.map((example, idx) => (
-                          <div 
-                            key={idx}
-                            className="flex items-start gap-2 p-2 rounded border border-green-500/20 bg-green-500/5 text-sm"
-                          >
-                            <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
-                            <span className="text-muted-foreground italic">"{example}"</span>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-xs text-muted-foreground italic">No examples extracted</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Low Leverage Examples */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400">
-                      <AlertTriangle className="h-4 w-4" />
-                      <span className="font-medium text-sm">Missed Opportunities</span>
-                    </div>
-                    <div className="space-y-2">
-                      {lowLeverageExamples.length > 0 ? (
-                        lowLeverageExamples.map((example, idx) => (
-                          <div 
-                            key={idx}
-                            className="flex items-start gap-2 p-2 rounded border border-orange-500/20 bg-orange-500/5 text-sm"
-                          >
-                            <AlertTriangle className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
-                            <span className="text-muted-foreground italic">"{example}"</span>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-xs text-green-600 italic">None detected (Great job!)</p>
-                      )}
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </div>
             )}
+
+            {lowLeverageExamples.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="font-medium text-sm flex items-center gap-2 text-orange-600 dark:text-orange-400">
+                  <AlertTriangle className="h-4 w-4" />
+                  Missed Opportunities
+                </h4>
+                <div className="space-y-2">
+                  {lowLeverageExamples.map((example, idx) => (
+                    <div 
+                      key={idx}
+                      className="p-3 rounded-lg border border-orange-500/20 bg-orange-500/5"
+                    >
+                      <p className="text-sm text-foreground/90 italic leading-relaxed">"{example}"</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Coaching Tips Section */}
+            <div className="space-y-3 pt-2 border-t">
+              <h4 className="font-medium text-sm flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                Coaching Tips
+              </h4>
+              <div className="space-y-2">
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
+                  <span className="text-lg leading-none">💬</span>
+                  <div>
+                    <p className="text-sm font-medium">Start with "Tell me about..." or "Walk me through..."</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">These prompts invite detailed, story-like answers</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
+                  <span className="text-lg leading-none">🎯</span>
+                  <div>
+                    <p className="text-sm font-medium">Avoid yes/no questions unless confirming</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Use them only to verify specific details you already heard</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
+                  <span className="text-lg leading-none">🔄</span>
+                  <div>
+                    <p className="text-sm font-medium">Follow up on short answers</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Try: "Can you expand on that?" or "What does that look like day-to-day?"</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </SheetContent>
       </Sheet>
