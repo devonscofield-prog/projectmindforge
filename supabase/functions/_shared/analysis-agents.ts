@@ -367,11 +367,13 @@ const STRATEGY_AUDIT_TOOL = {
                 type: "object",
                 properties: {
                   pain_identified: { type: "string", description: "The specific need/pain quoted from the prospect" },
+                  pain_type: { type: "string", enum: ["Explicit", "Implicit"], description: "Whether pain was directly stated or inferred from context" },
+                  pain_severity: { type: "string", enum: ["High", "Medium", "Low"], description: "Business impact severity of the pain" },
                   feature_pitched: { type: "string", description: "The feature the rep pitched in response" },
                   is_relevant: { type: "boolean", description: "Whether the feature maps to the pain" },
                   reasoning: { type: "string", description: "Why this was a strategic match or mismatch" }
                 },
-                required: ["pain_identified", "feature_pitched", "is_relevant", "reasoning"]
+                required: ["pain_identified", "pain_type", "pain_severity", "feature_pitched", "is_relevant", "reasoning"]
               }
             },
             missed_opportunities: {
@@ -660,25 +662,49 @@ const REFEREE_SYSTEM_PROMPT = `You are 'The Referee', a behavioral data analyst.
 // The Strategist - ONLY focuses on pain-to-pitch alignment (no gaps)
 const AUDITOR_SYSTEM_PROMPT = `You are 'The Strategist', a Senior Sales Auditor. Your job is STRICTLY to map 'Prospect Pains' to 'Rep Pitches' and score the relevance.
 
-**YOUR TASK: STRATEGIC THREADING (The Relevance Map)**
+**PHASE 1: EXTRACT PAINS (with Classification)**
 
-1. **Extract Pains/Goals:** Find every specific need, problem, or goal the Prospect explicitly stated.
-   - Look for phrases like "we struggle with...", "our challenge is...", "we need...", "we're looking for..."
+1. **Explicit Pains:** Direct statements of problems/needs.
+   - "We are losing money on manual processes." → Severity: **HIGH** (revenue impact)
+   - "Our team wastes 2 hours a day on this." → Severity: **HIGH** (measurable inefficiency)
+   - "Compliance audit is coming up." → Severity: **HIGH** (regulatory risk)
 
-2. **Extract Pitches:** Find every feature, solution, or capability the Rep presented.
-   - Look for phrases like "our platform does...", "we can help with...", "the solution includes..."
+2. **Implicit Pains:** Inferred from context/symptoms.
+   - "We are growing fast." → Implied Pain: Scalability concerns → Severity: **MEDIUM**
+   - "We just hired 50 new people." → Implied Pain: Onboarding/training → Severity: **MEDIUM**
+   - "Our current vendor is up for renewal." → Implied Pain: Dissatisfaction → Severity: **MEDIUM**
 
-3. **Build the Relevance Map:** Connect each Pain to each Pitch.
-   - **Relevant:** Rep pitched a feature that directly addresses the stated pain.
-   - **Irrelevant (Spray and Pray):** Rep pitched a feature with NO connection to any stated pain.
+3. **Surface Pains:** Cosmetic or low-impact preferences.
+   - "I don't like the current UI." → Severity: **LOW**
+   - "It would be nice to have..." → Severity: **LOW**
+   - "Minor annoyance but not a big deal." → Severity: **LOW**
 
-4. **Score (0-100):**
-   - 100%: Every pitch addressed a specific pain, no wasted features.
-   - 80%+: Most pitches were relevant, minor spray-and-pray.
-   - 60%+: Pass - majority of pitches had some connection.
-   - <60%: Fail - too much generic pitching, not enough pain mapping.
+**PHASE 2: EXTRACT PITCHES**
+Find every statement where the Rep presents a feature or capability.
+- Look for: "Our product does...", "We offer...", "You could use our...", "This feature allows..."
 
-5. **Missed Opportunities:** List pains the Prospect mentioned that the Rep NEVER addressed.
+**PHASE 3: BUILD RELEVANCE MAP (with Severity Weighting)**
+
+For each Pain → Pitch connection:
+- **Relevant:** Rep pitched a feature that directly addresses the pain.
+- **Irrelevant (Spray and Pray):** Rep pitched a feature with NO connection to any stated pain.
+- **Misaligned:** Rep addressed a LOW severity pain while ignoring a HIGH severity pain. Mark as MISALIGNED in reasoning.
+
+**PHASE 4: SCORING (0-100) with Severity Weights**
+- HIGH severity pain addressed = **Double credit** (2 pts per match)
+- MEDIUM severity pain addressed = **Standard credit** (1 pt per match)
+- LOW severity pain addressed = **Half credit** (0.5 pts per match)
+- **Spray-and-Pray Penalty:** -5 pts for each feature pitched with NO pain connection.
+- **Misalignment Penalty:** -10 pts if Rep addressed LOW severity while ignoring HIGH severity pain.
+
+Scoring thresholds:
+- 80%+: Pass - Strong strategic alignment
+- 60-79%: Pass - Adequate alignment with room for improvement
+- <60%: Fail - Too much generic pitching, not enough pain mapping
+
+**PHASE 5: MISSED OPPORTUNITIES**
+List HIGH and MEDIUM severity pains the Prospect mentioned that the Rep NEVER addressed.
+(Ignore unaddressed LOW severity pains - they're not critical misses.)
 
 **DO NOT:**
 - Critique the rep's conversational style.
@@ -687,7 +713,8 @@ const AUDITOR_SYSTEM_PROMPT = `You are 'The Strategist', a Senior Sales Auditor.
 
 **DO:**
 - Focus ONLY on the Pain → Pitch connection.
-- Be specific with quotes from the transcript.`;
+- Be specific with quotes from the transcript.
+- Always classify pain_type (Explicit/Implicit) and pain_severity (High/Medium/Low).`;
 
 // The Skeptic - dedicated agent for finding deal-blocking gaps
 const SKEPTIC_SYSTEM_PROMPT = `You are 'The Skeptic', a Senior Deal Desk Analyst. Your ONLY job is to find what is MISSING from this sales call.

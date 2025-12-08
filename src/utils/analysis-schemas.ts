@@ -92,6 +92,8 @@ export const StrategyAuditSchema = z.object({
     grade: z.enum(['Pass', 'Fail']),
     relevance_map: z.array(z.object({
       pain_identified: z.string().describe("The specific need/pain quoted from the prospect"),
+      pain_type: z.enum(['Explicit', 'Implicit']).describe("Whether pain was directly stated or inferred from context"),
+      pain_severity: z.enum(['High', 'Medium', 'Low']).describe("Business impact severity of the pain"),
       feature_pitched: z.string().describe("The feature the rep pitched in response"),
       is_relevant: z.boolean(),
       reasoning: z.string().describe("Why this was a strategic match or mismatch"),
