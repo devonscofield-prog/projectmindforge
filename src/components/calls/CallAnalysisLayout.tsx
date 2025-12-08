@@ -23,11 +23,13 @@ import {
   CallMetadataSchema,
   DealHeatSchema,
   PsychologyProfileSchema,
+  CallClassificationSchema,
   type BehaviorScore, 
   type StrategyAudit, 
   type CallMetadata,
   type DealHeat,
-  type PsychologyProfile
+  type PsychologyProfile,
+  type CallClassification
 } from '@/utils/analysis-schemas';
 import { DealHeatCard } from './DealHeatCard';
 import { ProspectPersonaCard } from './ProspectPersonaCard';
@@ -148,9 +150,9 @@ export function CallAnalysisLayout({
   isReanalyzing = false,
 }: CallAnalysisLayoutProps) {
   // Defensive JSON parsing with Zod validation
-  const { behaviorData, strategyData, metadataData, dealHeatData, psychologyData, parseError } = useMemo(() => {
+  const { behaviorData, strategyData, metadataData, dealHeatData, psychologyData, callClassificationData, parseError } = useMemo(() => {
     if (!analysis) {
-      return { behaviorData: null, strategyData: null, metadataData: null, dealHeatData: null, psychologyData: null, parseError: null };
+      return { behaviorData: null, strategyData: null, metadataData: null, dealHeatData: null, psychologyData: null, callClassificationData: null, parseError: null };
     }
 
     try {
@@ -174,6 +176,12 @@ export function CallAnalysisLayout({
         ? PsychologyProfileSchema.safeParse(analysis.analysis_psychology)
         : { success: false, data: null };
 
+      // Parse call classification from raw_json
+      const rawJson = analysis.raw_json as { call_classification?: unknown } | null;
+      const callClassificationResult = rawJson?.call_classification
+        ? CallClassificationSchema.safeParse(rawJson.call_classification)
+        : { success: false, data: null };
+
       // Log validation errors for debugging but don't crash
       if (!behaviorResult.success && analysis.analysis_behavior) {
         console.warn('BehaviorScore validation failed:', 'error' in behaviorResult ? behaviorResult.error : 'unknown');
@@ -187,6 +195,7 @@ export function CallAnalysisLayout({
       const metadata = metadataResult.success ? metadataResult.data : null;
       const dealHeat = dealHeatResult.success ? dealHeatResult.data : null;
       const psychology = psychologyResult.success ? psychologyResult.data : null;
+      const callClassification = callClassificationResult.success ? callClassificationResult.data : null;
 
       // If both critical schemas failed but data exists, that's a parse error
       const hasCriticalError = analysis.analysis_behavior && analysis.analysis_strategy 
@@ -198,6 +207,7 @@ export function CallAnalysisLayout({
         metadataData: metadata as CallMetadata | null,
         dealHeatData: dealHeat as DealHeat | null,
         psychologyData: psychology as PsychologyProfile | null,
+        callClassificationData: callClassification as CallClassification | null,
         parseError: hasCriticalError ? 'Analysis data could not be parsed' : null
       };
     } catch (err) {
@@ -208,6 +218,7 @@ export function CallAnalysisLayout({
         metadataData: null, 
         dealHeatData: null,
         psychologyData: null,
+        callClassificationData: null,
         parseError: 'Unexpected error parsing analysis data' 
       };
     }
@@ -304,7 +315,22 @@ export function CallAnalysisLayout({
               <div className="space-y-4 lg:max-w-md">
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-1">
-                    <h2 className="text-xl font-semibold">{prospectName}</h2>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="text-xl font-semibold">{prospectName}</h2>
+                      {callClassificationData && (
+                        <Badge 
+                          variant="outline" 
+                          className={cn(
+                            "text-xs",
+                            callClassificationData.confidence === 'High' && "border-green-500/50 bg-green-500/10 text-green-700 dark:text-green-400",
+                            callClassificationData.confidence === 'Medium' && "border-yellow-500/50 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400",
+                            callClassificationData.confidence === 'Low' && "border-muted-foreground/50"
+                          )}
+                        >
+                          {callClassificationData.detected_call_type.replace(/_/g, ' ')}
+                        </Badge>
+                      )}
+                    </div>
                     <p className="text-muted-foreground text-sm">Coaching Analysis</p>
                   </div>
                   {canEdit && onReanalyze && (
