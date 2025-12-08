@@ -63,7 +63,7 @@ export function PricingDisciplineCard({ data }: PricingDisciplineCardProps) {
             <CardTitle className="flex items-center justify-between">
               <span className="flex items-center gap-2">
                 <HandCoins className="h-5 w-5 text-primary" />
-                💰 Pricing Discipline
+                Pricing Discipline
               </span>
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2">
