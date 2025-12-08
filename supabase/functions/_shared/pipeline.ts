@@ -464,6 +464,43 @@ function buildInterrogatorPrompt(
   return basePrompt;
 }
 
+// ============= AUDITOR PROMPT BUILDER =============
+
+function buildAuditorPrompt(
+  transcript: string,
+  callType?: string,
+  painSeverities?: Array<{ pain: string; severity: string }>
+): string {
+  const basePrompt = `Analyze this sales call transcript for pricing discipline. Find ALL discounts, concessions, or price reductions offered and assess whether the timing was appropriate:\n\n${transcript}`;
+  
+  const contextParts: string[] = [];
+  
+  if (callType) {
+    contextParts.push(`Call Type: ${callType}`);
+    
+    if (callType === 'pricing_negotiation') {
+      contextParts.push(`NOTE: This is a PRICING NEGOTIATION call. Discounts are EXPECTED as part of the negotiation process. Be more lenient on timing - focus on whether value was established before discounting, not whether discounts were offered.`);
+      contextParts.push(`SCORING ADJUSTMENT: For pricing negotiation calls, reduce penalty severity by 50% since discounting is part of the expected flow.`);
+    } else if (callType === 'full_cycle_sales') {
+      contextParts.push(`NOTE: This is a FULL CYCLE SALES call. Discounts should NOT be offered prematurely. Score strictly on timing and value establishment.`);
+    } else if (callType === 'reconnect') {
+      contextParts.push(`NOTE: This is a RECONNECT call. If pricing was discussed in prior meetings, some flexibility is acceptable. Focus on whether new discounts were volunteered without reason.`);
+    }
+  }
+  
+  if (painSeverities && painSeverities.length > 0) {
+    const highPains = painSeverities.filter(p => p.severity === 'High').map(p => p.pain);
+    if (highPains.length > 0) {
+      contextParts.push(`HIGH SEVERITY PAINS IDENTIFIED: ${highPains.join(', ')}. Discounts should only be offered AFTER these critical pains are addressed and value is established.`);
+    }
+  }
+  
+  if (contextParts.length > 0) {
+    return `${basePrompt}\n\n--- CONTEXT ---\n${contextParts.join('\n')}`;
+  }
+  return basePrompt;
+}
+
 function buildCoachingInputReport(
   metadata: CallMetadata,
   behavior: MergedBehaviorScore,
@@ -473,6 +510,7 @@ function buildCoachingInputReport(
   objections: NegotiatorOutput,
   psychology: ProfilerOutput,
   competitors: SpyOutput,
+  pricing: AuditorOutput,
   callClassification?: CallClassification
 ): string {
   const callTypeSection = callClassification ? `
@@ -487,6 +525,13 @@ function buildCoachingInputReport(
 
 **IMPORTANT**: Calibrate your coaching based on this call type. A "${callClassification.detected_call_type}" call has different success criteria than a standard discovery call.
 ` : '';
+
+  const pricingSection = `
+### 9. PRICING DISCIPLINE (The Auditor)
+- Score: ${pricing.pricing_score}/100 (${pricing.grade})
+- Summary: ${pricing.summary}
+${pricing.discounts_offered?.length > 0 ? pricing.discounts_offered.map(d => `- [${d.timing_assessment}] ${d.type}: ${d.discount_value} | ${d.value_established_before ? '✓ Value first' : '✗ No value'} | ${d.prospect_requested ? '✓ Requested' : '✗ Volunteered'} | ${d.coaching_note}`).join('\n') : '- No discounts offered (excellent discipline).'}
+`;
 
   return `
 ## AGENT REPORTS FOR THIS CALL
@@ -516,7 +561,7 @@ ${callTypeSection}
 - Score: ${strategy.strategic_threading.score}/100 (${strategy.strategic_threading.grade})
 - Relevance Map:
 ${strategy.strategic_threading.relevance_map?.map(r => `  - Pain: "${r.pain_identified}" → Feature: "${r.feature_pitched}" | ${r.is_relevant ? '✓ RELEVANT' : '✗ MISMATCH'}: ${r.reasoning}`).join('\n') || '  No mappings found.'}
-- Missed Opportunities: ${strategy.strategic_threading.missed_opportunities?.map(o => o.pain).join(', ') || 'None'}
+- Missed Opportunities: ${strategy.strategic_threading.missed_opportunities?.map(o => typeof o === 'string' ? o : o.pain).join(', ') || 'None'}
 
 ### 5. CRITICAL GAPS (The Skeptic)
 ${gaps.critical_gaps?.length > 0 ? gaps.critical_gaps.map(g => `- [${g.impact}] ${g.category}: ${g.description} → Ask: "${g.suggested_question}"`).join('\n') : 'No critical gaps identified.'}
@@ -534,6 +579,7 @@ ${objections.objections_detected?.length > 0 ? objections.objections_detected.ma
 
 ### 8. COMPETITIVE INTEL (The Spy)
 ${competitors.competitive_intel?.length > 0 ? competitors.competitive_intel.map(c => `- ${c.competitor_name} (${c.usage_status}, Position: ${c.competitive_position}): Strengths: ${c.strengths_mentioned?.join(', ') || 'None'}; Weaknesses: ${c.weaknesses_mentioned?.join(', ') || 'None'}; Strategy: ${c.positioning_strategy}`).join('\n') : 'No competitors mentioned.'}
+${pricingSection}
 `;
 }
 
@@ -800,14 +846,29 @@ export async function runAnalysisPipeline(
   console.log('[Pipeline] Skeptic fired async (non-blocking)');
 
   // Run Batch 2a: Strategist runs first so we can extract pitched features for Negotiator
-  // Auditor runs in parallel - no dependencies on other agents
-  const [profilerResult, strategistResult, refereeResult, interrogatorResult, auditorResult] = await Promise.all([
+  // Auditor needs context from Strategist for pain severities, so we run Strategist first
+  const [profilerResult, strategistResult, refereeResult, interrogatorResult] = await Promise.all([
     executeAgentWithPrompt(profilerConfig, profilerPrompt, supabase, callId),
     executeAgentWithPrompt(strategistConfig, strategistPrompt, supabase, callId),
     executeAgentWithPrompt(refereeConfig, behaviorPrompt, supabase, callId),
     executeAgentWithPrompt(interrogatorConfig, interrogatorPrompt, supabase, callId),
-    executeAgent(auditorConfig, processedTranscript, supabase, callId),
   ]);
+  
+  // Extract pain severities from Strategist for Auditor context
+  const strategistDataForAuditor = strategistResult.data as StrategistOutput;
+  const painSeverities = strategistResult.success && strategistDataForAuditor?.strategic_threading?.relevance_map
+    ? strategistDataForAuditor.strategic_threading.relevance_map
+        .filter(p => p.pain_severity)
+        .map(p => ({ pain: p.pain_identified, severity: p.pain_severity as string }))
+    : undefined;
+  
+  // Run Auditor with context from Sentinel (call type) and Strategist (pain severities)
+  const auditorPrompt = buildAuditorPrompt(
+    processedTranscript,
+    callClassification?.detected_call_type,
+    painSeverities
+  );
+  const auditorResult = await executeAgentWithPrompt(auditorConfig, auditorPrompt, supabase, callId);
 
   // Extract pitched features from Strategist for Negotiator context
   const strategistData = strategistResult.data as StrategistOutput;
@@ -881,6 +942,7 @@ export async function runAnalysisPipeline(
     negotiator,
     profiler,
     spy,
+    auditor,
     callClassification
   );
 
