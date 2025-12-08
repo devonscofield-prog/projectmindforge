@@ -15,7 +15,8 @@ import { getCorsHeaders } from './lib/cors.ts';
 import { 
   analyzeCallMetadata, 
   analyzeCallBehavior, 
-  analyzeCallStrategy 
+  analyzeCallStrategy,
+  analyzeQuestionLeverage,
 } from '../_shared/analysis-agents.ts';
 
 serve(async (req) => {
@@ -107,18 +108,31 @@ serve(async (req) => {
 
     const startTime = Date.now();
 
-    // Run ALL THREE agents in PARALLEL
-    console.log('[analyze-call] Running Clerk, Referee, and Auditor agents in parallel...');
+    // Run ALL FOUR agents in PARALLEL
+    console.log('[analyze-call] Running Clerk, Referee, Interrogator, and Auditor agents in parallel...');
     
-    const [metadataResult, behaviorResult, strategyResult] = await Promise.all([
+    const [metadataResult, behaviorBase, questionQuality, strategyResult] = await Promise.all([
       analyzeCallMetadata(transcript.raw_text),
       analyzeCallBehavior(transcript.raw_text),
+      analyzeQuestionLeverage(transcript.raw_text),
       analyzeCallStrategy(transcript.raw_text),
     ]);
 
     const analysisTime = Date.now() - startTime;
     console.log(`[analyze-call] All agents completed in ${analysisTime}ms`);
-    console.log(`[analyze-call] Scores - Behavior: ${behaviorResult.overall_score}, Threading: ${strategyResult.strategic_threading.score}, Critical Gaps: ${strategyResult.critical_gaps.length}`);
+    
+    // Merge question quality into behavior result
+    const behaviorResult = {
+      ...behaviorBase,
+      overall_score: behaviorBase.overall_score + questionQuality.score, // Add question score (max 20) to base (max 80)
+      grade: (behaviorBase.overall_score + questionQuality.score) >= 60 ? 'Pass' : 'Fail' as const,
+      metrics: {
+        ...behaviorBase.metrics,
+        question_quality: questionQuality, // Inject dedicated agent's analysis
+      },
+    };
+    
+    console.log(`[analyze-call] Scores - Behavior: ${behaviorResult.overall_score} (base: ${behaviorBase.overall_score}, questions: ${questionQuality.score}), Threading: ${strategyResult.strategic_threading.score}, Critical Gaps: ${strategyResult.critical_gaps.length}`);
 
     // Check if an analysis record already exists for this call
     const { data: existingAnalysis } = await supabaseAdmin
