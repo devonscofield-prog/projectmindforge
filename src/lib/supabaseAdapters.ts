@@ -31,6 +31,7 @@ import type {
   StrategyAudit,
   DealHeat,
   PsychologyProfile,
+  CoachingSynthesis,
 } from '@/api/aiCallAnalysis/types';
 import type { UserActivityLog, UserActivityType } from '@/api/userActivityLogs';
 import { parseJsonField, isObject, isString, isStringArray, isNumber } from './typeUtils';
@@ -131,6 +132,14 @@ export function isDealHeat(value: unknown): value is DealHeat {
 export function isPsychologyProfile(value: unknown): value is PsychologyProfile {
   if (!isObject(value)) return false;
   return 'prospect_persona' in value && 'disc_profile' in value && 'communication_style' in value;
+}
+
+/**
+ * Type guard for CoachingSynthesis (Analysis 2.0)
+ */
+export function isCoachingSynthesis(value: unknown): value is CoachingSynthesis {
+  if (!isObject(value)) return false;
+  return 'overall_grade' in value && 'coaching_prescription' in value && 'top_3_strengths' in value;
 }
 
 /**
@@ -302,6 +311,7 @@ export function toCallAnalysis(row: AiCallAnalysisRow): CallAnalysis {
     analysis_behavior: parseJsonField<BehaviorScore>(row.analysis_behavior, isBehaviorScore),
     analysis_strategy: parseJsonField<StrategyAudit>(row.analysis_strategy, isStrategyAudit),
     analysis_psychology: parseJsonField<PsychologyProfile>(row.analysis_psychology, isPsychologyProfile),
+    analysis_coaching: parseJsonField<CoachingSynthesis>(row.analysis_coaching, isCoachingSynthesis),
     deal_heat_analysis: parseJsonField<DealHeat>(row.deal_heat_analysis, isDealHeat),
   };
 }
