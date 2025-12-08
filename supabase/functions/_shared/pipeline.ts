@@ -82,6 +82,32 @@ const MAX_TRANSCRIPT_LENGTH_FOR_LABELING = 80000;
 
 // ============= CONTEXT-AWARE PROMPT BUILDERS =============
 
+function buildCensusPrompt(
+  transcript: string,
+  callType?: string
+): string {
+  const basePrompt = `Extract structured data entities from this sales call transcript:\n\n${transcript}`;
+  
+  const contextParts: string[] = [];
+  
+  if (callType) {
+    if (callType === 'group_demo') {
+      contextParts.push(`NOTE: This is a GROUP DEMO with multiple participants. Identify ALL attendees and their roles. Flag the PRIMARY decision maker among the group.`);
+    } else if (callType === 'executive_alignment') {
+      contextParts.push(`NOTE: This is an EXECUTIVE ALIGNMENT call. The primary prospect is likely a C-level or VP. Focus on capturing their exact title and sentiment carefully.`);
+    } else if (callType === 'reconnect') {
+      contextParts.push(`NOTE: This is a RECONNECT call. User counts may reference previous discussions. Look for updates like "we've grown to..." or "now we have..."`);
+    } else if (callType === 'technical_deep_dive') {
+      contextParts.push(`NOTE: This is a TECHNICAL DEEP DIVE. The primary contact may be a technical stakeholder (IT Director, Architect). Capture their technical role accurately.`);
+    }
+  }
+  
+  if (contextParts.length > 0) {
+    return `${basePrompt}\n\n--- CONTEXT ---\n${contextParts.join('\n')}`;
+  }
+  return basePrompt;
+}
+
 function buildProfilerPrompt(
   transcript: string, 
   primarySpeakerName?: string,
@@ -681,11 +707,12 @@ export async function runAnalysisPipeline(
   console.log('[Pipeline] Batch 1/2: Running Census, Historian, Spy...');
   const batch1Start = performance.now();
 
-  // Build context-aware Spy prompt
+  // Build context-aware prompts for Batch 1
+  const censusPrompt = buildCensusPrompt(processedTranscript, callClassification?.detected_call_type);
   const spyPrompt = buildSpyPrompt(processedTranscript, callClassification?.detected_call_type);
 
   const [censusResult, historianResult, spyResult] = await Promise.all([
-    executeAgent(censusConfig, processedTranscript, supabase, callId),
+    executeAgentWithPrompt(censusConfig, censusPrompt, supabase, callId),
     executeAgent(historianConfig, processedTranscript, supabase, callId),
     executeAgentWithPrompt(spyConfig, spyPrompt, supabase, callId),
   ]);
