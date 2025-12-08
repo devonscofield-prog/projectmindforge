@@ -784,12 +784,6 @@ export async function runAnalysisPipeline(
   const competitorNames = spyResult.success 
     ? spy.competitive_intel.map(c => c.competitor_name) 
     : undefined;
-  const negotiatorPrompt = buildNegotiatorPrompt(
-    processedTranscript, 
-    competitorNames, 
-    undefined,
-    callClassification?.detected_call_type
-  );
 
   // Fire Skeptic async (non-blocking) - P1 optimization
   // This runs independently and we'll await it before Coach
@@ -802,14 +796,28 @@ export async function runAnalysisPipeline(
   pendingSkepticResult = executeAgentWithPrompt(skepticConfig, skepticPrompt, supabase, callId);
   console.log('[Pipeline] Skeptic fired async (non-blocking)');
 
-  // Run remaining agents in parallel
-  const [profilerResult, strategistResult, refereeResult, interrogatorResult, negotiatorResult] = await Promise.all([
+  // Run Batch 2a: Strategist runs first so we can extract pitched features for Negotiator
+  const [profilerResult, strategistResult, refereeResult, interrogatorResult] = await Promise.all([
     executeAgentWithPrompt(profilerConfig, profilerPrompt, supabase, callId),
     executeAgentWithPrompt(strategistConfig, strategistPrompt, supabase, callId),
     executeAgentWithPrompt(refereeConfig, behaviorPrompt, supabase, callId),
     executeAgentWithPrompt(interrogatorConfig, interrogatorPrompt, supabase, callId),
-    executeAgentWithPrompt(negotiatorConfig, negotiatorPrompt, supabase, callId),
   ]);
+
+  // Extract pitched features from Strategist for Negotiator context
+  const strategistData = strategistResult.data as StrategistOutput;
+  const pitchedFeatures = strategistResult.success && strategistData?.strategic_threading?.relevance_map
+    ? strategistData.strategic_threading.relevance_map.map(p => p.feature_pitched)
+    : undefined;
+  
+  // Run Negotiator with full context from Spy (competitors) + Strategist (pitched features)
+  const negotiatorPrompt = buildNegotiatorPrompt(
+    processedTranscript, 
+    competitorNames, 
+    pitchedFeatures,
+    callClassification?.detected_call_type
+  );
+  const negotiatorResult = await executeAgentWithPrompt(negotiatorConfig, negotiatorPrompt, supabase, callId);
 
   const batch2Duration = performance.now() - batch2Start;
   console.log(`[Pipeline] Batch 2 complete in ${Math.round(batch2Duration)}ms`);
