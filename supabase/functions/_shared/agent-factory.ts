@@ -44,6 +44,19 @@ async function logPerformance(
   }
 }
 
+// ============= RETRY CONFIGURATION =============
+
+const MAX_RETRIES = 2;
+const BASE_RETRY_DELAY_MS = 500;
+
+function isRetryableError(status: number): boolean {
+  return status === 429 || status >= 500;
+}
+
+async function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 // ============= AI CALLING =============
 
 async function callLovableAI<T extends z.ZodTypeAny>(
@@ -73,70 +86,87 @@ async function callLovableAI<T extends z.ZodTypeAny>(
     requestBody.temperature = config.options.temperature;
   }
 
-  // Create AbortController with timeout
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), AI_GATEWAY_TIMEOUT_MS);
+  let lastError: Error | null = null;
 
-  let response: Response;
-  try {
-    response = await fetch(LOVABLE_AI_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-      signal: controller.signal,
-    });
-  } catch (fetchError) {
-    clearTimeout(timeoutId);
-    if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-      throw new Error(`AI Gateway timeout after ${AI_GATEWAY_TIMEOUT_MS / 1000}s`);
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      const delayMs = BASE_RETRY_DELAY_MS * Math.pow(2, attempt - 1);
+      console.log(`[agent-factory] Retry ${attempt}/${MAX_RETRIES} for ${config.id} after ${delayMs}ms...`);
+      await delay(delayMs);
     }
-    throw fetchError;
-  } finally {
-    clearTimeout(timeoutId);
-  }
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`[agent-factory] AI Gateway error ${response.status}:`, errorText);
-    
-    if (response.status === 429) {
-      throw new Error('Rate limit exceeded. Please try again later.');
+    // Create AbortController with timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), AI_GATEWAY_TIMEOUT_MS);
+
+    let response: Response;
+    try {
+      response = await fetch(LOVABLE_AI_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
+      });
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+        lastError = new Error(`AI Gateway timeout after ${AI_GATEWAY_TIMEOUT_MS / 1000}s`);
+        continue; // Retry on timeout
+      }
+      throw fetchError;
+    } finally {
+      clearTimeout(timeoutId);
     }
-    if (response.status === 402) {
-      throw new Error('AI credits exhausted. Please add funds to continue.');
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[agent-factory] AI Gateway error ${response.status} for ${config.id}:`, errorText);
+      
+      if (response.status === 402) {
+        throw new Error('AI credits exhausted. Please add funds to continue.');
+      }
+      
+      if (isRetryableError(response.status)) {
+        lastError = new Error(`AI Gateway error: ${response.status}`);
+        continue; // Retry on 429 or 5xx
+      }
+      
+      throw new Error(`AI Gateway error: ${response.status}`);
     }
-    throw new Error(`AI Gateway error: ${response.status}`);
+
+    const data = await response.json();
+
+    // Extract tool call arguments
+    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    if (!toolCall || toolCall.function.name !== config.toolName) {
+      console.error(`[agent-factory] Unexpected response structure for ${config.id}:`, JSON.stringify(data).substring(0, 500));
+      throw new Error('Invalid AI response structure');
+    }
+
+    let parsedResult: unknown;
+    try {
+      parsedResult = JSON.parse(toolCall.function.arguments);
+    } catch (e) {
+      console.error(`[agent-factory] Failed to parse tool arguments for ${config.id}:`, toolCall.function.arguments.substring(0, 500));
+      throw new Error('Failed to parse AI response');
+    }
+
+    // Validate against schema
+    const validationResult = config.schema.safeParse(parsedResult);
+    if (!validationResult.success) {
+      console.error(`[agent-factory] Schema validation failed for ${config.id}:`, validationResult.error.message);
+      console.error('[agent-factory] Invalid data received:', JSON.stringify(parsedResult).substring(0, 500));
+      throw new Error(`Schema validation failed: ${validationResult.error.message}`);
+    }
+
+    return validationResult.data;
   }
 
-  const data = await response.json();
-
-  // Extract tool call arguments
-  const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-  if (!toolCall || toolCall.function.name !== config.toolName) {
-    console.error(`[agent-factory] Unexpected response structure for ${config.id}:`, JSON.stringify(data).substring(0, 500));
-    throw new Error('Invalid AI response structure');
-  }
-
-  let parsedResult: unknown;
-  try {
-    parsedResult = JSON.parse(toolCall.function.arguments);
-  } catch (e) {
-    console.error(`[agent-factory] Failed to parse tool arguments for ${config.id}:`, toolCall.function.arguments.substring(0, 500));
-    throw new Error('Failed to parse AI response');
-  }
-
-  // Validate against schema
-  const validationResult = config.schema.safeParse(parsedResult);
-  if (!validationResult.success) {
-    console.error(`[agent-factory] Schema validation failed for ${config.id}:`, validationResult.error.message);
-    console.error('[agent-factory] Invalid data received:', JSON.stringify(parsedResult).substring(0, 500));
-    throw new Error(`Schema validation failed: ${validationResult.error.message}`);
-  }
-
-  return validationResult.data;
+  // All retries exhausted
+  throw lastError || new Error(`Failed after ${MAX_RETRIES + 1} attempts`);
 }
 
 // ============= AGENT EXECUTION =============

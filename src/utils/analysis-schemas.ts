@@ -50,6 +50,9 @@ export const BehaviorScoreSchema = z.object({
       low_leverage_count: z.number().describe("Count of questions that triggered 1-word answers"),
       high_leverage_examples: z.array(z.string()).describe("List of 2-3 specific questions from the call that triggered long, detailed answers."),
       low_leverage_examples: z.array(z.string()).describe("List of 2-3 specific questions that were closed-ended, leading, or resulted in 1-word answers."),
+      // Additional metrics from Interrogator agent
+      total_sales_questions: z.number().optional().describe("Total number of qualifying sales questions found"),
+      yield_ratio: z.number().optional().describe("Calculated ratio: average_answer_length / average_question_length"),
     }),
     monologue: z.object({
       score: z.number().min(0).max(20),
@@ -100,14 +103,24 @@ export const StrategyAuditSchema = z.object({
     })),
     missed_opportunities: z.array(z.string()).describe("Pains mentioned that were ignored"),
   }),
-  // Optional for backward compatibility with legacy analysis data
+  // Required fields from pipeline (merged from Skeptic and Negotiator agents)
   critical_gaps: z.array(z.object({
     category: z.enum(['Budget', 'Authority', 'Need', 'Timeline', 'Competition', 'Technical']),
     description: z.string().describe("Specific description of what is missing in this deal"),
     impact: z.enum(['High', 'Medium', 'Low']),
     suggested_question: z.string().describe("The exact question the rep should ask to close this gap"),
-  })).optional().describe("Identify 3-5 critical pieces of information blocking the deal."),
-  objection_handling: ObjectionHandlingSchema.optional(),
+  })).describe("3-5 critical pieces of information blocking the deal."),
+  objection_handling: ObjectionHandlingSchema,
+  // Competitive intelligence from Spy agent
+  competitive_intel: z.array(z.object({
+    competitor_name: z.string().describe("Name of the competitor, vendor, or 'Status Quo' for internal solutions"),
+    usage_status: z.enum(['Current Vendor', 'Past Vendor', 'Evaluating', 'Mentioned']),
+    strengths_mentioned: z.array(z.string()).describe("Positive things said about the competitor"),
+    weaknesses_mentioned: z.array(z.string()).describe("Negative things said about the competitor"),
+    threat_level: z.enum(['High', 'Medium', 'Low']),
+    churn_risk: z.enum(['High', 'Medium', 'Low']).describe("Likelihood they will switch from this competitor"),
+    silver_bullet_question: z.string().describe("A specific 'Trap Setting' question to de-position this competitor"),
+  })).optional().describe("Competitive intelligence gathered from the call"),
 });
 
 export type StrategyAudit = z.infer<typeof StrategyAuditSchema>;
