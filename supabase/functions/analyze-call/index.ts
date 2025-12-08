@@ -169,32 +169,46 @@ serve(async (req) => {
   // Create service role client for bypassing RLS
   const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-  // Verify user
+  // Check if this is an internal call using service role key
   const token = authHeader.replace('Bearer ', '');
-  const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+  const isInternalCall = token === supabaseServiceKey;
   
-  if (authError || !user) {
-    return new Response(
-      JSON.stringify({ error: 'Invalid authentication' }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
+  let userId: string;
+  
+  if (isInternalCall) {
+    // Internal call from another edge function (e.g., reanalyze-call)
+    // Skip user validation but use a system identifier for logging
+    userId = 'system-internal';
+    console.log('[analyze-call] Internal service call detected, bypassing user auth');
+  } else {
+    // External user call - verify JWT
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid authentication' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    userId = user.id;
 
-  // Enforce rate limiting immediately after authentication
-  const rateLimitResult = checkRateLimit(user.id);
-  if (!rateLimitResult.allowed) {
-    console.log(`[analyze-call] Rate limit exceeded for user ${user.id}, retry after ${rateLimitResult.retryAfter}s`);
-    return new Response(
-      JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
-      { 
-        status: 429, 
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json',
-          'Retry-After': String(rateLimitResult.retryAfter || 60),
-        } 
-      }
-    );
+    // Enforce rate limiting only for external user calls
+    const rateLimitResult = checkRateLimit(userId);
+    if (!rateLimitResult.allowed) {
+      console.log(`[analyze-call] Rate limit exceeded for user ${userId}, retry after ${rateLimitResult.retryAfter}s`);
+      return new Response(
+        JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
+        { 
+          status: 429, 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json',
+            'Retry-After': String(rateLimitResult.retryAfter || 60),
+          } 
+        }
+      );
+    }
   }
 
   // Store call_id early for error handling (declared outside try block)
@@ -225,7 +239,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`[analyze-call] Starting Analysis 2.0 for call_id: ${targetCallId}, user: ${user.id}`);
+    console.log(`[analyze-call] Starting Analysis 2.0 for call_id: ${targetCallId}, user: ${userId}`);
 
     // Fetch the transcript
     const { data: transcript, error: fetchError } = await supabaseAdmin
