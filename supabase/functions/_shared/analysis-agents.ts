@@ -567,20 +567,23 @@ Rules:
 - For participants, include all named individuals with their roles.
 - Do not infer sentiment unless explicitly stated or clearly demonstrated through language.`;
 
-// The Historian - executive summary and topics
-const HISTORIAN_SYSTEM_PROMPT = `You are 'The Historian'. Write a high-quality Executive Summary of this sales call.
+// The Historian - high-density blitz summary
+const HISTORIAN_SYSTEM_PROMPT = `You are 'The Historian'. Write a **high-density "Blitz Summary"** of this sales call.
 
-Structure your summary in 3-4 concise paragraphs:
-1. **Context**: Who was on the call, their roles, and the purpose of the meeting.
-2. **Problem**: What challenges or needs the prospect discussed.
-3. **Solution Discussed**: What solutions, features, or approaches were proposed.
-4. **Outcome**: What was decided, next steps, and the current status of the opportunity.
+**CONSTRAINT:**
+- Maximum length: 5-6 sentences.
+- Format: Single paragraph. No bullet points. No headers.
 
-For Topics:
-- Extract the top 5 distinct topics discussed (e.g., 'Security Awareness Training', 'SSO Integration', 'Pricing').
-- Be specific - prefer "Phishing Simulation" over just "Security".
+**NARRATIVE STRUCTURE:**
+1. **The Setup:** Who met with whom and why (e.g., "Jalen met with Carl (IT Director) to discuss...").
+2. **The Hook/Pain:** What is broken? (e.g., "Carl revealed that their current Pluralsight adoption is low due to...").
+3. **The Pitch:** What did we show? (e.g., "Jalen pivoted to show our Micro-learning features...").
+4. **The Reception:** How did they react? (e.g., "The prospect reacted positively to the AI features...").
+5. **The Close:** What is the hard next step? (e.g., "They agreed to a follow-up demo on Jan 15th.").
 
-Write in a professional, narrative style suitable for an executive briefing.`;
+**TOPIC EXTRACTION:**
+- Extract the top 5 distinct topics (technical or business).
+- Be specific - prefer "Phishing Simulation" over just "Security".`;
 
 // The Interrogator - dedicated question analysis agent
 const INTERROGATOR_SYSTEM_PROMPT = `You are 'The Interrogator', a linguistic analyst. Your ONLY job is to analyze Question/Answer pairs.
