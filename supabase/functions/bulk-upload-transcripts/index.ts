@@ -280,20 +280,48 @@ async function queueAnalysis(
   }
 }
 
-// ============= Helper: Queue Batch Indexing (fire-and-forget) =============
+// ============= Helper: Queue Batch Indexing (fire-and-forget with HMAC) =============
 // Uses fetch directly to avoid awaiting the response - indexing happens in background
-function queueBatchIndexingAsync(transcriptIds: string[]): void {
+async function queueBatchIndexingAsync(transcriptIds: string[]): Promise<void> {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  
+  const body = JSON.stringify({ transcript_ids: transcriptIds });
+  
+  // Generate HMAC signature for service-to-service authentication
+  const timestamp = Date.now().toString();
+  const nonce = crypto.randomUUID();
+  const signaturePayload = `${timestamp}.${nonce}.${body}`;
+  const secret = serviceKey.substring(0, 32);
+  
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(secret);
+  const messageData = encoder.encode(signaturePayload);
+  
+  const key = await crypto.subtle.importKey(
+    'raw',
+    keyData,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  
+  const signatureBuffer = await crypto.subtle.sign('HMAC', key, messageData);
+  const signature = Array.from(new Uint8Array(signatureBuffer))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
   
   // Fire and forget - don't await the response
   fetch(`${supabaseUrl}/functions/v1/chunk-transcripts`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${serviceKey}`,
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'X-Request-Signature': signature,
+      'X-Request-Timestamp': timestamp,
+      'X-Request-Nonce': nonce,
     },
-    body: JSON.stringify({ transcript_ids: transcriptIds })
+    body
   }).then(response => {
     if (!response.ok) {
       console.error(`[bulk-upload] Background indexing request returned status ${response.status}`);

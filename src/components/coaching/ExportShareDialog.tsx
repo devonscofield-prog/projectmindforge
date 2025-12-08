@@ -1,6 +1,7 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { format } from 'date-fns';
 import { createLogger } from '@/lib/logger';
+import { sanitizeHtmlForPdf } from '@/lib/sanitize';
 
 const log = createLogger('ExportShareDialog');
 import {
@@ -128,7 +129,8 @@ export function ExportShareDialog({
       
       const content = generatePdfContent();
       const container = document.createElement('div');
-      container.innerHTML = content;
+      // Sanitize HTML for defense-in-depth against XSS
+      container.innerHTML = sanitizeHtmlForPdf(content);
       document.body.appendChild(container);
 
       const dateRangeStr = `${format(dateRange.from, 'MMM-d')}-${format(dateRange.to, 'MMM-d-yyyy')}`;
