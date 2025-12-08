@@ -89,6 +89,17 @@ export const StrategyAuditSchema = z.object({
     impact: z.enum(['High', 'Medium', 'Low']),
     suggested_question: z.string().describe("The exact question the rep should ask to close this gap"),
   })).describe("Identify 3-5 critical pieces of information blocking the deal."),
+  objection_handling: z.object({
+    score: z.number().min(0).max(100),
+    grade: z.enum(['Pass', 'Fail']),
+    objections_detected: z.array(z.object({
+      objection: z.string().describe("The prospect's specific objection (e.g., 'Too expensive')"),
+      category: z.enum(['Price', 'Competitor', 'Authority', 'Need', 'Timing', 'Feature']),
+      rep_response: z.string().describe("Summary of how the rep answered"),
+      handling_rating: z.enum(['Great', 'Okay', 'Bad']),
+      coaching_tip: z.string().describe("Specific feedback on this interaction"),
+    })),
+  }),
 });
 
 export type StrategyAudit = z.infer<typeof StrategyAuditSchema>;
