@@ -606,6 +606,7 @@ serve(async (req) => {
         metadata: metadataResult,
         behavior: behaviorResult,
         strategy: strategyResult,
+        psychology: psychologyResult,
         processing_time_ms: Math.round(pipelineDuration),
         warnings: analysisWarnings.length > 0 ? analysisWarnings : undefined,
       }),

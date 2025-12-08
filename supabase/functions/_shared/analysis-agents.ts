@@ -686,6 +686,7 @@ interface CallLovableAIOptions {
   model?: string;
   temperature?: number;
   maxTokens?: number;
+  validationSchema?: { safeParse: (data: unknown) => { success: boolean; error?: { message: string } } };
 }
 
 async function callLovableAI(
@@ -704,6 +705,7 @@ async function callLovableAI(
     model = 'google/gemini-2.5-flash',
     temperature,
     maxTokens = 4096,
+    validationSchema,
   } = options;
 
   const requestBody: any = {
@@ -771,12 +773,25 @@ async function callLovableAI(
     throw new Error('Invalid AI response structure');
   }
 
+  let parsedResult: any;
   try {
-    return JSON.parse(toolCall.function.arguments);
+    parsedResult = JSON.parse(toolCall.function.arguments);
   } catch (e) {
     console.error('[analysis-agents] Failed to parse tool arguments:', toolCall.function.arguments);
     throw new Error('Failed to parse AI response');
   }
+
+  // Run schema validation if provided
+  if (validationSchema) {
+    const validationResult = validationSchema.safeParse(parsedResult);
+    if (!validationResult.success) {
+      console.error(`[analysis-agents] AI Schema Mismatch for ${toolName}:`, validationResult.error?.message);
+      console.error('[analysis-agents] Invalid data received:', JSON.stringify(parsedResult).substring(0, 500));
+      throw new Error(`AI Schema Mismatch: ${validationResult.error?.message || 'Unknown validation error'}`);
+    }
+  }
+
+  return parsedResult;
 }
 
 /**
