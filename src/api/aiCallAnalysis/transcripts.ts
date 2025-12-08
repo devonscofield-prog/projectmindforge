@@ -266,25 +266,26 @@ export async function listCallTranscriptsForRepWithFilters(
     return { data: [], count: 0 };
   }
 
-  // Fetch heat scores from ai_call_analysis (preferring new deal_heat_analysis over legacy coach_output)
+  // Fetch heat scores and coach grades from ai_call_analysis
   const callIds = transcripts.map(t => t.id);
   const { data: analyses, error: analysisError } = await supabase
     .from('ai_call_analysis')
-    .select('call_id, deal_heat_analysis, coach_output')
+    .select('call_id, deal_heat_analysis, coach_output, analysis_coaching')
     .in('call_id', callIds);
 
   if (analysisError) {
     log.error('Analysis fetch error', { error: analysisError });
     return {
-      data: transcripts.map(t => ({ ...t, heat_score: null })),
+      data: transcripts.map(t => ({ ...t, heat_score: null, coach_grade: null })),
       count: count || transcripts.length,
     };
   }
 
-  // Create a map of call_id -> heat_score (prefer new deal_heat_analysis, fallback to legacy)
+  // Create maps for call_id -> heat_score and coach_grade
   const heatMap = new Map<string, number | null>();
+  const gradeMap = new Map<string, string | null>();
   analyses?.forEach(a => {
-    // Prefer new deal_heat_analysis (0-100 scale)
+    // Heat score: prefer new deal_heat_analysis (0-100 scale)
     const dealHeat = a.deal_heat_analysis as { heat_score?: number } | null;
     if (dealHeat?.heat_score != null) {
       heatMap.set(a.call_id, dealHeat.heat_score);
@@ -294,12 +295,17 @@ export async function listCallTranscriptsForRepWithFilters(
       const legacyScore = coachOutput?.heat_signature?.score ?? null;
       heatMap.set(a.call_id, legacyScore != null ? legacyScore * 10 : null);
     }
+    
+    // Coach grade from analysis_coaching
+    const coaching = a.analysis_coaching as { overall_grade?: string } | null;
+    gradeMap.set(a.call_id, coaching?.overall_grade ?? null);
   });
 
-  // Merge heat scores into transcripts
+  // Merge heat scores and grades into transcripts
   let transcriptsWithHeat: CallTranscriptWithHeat[] = transcripts.map(t => ({
     ...t,
     heat_score: heatMap.get(t.id) ?? null,
+    coach_grade: gradeMap.get(t.id) ?? null,
   }));
 
   // Apply heat range filter if specified (using 0-100 scale)
@@ -620,23 +626,24 @@ export async function listCallTranscriptsForTeamWithFilters(
     return { data: [], count: 0 };
   }
 
-  // Fetch heat scores from ai_call_analysis
+  // Fetch heat scores and coach grades from ai_call_analysis
   const callIds = transcripts.map(t => t.id);
   const { data: analyses, error: analysisError } = await supabase
     .from('ai_call_analysis')
-    .select('call_id, deal_heat_analysis, coach_output')
+    .select('call_id, deal_heat_analysis, coach_output, analysis_coaching')
     .in('call_id', callIds);
 
   if (analysisError) {
     log.error('Analysis fetch error', { error: analysisError });
     return {
-      data: transcripts.map(t => ({ ...t, heat_score: null })),
+      data: transcripts.map(t => ({ ...t, heat_score: null, coach_grade: null })),
       count: count || transcripts.length,
     };
   }
 
-  // Create a map of call_id -> heat_score
+  // Create maps for call_id -> heat_score and coach_grade
   const heatMap = new Map<string, number | null>();
+  const gradeMap = new Map<string, string | null>();
   analyses?.forEach(a => {
     const dealHeat = a.deal_heat_analysis as { heat_score?: number } | null;
     if (dealHeat?.heat_score != null) {
@@ -646,12 +653,17 @@ export async function listCallTranscriptsForTeamWithFilters(
       const legacyScore = coachOutput?.heat_signature?.score ?? null;
       heatMap.set(a.call_id, legacyScore != null ? legacyScore * 10 : null);
     }
+    
+    // Coach grade from analysis_coaching
+    const coaching = a.analysis_coaching as { overall_grade?: string } | null;
+    gradeMap.set(a.call_id, coaching?.overall_grade ?? null);
   });
 
-  // Merge heat scores into transcripts
+  // Merge heat scores and grades into transcripts
   let transcriptsWithHeat: CallTranscriptWithHeatAndRep[] = transcripts.map(t => ({
     ...t,
     heat_score: heatMap.get(t.id) ?? null,
+    coach_grade: gradeMap.get(t.id) ?? null,
   }));
 
   // Apply heat range filter if specified

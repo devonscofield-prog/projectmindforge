@@ -17,6 +17,7 @@ interface MobileCallCardProps {
     potential_revenue?: number | null;
     analysis_status: string;
     heat_score?: number | null;
+    coach_grade?: string | null;
     manager_id?: string | null;
   };
   onClick: () => void;
@@ -56,6 +57,25 @@ export function MobileCallCard({ call, onClick }: MobileCallCardProps) {
     }).format(value);
   };
 
+  const getGradeBadge = (grade: string | null | undefined) => {
+    if (!grade) return null;
+    
+    const isA = grade.startsWith('A');
+    const isBC = grade.startsWith('B') || grade.startsWith('C');
+    const isDF = grade.startsWith('D') || grade.startsWith('F');
+    
+    return (
+      <span className={cn(
+        "font-bold text-xs px-1.5 py-0.5 rounded border",
+        isA && "border-green-500 text-green-600 bg-green-50 dark:border-green-400 dark:text-green-400 dark:bg-green-950",
+        isBC && "border-yellow-500 text-yellow-600 bg-yellow-50 dark:border-yellow-400 dark:text-yellow-400 dark:bg-yellow-950",
+        isDF && "border-red-500 text-red-600 bg-red-50 dark:border-red-400 dark:text-red-400 dark:bg-red-950"
+      )}>
+        {grade}
+      </span>
+    );
+  };
+
   return (
     <Card 
       variant="interactive"
@@ -90,6 +110,7 @@ export function MobileCallCard({ call, onClick }: MobileCallCardProps) {
             <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
               <span>{format(new Date(call.call_date), 'MMM d, yyyy')}</span>
               <Badge variant="outline" className="text-xs">{getCallTypeDisplay()}</Badge>
+              {getGradeBadge(call.coach_grade)}
               {call.heat_score != null && (
                 <span className={cn(
                   "flex items-center gap-1 font-medium",
