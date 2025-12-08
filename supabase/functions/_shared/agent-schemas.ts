@@ -88,6 +88,14 @@ export const StrategistSchema = z.object({
   strategic_threading: z.object({
     score: z.number(),
     grade: z.enum(['Pass', 'Fail']),
+    strategic_summary: z.string().describe("1-2 sentence TL;DR of strategic alignment quality"),
+    score_breakdown: z.object({
+      high_pains_addressed: z.number(),
+      high_pains_total: z.number(),
+      medium_pains_addressed: z.number(),
+      medium_pains_total: z.number(),
+      spray_and_pray_count: z.number(),
+    }),
     relevance_map: z.array(z.object({
       pain_identified: z.string(),
       pain_type: z.enum(['Explicit', 'Implicit']).optional(),
@@ -96,7 +104,12 @@ export const StrategistSchema = z.object({
       is_relevant: z.boolean(),
       reasoning: z.string(),
     })),
-    missed_opportunities: z.array(z.string()),
+    missed_opportunities: z.array(z.object({
+      pain: z.string(),
+      severity: z.enum(['High', 'Medium']),
+      suggested_pitch: z.string(),
+      talk_track: z.string().describe("Exact words rep could use to address this pain"),
+    })),
   }),
 });
 

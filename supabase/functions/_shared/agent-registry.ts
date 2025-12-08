@@ -93,6 +93,14 @@ const DEFAULT_STRATEGIST = {
   strategic_threading: {
     score: 0,
     grade: 'Fail' as const,
+    strategic_summary: 'Strategic analysis failed',
+    score_breakdown: {
+      high_pains_addressed: 0,
+      high_pains_total: 0,
+      medium_pains_addressed: 0,
+      medium_pains_total: 0,
+      spray_and_pray_count: 0,
+    },
     relevance_map: [],
     missed_opportunities: [],
   },

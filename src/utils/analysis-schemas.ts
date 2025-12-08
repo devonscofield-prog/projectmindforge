@@ -93,15 +93,32 @@ export const StrategyAuditSchema = z.object({
   strategic_threading: z.object({
     score: z.number().min(0).max(100),
     grade: z.enum(['Pass', 'Fail']),
+    strategic_summary: z.string().optional().describe("1-2 sentence TL;DR of strategic alignment quality"),
+    score_breakdown: z.object({
+      high_pains_addressed: z.number(),
+      high_pains_total: z.number(),
+      medium_pains_addressed: z.number().optional(),
+      medium_pains_total: z.number().optional(),
+      spray_and_pray_count: z.number(),
+    }).optional().describe("Breakdown of how the score was calculated"),
     relevance_map: z.array(z.object({
       pain_identified: z.string().describe("The specific need/pain quoted from the prospect"),
-      pain_type: z.enum(['Explicit', 'Implicit']).describe("Whether pain was directly stated or inferred from context"),
-      pain_severity: z.enum(['High', 'Medium', 'Low']).describe("Business impact severity of the pain"),
+      pain_type: z.enum(['Explicit', 'Implicit']).optional().describe("Whether pain was directly stated or inferred from context"),
+      pain_severity: z.enum(['High', 'Medium', 'Low']).optional().describe("Business impact severity of the pain"),
       feature_pitched: z.string().describe("The feature the rep pitched in response"),
       is_relevant: z.boolean(),
       reasoning: z.string().describe("Why this was a strategic match or mismatch"),
     })),
-    missed_opportunities: z.array(z.string()).describe("Pains mentioned that were ignored"),
+    // Enhanced missed opportunities with actionable talk tracks
+    missed_opportunities: z.array(z.union([
+      z.string(), // Legacy: simple strings
+      z.object({  // New: structured with talk tracks
+        pain: z.string(),
+        severity: z.enum(['High', 'Medium']),
+        suggested_pitch: z.string(),
+        talk_track: z.string().describe("Exact words rep could use to address this pain"),
+      })
+    ])).describe("Pains mentioned that were ignored - either strings or structured objects"),
   }),
   // Required fields from pipeline (merged from Skeptic and Negotiator agents)
   critical_gaps: z.array(z.object({
