@@ -338,11 +338,21 @@ export async function runAnalysisPipeline(
             const ratio = labeledLength / originalLength;
             
             if (ratio >= MIN_LABELED_TRANSCRIPT_RATIO) {
-              processedTranscript = labelerData.labeled_transcript;
-              console.log(`[Pipeline] Phase 0 complete in ${Math.round(phase0Duration)}ms - ${labelerData.speaker_count} speakers detected (${labelerData.detection_confidence} confidence)`);
-              // Log speaker mapping for debugging
-              if (labelerData.speaker_mapping && labelerData.speaker_mapping.length > 0) {
-                console.log(`[Pipeline] Speaker mapping: ${JSON.stringify(labelerData.speaker_mapping)}`);
+              // Validate label format: at least 10% of lines should have valid speaker prefixes
+              const lines = labelerData.labeled_transcript.split('\n').filter((l: string) => l.trim());
+              const labeledLines = lines.filter((l: string) => /^(REP|PROSPECT|MANAGER|OTHER):/i.test(l.trim()));
+              const labelCoverage = lines.length > 0 ? labeledLines.length / lines.length : 0;
+              
+              if (labelCoverage >= 0.1) {
+                processedTranscript = labelerData.labeled_transcript;
+                console.log(`[Pipeline] Phase 0 complete in ${Math.round(phase0Duration)}ms - ${labelerData.speaker_count} speakers detected (${labelerData.detection_confidence} confidence), ${Math.round(labelCoverage * 100)}% label coverage`);
+                // Log speaker mapping for debugging
+                if (labelerData.speaker_mapping && labelerData.speaker_mapping.length > 0) {
+                  console.log(`[Pipeline] Speaker mapping: ${JSON.stringify(labelerData.speaker_mapping)}`);
+                }
+              } else {
+                warnings.push(`Low label coverage (${Math.round(labelCoverage * 100)}% of lines labeled), using raw transcript`);
+                console.log(`[Pipeline] Phase 0 fallback: Low label coverage - only ${labeledLines.length}/${lines.length} lines have valid prefixes (${Math.round(labelCoverage * 100)}%)`);
               }
             } else {
               warnings.push(`Speaker labeling truncated (${Math.round(ratio * 100)}% of original), using raw transcript`);
@@ -377,7 +387,7 @@ export async function runAnalysisPipeline(
 
   // ============= BATCH 1: Critical Agents (Census, Historian, Spy) =============
   // Note: Use processedTranscript (labeled) for analysis
-  console.log('[Pipeline] Batch 1/3: Running Census, Historian, Spy...');
+  console.log('[Pipeline] Batch 1/2: Running Census, Historian, Spy...');
   const batch1Start = performance.now();
 
   const [censusResult, historianResult, spyResult] = await Promise.all([
