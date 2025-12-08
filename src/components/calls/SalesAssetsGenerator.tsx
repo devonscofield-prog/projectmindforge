@@ -21,12 +21,13 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import type { StrategyAudit, SalesAssets, CallMetadata } from '@/utils/analysis-schemas';
+import type { StrategyAudit, SalesAssets, CallMetadata, PsychologyProfile } from '@/utils/analysis-schemas';
 import { cn } from '@/lib/utils';
 
 interface SalesAssetsGeneratorProps {
   transcript: string;
   strategicContext: StrategyAudit | null;
+  psychologyContext?: PsychologyProfile | null;
   callMetadata?: CallMetadata | null;
   accountName?: string | null;
   stakeholderName?: string | null;
@@ -35,6 +36,7 @@ interface SalesAssetsGeneratorProps {
 export function SalesAssetsGenerator({ 
   transcript, 
   strategicContext,
+  psychologyContext,
   callMetadata,
   accountName,
   stakeholderName 
@@ -90,6 +92,7 @@ export function SalesAssetsGenerator({
         body: {
           transcript,
           strategic_context: strategicContext,
+          psychology_context: psychologyContext,
           account_name: accountName,
           stakeholder_name: stakeholderName,
         }

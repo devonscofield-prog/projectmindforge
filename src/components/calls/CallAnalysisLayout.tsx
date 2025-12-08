@@ -21,12 +21,15 @@ import {
   StrategyAuditSchema, 
   CallMetadataSchema,
   DealHeatSchema,
+  PsychologyProfileSchema,
   type BehaviorScore, 
   type StrategyAudit, 
   type CallMetadata,
-  type DealHeat
+  type DealHeat,
+  type PsychologyProfile
 } from '@/utils/analysis-schemas';
 import { DealHeatCard } from './DealHeatCard';
+import { ProspectPersonaCard } from './ProspectPersonaCard';
 
 interface CallAnalysisLayoutProps {
   transcript: CallTranscript;
@@ -140,9 +143,9 @@ export function CallAnalysisLayout({
   onEditUserCounts,
 }: CallAnalysisLayoutProps) {
   // Defensive JSON parsing with Zod validation
-  const { behaviorData, strategyData, metadataData, dealHeatData, parseError } = useMemo(() => {
+  const { behaviorData, strategyData, metadataData, dealHeatData, psychologyData, parseError } = useMemo(() => {
     if (!analysis) {
-      return { behaviorData: null, strategyData: null, metadataData: null, dealHeatData: null, parseError: null };
+      return { behaviorData: null, strategyData: null, metadataData: null, dealHeatData: null, psychologyData: null, parseError: null };
     }
 
     try {
@@ -162,6 +165,10 @@ export function CallAnalysisLayout({
         ? DealHeatSchema.safeParse(analysis.deal_heat_analysis)
         : { success: false, data: null };
 
+      const psychologyResult = analysis.analysis_psychology 
+        ? PsychologyProfileSchema.safeParse(analysis.analysis_psychology)
+        : { success: false, data: null };
+
       // Log validation errors for debugging but don't crash
       if (!behaviorResult.success && analysis.analysis_behavior) {
         console.warn('BehaviorScore validation failed:', 'error' in behaviorResult ? behaviorResult.error : 'unknown');
@@ -174,6 +181,7 @@ export function CallAnalysisLayout({
       const strategy = strategyResult.success ? strategyResult.data : null;
       const metadata = metadataResult.success ? metadataResult.data : null;
       const dealHeat = dealHeatResult.success ? dealHeatResult.data : null;
+      const psychology = psychologyResult.success ? psychologyResult.data : null;
 
       // If both critical schemas failed but data exists, that's a parse error
       const hasCriticalError = analysis.analysis_behavior && analysis.analysis_strategy 
@@ -184,6 +192,7 @@ export function CallAnalysisLayout({
         strategyData: strategy as StrategyAudit | null, 
         metadataData: metadata as CallMetadata | null,
         dealHeatData: dealHeat as DealHeat | null,
+        psychologyData: psychology as PsychologyProfile | null,
         parseError: hasCriticalError ? 'Analysis data could not be parsed' : null
       };
     } catch (err) {
@@ -193,6 +202,7 @@ export function CallAnalysisLayout({
         strategyData: null, 
         metadataData: null, 
         dealHeatData: null,
+        psychologyData: null,
         parseError: 'Unexpected error parsing analysis data' 
       };
     }
@@ -268,17 +278,23 @@ export function CallAnalysisLayout({
       <Card className="overflow-hidden">
         <div className="bg-gradient-to-br from-primary/5 via-background to-primary/10 p-6">
           <CardContent className="p-0">
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-              {/* Left: Names */}
-              <div className="space-y-1">
-                <h2 className="text-xl font-semibold">{prospectName}</h2>
-                <p className="text-muted-foreground text-sm">Coaching Analysis</p>
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+              {/* Left: Names + Persona */}
+              <div className="space-y-4 lg:max-w-sm">
+                <div className="space-y-1">
+                  <h2 className="text-xl font-semibold">{prospectName}</h2>
+                  <p className="text-muted-foreground text-sm">Coaching Analysis</p>
               </div>
               
-              {/* Center: Big Scores */}
+              {/* Right: Big Scores */}
               <div className="flex justify-center gap-8 lg:gap-12">
                 <CircularScore score={behaviorScore} label="Behavior" />
                 <CircularScore score={strategyScore} label="Strategy" />
+              </div>
+                {/* Prospect Persona Card - Compact in Hero */}
+                {psychologyData && (
+                  <ProspectPersonaCard psychology={psychologyData} />
+                )}
               </div>
             </div>
 
