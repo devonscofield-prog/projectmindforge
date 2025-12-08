@@ -16,9 +16,9 @@ export const CallMetadataSchema = z.object({
     sentiment: z.enum(['Positive', 'Neutral', 'Negative', 'Skeptical']),
   })),
   user_counts: z.object({
-    it_users: z.number().nullable().describe("Number of IT staff mentioned"),
-    end_users: z.number().nullable().describe("Number of general employees mentioned"),
-    source_quote: z.string().nullable().describe("The exact quote where these numbers were mentioned"),
+    it_users: z.number().optional().nullable().describe("Number of IT staff mentioned"),
+    end_users: z.number().optional().nullable().describe("Number of general employees mentioned"),
+    source_quote: z.string().optional().nullable().describe("The exact quote where these numbers were mentioned"),
   }),
 });
 

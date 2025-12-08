@@ -36,9 +36,9 @@ const CallCensusValidation = z.object({
     sentiment: z.enum(['Positive', 'Neutral', 'Negative', 'Skeptical']),
   })),
   user_counts: z.object({
-    it_users: z.number().nullable(),
-    end_users: z.number().nullable(),
-    source_quote: z.string().nullable(),
+    it_users: z.number().optional().nullable(),
+    end_users: z.number().optional().nullable(),
+    source_quote: z.string().optional().nullable(),
   }),
 });
 
@@ -64,9 +64,9 @@ const CallMetadataValidation = z.object({
     sentiment: z.enum(['Positive', 'Neutral', 'Negative', 'Skeptical']),
   })),
   user_counts: z.object({
-    it_users: z.number().nullable(),
-    end_users: z.number().nullable(),
-    source_quote: z.string().nullable(),
+    it_users: z.number().optional().nullable(),
+    end_users: z.number().optional().nullable(),
+    source_quote: z.string().optional().nullable(),
   }),
 });
 
