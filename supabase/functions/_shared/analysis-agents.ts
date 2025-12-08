@@ -833,7 +833,7 @@ export async function analyzeCallBehavior(transcript: string): Promise<BehaviorS
 }
 
 /**
- * Agent 3: The Strategist - Analyze strategic alignment (pain-to-pitch mapping ONLY)
+ * Agent 4: The Strategist - Analyze strategic alignment (pain-to-pitch mapping ONLY)
  * Uses gemini-2.5-flash for efficient relevance mapping
  */
 export async function analyzeCallStrategy(transcript: string): Promise<StrategicThreading> {
@@ -883,7 +883,7 @@ export async function analyzeDealGaps(transcript: string): Promise<DealGaps> {
 }
 
 /**
- * Agent 4: The Interrogator - Analyze question leverage and effectiveness
+ * Agent 3: The Interrogator - Analyze question leverage and effectiveness
  * Uses gemini-2.5-flash with low temperature for precise linguistic analysis
  */
 export async function analyzeQuestionLeverage(transcript: string): Promise<QuestionLeverage> {

@@ -282,8 +282,8 @@ serve(async (req) => {
     const analysisWarnings: string[] = [];
     const transcriptLength = transcript.raw_text.length;
 
-    // Run ALL FOUR agents in PARALLEL with graceful error recovery and performance tracking
-    console.log('[analyze-call] Running Clerk, Referee, Interrogator, and Auditor agents in parallel...');
+    // Run ALL SEVEN agents in PARALLEL with graceful error recovery and performance tracking
+    console.log('[analyze-call] Running all 7 agents in parallel: Clerk, Referee, Interrogator, Strategist, Skeptic, Negotiator, Profiler...');
 
     // Wrap each agent with timing
     const timedMetadata = async () => {
