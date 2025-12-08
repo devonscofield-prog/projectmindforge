@@ -301,6 +301,7 @@ export type Database = {
           deal_tags: string[] | null
           deleted_at: string | null
           deleted_by: string | null
+          detected_call_type: string | null
           discovery_score: number | null
           id: string
           meta_tags: string[] | null
@@ -338,6 +339,7 @@ export type Database = {
           deal_tags?: string[] | null
           deleted_at?: string | null
           deleted_by?: string | null
+          detected_call_type?: string | null
           discovery_score?: number | null
           id?: string
           meta_tags?: string[] | null
@@ -375,6 +377,7 @@ export type Database = {
           deal_tags?: string[] | null
           deleted_at?: string | null
           deleted_by?: string | null
+          detected_call_type?: string | null
           discovery_score?: number | null
           id?: string
           meta_tags?: string[] | null

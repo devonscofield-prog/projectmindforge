@@ -208,6 +208,8 @@ Deno.serve(async (req) => {
       analysis_coaching: result.coaching,
       analysis_pipeline_version: 'v2-registry',
       call_summary: result.metadata.summary,
+      // Enhancement #5: Store detected_call_type in dedicated column for easy filtering
+      detected_call_type: result.callClassification?.detected_call_type || null,
       raw_json: {
         ...(result.warnings.length > 0 ? { analysis_warnings: result.warnings } : {}),
         ...(result.callClassification ? { call_classification: result.callClassification } : {}),
