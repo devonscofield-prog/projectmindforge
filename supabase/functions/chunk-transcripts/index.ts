@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
 
@@ -1139,7 +1138,7 @@ async function processFullReindexJob(
 
 // ========== MAIN SERVER HANDLER ==========
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req.headers.get('origin'));
 
   if (req.method === 'OPTIONS') {
