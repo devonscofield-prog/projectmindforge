@@ -94,8 +94,10 @@ const DEFAULT_OBJECTIONS: ObjectionHandlingData = {
 };
 
 const DEFAULT_PSYCHOLOGY: PsychologyProfile = {
+  primary_speaker_name: 'Unknown',
   prospect_persona: 'Unknown',
   disc_profile: 'Unknown' as any, // Explicitly unknown when analysis fails
+  evidence_quote: 'Insufficient data for profile analysis',
   communication_style: {
     tone: 'Unknown',
     preference: 'Unknown',
@@ -104,6 +106,7 @@ const DEFAULT_PSYCHOLOGY: PsychologyProfile = {
     do: [],
     dont: [],
   },
+  suggested_email_subject: 'Following up on our conversation',
 };
 
 const DEFAULT_COMPETITORS: CompetitiveIntel = {
