@@ -28,6 +28,7 @@ import {
   analyzeObjections,
   analyzePsychology,
   analyzeCompetitors,
+  synthesizeCoaching,
   type CallCensus,
   type CallHistory,
   type CallMetadata,
@@ -40,6 +41,8 @@ import {
   type StrategyAudit,
   type MergedBehaviorScore,
   type PsychologyProfile,
+  type CoachingSynthesis,
+  type ObjectionHandling,
 } from '../_shared/analysis-agents.ts';
 
 // Minimum transcript length for meaningful analysis
@@ -105,6 +108,16 @@ const DEFAULT_PSYCHOLOGY: PsychologyProfile = {
 
 const DEFAULT_COMPETITORS: CompetitiveIntel = {
   competitive_intel: [],
+};
+
+const DEFAULT_COACHING: CoachingSynthesis = {
+  overall_grade: 'C',
+  executive_summary: 'Coaching synthesis was not completed due to an analysis error.',
+  top_3_strengths: [],
+  top_3_areas_for_improvement: [],
+  primary_focus_area: 'Discovery Depth',
+  coaching_prescription: 'Unable to generate coaching prescription.',
+  grade_reasoning: 'Analysis incomplete',
 };
 
 /**
@@ -595,8 +608,8 @@ serve(async (req) => {
       objection_handling: objectionsResult,
     };
 
-    const pipelineDuration = performance.now() - pipelineStartTime;
-    console.log(`[analyze-call] All agents completed in ${Math.round(pipelineDuration)}ms (${analysisWarnings.length} warnings)`);
+    const phase1Duration = performance.now() - pipelineStartTime;
+    console.log(`[analyze-call] Phase 1 (9 parallel agents) completed in ${Math.round(phase1Duration)}ms (${analysisWarnings.length} warnings)`);
     
     // Merge question quality into behavior result to create MergedBehaviorScore
     const behaviorResult: MergedBehaviorScore = {
@@ -611,6 +624,47 @@ serve(async (req) => {
     
     console.log(`[analyze-call] Scores - Behavior: ${behaviorResult.overall_score} (base: ${behaviorBase.overall_score}, questions: ${questionQuality.score}), Threading: ${strategyResult.strategic_threading.score}, Critical Gaps: ${strategyResult.critical_gaps.length}`);
 
+    // ============= PHASE 2: THE COACH (Sequential Synthesis) =============
+    console.log('[analyze-call] Phase 2: Running The Coach (synthesis agent)...');
+    const phase2Start = performance.now();
+    
+    let coachingResult: CoachingSynthesis;
+    try {
+      // Wrap objectionsResult for The Coach input
+      const wrappedObjections: ObjectionHandling = { objection_handling: objectionsResult };
+      
+      coachingResult = await synthesizeCoaching({
+        metadata: metadataResult,
+        behavior: behaviorResult,
+        questions: questionQuality,
+        strategy: strategyThreading,
+        gaps: gapsResult,
+        objections: wrappedObjections,
+        psychology: psychologyResult,
+        competitors: competitorsResult,
+      });
+      
+      const phase2Duration = performance.now() - phase2Start;
+      await logPerformance(supabaseAdmin, 'agent_coach_synthesis', phase2Duration, 'success', { 
+        call_id: targetCallId,
+        overall_grade: coachingResult.overall_grade,
+        primary_focus_area: coachingResult.primary_focus_area,
+      });
+      console.log(`[analyze-call] Phase 2 completed in ${Math.round(phase2Duration)}ms, Grade: ${coachingResult.overall_grade}, Focus: ${coachingResult.primary_focus_area}`);
+    } catch (coachErr) {
+      const error = coachErr instanceof Error ? coachErr.message : String(coachErr);
+      console.warn('[analyze-call] The Coach agent failed, using defaults:', error);
+      analysisWarnings.push(`Coaching synthesis failed: ${error}`);
+      await logPerformance(supabaseAdmin, 'agent_coach_synthesis', performance.now() - phase2Start, 'error', { 
+        call_id: targetCallId, 
+        error,
+      });
+      coachingResult = DEFAULT_COACHING;
+    }
+
+    const pipelineDuration = performance.now() - pipelineStartTime;
+    console.log(`[analyze-call] Full pipeline completed in ${Math.round(pipelineDuration)}ms (Phase 1: ${Math.round(phase1Duration)}ms, Phase 2: ${Math.round(pipelineDuration - phase1Duration)}ms)`);
+
     // Check if an analysis record already exists for this call
     const { data: existingAnalysis } = await supabaseAdmin
       .from('ai_call_analysis')
@@ -618,12 +672,13 @@ serve(async (req) => {
       .eq('call_id', targetCallId)
       .maybeSingle();
 
-    // Prepare the analysis data including warnings
+    // Prepare the analysis data including warnings and coaching
     const analysisData = {
       analysis_metadata: metadataResult,
       analysis_behavior: behaviorResult,
       analysis_strategy: strategyResult,
       analysis_psychology: psychologyResult,
+      analysis_coaching: coachingResult,
       analysis_pipeline_version: 'v2',
       call_summary: metadataResult.summary,
       // Store warnings in raw_json for debugging/transparency
@@ -678,9 +733,10 @@ serve(async (req) => {
       warnings_count: analysisWarnings.length,
       behavior_score: behaviorResult.overall_score,
       threading_score: strategyResult.strategic_threading.score,
+      overall_grade: coachingResult.overall_grade,
     });
 
-    console.log(`[analyze-call] Analysis 2.0 complete for call_id: ${targetCallId}`);
+    console.log(`[analyze-call] Analysis 2.0 complete for call_id: ${targetCallId}, Grade: ${coachingResult.overall_grade}`);
 
     // Trigger background chunking for RAG indexing (non-blocking)
     // @ts-ignore - EdgeRuntime is available in Supabase Edge Functions
@@ -695,6 +751,7 @@ serve(async (req) => {
         behavior: behaviorResult,
         strategy: strategyResult,
         psychology: psychologyResult,
+        coaching: coachingResult,
         processing_time_ms: Math.round(pipelineDuration),
         warnings: analysisWarnings.length > 0 ? analysisWarnings : undefined,
       }),
