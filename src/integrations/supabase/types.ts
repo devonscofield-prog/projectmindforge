@@ -283,6 +283,7 @@ export type Database = {
       ai_call_analysis: {
         Row: {
           analysis_behavior: Json | null
+          analysis_coaching: Json | null
           analysis_metadata: Json | null
           analysis_pipeline_version: string | null
           analysis_psychology: Json | null
@@ -319,6 +320,7 @@ export type Database = {
         }
         Insert: {
           analysis_behavior?: Json | null
+          analysis_coaching?: Json | null
           analysis_metadata?: Json | null
           analysis_pipeline_version?: string | null
           analysis_psychology?: Json | null
@@ -355,6 +357,7 @@ export type Database = {
         }
         Update: {
           analysis_behavior?: Json | null
+          analysis_coaching?: Json | null
           analysis_metadata?: Json | null
           analysis_pipeline_version?: string | null
           analysis_psychology?: Json | null
