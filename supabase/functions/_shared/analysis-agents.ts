@@ -3,17 +3,136 @@
  * 
  * Agent 1: The Clerk - Metadata & Facts extraction
  * Agent 2: The Referee - Behavioral scoring
- * Agent 3: The Auditor - Strategy & pain-to-pitch alignment
- * Agent 4: The Interrogator - Question leverage analysis
+ * Agent 3: The Interrogator - Question leverage analysis
+ * Agent 4: The Strategist - Strategy & pain-to-pitch alignment
  * Agent 5: The Skeptic - Deal gaps analysis
  * Agent 6: The Negotiator - Objection handling analysis
  * Agent 7: The Profiler - Prospect psychology profiling
  */
 
+import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
+
 const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 // Timeout for AI Gateway calls (55s to leave buffer before 60s edge function timeout)
 const AI_GATEWAY_TIMEOUT_MS = 55000;
+
+// ============= ZOD VALIDATION SCHEMAS =============
+// These are used to validate AI responses at runtime
+
+const CallMetadataValidation = z.object({
+  summary: z.string(),
+  topics: z.array(z.string()),
+  logistics: z.object({
+    platform: z.string().optional(),
+    duration_minutes: z.number(),
+    video_on: z.boolean(),
+  }),
+  participants: z.array(z.object({
+    name: z.string(),
+    role: z.string(),
+    is_decision_maker: z.boolean(),
+    sentiment: z.enum(['Positive', 'Neutral', 'Negative', 'Skeptical']),
+  })),
+  user_counts: z.object({
+    it_users: z.number().nullable(),
+    end_users: z.number().nullable(),
+    source_quote: z.string().nullable(),
+  }),
+});
+
+const BehaviorScoreValidation = z.object({
+  overall_score: z.number(),
+  grade: z.enum(['Pass', 'Fail']),
+  metrics: z.object({
+    patience: z.object({
+      score: z.number(),
+      interruption_count: z.number(),
+      status: z.enum(['Excellent', 'Good', 'Fair', 'Poor']),
+      interruptions: z.array(z.object({
+        interrupted_speaker: z.string(),
+        interrupter: z.string(),
+        context: z.string(),
+        severity: z.enum(['Minor', 'Moderate', 'Severe']),
+      })).optional(),
+    }),
+    monologue: z.object({
+      score: z.number(),
+      longest_turn_word_count: z.number(),
+      violation_count: z.number(),
+    }),
+    talk_listen_ratio: z.object({
+      score: z.number(),
+      rep_talk_percentage: z.number(),
+    }),
+    next_steps: z.object({
+      score: z.number(),
+      secured: z.boolean(),
+      details: z.string(),
+    }),
+  }),
+});
+
+const QuestionLeverageValidation = z.object({
+  score: z.number(),
+  explanation: z.string(),
+  average_question_length: z.number(),
+  average_answer_length: z.number(),
+  high_leverage_count: z.number(),
+  low_leverage_count: z.number(),
+  high_leverage_examples: z.array(z.string()),
+  low_leverage_examples: z.array(z.string()),
+  total_sales_questions: z.number(),
+  yield_ratio: z.number(),
+});
+
+const StrategicThreadingValidation = z.object({
+  strategic_threading: z.object({
+    score: z.number(),
+    grade: z.enum(['Pass', 'Fail']),
+    relevance_map: z.array(z.object({
+      pain_identified: z.string(),
+      feature_pitched: z.string(),
+      is_relevant: z.boolean(),
+      reasoning: z.string(),
+    })),
+    missed_opportunities: z.array(z.string()),
+  }),
+});
+
+const DealGapsValidation = z.object({
+  critical_gaps: z.array(z.object({
+    category: z.enum(['Budget', 'Authority', 'Need', 'Timeline', 'Competition', 'Technical']),
+    description: z.string(),
+    impact: z.enum(['High', 'Medium', 'Low']),
+    suggested_question: z.string(),
+  })),
+});
+
+const ObjectionHandlingValidation = z.object({
+  score: z.number(),
+  grade: z.enum(['Pass', 'Fail']),
+  objections_detected: z.array(z.object({
+    objection: z.string(),
+    category: z.enum(['Price', 'Competitor', 'Authority', 'Need', 'Timing', 'Feature']),
+    rep_response: z.string(),
+    handling_rating: z.enum(['Great', 'Okay', 'Bad']),
+    coaching_tip: z.string(),
+  })),
+});
+
+const PsychologyProfileValidation = z.object({
+  prospect_persona: z.string(),
+  disc_profile: z.enum(['D - Dominance', 'I - Influence', 'S - Steadiness', 'C - Compliance', 'Unknown']),
+  communication_style: z.object({
+    tone: z.string(),
+    preference: z.string(),
+  }),
+  dos_and_donts: z.object({
+    do: z.array(z.string()),
+    dont: z.array(z.string()),
+  }),
+});
 
 // Tool schemas for structured output extraction
 const CALL_METADATA_TOOL = {
@@ -300,8 +419,8 @@ const PSYCHOLOGY_PROFILE_TOOL = {
         prospect_persona: { type: "string", description: "Archetype (e.g., 'The Data-Driven Skeptic', 'The Busy Executive')" },
         disc_profile: { 
           type: "string", 
-          enum: ["D - Dominance", "I - Influence", "S - Steadiness", "C - Compliance"],
-          description: "Estimated DISC profile based on speech patterns"
+          enum: ["D - Dominance", "I - Influence", "S - Steadiness", "C - Compliance", "Unknown"],
+          description: "Estimated DISC profile based on speech patterns. Use 'Unknown' if insufficient evidence."
         },
         communication_style: {
           type: "object",
@@ -806,7 +925,8 @@ export async function analyzeCallMetadata(transcript: string): Promise<CallMetad
     CLERK_SYSTEM_PROMPT,
     userPrompt,
     CALL_METADATA_TOOL,
-    'extract_call_metadata'
+    'extract_call_metadata',
+    { validationSchema: CallMetadataValidation }
   );
   
   console.log('[analyzeCallMetadata] Extraction complete');
@@ -825,7 +945,8 @@ export async function analyzeCallBehavior(transcript: string): Promise<BehaviorS
     REFEREE_SYSTEM_PROMPT,
     userPrompt,
     BEHAVIOR_SCORE_TOOL,
-    'score_call_behavior'
+    'score_call_behavior',
+    { validationSchema: BehaviorScoreValidation }
   );
   
   console.log('[analyzeCallBehavior] Analysis complete, score:', result.overall_score);
@@ -850,6 +971,7 @@ export async function analyzeCallStrategy(transcript: string): Promise<Strategic
       model: 'google/gemini-2.5-flash',
       temperature: 0.2,
       maxTokens: 4096,
+      validationSchema: StrategicThreadingValidation,
     }
   );
   
@@ -875,6 +997,7 @@ export async function analyzeDealGaps(transcript: string): Promise<DealGaps> {
       model: 'google/gemini-2.5-pro',
       temperature: 0.1,
       maxTokens: 4096,
+      validationSchema: DealGapsValidation,
     }
   );
   
@@ -897,7 +1020,8 @@ export async function analyzeQuestionLeverage(transcript: string): Promise<Quest
     QUESTION_LEVERAGE_TOOL,
     'analyze_question_leverage',
     {
-      temperature: 0.2, // Low temperature for precise linguistic analysis
+      temperature: 0.2,
+      validationSchema: QuestionLeverageValidation,
     }
   );
   
@@ -922,8 +1046,9 @@ export async function analyzeObjections(transcript: string): Promise<ObjectionHa
     'analyze_objection_handling',
     {
       model: 'google/gemini-2.5-pro',
-      temperature: 0.1, // Low temperature for consistent judgment
+      temperature: 0.1,
       maxTokens: 4096,
+      validationSchema: ObjectionHandlingValidation,
     }
   );
   
@@ -968,8 +1093,9 @@ export async function analyzePsychology(transcript: string): Promise<PsychologyP
     'analyze_prospect_psychology',
     {
       model: 'google/gemini-2.5-flash',
-      temperature: 0.3, // Slightly higher for persona creativity
+      temperature: 0.3,
       maxTokens: 2048,
+      validationSchema: PsychologyProfileValidation,
     }
   );
   

@@ -86,6 +86,12 @@ export function isCoachOutput(value: unknown): value is CoachOutput {
 
 /**
  * Type guard for BehaviorScore (Analysis 2.0)
+ * 
+ * Note: BehaviorScore from the Referee agent does NOT include question_quality.
+ * Question data comes from the Interrogator agent separately and is merged
+ * into the final MergedBehaviorScore in analyze-call/index.ts before storage.
+ * 
+ * @see MergedBehaviorScore in analyze-call/index.ts for the merged structure
  */
 export function isBehaviorScore(value: unknown): value is BehaviorScore {
   if (!isObject(value)) return false;
@@ -103,11 +109,15 @@ export function isCallMetadata(value: unknown): value is CallMetadata {
 /**
  * Type guard for StrategyAudit (Analysis 2.0)
  * Supports both legacy MEDDPICC and new critical_gaps format
+ * Note: objection_handling is optional for backward compatibility with legacy data
  */
 export function isStrategyAudit(value: unknown): value is StrategyAudit {
   if (!isObject(value)) return false;
   // Must have strategic_threading, and either meddpicc (legacy) or critical_gaps (v2)
-  return 'strategic_threading' in value && ('meddpicc' in value || 'critical_gaps' in value);
+  // objection_handling is expected in v2 but optional for legacy compatibility
+  const hasStrategicThreading = 'strategic_threading' in value;
+  const hasGapsOrMeddpicc = 'meddpicc' in value || 'critical_gaps' in value;
+  return hasStrategicThreading && hasGapsOrMeddpicc;
 }
 
 /**
