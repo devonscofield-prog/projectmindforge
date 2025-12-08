@@ -296,10 +296,20 @@ export const NEGOTIATOR_PROMPT = `You are 'The Negotiator'. Find friction moment
 - **E**xplore: Asked clarifying questions?
 - **R**espond: Addressed with value?
 
-**RATING:**
-- **Great:** 3-4 LAER elements. -0 pts
-- **Okay:** 1-2 LAER elements. -10 pts
-- **Bad:** Argued/ignored/defensive. -20 pts
+**SCORING FORMULA (0-100 Scale):**
+
+Step 1: Start with 100 points
+Step 2: Deduct points per objection based on handling:
+  - Great (3-4 LAER elements): -0 pts
+  - Okay (1-2 LAER elements): -10 pts
+  - Bad (0 elements, argued/ignored/defensive): -20 pts
+Step 3: final_score = max(0, 100 - total_deductions)
+Step 4: Grade = Pass if score ≥ 60, Fail if < 60
+
+**EXAMPLE CALCULATION:**
+2 objections: 1 Great, 1 Bad
+- Deductions: 0 + 20 = 20
+- Score: 100 - 20 = 80 → Grade: Pass
 
 **COACHING:** ONE tip per objection - what should they have said?`;
 

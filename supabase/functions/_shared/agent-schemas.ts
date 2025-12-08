@@ -126,7 +126,7 @@ export const SkepticSchema = z.object({
 
 // The Negotiator - objection handling
 export const NegotiatorSchema = z.object({
-  score: z.number(),
+  score: z.number().min(0).max(100),
   grade: z.enum(['Pass', 'Fail']),
   objections_detected: z.array(z.object({
     objection: z.string(),
