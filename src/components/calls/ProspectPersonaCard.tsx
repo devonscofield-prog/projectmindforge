@@ -93,7 +93,7 @@ export function ProspectPersonaCard({ psychology, isLoading = false }: ProspectP
           <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto" />
         </button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-lg md:max-w-xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-xl md:max-w-2xl lg:max-w-3xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <User className="h-5 w-5 text-primary" />
