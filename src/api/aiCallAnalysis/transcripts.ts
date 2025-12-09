@@ -168,9 +168,31 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
   }
 
   // Call the analyze_call edge function
-  const { data: analyzeData, error: analyzeError } = await supabase.functions.invoke('analyze-call', {
-    body: { call_id: transcript.id }
-  });
+  log.info('Invoking analyze-call edge function', { callId: transcript.id });
+  
+  let analyzeData: unknown;
+  let analyzeError: Error | null = null;
+  
+  try {
+    const result = await supabase.functions.invoke('analyze-call', {
+      body: { call_id: transcript.id }
+    });
+    analyzeData = result.data;
+    analyzeError = result.error;
+    
+    log.info('Analyze-call invoke completed', { 
+      callId: transcript.id, 
+      hasData: !!result.data, 
+      hasError: !!result.error,
+      errorMessage: result.error?.message 
+    });
+  } catch (invokeErr) {
+    log.error('Analyze-call invoke threw exception', { 
+      callId: transcript.id, 
+      error: invokeErr instanceof Error ? invokeErr.message : String(invokeErr)
+    });
+    analyzeError = invokeErr instanceof Error ? invokeErr : new Error(String(invokeErr));
+  }
 
   if (analyzeError) {
     log.error('Analyze function error', { error: analyzeError });
@@ -183,10 +205,11 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
   }
 
   // Check if the response indicates rate limiting
-  if (analyzeData?.error?.toLowerCase().includes('rate limit')) {
+  const responseData = analyzeData as { error?: string } | undefined;
+  if (responseData?.error?.toLowerCase().includes('rate limit')) {
     return {
       transcript: toCallTranscript(transcript),
-      analyzeResponse: { error: analyzeData.error, isRateLimited: true }
+      analyzeResponse: { error: responseData.error, isRateLimited: true }
     };
   }
 
