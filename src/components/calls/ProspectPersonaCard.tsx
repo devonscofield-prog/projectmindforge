@@ -1,14 +1,16 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
 import { User, Check, X, Quote, Mail, Copy } from 'lucide-react';
 import type { PsychologyProfile } from '@/utils/analysis-schemas';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
+import { useToast } from '@/hooks/use-toast';
 
 interface ProspectPersonaCardProps {
   psychology: PsychologyProfile | null;
+  isLoading?: boolean;
 }
 
 const DISC_EMOJIS: Record<string, string> = {
@@ -25,7 +27,35 @@ const DISC_COLORS: Record<string, string> = {
   'C - Compliance': 'bg-blue-500/10 text-blue-600 border-blue-500/30',
 };
 
-export function ProspectPersonaCard({ psychology }: ProspectPersonaCardProps) {
+export function ProspectPersonaCard({ psychology, isLoading = false }: ProspectPersonaCardProps) {
+  const { toast } = useToast();
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <Card className="overflow-hidden">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <User className="h-4 w-4 text-primary" />
+            Prospect Persona
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-4">
+            <Skeleton className="h-16 w-16 rounded-full" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-5 w-24" />
+            </div>
+          </div>
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-20 w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // No data state
   if (!psychology) {
     return (
       <Card className="overflow-hidden border-dashed border-2 border-muted-foreground/25">
@@ -34,10 +64,10 @@ export function ProspectPersonaCard({ psychology }: ProspectPersonaCardProps) {
             <User className="h-6 w-6 text-muted-foreground" />
           </div>
           <p className="text-sm text-muted-foreground">
-            Analyzing prospect persona...
+            No persona data available
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            Psychology profile will appear after analysis
+            Psychology profile requires call analysis
           </p>
         </CardContent>
       </Card>
@@ -111,9 +141,10 @@ export function ProspectPersonaCard({ psychology }: ProspectPersonaCardProps) {
                 variant="ghost"
                 size="sm"
                 className="h-7 w-7 p-0 shrink-0"
+                aria-label="Copy email subject to clipboard"
                 onClick={() => {
                   navigator.clipboard.writeText(psychology.suggested_email_subject);
-                  toast.success('Subject copied to clipboard');
+                  toast({ description: 'Subject copied to clipboard' });
                 }}
               >
                 <Copy className="h-3.5 w-3.5" />
