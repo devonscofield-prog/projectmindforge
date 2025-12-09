@@ -20,10 +20,10 @@ const REQUIRED_LINKS = {
     text: 'StormWind Ranges',
     context: 'Hands-on lab environments'
   },
-  webinars: {
-    url: 'https://info.stormwind.com/webinars',
-    text: 'Webinars',
-    context: 'Live training sessions'
+  course_samples: {
+    url: 'https://info.stormwind.com/training-samples',
+    text: 'Course Samples',
+    context: 'Sample training content'
   }
 };
 
@@ -120,7 +120,7 @@ const COPYWRITER_SYSTEM_PROMPT = `You are an expert Enterprise Sales Copywriter 
 **MANDATORY LINKS (include all three):**
 * [Skill Assessments](https://info.stormwind.com/skill-assessments)
 * [StormWind Ranges](https://info.stormwind.com/stormwind-ranges)
-* [Webinars](https://info.stormwind.com/webinars)
+* [Course Samples](https://info.stormwind.com/training-samples)
 
 **DEFAULT EMAIL FORMAT (Use this exact structure):**
 
@@ -153,7 +153,7 @@ Our program combines:
 **Helpful Links**
 * [Skill Assessments](https://info.stormwind.com/skill-assessments)
 * [StormWind Ranges](https://info.stormwind.com/stormwind-ranges)
-* [Webinars](https://info.stormwind.com/webinars)
+* [Course Samples](https://info.stormwind.com/training-samples)
 
 
 
@@ -208,8 +208,8 @@ function validateEmailLinks(emailBody: string): { valid: boolean; missing: strin
   if (!emailBody.includes(REQUIRED_LINKS.stormwind_ranges.url)) {
     missing.push('StormWind Ranges link');
   }
-  if (!emailBody.includes(REQUIRED_LINKS.webinars.url)) {
-    missing.push('Webinars link');
+  if (!emailBody.includes(REQUIRED_LINKS.course_samples.url)) {
+    missing.push('Course Samples link');
   }
   
   return { valid: missing.length === 0, missing };
@@ -346,7 +346,7 @@ ${psychologySection}
 
 **REMINDER:** 
 - Use {{ProspectFirstName}}, {{CompanyName}} placeholders
-- Include ALL three required links: Skill Assessments, StormWind Ranges, and Webinars
+- Include ALL three required links: Skill Assessments, StormWind Ranges, and Course Samples
 - The "quick recap of your needs" section should ONLY contain prospect needs/pain points - NO product overviews
 - Do NOT include a signature block
 - Format the email body in Markdown (not HTML)
