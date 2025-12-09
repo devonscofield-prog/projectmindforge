@@ -132,17 +132,15 @@ const COPYWRITER_SYSTEM_PROMPT = `You are an expert Enterprise Sales Copywriter 
 
 Hi {{ProspectFirstName}},
 
+
 Thank you again for taking the time to meet with us today. It was great to walk through your goals and show how our platform can support your team's training needs.
+
 
 **Here is a quick recap of your needs:**
 * [Bullet: Prospect's specific need or pain point from the call]
 * [Bullet: Another need, e.g., interest in specific product tied to their challenge]
 * [Bullet: Key question or confirmation from them]
 
-**Helpful Links**
-* [Skill Assessments](https://info.stormwind.com/skill-assessments)
-* [StormWind Ranges](https://info.stormwind.com/stormwind-ranges)
-* [Webinars](https://info.stormwind.com/webinars)
 
 **Training Approach**
 Our program combines:
@@ -151,15 +149,20 @@ Our program combines:
 * Mentorship options to guide learners through complex topics
 * Assessments and practice exams to measure progress and readiness
 
-**Pricing**
-* Team License (up to 25 users): $4,500/year
-* Business License (up to 100 users): $15,000/year
-* Enterprise License (customized, 100+ users): pricing based on scope, with available volume discounts
+
+**Helpful Links**
+* [Skill Assessments](https://info.stormwind.com/skill-assessments)
+* [StormWind Ranges](https://info.stormwind.com/stormwind-ranges)
+* [Webinars](https://info.stormwind.com/webinars)
+
+
 
 **Next Steps**
 * [Bullet: Specific action discussed, e.g., I've attached the detailed course list]
 * [Bullet: Another action, e.g., Let's reconnect on Thursday at 2 PM EST]
-* [Closing sentiment, e.g., Excited to continue the conversation!]
+
+
+[Closing sentiment, e.g., Excited to continue the conversation!]
 `;
 
 interface CriticalGap {
