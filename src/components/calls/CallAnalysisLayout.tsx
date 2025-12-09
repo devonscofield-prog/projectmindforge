@@ -540,8 +540,30 @@ export function CallAnalysisLayout({
                   </Alert>
                 ) : (
                   <>
-                    <CircularScore score={behaviorScore} label="Behavior" size="sm" />
-                    <CircularScore score={strategyScore} label="Strategy" size="sm" />
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div>
+                            <CircularScore score={behaviorScore} label="Behavior" size="sm" />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom">
+                          <p className="text-xs">75+ is passing</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div>
+                            <CircularScore score={strategyScore} label="Strategy" size="sm" />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom">
+                          <p className="text-xs">75+ is passing</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </>
                 )}
               </div>
@@ -596,7 +618,7 @@ export function CallAnalysisLayout({
 
             {/* Key Stats Row */}
             <div className="mt-4 grid gap-4 sm:grid-cols-3">
-              <div className="relative">
+              <div className="relative group">
                 <StatCard 
                   icon={<Monitor className="h-5 w-5" />}
                   label="IT Users"
@@ -607,7 +629,7 @@ export function CallAnalysisLayout({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="absolute top-1 right-1 h-6 w-6 opacity-60 hover:opacity-100"
+                    className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
                     onClick={onEditUserCounts}
                     aria-label="Edit user counts"
                   >
@@ -615,7 +637,7 @@ export function CallAnalysisLayout({
                   </Button>
                 )}
               </div>
-              <div className="relative">
+              <div className="relative group">
                 <StatCard 
                   icon={<Users className="h-5 w-5" />}
                   label="End Users"
@@ -626,7 +648,7 @@ export function CallAnalysisLayout({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="absolute top-1 right-1 h-6 w-6 opacity-60 hover:opacity-100"
+                    className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
                     onClick={onEditUserCounts}
                     aria-label="Edit user counts"
                   >
@@ -685,35 +707,31 @@ export function CallAnalysisLayout({
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger 
             value="behavior" 
-            className="flex items-center gap-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="flex items-center gap-1 sm:gap-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <Mic className="h-4 w-4" aria-hidden="true" />
             <span className="hidden sm:inline">Behavior</span>
-            <span className="sm:hidden">Behavior</span>
           </TabsTrigger>
           <TabsTrigger 
             value="strategy" 
-            className="flex items-center gap-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="flex items-center gap-1 sm:gap-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <Target className="h-4 w-4" aria-hidden="true" />
             <span className="hidden sm:inline">Strategy</span>
-            <span className="sm:hidden">Strategy</span>
           </TabsTrigger>
           <TabsTrigger 
             value="hazards" 
-            className="flex items-center gap-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="flex items-center gap-1 sm:gap-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <AlertTriangle className="h-4 w-4" aria-hidden="true" />
-            <span className="hidden sm:inline">Deal Hazards</span>
-            <span className="sm:hidden">Hazards</span>
+            <span className="hidden sm:inline">Hazards</span>
           </TabsTrigger>
           <TabsTrigger 
             value="recap" 
-            className="flex items-center gap-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="flex items-center gap-1 sm:gap-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <Mail className="h-4 w-4" aria-hidden="true" />
             <span className="hidden sm:inline">Recap</span>
-            <span className="sm:hidden">Recap</span>
           </TabsTrigger>
         </TabsList>
         

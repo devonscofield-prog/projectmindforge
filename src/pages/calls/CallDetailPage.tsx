@@ -365,10 +365,13 @@ function CallDetailPage() {
                   <Badge variant={
                     transcript.analysis_status === 'completed' ? 'default' : 
                     transcript.analysis_status === 'error' ? 'destructive' : 
+                    transcript.analysis_status === 'skipped' ? 'outline' :
                     'secondary'
                   }>
                     {transcript.analysis_status === 'processing' || shouldPoll 
                       ? 'Analyzing...' 
+                      : transcript.analysis_status === 'skipped'
+                      ? 'Indexed Only'
                       : transcript.analysis_status.charAt(0).toUpperCase() + transcript.analysis_status.slice(1)}
                   </Badge>
                 </div>
