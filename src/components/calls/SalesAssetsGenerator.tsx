@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,12 +27,34 @@ import {
   FileText,
   Users,
   Monitor,
-  AlertCircle
+  AlertCircle,
+  Eye,
+  Edit3,
+  AlertTriangle,
+  ExternalLink
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import type { StrategyAudit, SalesAssets, CallMetadata, PsychologyProfile } from '@/utils/analysis-schemas';
 import { cn } from '@/lib/utils';
+import ReactMarkdown from 'react-markdown';
+
+// Required links that should be in every email
+const REQUIRED_LINKS = [
+  { url: 'https://info.stormwind.com/', label: 'StormWind Website' },
+  { url: 'https://info.stormwind.com/training-samples', label: 'Training Samples' }
+];
+
+// Placeholders that need to be replaced before sending
+const PLACEHOLDERS = [
+  '{{ProspectFirstName}}',
+  '{{CompanyName}}',
+  '{{RepFirstName}}',
+  '{{RepLastName}}',
+  '{{RepTitle}}',
+  '{{RepEmail}}',
+  '{{TopicDiscussed}}'
+];
 
 interface SalesAssetsGeneratorProps {
   transcript: string;
@@ -60,14 +83,24 @@ export function SalesAssetsGenerator({
   const [copiedSubject, setCopiedSubject] = useState(false);
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
+  const [emailViewMode, setEmailViewMode] = useState<'edit' | 'preview'>('edit');
 
   // Calculate word/character counts for email body
   const emailStats = useMemo(() => {
-    const text = emailBody.replace(/<[^>]*>/g, '');
-    const words = text.split(/\s+/).filter(Boolean).length;
-    const chars = text.length;
+    const words = emailBody.split(/\s+/).filter(Boolean).length;
+    const chars = emailBody.length;
     return { words, chars };
   }, [emailBody]);
+
+  // Check for missing required links
+  const missingLinks = useMemo(() => {
+    return REQUIRED_LINKS.filter(link => !emailBody.includes(link.url));
+  }, [emailBody]);
+
+  // Check for unreplaced placeholders
+  const unreplacedPlaceholders = useMemo(() => {
+    return PLACEHOLDERS.filter(p => emailBody.includes(p) || subjectLine.includes(p));
+  }, [emailBody, subjectLine]);
 
   // Generate checklist based on critical gaps with High impact
   const checklistItems = useMemo(() => {
@@ -124,11 +157,21 @@ export function SalesAssetsGenerator({
       const result = response.data as SalesAssets;
       setAssets(result);
       setSubjectLine(result.recap_email.subject_line);
-      setEmailBody(result.recap_email.body_html);
+      // Handle both body_markdown (new) and body_html (legacy)
+      const body = (result.recap_email as { body_markdown?: string; body_html?: string }).body_markdown 
+        || (result.recap_email as { body_html?: string }).body_html 
+        || '';
+      setEmailBody(body);
       setInternalNotes(result.internal_notes_markdown);
       setCheckedItems(new Set());
+      setEmailViewMode('edit');
       
-      toast.success('Sales assets generated successfully!');
+      // Show validation warnings if any
+      if (result.validation_warnings && result.validation_warnings.length > 0) {
+        toast.warning(`Generated with warnings: ${result.validation_warnings.join(', ')}`);
+      } else {
+        toast.success('Sales assets generated successfully!');
+      }
     } catch (error) {
       console.error('Error generating sales assets:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to generate assets');
@@ -154,7 +197,7 @@ export function SalesAssetsGenerator({
   };
 
   const copyFullEmail = () => {
-    const fullEmail = `Subject: ${subjectLine}\n\n${emailBody.replace(/<[^>]*>/g, '')}`;
+    const fullEmail = `Subject: ${subjectLine}\n\n${emailBody}`;
     copyToClipboard(fullEmail, 'email');
   };
 
@@ -178,6 +221,18 @@ export function SalesAssetsGenerator({
     }
     setCheckedItems(newChecked);
   };
+
+  // Highlight placeholders in preview
+  const highlightedEmailBody = useMemo(() => {
+    let highlighted = emailBody;
+    PLACEHOLDERS.forEach(p => {
+      highlighted = highlighted.replace(
+        new RegExp(p.replace(/[{}]/g, '\\$&'), 'g'),
+        `**⚠️ ${p}**`
+      );
+    });
+    return highlighted;
+  }, [emailBody]);
 
 
   if (!assets) {
@@ -276,6 +331,24 @@ export function SalesAssetsGenerator({
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Validation Warnings */}
+            {(missingLinks.length > 0 || unreplacedPlaceholders.length > 0) && (
+              <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 space-y-2">
+                {missingLinks.length > 0 && (
+                  <div className="flex items-start gap-2 text-sm text-yellow-600">
+                    <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                    <span>Missing required links: {missingLinks.map(l => l.label).join(', ')}</span>
+                  </div>
+                )}
+                {unreplacedPlaceholders.length > 0 && (
+                  <div className="flex items-start gap-2 text-sm text-yellow-600">
+                    <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                    <span>Replace before sending: {unreplacedPlaceholders.join(', ')}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="subject">Subject Line</Label>
               <div className="flex gap-2">
@@ -300,20 +373,71 @@ export function SalesAssetsGenerator({
                 </Button>
               </div>
             </div>
+
+            {/* Email Body with Edit/Preview Tabs */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="body">Email Body</Label>
+                <Label>Email Body</Label>
                 <span className="text-xs text-muted-foreground">
                   {emailStats.words} words · {emailStats.chars.toLocaleString()} characters
                 </span>
               </div>
-              <Textarea
-                id="body"
-                value={emailBody.replace(/<[^>]*>/g, '')}
-                onChange={(e) => setEmailBody(e.target.value)}
-                placeholder="Email body..."
-                className="min-h-[250px] font-mono text-sm"
-              />
+              
+              <Tabs value={emailViewMode} onValueChange={(v) => setEmailViewMode(v as 'edit' | 'preview')}>
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="edit" className="gap-2">
+                    <Edit3 className="h-3.5 w-3.5" />
+                    Edit
+                  </TabsTrigger>
+                  <TabsTrigger value="preview" className="gap-2">
+                    <Eye className="h-3.5 w-3.5" />
+                    Preview
+                  </TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="edit" className="mt-2">
+                  <Textarea
+                    value={emailBody}
+                    onChange={(e) => setEmailBody(e.target.value)}
+                    placeholder="Email body (Markdown format)..."
+                    className="min-h-[300px] font-mono text-sm"
+                  />
+                </TabsContent>
+                
+                <TabsContent value="preview" className="mt-2">
+                  <div className="min-h-[300px] max-h-[500px] overflow-y-auto p-4 rounded-md border bg-card prose prose-sm dark:prose-invert max-w-none">
+                    <ReactMarkdown
+                      components={{
+                        a: ({ href, children }) => (
+                          <a 
+                            href={href} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline inline-flex items-center gap-1"
+                          >
+                            {children}
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        ),
+                        strong: ({ children }) => {
+                          // Check if this is a placeholder warning
+                          const text = String(children);
+                          if (text.startsWith('⚠️ {{')) {
+                            return (
+                              <span className="bg-yellow-200 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 px-1 rounded font-mono text-xs">
+                                {text.replace('⚠️ ', '')}
+                              </span>
+                            );
+                          }
+                          return <strong>{children}</strong>;
+                        }
+                      }}
+                    >
+                      {highlightedEmailBody}
+                    </ReactMarkdown>
+                  </div>
+                </TabsContent>
+              </Tabs>
             </div>
             
             {/* Copy Button - Prominent */}
@@ -490,14 +614,15 @@ export function SalesAssetsGenerator({
             )}
             {stakeholderName && (
               <div>
-                <span className="text-muted-foreground">Contact: </span>
+                <span className="text-muted-foreground">Primary Contact: </span>
                 <span className="font-medium">{stakeholderName}</span>
               </div>
             )}
-            {strategicContext && (
-              <div className="pt-2">
-                <Badge variant="outline" className="text-xs">
-                  Threading: {strategicContext.strategic_threading.score}%
+            {psychologyContext?.disc_profile && (
+              <div>
+                <span className="text-muted-foreground">DISC Profile: </span>
+                <Badge variant="outline" className="ml-1">
+                  {psychologyContext.disc_profile}
                 </Badge>
               </div>
             )}
