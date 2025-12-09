@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
+
 import { useToast } from '@/hooks/use-toast';
 import { Search, Copy, Check, ChevronUp, ChevronDown } from 'lucide-react';
 
@@ -148,11 +148,14 @@ export function TranscriptViewer({ transcriptText }: TranscriptViewerProps) {
       </div>
 
       {/* Raw Transcript Content */}
-      <ScrollArea className="max-h-[60vh] md:max-h-[50vh] min-h-[200px] rounded-lg border bg-muted/20 p-4" ref={scrollAreaRef}>
+      <div 
+        ref={scrollAreaRef}
+        className="max-h-[60vh] md:max-h-[50vh] min-h-[200px] overflow-y-auto rounded-lg border bg-muted/20 p-4"
+      >
         <pre className="whitespace-pre-wrap text-sm font-mono text-foreground leading-relaxed">
           {highlightText(transcriptText, searchTerm)}
         </pre>
-      </ScrollArea>
+      </div>
 
       {/* Footer */}
       <p className="text-xs text-muted-foreground text-center">
