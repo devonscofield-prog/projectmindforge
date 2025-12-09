@@ -65,6 +65,59 @@ export const influenceLevelOptions: { value: StakeholderInfluenceLevel; label: s
   { value: 'self_pay', label: 'Self Pay' },
 ];
 
+// Validation constants
+export const STAKEHOLDER_NAME_MIN_LENGTH = 2;
+export const STAKEHOLDER_NAME_MAX_LENGTH = 100;
+
+// Email regex pattern - simple but effective
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Phone regex - allows various formats
+const PHONE_REGEX = /^[\d\s\-\(\)\+\.]{7,20}$/;
+
+/**
+ * Normalizes a stakeholder name: trims and collapses internal whitespace
+ */
+export function normalizeStakeholderName(name: string): string {
+  return name.trim().replace(/\s+/g, ' ');
+}
+
+/**
+ * Validates stakeholder name length
+ */
+export function validateStakeholderName(name: string): { valid: boolean; error?: string } {
+  const normalized = normalizeStakeholderName(name);
+  if (normalized.length < STAKEHOLDER_NAME_MIN_LENGTH) {
+    return { valid: false, error: `Name must be at least ${STAKEHOLDER_NAME_MIN_LENGTH} characters` };
+  }
+  if (normalized.length > STAKEHOLDER_NAME_MAX_LENGTH) {
+    return { valid: false, error: `Name must be less than ${STAKEHOLDER_NAME_MAX_LENGTH} characters` };
+  }
+  return { valid: true };
+}
+
+/**
+ * Validates email format
+ */
+export function validateStakeholderEmail(email: string): { valid: boolean; error?: string } {
+  if (!email) return { valid: true }; // Optional field
+  if (!EMAIL_REGEX.test(email)) {
+    return { valid: false, error: 'Invalid email format' };
+  }
+  return { valid: true };
+}
+
+/**
+ * Validates phone format
+ */
+export function validateStakeholderPhone(phone: string): { valid: boolean; error?: string } {
+  if (!phone) return { valid: true }; // Optional field
+  if (!PHONE_REGEX.test(phone)) {
+    return { valid: false, error: 'Invalid phone format' };
+  }
+  return { valid: true };
+}
+
 /**
  * Creates a new stakeholder
  */
@@ -80,12 +133,15 @@ export async function createStakeholder(params: {
   championScoreReasoning?: string;
   isPrimaryContact?: boolean;
 }): Promise<Stakeholder> {
+  // Normalize the name before saving
+  const normalizedName = normalizeStakeholderName(params.name);
+  
   const { data, error } = await supabase
     .from('stakeholders')
     .insert({
       prospect_id: params.prospectId,
       rep_id: params.repId,
-      name: params.name,
+      name: normalizedName,
       job_title: params.jobTitle || null,
       email: params.email || null,
       phone: params.phone || null,
@@ -108,16 +164,20 @@ export async function createStakeholder(params: {
 
 /**
  * Finds a stakeholder by name within a prospect (account)
+ * Normalizes the search name to handle whitespace variations
  */
 export async function findStakeholderByName(
   prospectId: string,
   name: string
 ): Promise<Stakeholder | null> {
+  // Normalize the search name
+  const normalizedName = normalizeStakeholderName(name);
+  
   const { data, error } = await supabase
     .from('stakeholders')
     .select('*')
     .eq('prospect_id', prospectId)
-    .ilike('name', name)
+    .ilike('name', normalizedName)
     .maybeSingle();
 
   if (error) {
