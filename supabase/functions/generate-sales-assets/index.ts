@@ -11,13 +11,13 @@ const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 // Required links that MUST be included in every email
 const REQUIRED_LINKS = {
   skill_assessments: {
-    url: 'https://info.stormwind.com/skill-assessments',
-    text: 'Skill Assessments',
+    url: 'https://info.stormwind.com/skills-assessments',
+    text: 'Skills Assessments',
     context: 'Skills testing and validation'
   },
   stormwind_ranges: {
-    url: 'https://info.stormwind.com/stormwind-ranges',
-    text: 'StormWind Ranges',
+    url: 'https://info.stormwind.com/ranges',
+    text: 'Ranges',
     context: 'Hands-on lab environments'
   },
   course_samples: {
@@ -127,8 +127,8 @@ const COPYWRITER_SYSTEM_PROMPT = `You are an expert Enterprise Sales Copywriter 
 5. **NO FLUFF:** Delete conversational fillers like "Despite your busy schedule" or "It was a pleasure."
 
 **MANDATORY LINKS (include all three):**
-* [Skill Assessments](https://info.stormwind.com/skill-assessments)
-* [StormWind Ranges](https://info.stormwind.com/stormwind-ranges)
+* [Skills Assessments](https://info.stormwind.com/skills-assessments)
+* [Ranges](https://info.stormwind.com/ranges)
 * [Course Samples](https://info.stormwind.com/training-samples)
 
 **DEFAULT EMAIL FORMAT (Use this exact structure):**
@@ -160,8 +160,8 @@ Our program combines:
 
 
 **Helpful Links**
-* [Skill Assessments](https://info.stormwind.com/skill-assessments)
-* [StormWind Ranges](https://info.stormwind.com/stormwind-ranges)
+* [Skills Assessments](https://info.stormwind.com/skills-assessments)
+* [Ranges](https://info.stormwind.com/ranges)
 * [Course Samples](https://info.stormwind.com/training-samples)
 
 
