@@ -32,19 +32,25 @@ export interface ProductEntry {
   promotionNotes?: string;
 }
 
+// Stakeholder entry for call submission with multiple stakeholders
+export interface StakeholderEntry {
+  stakeholderId: string | null;
+  stakeholderName: string;
+  influenceLevel: StakeholderInfluenceLevel;
+}
+
 export interface CreateCallTranscriptParams {
   repId: string;
   callDate: string;
   callType: CallType;
   callTypeOther?: string;
-  stakeholderName: string;
-  stakeholderInfluenceLevel?: StakeholderInfluenceLevel;
+  // Multiple stakeholders support
+  stakeholders: StakeholderEntry[];
   accountName: string;
   salesforceAccountLink?: string;
   potentialRevenue?: number;
   rawText: string;
   prospectId?: string;
-  stakeholderId?: string;
   products?: Omit<ProductEntry, 'productName'>[];
   managerOnCall?: boolean;
   additionalSpeakers?: string[];

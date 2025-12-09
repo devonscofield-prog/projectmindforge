@@ -29,8 +29,7 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
     callDate, 
     callType,
     callTypeOther,
-    stakeholderName,
-    stakeholderInfluenceLevel,
+    stakeholders,
     accountName,
     salesforceAccountLink,
     potentialRevenue,
@@ -38,6 +37,9 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
     prospectId: existingProspectId,
     managerOnCall,
   } = params;
+
+  // Get primary stakeholder name (first in array) for backward compatibility
+  const primaryStakeholderName = stakeholders.length > 0 ? stakeholders[0].stakeholderName : '';
 
   // If manager was on the call, look up the rep's team manager
   let managerId: string | null = null;
@@ -69,7 +71,7 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
       raw_text: rawText,
       notes: null,
       analysis_status: 'pending',
-      primary_stakeholder_name: stakeholderName,
+      primary_stakeholder_name: primaryStakeholderName,
       account_name: accountName,
       salesforce_demo_link: salesforceAccountLink || null,
       potential_revenue: potentialRevenue ?? null,
@@ -98,7 +100,7 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
     if (!prospectId) {
       const { prospect } = await getOrCreateProspect({
         repId,
-        prospectName: stakeholderName,
+        prospectName: primaryStakeholderName,
         accountName,
         salesforceLink: salesforceAccountLink,
         potentialRevenue,
@@ -109,30 +111,35 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
     await linkCallToProspect(transcript.id, prospectId);
     log.debug('Linked call to prospect', { prospectId });
 
-    // Create or update stakeholder with influence level and link to call
-    try {
-      const { stakeholder, isNew } = await getOrCreateStakeholder({
-        prospectId,
-        repId,
-        name: stakeholderName,
-        influenceLevel: stakeholderInfluenceLevel,
-      });
-      
-      // Create mention linking stakeholder to this call
-      await createCallStakeholderMention({
-        callId: transcript.id,
-        stakeholderId: stakeholder.id,
-        wasPresent: true,
-      });
-      
-      log.info('Stakeholder linked to call', { 
-        stakeholderId: stakeholder.id, 
-        isNew, 
-        influenceLevel: stakeholderInfluenceLevel 
-      });
-    } catch (stakeholderError) {
-      log.error('Failed to create/link stakeholder', { error: stakeholderError });
-      // Non-fatal: continue with analysis even if stakeholder creation fails
+    // Create or update all stakeholders with their influence levels and link to call
+    for (const stakeholderEntry of stakeholders) {
+      try {
+        const { stakeholder, isNew } = await getOrCreateStakeholder({
+          prospectId,
+          repId,
+          name: stakeholderEntry.stakeholderName,
+          influenceLevel: stakeholderEntry.influenceLevel,
+        });
+        
+        // Create mention linking stakeholder to this call
+        await createCallStakeholderMention({
+          callId: transcript.id,
+          stakeholderId: stakeholder.id,
+          wasPresent: true,
+        });
+        
+        log.info('Stakeholder linked to call', { 
+          stakeholderId: stakeholder.id, 
+          isNew, 
+          influenceLevel: stakeholderEntry.influenceLevel 
+        });
+      } catch (stakeholderError) {
+        log.error('Failed to create/link stakeholder', { 
+          error: stakeholderError,
+          stakeholderName: stakeholderEntry.stakeholderName 
+        });
+        // Non-fatal: continue with other stakeholders even if one fails
+      }
     }
   } catch (prospectError) {
     log.error('Failed to create/link prospect', { error: prospectError });

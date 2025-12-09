@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { createLogger } from '@/lib/logger';
 
 const log = createLogger('CallDetailPage');
@@ -32,6 +32,7 @@ import { getCallDetailBreadcrumbs } from '@/lib/breadcrumbConfig';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 import { formatCurrency } from '@/lib/formatters';
 import { useCallWithAnalysis, useAnalysisPolling, callDetailKeys, useRetryAnalysis, useDeleteFailedCall, useUpdateCallTranscript, useUpdateAnalysisUserCounts, useReanalyzeCall } from '@/hooks/useCallDetailQueries';
+import { getStakeholdersForCall, influenceLevelLabels } from '@/api/stakeholders';
 import type { CallMetadata } from '@/utils/analysis-schemas';
 import { 
   ArrowLeft, 
@@ -47,7 +48,8 @@ import {
   Pencil,
   Users,
   ChevronDown,
-  ScrollText
+  ScrollText,
+  Crown
 } from 'lucide-react';
 
 function CallDetailPage() {
@@ -88,6 +90,14 @@ function CallDetailPage() {
   const updateMutation = useUpdateCallTranscript(id || '');
   const updateUserCountsMutation = useUpdateAnalysisUserCounts(id || '', analysis?.id);
   const reanalyzeMutation = useReanalyzeCall(id || '');
+
+  // Fetch stakeholders for this call
+  const { data: callStakeholders = [] } = useQuery({
+    queryKey: ['call-stakeholders', id],
+    queryFn: () => getStakeholdersForCall(id!),
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000,
+  });
 
   // Edit dialog states
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -243,8 +253,28 @@ function CallDetailPage() {
                 </div>
               )}
 
-              {/* Primary Stakeholder Name */}
-              {transcript.primary_stakeholder_name && (
+              {/* Stakeholders on this call */}
+              {callStakeholders.length > 0 ? (
+                <div className="flex items-start gap-2 sm:col-span-2 lg:col-span-3">
+                  <Users className="h-4 w-4 text-muted-foreground mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-xs text-muted-foreground mb-1">Stakeholders on Call</p>
+                    <div className="flex flex-wrap gap-2">
+                      {callStakeholders.map(({ stakeholder }, index) => (
+                        <Badge key={stakeholder.id} variant="secondary" className="flex items-center gap-1">
+                          {index === 0 && <Crown className="h-3 w-3 text-amber-500" />}
+                          <span>{stakeholder.name}</span>
+                          {stakeholder.influence_level && (
+                            <span className="text-muted-foreground text-xs">
+                              ({influenceLevelLabels[stakeholder.influence_level]})
+                            </span>
+                          )}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : transcript.primary_stakeholder_name && (
                 <div className="flex items-center gap-2">
                   <User className="h-4 w-4 text-muted-foreground" />
                   <div>
