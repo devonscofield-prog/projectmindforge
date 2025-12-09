@@ -318,6 +318,12 @@ function RepDashboard() {
 
   // Transcript length progress (0-100, capped at 100)
   const transcriptProgress = Math.min(100, (normalizedTranscript.length / MIN_TRANSCRIPT_LENGTH) * 100);
+  
+  // Transcript character limit (100k)
+  const MAX_TRANSCRIPT_LENGTH = 100000;
+  const isNearLimit = normalizedTranscript.length > 80000;
+  const isApproachingLimit = normalizedTranscript.length > 90000;
+  const isAtLimit = normalizedTranscript.length > 98000;
 
   // Check for products with $0 price
   const hasInvalidProducts = selectedProducts.some(p => p.unitPrice === 0);
@@ -676,6 +682,11 @@ function RepDashboard() {
                         placeholder="Select or type account..." 
                         disabled={!user?.id || isSubmitting} 
                       />
+                      {accountName.trim().length === 1 && (
+                        <p className="text-xs text-amber-500">
+                          Account name must be at least 2 characters
+                        </p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label>Stakeholders on this call *</Label>
@@ -872,6 +883,12 @@ function RepDashboard() {
                       {normalizedTranscript.length > 0 && normalizedTranscript.length < MIN_TRANSCRIPT_LENGTH && (
                         <p id="transcript-hint" className="text-xs text-amber-500">
                           Add {(MIN_TRANSCRIPT_LENGTH - normalizedTranscript.length).toLocaleString()} more characters for analysis
+                        </p>
+                      )}
+                      {isNearLimit && (
+                        <p className={`text-xs ${isAtLimit ? "text-destructive font-medium" : isApproachingLimit ? "text-amber-500" : "text-muted-foreground"}`}>
+                          {normalizedTranscript.length.toLocaleString()} / {MAX_TRANSCRIPT_LENGTH.toLocaleString()} characters
+                          {isAtLimit && " — approaching limit"}
                         </p>
                       )}
                     </div>
