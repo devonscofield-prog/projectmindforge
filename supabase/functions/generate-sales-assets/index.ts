@@ -38,12 +38,12 @@ const generateSalesAssetsSchema = z.object({
   strategic_context: z.object({
     strategic_threading: z.object({
       relevance_map: z.array(z.object({
-        pain_identified: z.string().max(500),
-        feature_pitched: z.string().max(500),
+        pain_identified: z.string().max(1000),
+        feature_pitched: z.string().max(1500),
         is_relevant: z.boolean(),
-        reasoning: z.string().max(1000)
+        reasoning: z.string().max(1500)
       })).max(50).optional(),
-      missed_opportunities: z.array(z.string().max(500)).max(20).optional()
+      missed_opportunities: z.array(z.string().max(1000)).max(20).optional()
     }).optional(),
     critical_gaps: z.array(z.object({
       category: z.string().max(100),
