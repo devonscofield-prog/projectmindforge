@@ -1,9 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { Search, Copy, Check } from 'lucide-react';
+import { Search, Copy, Check, ChevronUp, ChevronDown } from 'lucide-react';
 
 interface TranscriptViewerProps {
   transcriptText: string;
@@ -32,6 +32,8 @@ function highlightText(text: string, searchTerm: string): React.ReactNode {
 export function TranscriptViewer({ transcriptText }: TranscriptViewerProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [copied, setCopied] = useState(false);
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
   // Count search matches
@@ -40,6 +42,41 @@ export function TranscriptViewer({ transcriptText }: TranscriptViewerProps) {
     const regex = new RegExp(searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
     return (transcriptText.match(regex) || []).length;
   }, [transcriptText, searchTerm]);
+
+  // Reset match index when search term changes
+  useEffect(() => {
+    setCurrentMatchIndex(0);
+  }, [searchTerm]);
+
+  // Scroll to current match when index changes
+  useEffect(() => {
+    if (!searchTerm.trim() || matchCount === 0) return;
+    
+    const marks = scrollAreaRef.current?.querySelectorAll('mark');
+    if (marks && marks[currentMatchIndex]) {
+      marks[currentMatchIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Add visual highlight to current match
+      marks.forEach((mark, i) => {
+        if (i === currentMatchIndex) {
+          mark.classList.add('ring-2', 'ring-primary');
+        } else {
+          mark.classList.remove('ring-2', 'ring-primary');
+        }
+      });
+    }
+  }, [currentMatchIndex, searchTerm, matchCount]);
+
+  const goToNextMatch = () => {
+    if (matchCount > 0) {
+      setCurrentMatchIndex((prev) => (prev + 1) % matchCount);
+    }
+  };
+
+  const goToPrevMatch = () => {
+    if (matchCount > 0) {
+      setCurrentMatchIndex((prev) => (prev - 1 + matchCount) % matchCount);
+    }
+  };
 
   // Calculate word count
   const wordCount = useMemo(() => {
@@ -67,12 +104,32 @@ export function TranscriptViewer({ transcriptText }: TranscriptViewerProps) {
             placeholder="Search transcript..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9"
+            className="pl-9 pr-24"
           />
           {searchTerm && matchCount > 0 && (
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-              {matchCount} match{matchCount !== 1 ? 'es' : ''}
-            </span>
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+              <span className="text-xs text-muted-foreground">
+                {currentMatchIndex + 1}/{matchCount}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={goToPrevMatch}
+                aria-label="Previous match"
+              >
+                <ChevronUp className="h-3 w-3" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={goToNextMatch}
+                aria-label="Next match"
+              >
+                <ChevronDown className="h-3 w-3" />
+              </Button>
+            </div>
           )}
         </div>
         <Button variant="outline" onClick={handleCopy} className="shrink-0">
@@ -91,7 +148,7 @@ export function TranscriptViewer({ transcriptText }: TranscriptViewerProps) {
       </div>
 
       {/* Raw Transcript Content */}
-      <ScrollArea className="max-h-[50vh] min-h-[200px] rounded-lg border bg-muted/20 p-4">
+      <ScrollArea className="max-h-[60vh] md:max-h-[50vh] min-h-[200px] rounded-lg border bg-muted/20 p-4" ref={scrollAreaRef}>
         <pre className="whitespace-pre-wrap text-sm font-mono text-foreground leading-relaxed">
           {highlightText(transcriptText, searchTerm)}
         </pre>

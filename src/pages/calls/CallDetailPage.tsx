@@ -34,7 +34,8 @@ import { formatCurrency } from '@/lib/formatters';
 import { useCallWithAnalysis, useAnalysisPolling, callDetailKeys, useRetryAnalysis, useDeleteFailedCall, useUpdateCallTranscript, useUpdateAnalysisUserCounts, useReanalyzeCall } from '@/hooks/useCallDetailQueries';
 import { getStakeholdersForCall, influenceLevelLabels } from '@/api/stakeholders';
 import type { CallMetadata } from '@/utils/analysis-schemas';
-import { 
+import { HeatScoreBadge } from '@/components/ui/heat-score-badge';
+import {
   ArrowLeft, 
   Calendar, 
   Loader2, 
@@ -376,6 +377,19 @@ function CallDetailPage() {
                   </Badge>
                 </div>
               </div>
+
+              {/* Deal Heat Score - Quick at-a-glance */}
+              {analysis?.deal_heat_analysis && (
+                <div className="flex items-center gap-2">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Deal Heat</p>
+                    <HeatScoreBadge 
+                      score={(analysis.deal_heat_analysis as { heat_score?: number })?.heat_score ?? null} 
+                      variant="default" 
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

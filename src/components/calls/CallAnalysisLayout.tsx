@@ -735,19 +735,19 @@ export function CallAnalysisLayout({
           </TabsTrigger>
         </TabsList>
         
-        <TabsContent value="behavior" className="mt-6">
+        <TabsContent value="behavior" className="mt-6 animate-in fade-in-50 duration-300">
           {behaviorContent}
         </TabsContent>
         
-        <TabsContent value="strategy" className="mt-6">
+        <TabsContent value="strategy" className="mt-6 animate-in fade-in-50 duration-300">
           {strategyContent}
         </TabsContent>
         
-        <TabsContent value="hazards" className="mt-6">
+        <TabsContent value="hazards" className="mt-6 animate-in fade-in-50 duration-300">
           {hazardsContent}
         </TabsContent>
         
-        <TabsContent value="recap" className="mt-6">
+        <TabsContent value="recap" className="mt-6 animate-in fade-in-50 duration-300">
           {recapContent}
         </TabsContent>
       </Tabs>

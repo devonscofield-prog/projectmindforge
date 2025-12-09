@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { CheckCircle2, AlertTriangle, ChevronDown, Lightbulb, GraduationCap } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import type { CoachingSynthesis } from '@/utils/analysis-schemas';
@@ -9,6 +10,7 @@ import type { CoachingSynthesis } from '@/utils/analysis-schemas';
 interface CoachingCardProps {
   data: CoachingSynthesis | null;
   className?: string;
+  isLoading?: boolean;
 }
 
 const getGradeStyles = (grade: string) => {
@@ -21,11 +23,16 @@ const getGradeStyles = (grade: string) => {
         border: 'border-green-200 dark:border-green-800',
       };
     case 'B':
+      return {
+        bg: 'bg-lime-100 dark:bg-lime-900/30',
+        text: 'text-lime-700 dark:text-lime-400',
+        border: 'border-lime-200 dark:border-lime-800',
+      };
     case 'C':
       return {
-        bg: 'bg-yellow-100 dark:bg-yellow-900/30',
-        text: 'text-yellow-700 dark:text-yellow-400',
-        border: 'border-yellow-200 dark:border-yellow-800',
+        bg: 'bg-amber-100 dark:bg-amber-900/30',
+        text: 'text-amber-700 dark:text-amber-400',
+        border: 'border-amber-200 dark:border-amber-800',
       };
     case 'D':
     case 'F':
@@ -38,8 +45,31 @@ const getGradeStyles = (grade: string) => {
   }
 };
 
-export function CoachingCard({ data, className }: CoachingCardProps) {
+export function CoachingCard({ data, className, isLoading = false }: CoachingCardProps) {
   const [isReasoningOpen, setIsReasoningOpen] = useState(false);
+
+  // Loading skeleton state
+  if (isLoading) {
+    return (
+      <Card className={cn('overflow-hidden', className)}>
+        <div className="flex items-center gap-6 p-6 border-b border-border bg-muted/30">
+          <Skeleton className="w-20 h-20 rounded-xl" />
+          <div className="flex flex-col gap-2">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-6 w-32" />
+          </div>
+        </div>
+        <CardContent className="p-6 space-y-6">
+          <Skeleton className="h-24 w-full rounded-lg" />
+          <Skeleton className="h-16 w-full" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-32 w-full" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (!data) {
     return (
