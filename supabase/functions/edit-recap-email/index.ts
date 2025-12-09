@@ -54,7 +54,7 @@ const REQUIRED_LINKS = [
 const editRecapEmailSchema = z.object({
   original_recap_email_draft: z.string().min(10, "Email draft too short").max(10000, "Email draft too long"),
   edit_instructions: z.string().min(1, "Edit instructions required").max(500, "Instructions too long"),
-  call_summary: z.string().max(2000, "Call summary too long").optional().nullable()
+  call_summary: z.string().max(8000, "Call summary too long").optional().nullable()
 });
 
 // System prompt for email editing
