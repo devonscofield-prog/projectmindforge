@@ -157,7 +157,7 @@ export function SalesAssetsGenerator({
 
   if (!assets) {
     return (
-      <Card className="border-dashed">
+      <Card className="border-dashed border-2 border-muted-foreground/25 hover:border-primary/50 transition-colors">
         <CardContent className="flex flex-col items-center justify-center py-12 space-y-4">
           <div className="p-4 rounded-full bg-gradient-to-br from-primary/20 to-primary/5">
             <Sparkles className="h-8 w-8 text-primary" />
@@ -186,6 +186,9 @@ export function SalesAssetsGenerator({
               </>
             )}
           </Button>
+          {!isLoading && (
+            <p className="text-xs text-muted-foreground">Takes about 5-10 seconds</p>
+          )}
           {strategicContext && (
             <Badge variant="secondary" className="mt-2">
               Using strategic context for personalization
