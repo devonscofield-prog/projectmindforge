@@ -41,6 +41,11 @@ export function TranscriptViewer({ transcriptText }: TranscriptViewerProps) {
     return (transcriptText.match(regex) || []).length;
   }, [transcriptText, searchTerm]);
 
+  // Calculate word count
+  const wordCount = useMemo(() => {
+    return transcriptText.split(/\s+/).filter(Boolean).length;
+  }, [transcriptText]);
+
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(transcriptText);
@@ -94,7 +99,7 @@ export function TranscriptViewer({ transcriptText }: TranscriptViewerProps) {
 
       {/* Footer */}
       <p className="text-xs text-muted-foreground text-center">
-        {transcriptText.length.toLocaleString()} characters
+        {wordCount.toLocaleString()} words · {transcriptText.length.toLocaleString()} characters
       </p>
     </div>
   );

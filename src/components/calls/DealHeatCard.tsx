@@ -2,6 +2,16 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
@@ -42,6 +52,7 @@ export function DealHeatCard({
   const queryClient = useQueryClient();
   const [isCalculating, setIsCalculating] = useState(false);
   const [heatData, setHeatData] = useState<DealHeat | null>(existingHeatData || null);
+  const [showRecalculateConfirm, setShowRecalculateConfirm] = useState(false);
 
   // Sync local state with prop changes (e.g., after tab switch remount)
   useEffect(() => {
@@ -189,8 +200,12 @@ export function DealHeatCard({
         {/* Score Gauge */}
         <div className="flex flex-col items-center gap-4">
           {/* Semi-circle gauge */}
-          <div className="relative w-48 h-24 overflow-hidden">
-            <svg viewBox="0 0 200 100" className="w-full h-full">
+          <div 
+            className="relative w-48 h-24 overflow-hidden"
+            role="img"
+            aria-label={`Deal heat score: ${heatData.heat_score} out of 100, ${heatData.temperature}`}
+          >
+            <svg viewBox="0 0 200 100" className="w-full h-full" aria-hidden="true">
               {/* Background arc */}
               <path
                 d="M 10 100 A 90 90 0 0 1 190 100"
@@ -294,7 +309,7 @@ export function DealHeatCard({
         <Button 
           variant="outline" 
           size="sm" 
-          onClick={handleCalculateHeat}
+          onClick={() => setShowRecalculateConfirm(true)}
           disabled={isCalculating}
           className="w-full"
         >
@@ -307,6 +322,27 @@ export function DealHeatCard({
             'Recalculate Heat'
           )}
         </Button>
+
+        {/* Recalculate Confirmation Dialog */}
+        <AlertDialog open={showRecalculateConfirm} onOpenChange={setShowRecalculateConfirm}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Recalculate deal heat?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will update the saved score with fresh analysis based on the current call data.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => {
+                setShowRecalculateConfirm(false);
+                handleCalculateHeat();
+              }}>
+                Recalculate
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </CardContent>
     </Card>
   );
