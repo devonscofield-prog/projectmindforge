@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient, UseMutationResult } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import type { StakeholderInfluenceLevel } from '@/api/stakeholders';
 
 export interface Stakeholder {
   id: string;
@@ -10,7 +11,7 @@ export interface Stakeholder {
   job_title: string | null;
   email: string | null;
   phone: string | null;
-  influence_level: 'light_influencer' | 'heavy_influencer' | 'secondary_dm' | 'final_dm' | null;
+  influence_level: StakeholderInfluenceLevel | null;
   is_primary_contact: boolean | null;
   champion_score: number | null;
   champion_score_reasoning: string | null;
@@ -27,7 +28,7 @@ interface CreateStakeholderParams {
   jobTitle?: string;
   email?: string;
   phone?: string;
-  influenceLevel?: Stakeholder['influence_level'];
+  influenceLevel?: StakeholderInfluenceLevel;
   isPrimaryContact?: boolean;
 }
 
