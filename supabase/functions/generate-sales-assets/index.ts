@@ -49,7 +49,16 @@ const generateSalesAssetsSchema = z.object({
         is_relevant: z.boolean(),
         reasoning: z.string().max(1500)
       })).max(50).optional(),
-      missed_opportunities: z.array(z.string().max(1000)).max(20).optional()
+      // Accept both legacy strings and new structured objects
+      missed_opportunities: z.array(z.union([
+        z.string().max(1000),
+        z.object({
+          pain: z.string().max(500),
+          severity: z.enum(['High', 'Medium']),
+          suggested_pitch: z.string().max(500),
+          talk_track: z.string().max(1000)
+        })
+      ])).max(20).optional()
     }).optional(),
     critical_gaps: z.array(z.object({
       category: z.string().max(100),
@@ -185,6 +194,13 @@ interface PsychologyContext {
   };
 }
 
+interface MissedOpportunityObject {
+  pain: string;
+  severity: 'High' | 'Medium';
+  suggested_pitch: string;
+  talk_track: string;
+}
+
 interface StrategicContext {
   strategic_threading?: {
     relevance_map?: Array<{
@@ -193,7 +209,7 @@ interface StrategicContext {
       is_relevant: boolean;
       reasoning: string;
     }>;
-    missed_opportunities?: string[];
+    missed_opportunities?: Array<string | MissedOpportunityObject>;
   };
   critical_gaps?: CriticalGap[];
 }
@@ -311,7 +327,15 @@ Deno.serve(async (req) => {
       if (sc.strategic_threading?.missed_opportunities && sc.strategic_threading.missed_opportunities.length > 0) {
         contextSection += '\n**MISSED OPPORTUNITIES (Pains not addressed):**\n';
         for (const missed of sc.strategic_threading.missed_opportunities) {
-          contextSection += `- ${missed}\n`;
+          // Handle both string and object formats
+          if (typeof missed === 'string') {
+            contextSection += `- ${missed}\n`;
+          } else {
+            contextSection += `- [${missed.severity}] ${missed.pain}\n`;
+            if (missed.talk_track) {
+              contextSection += `  → Suggested talk track: "${missed.talk_track}"\n`;
+            }
+          }
         }
       }
 
