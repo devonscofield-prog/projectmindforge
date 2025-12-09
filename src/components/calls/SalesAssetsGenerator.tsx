@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -31,7 +31,8 @@ import {
   Eye,
   Edit3,
   AlertTriangle,
-  ExternalLink
+  ExternalLink,
+  RefreshCw
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -81,24 +82,28 @@ const REP_PLACEHOLDERS = [
 ];
 
 interface SalesAssetsGeneratorProps {
+  callId: string;
   transcript: string;
   strategicContext: StrategyAudit | null;
   psychologyContext?: PsychologyProfile | null;
   callMetadata?: CallMetadata | null;
   accountName?: string | null;
   stakeholderName?: string | null;
+  existingAssets?: SalesAssets | null;
 }
 
 export function SalesAssetsGenerator({ 
+  callId,
   transcript, 
   strategicContext,
   psychologyContext,
   callMetadata,
   accountName,
-  stakeholderName 
+  stakeholderName,
+  existingAssets
 }: SalesAssetsGeneratorProps) {
   const [isLoading, setIsLoading] = useState(false);
-  const [assets, setAssets] = useState<SalesAssets | null>(null);
+  const [hasGenerated, setHasGenerated] = useState(false);
   const [subjectLine, setSubjectLine] = useState('');
   const [emailBody, setEmailBody] = useState('');
   const [internalNotes, setInternalNotes] = useState('');
@@ -108,6 +113,21 @@ export function SalesAssetsGenerator({
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
   const [emailViewMode, setEmailViewMode] = useState<'edit' | 'preview'>('edit');
+
+  // Load existing assets on mount
+  useEffect(() => {
+    if (existingAssets) {
+      const processedSubject = existingAssets.recap_email?.subject_line || '';
+      const processedBody = (existingAssets.recap_email as { body_markdown?: string; body_html?: string })?.body_markdown 
+        || (existingAssets.recap_email as { body_html?: string })?.body_html 
+        || '';
+      
+      setSubjectLine(processedSubject);
+      setEmailBody(processedBody);
+      setInternalNotes(existingAssets.internal_notes_markdown || '');
+      setHasGenerated(true);
+    }
+  }, [existingAssets]);
 
   // Calculate word/character counts for email body
   const emailStats = useMemo(() => {
@@ -166,6 +186,7 @@ export function SalesAssetsGenerator({
 
       const response = await supabase.functions.invoke('generate-sales-assets', {
         body: {
+          call_id: callId, // Pass call_id to save to DB
           transcript,
           strategic_context: strategicContext,
           psychology_context: psychologyContext,
@@ -203,18 +224,18 @@ export function SalesAssetsGenerator({
         processedBody = processedBody.replace(new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g'), '');
       });
 
-      setAssets(result);
       setSubjectLine(processedSubject);
       setEmailBody(processedBody);
       setInternalNotes(result.internal_notes_markdown);
       setCheckedItems(new Set());
       setEmailViewMode('edit');
+      setHasGenerated(true);
       
       // Show validation warnings if any
       if (result.validation_warnings && result.validation_warnings.length > 0) {
         toast.warning(`Generated with warnings: ${result.validation_warnings.join(', ')}`);
       } else {
-        toast.success('Sales assets generated successfully!');
+        toast.success('Sales assets generated and saved!');
       }
     } catch (error) {
       console.error('Error generating sales assets:', error);
@@ -240,7 +261,7 @@ export function SalesAssetsGenerator({
     }
   };
 
-const copyEmailBody = async () => {
+  const copyEmailBody = async () => {
     try {
       const plainText = emailBody;
       const htmlContent = formatForOutlook(emailBody);
@@ -302,7 +323,7 @@ const copyEmailBody = async () => {
   }, [emailBody]);
 
 
-  if (!assets) {
+  if (!hasGenerated) {
     return (
       <Card className="border-dashed border-2 border-muted-foreground/25 hover:border-primary/50 transition-colors">
         <CardContent className="flex flex-col items-center justify-center py-12 space-y-4">
@@ -359,17 +380,18 @@ const copyEmailBody = async () => {
                 Recap Email
               </CardTitle>
               <Button 
-                variant="ghost" 
+                variant="outline" 
                 size="sm" 
                 onClick={() => setShowRegenerateConfirm(true)}
                 disabled={isLoading}
-                title="Regenerate assets"
+                className="gap-2"
               >
                 {isLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <Sparkles className="h-4 w-4" />
+                  <RefreshCw className="h-4 w-4" />
                 )}
+                Re-generate
               </Button>
 
               {/* Regenerate Confirmation Dialog */}
@@ -378,7 +400,7 @@ const copyEmailBody = async () => {
                   <AlertDialogHeader>
                     <AlertDialogTitle>Regenerate assets?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This will replace your edited email and notes with newly generated content. Any changes you've made will be lost.
+                      This will replace your current email and notes with newly generated content. Any edits you've made will be lost.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -473,56 +495,29 @@ const copyEmailBody = async () => {
                 
                 <TabsContent value="preview" className="mt-2">
                   <div className="min-h-[300px] max-h-[500px] overflow-y-auto p-4 rounded-md border bg-card prose prose-sm dark:prose-invert max-w-none">
-                    <ReactMarkdown
-                      components={{
-                        a: ({ href, children }) => (
-                          <a 
-                            href={href} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline inline-flex items-center gap-1"
-                          >
-                            {children}
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        ),
-                        strong: ({ children }) => {
-                          // Check if this is a placeholder warning
-                          const text = String(children);
-                          if (text.startsWith('⚠️ {{')) {
-                            return (
-                              <span className="bg-yellow-200 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 px-1 rounded font-mono text-xs">
-                                {text.replace('⚠️ ', '')}
-                              </span>
-                            );
-                          }
-                          return <strong>{children}</strong>;
-                        }
-                      }}
-                    >
-                      {highlightedEmailBody}
-                    </ReactMarkdown>
+                    <ReactMarkdown>{highlightedEmailBody}</ReactMarkdown>
                   </div>
                 </TabsContent>
               </Tabs>
             </div>
-            
-            {/* Copy Button - Prominent */}
-            <Button 
+
+            {/* Copy Email Body Button */}
+            <Button
               onClick={copyEmailBody}
+              variant="default"
               className={cn(
-                "w-full gap-2 transition-all",
-                copiedEmail && "bg-green-500 hover:bg-green-600"
+                "w-full gap-2",
+                copiedEmail && "bg-green-600 hover:bg-green-700"
               )}
             >
               {copiedEmail ? (
                 <>
-                  <Check className="h-5 w-5" />
-                  Copied to Clipboard!
+                  <Check className="h-4 w-4" />
+                  Copied!
                 </>
               ) : (
                 <>
-                  <Copy className="h-5 w-5" />
+                  <Copy className="h-4 w-4" />
                   Copy Email Body
                 </>
               )}
@@ -530,7 +525,7 @@ const copyEmailBody = async () => {
           </CardContent>
         </Card>
 
-        {/* Notes Section */}
+        {/* Internal Notes Section */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
@@ -542,35 +537,114 @@ const copyEmailBody = async () => {
             <Textarea
               value={internalNotes}
               onChange={(e) => setInternalNotes(e.target.value)}
-              placeholder="Internal notes..."
+              placeholder="Internal notes (Markdown format)..."
               className="min-h-[200px] font-mono text-sm"
             />
-            
-            <div className="flex gap-3">
-              <Button 
-                onClick={() => copyToClipboard(internalNotes, 'notes')}
-                variant="outline"
-                className={cn(
-                  "flex-1 gap-2 transition-all",
-                  copiedNotes && "border-green-500 text-green-600"
-                )}
-              >
-                {copiedNotes ? (
-                  <>
-                    <Check className="h-4 w-4" />
-                    Copied!
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-4 w-4" />
-                    Copy Notes
-                  </>
-                )}
-              </Button>
-              
-            </div>
+            <Button
+              onClick={() => copyToClipboard(internalNotes, 'notes')}
+              variant="outline"
+              className={cn(
+                "w-full gap-2",
+                copiedNotes && "text-green-600 border-green-600"
+              )}
+            >
+              {copiedNotes ? (
+                <>
+                  <Check className="h-4 w-4" />
+                  Copied!
+                </>
+              ) : (
+                <>
+                  <Copy className="h-4 w-4" />
+                  Copy Notes
+                </>
+              )}
+            </Button>
           </CardContent>
         </Card>
+
+        {/* Sidebar Info - Checklist and User Counts */}
+        {(checklistItems.length > 0 || userCounts) && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-primary" />
+                Pre-Send Checklist
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Critical Gaps Checklist */}
+              {checklistItems.length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Verify these items are addressed before sending:
+                  </p>
+                  {checklistItems.map((item) => (
+                    <div 
+                      key={item.id} 
+                      className={cn(
+                        "flex items-start gap-3 p-2 rounded-md",
+                        checkedItems.has(item.id) ? "bg-green-500/10" : "bg-muted/50"
+                      )}
+                    >
+                      <Checkbox
+                        id={item.id}
+                        checked={checkedItems.has(item.id)}
+                        onCheckedChange={() => toggleChecked(item.id)}
+                        className="mt-0.5"
+                      />
+                      <div className="flex-1 space-y-1">
+                        <label 
+                          htmlFor={item.id} 
+                          className={cn(
+                            "text-sm cursor-pointer",
+                            checkedItems.has(item.id) && "line-through text-muted-foreground"
+                          )}
+                        >
+                          <span className="font-medium">{item.category}:</span> {item.label}
+                        </label>
+                        {item.suggestedQuestion && (
+                          <p className="text-xs text-muted-foreground italic">
+                            Ask: "{item.suggestedQuestion}"
+                          </p>
+                        )}
+                      </div>
+                      <Badge 
+                        variant={item.impact === 'High' ? 'destructive' : 'secondary'}
+                        className="shrink-0 text-xs"
+                      >
+                        {item.impact}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {checklistItems.length > 0 && userCounts && <Separator />}
+
+              {/* User Counts Reference */}
+              {userCounts && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Account User Counts</p>
+                  <div className="flex gap-4 text-sm">
+                    {userCounts.itUsers !== null && (
+                      <div className="flex items-center gap-2">
+                        <Monitor className="h-4 w-4 text-muted-foreground" />
+                        <span>{userCounts.itUsers} IT Users</span>
+                      </div>
+                    )}
+                    {userCounts.endUsers !== null && (
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        <span>{userCounts.endUsers} End Users</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

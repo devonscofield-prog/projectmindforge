@@ -316,6 +316,8 @@ export type Database = {
           raw_json: Json | null
           recap_email_draft: string | null
           rep_id: string
+          sales_assets: Json | null
+          sales_assets_generated_at: string | null
           skill_tags: string[] | null
           strengths: Json | null
           trend_indicators: Json | null
@@ -355,6 +357,8 @@ export type Database = {
           raw_json?: Json | null
           recap_email_draft?: string | null
           rep_id: string
+          sales_assets?: Json | null
+          sales_assets_generated_at?: string | null
           skill_tags?: string[] | null
           strengths?: Json | null
           trend_indicators?: Json | null
@@ -394,6 +398,8 @@ export type Database = {
           raw_json?: Json | null
           recap_email_draft?: string | null
           rep_id?: string
+          sales_assets?: Json | null
+          sales_assets_generated_at?: string | null
           skill_tags?: string[] | null
           strengths?: Json | null
           trend_indicators?: Json | null
