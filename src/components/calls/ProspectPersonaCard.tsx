@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { User, Check, X, Quote, Mail, Copy } from 'lucide-react';
 import type { PsychologyProfile } from '@/utils/analysis-schemas';
 import { cn } from '@/lib/utils';
@@ -28,7 +30,20 @@ const DISC_COLORS: Record<string, string> = {
 };
 
 export function ProspectPersonaCard({ psychology, isLoading = false }: ProspectPersonaCardProps) {
+  const [copiedSubject, setCopiedSubject] = useState(false);
   const { toast } = useToast();
+
+  const handleCopySubject = async () => {
+    if (!psychology?.suggested_email_subject) return;
+    try {
+      await navigator.clipboard.writeText(psychology.suggested_email_subject);
+      setCopiedSubject(true);
+      toast({ description: 'Subject copied to clipboard' });
+      setTimeout(() => setCopiedSubject(false), 2000);
+    } catch {
+      toast({ description: 'Failed to copy', variant: 'destructive' });
+    }
+  };
 
   // Loading state
   if (isLoading) {
@@ -134,20 +149,29 @@ export function ProspectPersonaCard({ psychology, isLoading = false }: ProspectP
               Suggested Email Subject
             </p>
             <div className="flex items-center gap-2">
-              <p className="text-sm font-medium flex-1 truncate">
-                {psychology.suggested_email_subject}
-              </p>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <p className="text-sm font-medium flex-1 truncate cursor-help">
+                      {psychology.suggested_email_subject}
+                    </p>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs">
+                    <p className="text-sm">{psychology.suggested_email_subject}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 w-7 p-0 shrink-0"
+                className={cn(
+                  "h-7 w-7 p-0 shrink-0 transition-colors",
+                  copiedSubject && "text-green-600"
+                )}
                 aria-label="Copy email subject to clipboard"
-                onClick={() => {
-                  navigator.clipboard.writeText(psychology.suggested_email_subject);
-                  toast({ description: 'Subject copied to clipboard' });
-                }}
+                onClick={handleCopySubject}
               >
-                <Copy className="h-3.5 w-3.5" />
+                {copiedSubject ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
               </Button>
             </div>
           </div>

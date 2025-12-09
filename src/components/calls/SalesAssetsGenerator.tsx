@@ -261,10 +261,13 @@ export function SalesAssetsGenerator({
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => {
-                      setShowRegenerateConfirm(false);
-                      handleGenerate();
-                    }}>
+                    <AlertDialogAction 
+                      onClick={() => {
+                        setShowRegenerateConfirm(false);
+                        toast.info('Regenerating assets...');
+                        handleGenerate();
+                      }}
+                    >
                       Regenerate
                     </AlertDialogAction>
                   </AlertDialogFooter>
