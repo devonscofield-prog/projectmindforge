@@ -710,6 +710,15 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
       <Card 
         className="cursor-pointer transition-colors hover:bg-accent/50"
         onClick={() => setNextStepsSheetOpen(true)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setNextStepsSheetOpen(true);
+          }
+        }}
+        tabIndex={0}
+        role="button"
+        aria-label="View next steps details"
       >
         <CardContent className="pt-6">
           <div className="flex items-center justify-between">

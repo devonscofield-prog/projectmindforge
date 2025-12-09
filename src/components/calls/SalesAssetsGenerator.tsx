@@ -26,7 +26,6 @@ import {
   FileText,
   Users,
   Monitor,
-  Save,
   AlertCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -180,11 +179,6 @@ export function SalesAssetsGenerator({
     setCheckedItems(newChecked);
   };
 
-  const handleSaveToCRM = () => {
-    toast.info('CRM integration coming soon!', {
-      description: 'This will save your notes directly to Salesforce.'
-    });
-  };
 
   if (!assets) {
     return (

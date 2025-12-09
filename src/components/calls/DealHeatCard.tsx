@@ -23,7 +23,8 @@ import {
   Plus,
   Loader2,
   AlertTriangle,
-  Target
+  Target,
+  Clock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { DealHeat } from '@/utils/analysis-schemas';
@@ -254,6 +255,15 @@ export function DealHeatCard({
             <span className="text-muted-foreground">Win Probability:</span>
             <span className="font-medium">{heatData.winning_probability}</span>
           </div>
+
+          {/* Estimated Close Date */}
+          {heatData.estimated_close_date && (
+            <div className="flex items-center gap-2 text-sm">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <span className="text-muted-foreground">Est. Close:</span>
+              <span className="font-medium">{heatData.estimated_close_date}</span>
+            </div>
+          )}
         </div>
 
         {/* Key Factors */}
