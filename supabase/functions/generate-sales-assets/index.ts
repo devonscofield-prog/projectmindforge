@@ -11,13 +11,13 @@ const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 // Required links that MUST be included in every email
 const REQUIRED_LINKS = {
   stormwind_website: {
-    url: 'https://stormwindstudios.com/',
+    url: 'https://info.stormwind.com/',
     text: 'StormWind Website',
     context: 'General info about StormWind'
   },
   training_samples: {
     url: 'https://info.stormwind.com/training-samples',
-    text: 'Sample Courses',
+    text: 'View Sample Courses',
     context: 'Course demos and previews'
   }
 };
@@ -100,28 +100,27 @@ const SALES_ASSETS_TOOL = {
   }
 };
 
-const COPYWRITER_SYSTEM_PROMPT = `You are an expert Enterprise Sales Copywriter for StormWind Studios. Your goal is to write a recap email that drives the deal forward.
+const COPYWRITER_SYSTEM_PROMPT = `You are an expert Enterprise Sales Copywriter for StormWind Studios. 
 
-**CORE INSTRUCTIONS:**
-1.  **TONE ADAPTATION (CRITICAL):**
-    * **IF High D (Dominant):** Be extremely concise. Bullet points only. No "I hope you are doing well" fluff. Focus on ROI and speed.
-    * **IF High I (Influence):** Enthusiastic and relational. Mention specific personal connection points if available.
-    * **IF High S (Steadiness):** Reassuring and process-focused. Emphasize that we will support them through the transition.
-    * **IF High C (Compliance):** Detailed and precise. Include specific data points or specs if discussed.
-    * **DEFAULT:** Professional, confident, and direct.
+**GOAL:** Write a post-call recap that is **under 175 words**. It must be skimmable on a mobile phone.
 
-2.  **MANDATORY LINKS (Do not change):**
-    * [StormWind Website](https://stormwindstudios.com/)
-    * [Sample Courses](https://info.stormwind.com/training-samples)
+**CRITICAL RULES:**
+1.  **WORD COUNT:** Maximum 175 words total. Be ruthless with brevity.
+2.  **SENTENCE STRUCTURE:** * **NEVER** start a sentence with "Because".
+    * **ALWAYS** use Active Voice. (Bad: "Because you need X, we have Y." -> Good: "To address your need for X, our Y feature...")
+3.  **TONE:** Professional, confident, and direct.
 
-3.  **PLACEHOLDERS:**
-    * Use {{ProspectFirstName}} for the contact's name.
-    * Use {{CompanyName}} for the account name.
-    * **DO NOT** include a sign-off or signature block (e.g., "Best, [Name]"). The user's email client will handle this automatically.
+**MANDATORY LINKS (Preserve these):**
+* [StormWind Website](https://info.stormwind.com/)
+* [View Sample Courses](https://info.stormwind.com/training-samples)
+
+**PLACEHOLDERS:**
+* Use {{ProspectFirstName}}, {{CompanyName}}.
+* **DO NOT** generate a signature block.
 
 **EMAIL STRUCTURE (Markdown):**
 
-**Subject Line Options (Choose the best fit):**
+**Subject Line Options:**
 * Option 1: Recap: StormWind & {{CompanyName}} - Solving [Primary Pain]
 * Option 2: Next steps: {{TopicDiscussed}} / StormWind
 
@@ -129,27 +128,26 @@ const COPYWRITER_SYSTEM_PROMPT = `You are an expert Enterprise Sales Copywriter 
 
 Hi {{ProspectFirstName}},
 
-[Opening: 1 sentence acknowledging the specific time/context]
+[1 Short Sentence thanking them. E.g. "Thanks for discussing the team's training goals today."]
 
 **Current Priorities:**
-[Based on the call, list the top 2-3 pains or goals they explicitly mentioned]
-* [Pain Point 1]
-* [Pain Point 2]
+[Bulleted list of the top 2-3 pains/goals. 5-7 words per bullet max.]
+* [Pain 1]
+* [Pain 2]
 
 **How We Help:**
-Because you mentioned **[Specific Pain]**, I wanted to highlight **[Specific Feature]**. This directly addresses your need by [Benefit/Result].
+[Direct mapping. Max 2-3 sentences.]
+You mentioned a need for **[Pain]**. Our **[Solution]** addresses this directly by [Result]. 
 
-[Optional: 1 more strong pain-to-solution connection]
+[Optional second point]: regarding **[Pain 2]**, our **[Feature 2]** will [Benefit].
 
-You can check out our [Sample Courses](https://info.stormwind.com/training-samples) to see our instructors in action.
+See it in action here: [View Sample Courses](https://info.stormwind.com/training-samples).
 
 **Agreed Next Steps:**
 * [Action Item 1]
 * [Action Item 2]
 
 [Optional Resources Section]
-
-[STOP GENERATION HERE - Do not add "Best regards" or Rep Name]
 
 ---
 
@@ -229,11 +227,11 @@ function validateEmailQuality(emailBody: string): { valid: boolean; warnings: st
   const warnings: string[] = [];
   const wordCount = emailBody.split(/\s+/).filter(Boolean).length;
   
-  if (wordCount < 150) {
-    warnings.push(`Email too short (${wordCount} words, minimum 150)`);
+  if (wordCount < 75) {
+    warnings.push(`Email too short (${wordCount} words, minimum 75)`);
   }
-  if (wordCount > 500) {
-    warnings.push(`Email too long (${wordCount} words, recommend 200-350)`);
+  if (wordCount > 200) {
+    warnings.push(`Email too long (${wordCount} words, maximum 175 recommended)`);
   }
   
   // Check for placeholder integrity (shouldn't have hallucinated names)
@@ -357,7 +355,7 @@ ${psychologySection}
 
 **REMINDER:** 
 - Use {{ProspectFirstName}}, {{CompanyName}} placeholders
-- Include BOTH required links: [StormWind Website](https://stormwindstudios.com/) and [Sample Courses](https://info.stormwind.com/training-samples)
+- Include BOTH required links: [StormWind Website](https://info.stormwind.com/) and [View Sample Courses](https://info.stormwind.com/training-samples)
 - Do NOT include a signature block
 - Format the email body in Markdown (not HTML)
 
