@@ -16,8 +16,8 @@ import { createCallTranscriptAndAnalyze } from '@/api/aiCallAnalysis';
 import type { ProductEntry, StakeholderEntry } from '@/api/aiCallAnalysis';
 import { updateProspect } from '@/api/prospects';
 import { CallType, callTypeOptions } from '@/constants/callTypes';
-import { format } from 'date-fns';
-import { Send, Loader2, FileText, Pencil, BarChart3, Users, AlertTriangle, Info, Keyboard } from 'lucide-react';
+import { format, formatDistanceToNow } from 'date-fns';
+import { Send, Loader2, FileText, Pencil, BarChart3, Users, AlertTriangle, Info, Keyboard, RotateCcw } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AccountCombobox } from '@/components/forms/AccountCombobox';
@@ -51,6 +51,7 @@ const SALESFORCE_URL_PATTERN = /salesforce|force\.com/i;
 // Validation constants
 const MIN_TRANSCRIPT_LENGTH = 500;
 const MAX_ADDITIONAL_SPEAKERS = 5;
+const MAX_STAKEHOLDERS = 10;
 const SUBMISSION_COOLDOWN_MS = 2000;
 
 // Draft storage key
@@ -66,6 +67,8 @@ interface FormDraft {
   additionalSpeakersText: string;
   managerOnCall: boolean;
   additionalSpeakersEnabled: boolean;
+  stakeholders: StakeholderEntry[];
+  selectedProducts: ProductEntry[];
   savedAt: number;
 }
 
@@ -150,6 +153,8 @@ function RepDashboard() {
           additionalSpeakersText,
           managerOnCall,
           additionalSpeakersEnabled,
+          stakeholders,
+          selectedProducts,
           savedAt: Date.now(),
         };
         try {
@@ -161,7 +166,7 @@ function RepDashboard() {
     }, 30000);
 
     return () => clearInterval(interval);
-  }, [transcript, accountName, salesforceAccountLink, callDate, callType, callTypeOther, additionalSpeakersText, managerOnCall, additionalSpeakersEnabled, isDirty, isSubmitting]);
+  }, [transcript, accountName, salesforceAccountLink, callDate, callType, callTypeOther, additionalSpeakersText, managerOnCall, additionalSpeakersEnabled, stakeholders, selectedProducts, isDirty, isSubmitting]);
 
   // Warn before leaving with unsaved changes (browser close/refresh)
   useEffect(() => {
@@ -220,6 +225,9 @@ function RepDashboard() {
         setAdditionalSpeakersText(draft.additionalSpeakersText || '');
         setManagerOnCall(draft.managerOnCall || false);
         setAdditionalSpeakersEnabled(draft.additionalSpeakersEnabled || false);
+        // Restore stakeholders and products
+        setStakeholders(draft.stakeholders || []);
+        setSelectedProducts(draft.selectedProducts || []);
         toast({
           title: 'Draft restored',
           description: 'Your previous work has been restored.',
@@ -257,20 +265,6 @@ function RepDashboard() {
     }
   }, [callType]);
 
-  // Keyboard shortcut: Cmd/Ctrl + Enter to submit
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-        e.preventDefault();
-        if (canSubmit && formRef.current) {
-          formRef.current.requestSubmit();
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
 
   const handleAccountChange = (name: string, prospectId: string | null, salesforceLink?: string | null) => {
     setAccountName(name);
@@ -325,6 +319,9 @@ function RepDashboard() {
   // Transcript length progress (0-100, capped at 100)
   const transcriptProgress = Math.min(100, (normalizedTranscript.length / MIN_TRANSCRIPT_LENGTH) * 100);
 
+  // Check for products with $0 price
+  const hasInvalidProducts = selectedProducts.some(p => p.unitPrice === 0);
+
   const canSubmit = 
     isAccountValid && 
     isStakeholderValid && 
@@ -334,6 +331,7 @@ function RepDashboard() {
     isSalesforceUrlValid && 
     isCallTypeOtherValid && 
     isAdditionalSpeakersValid &&
+    !hasInvalidProducts &&
     !isSubmitting &&
     (Date.now() - lastSubmitTime >= SUBMISSION_COOLDOWN_MS);
 
@@ -348,8 +346,65 @@ function RepDashboard() {
     if (isTranscriptValid && !isTranscriptLengthValid) hints.push(`Transcript (min ${MIN_TRANSCRIPT_LENGTH} chars)`);
     if (!isCallTypeOtherValid) hints.push('Call Type');
     if (!isAdditionalSpeakersValid) hints.push(`Max ${MAX_ADDITIONAL_SPEAKERS} speakers`);
+    if (hasInvalidProducts) hints.push('Products with $0 price');
     return hints;
   };
+
+  // Get draft age for display
+  const getDraftAge = (): string | null => {
+    try {
+      const savedDraft = localStorage.getItem(DRAFT_KEY);
+      if (savedDraft) {
+        const draft: FormDraft = JSON.parse(savedDraft);
+        if (draft.savedAt) {
+          return formatDistanceToNow(draft.savedAt, { addSuffix: true });
+        }
+      }
+    } catch {
+      // Ignore
+    }
+    return null;
+  };
+
+  // Clear form completely
+  const clearForm = () => {
+    setTranscript('');
+    setAccountName('');
+    setSelectedProspectId(null);
+    setSalesforceAccountLink('');
+    setExistingAccountHasSalesforceLink(false);
+    setIsEditingSalesforceLink(false);
+    setCallDate(format(new Date(), 'yyyy-MM-dd'));
+    setCallType('first_demo');
+    setCallTypeOther('');
+    setStakeholders([]);
+    setSelectedProducts([]);
+    setManagerOnCall(false);
+    setAdditionalSpeakersEnabled(false);
+    setAdditionalSpeakersText('');
+    clearDraft();
+    toast({
+      title: 'Form cleared',
+      description: 'All fields have been reset.',
+    });
+  };
+
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  // Keyboard shortcut: Cmd/Ctrl + Enter to submit
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        if (canSubmit && formRef.current) {
+          formRef.current.requestSubmit();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [canSubmit]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -555,6 +610,24 @@ function RepDashboard() {
           <AlertDialogFooter>
             <AlertDialogCancel onClick={handleCancelLeave}>Stay</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmLeave}>Leave</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Clear Form Confirmation Dialog */}
+      <AlertDialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear Form?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will reset all fields and clear your saved draft. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { clearForm(); setShowClearConfirm(false); }}>
+              Clear Form
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -817,7 +890,7 @@ function RepDashboard() {
                   </div>
 
                   {/* Submit Button */}
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     <Button 
                       type="submit" 
                       disabled={!canSubmit} 
@@ -839,6 +912,28 @@ function RepDashboard() {
                         <p className="text-xs text-muted-foreground text-center">
                           Missing: {validationHints.join(', ')}
                         </p>
+                      )}
+                    </div>
+                    
+                    {/* Clear Form button and draft age */}
+                    <div className="flex items-center justify-between">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowClearConfirm(true)}
+                        disabled={!isDirty() && !hasDraft}
+                        className="text-muted-foreground"
+                      >
+                        <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                        Clear Form
+                      </Button>
+                      
+                      {/* Draft age indicator */}
+                      {isDirty() && getDraftAge() && (
+                        <span className="text-xs text-muted-foreground">
+                          Draft saved {getDraftAge()}
+                        </span>
                       )}
                     </div>
                     
