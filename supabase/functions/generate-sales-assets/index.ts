@@ -10,14 +10,14 @@ const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 // Required links that MUST be included in every email
 const REQUIRED_LINKS = {
-  info_website: {
-    url: 'https://info.stormwind.com/',
+  stormwind_website: {
+    url: 'https://stormwindstudios.com/',
     text: 'StormWind Website',
     context: 'General info about StormWind'
   },
   training_samples: {
     url: 'https://info.stormwind.com/training-samples',
-    text: 'View Sample Courses',
+    text: 'Sample Courses',
     context: 'Course demos and previews'
   }
 };
@@ -100,63 +100,56 @@ const SALES_ASSETS_TOOL = {
   }
 };
 
-const COPYWRITER_SYSTEM_PROMPT = `You are an expert Sales Copywriter for StormWind Studios, a B2B training solutions company. Write a follow-up email and CRM notes.
+const COPYWRITER_SYSTEM_PROMPT = `You are an expert Enterprise Sales Copywriter for StormWind Studios. Your goal is to write a recap email that drives the deal forward.
 
-**CRITICAL REQUIREMENTS:**
+**CORE INSTRUCTIONS:**
+1.  **TONE ADAPTATION (CRITICAL):**
+    * **IF High D (Dominant):** Be extremely concise. Bullet points only. No "I hope you are doing well" fluff. Focus on ROI and speed.
+    * **IF High I (Influence):** Enthusiastic and relational. Mention specific personal connection points if available.
+    * **IF High S (Steadiness):** Reassuring and process-focused. Emphasize that we will support them through the transition.
+    * **IF High C (Compliance):** Detailed and precise. Include specific data points or specs if discussed.
+    * **DEFAULT:** Professional, confident, and direct.
 
-1. **REQUIRED LINKS** - You MUST include these two links in EVERY email:
-   - StormWind Website: [StormWind Website](https://info.stormwind.com/) - Include after mentioning our solutions or company
-   - Training Samples: [View Sample Courses](https://info.stormwind.com/training-samples) - Include when discussing specific training solutions
+2.  **MANDATORY LINKS (Do not change):**
+    * [StormWind Website](https://stormwindstudios.com/)
+    * [Sample Courses](https://info.stormwind.com/training-samples)
 
-2. **PERSONALIZATION PLACEHOLDERS** - Use these placeholders (they will be replaced by the rep before sending):
-   - {{ProspectFirstName}} - The prospect's first name
-   - {{CompanyName}} - The prospect's company name
-   - {{RepFirstName}} - The rep's first name
-   - {{RepLastName}} - The rep's last name
-   - {{RepTitle}} - The rep's job title
-   - {{RepEmail}} - The rep's email address
+3.  **PLACEHOLDERS:**
+    * Use {{ProspectFirstName}} for the contact's name.
+    * Use {{CompanyName}} for the account name.
+    * **DO NOT** include a sign-off or signature block (e.g., "Best, [Name]"). The user's email client will handle this automatically.
 
-3. **USE STRATEGIC CONTEXT** - Use the provided 'strategic_context' (specifically the 'relevance_map' and 'critical_gaps'):
-   - Do NOT list generic features
-   - Use explicit format: "Because you mentioned [Pain Identified], I wanted to highlight how [Feature Pitched] can help..."
-   - Connect pains to solutions directly
+**EMAIL STRUCTURE (Markdown):**
 
-**COMMUNICATION STYLE ADAPTATION:**
-If a 'prospect_psychology' profile is provided, adapt your writing style:
-- **High D (Dominance):** Be brief, direct, bottom-line focused. Skip small talk. Use bullet points.
-- **High I (Influence):** Be enthusiastic, warm, storytelling. Keep energy high.
-- **High S (Steadiness):** Be calm, reassuring, process-oriented. Emphasize stability and support.
-- **High C (Compliance):** Be detailed, data-driven, precise. Include specifics and avoid vague claims.
+**Subject Line Options (Choose the best fit):**
+* Option 1: Recap: StormWind & {{CompanyName}} - Solving [Primary Pain]
+* Option 2: Next steps: {{TopicDiscussed}} / StormWind
 
-**EMAIL STRUCTURE (Markdown format, 200-350 words in body):**
-
-Subject: Following up on our {{TopicDiscussed}} conversation
+**Body:**
 
 Hi {{ProspectFirstName}},
 
-[Warm opening thanking them for their time - 1-2 sentences]
+[Opening: 1 sentence acknowledging the specific time/context]
 
-**Quick Recap of What We Discussed:**
-- [Key point 1 from the call]
-- [Key point 2 from the call]
+**Current Priorities:**
+[Based on the call, list the top 2-3 pains or goals they explicitly mentioned]
+* [Pain Point 1]
+* [Pain Point 2]
 
-**How We Can Help:**
-Because you mentioned [specific pain from relevance_map], I wanted to highlight how [specific solution] can address this directly. You can [View Sample Courses](https://info.stormwind.com/training-samples) to see exactly what your team would experience.
+**How We Help:**
+Because you mentioned **[Specific Pain]**, I wanted to highlight **[Specific Feature]**. This directly addresses your need by [Benefit/Result].
 
-[Additional pain-to-solution connections using the same format]
+[Optional: 1 more strong pain-to-solution connection]
 
-**Next Steps:**
-[Specific next step from the call OR what you're proposing]
+You can check out our [Sample Courses](https://info.stormwind.com/training-samples) to see our instructors in action.
 
-Feel free to explore more about our solutions on our [StormWind Website](https://info.stormwind.com/).
+**Agreed Next Steps:**
+* [Action Item 1]
+* [Action Item 2]
 
-Looking forward to helping {{CompanyName}} achieve [goal discussed].
+[Optional Resources Section]
 
-Best regards,
-{{RepFirstName}} {{RepLastName}}
-{{RepTitle}}
-StormWind Studios
-{{RepEmail}}
+[STOP GENERATION HERE - Do not add "Best regards" or Rep Name]
 
 ---
 
@@ -221,7 +214,7 @@ interface StrategicContext {
 function validateEmailLinks(emailBody: string): { valid: boolean; missing: string[] } {
   const missing: string[] = [];
   
-  if (!emailBody.includes(REQUIRED_LINKS.info_website.url)) {
+  if (!emailBody.includes(REQUIRED_LINKS.stormwind_website.url)) {
     missing.push('StormWind Website link');
   }
   if (!emailBody.includes(REQUIRED_LINKS.training_samples.url)) {
@@ -363,8 +356,9 @@ ${contextSection}
 ${psychologySection}
 
 **REMINDER:** 
-- Use {{ProspectFirstName}}, {{CompanyName}}, {{RepFirstName}}, {{RepLastName}}, {{RepTitle}}, {{RepEmail}} placeholders
-- Include BOTH required links: [StormWind Website](https://info.stormwind.com/) and [View Sample Courses](https://info.stormwind.com/training-samples)
+- Use {{ProspectFirstName}}, {{CompanyName}} placeholders
+- Include BOTH required links: [StormWind Website](https://stormwindstudios.com/) and [Sample Courses](https://info.stormwind.com/training-samples)
+- Do NOT include a signature block
 - Format the email body in Markdown (not HTML)
 
 **CALL TRANSCRIPT:**
