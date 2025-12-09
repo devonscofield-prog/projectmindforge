@@ -28,6 +28,25 @@ export interface ProspectWithRep {
 }
 export type ProspectActivityType = 'call' | 'email' | 'meeting' | 'text_message' | 'linkedin' | 'demo' | 'note';
 
+export interface AccountHeatAnalysis {
+  score: number;
+  temperature: "Hot" | "Warm" | "Lukewarm" | "Cold";
+  trend: "Heating Up" | "Cooling Down" | "Stagnant";
+  confidence: "High" | "Medium" | "Low";
+  factors: {
+    engagement: { score: number; weight: number; signals: string[] };
+    relationship: { score: number; weight: number; signals: string[] };
+    deal_progress: { score: number; weight: number; signals: string[] };
+    call_quality: { score: number; weight: number; signals: string[] };
+    timing: { score: number; weight: number; signals: string[] };
+  };
+  open_critical_gaps: { category: string; count: number }[];
+  competitors_active: string[];
+  recommended_actions: string[];
+  risk_factors: string[];
+  calculated_at: string;
+}
+
 export interface Prospect {
   id: string;
   rep_id: string;
@@ -46,6 +65,10 @@ export interface Prospect {
   heat_score: number | null;
   follow_ups_generation_status: string | null;
   follow_ups_last_generated_at: string | null;
+  // Account Heat Score fields
+  account_heat_score: number | null;
+  account_heat_analysis: AccountHeatAnalysis | null;
+  account_heat_updated_at: string | null;
   created_at: string;
   updated_at: string;
 }
