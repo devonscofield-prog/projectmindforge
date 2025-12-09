@@ -105,7 +105,8 @@ export function useAdminProspects(
           heat_score,
           active_revenue,
           last_contact_date,
-          rep_id
+          rep_id,
+          ai_extracted_info
         `, { count: 'exact' });
 
       // Apply filters
@@ -221,7 +222,7 @@ export function useAdminProspectStats(enabled = true) {
       ] = await Promise.all([
         supabase.from('prospects').select('*', { count: 'exact', head: true }),
         supabase.from('prospects').select('*', { count: 'exact', head: true }).eq('status', 'active'),
-        supabase.from('prospects').select('heat_score').gte('heat_score', 8),
+        supabase.from('prospects').select('heat_score').gte('heat_score', 70),
         supabase.from('prospects').select('active_revenue').eq('status', 'active')
       ]);
 

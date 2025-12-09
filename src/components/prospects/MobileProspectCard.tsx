@@ -2,11 +2,21 @@ import { format } from 'date-fns';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Users, Calendar, ChevronRight } from 'lucide-react';
-import { ProspectStatus } from '@/api/prospects';
+import { ProspectStatus, type ProspectIntel } from '@/api/prospects';
 import { statusLabels, statusVariants, industryOptions } from '@/constants/prospects';
 import { formatCurrency } from '@/lib/formatters';
 import { HeatScoreBadge } from '@/components/ui/heat-score-badge';
+import { CoachGradeBadge } from '@/components/ui/coach-grade-badge';
 import { KeyboardEvent } from 'react';
+
+// Helper to extract V2 coaching data from ai_extracted_info
+function getCoachingData(aiInfo: unknown): { avgGrade?: string } {
+  if (!aiInfo || typeof aiInfo !== 'object') return {};
+  const info = aiInfo as ProspectIntel;
+  return {
+    avgGrade: info.coaching_trend?.avg_grade,
+  };
+}
 
 interface MobileProspectCardProps {
   prospect: {
@@ -18,6 +28,7 @@ interface MobileProspectCardProps {
     heat_score?: number | null;
     active_revenue?: number | null;
     last_contact_date?: string | null;
+    ai_extracted_info?: unknown;
   };
   stakeholderCount: number;
   callCount: number;
@@ -72,6 +83,7 @@ export function MobileProspectCard({ prospect, stakeholderCount, callCount, onCl
             
             {/* Stats row */}
             <div className="flex items-center flex-wrap gap-3 text-sm">
+              <CoachGradeBadge grade={getCoachingData(prospect.ai_extracted_info).avgGrade} size="sm" />
               <HeatScoreBadge score={prospect.heat_score ?? null} />
               
               {prospect.active_revenue != null && prospect.active_revenue > 0 && (

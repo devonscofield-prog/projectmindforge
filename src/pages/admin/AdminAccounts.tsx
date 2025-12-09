@@ -41,7 +41,28 @@ import { useReps } from '@/hooks/useReps';
 import { statusLabels, statusVariants, industryOptions } from '@/constants/prospects';
 import { formatCurrency } from '@/lib/formatters';
 import { HeatScoreBadge } from '@/components/ui/heat-score-badge';
+import { CoachGradeBadge } from '@/components/ui/coach-grade-badge';
 import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
+import { type ProspectIntel } from '@/api/prospects';
+
+// Helper to extract V2 coaching data from ai_extracted_info
+function getCoachingData(aiInfo: unknown): { avgGrade?: string; trend?: 'improving' | 'declining' | 'stable' } {
+  if (!aiInfo || typeof aiInfo !== 'object') return {};
+  const info = aiInfo as ProspectIntel;
+  
+  // Get trend from latest_heat_analysis
+  const heatTrend = info.latest_heat_analysis?.trend?.toLowerCase();
+  const trend = heatTrend === 'heating up' || heatTrend === 'improving'
+    ? 'improving' 
+    : heatTrend === 'cooling down' || heatTrend === 'declining'
+      ? 'declining' 
+      : 'stable';
+      
+  return {
+    avgGrade: info.coaching_trend?.avg_grade,
+    trend,
+  };
+}
 
 export default function AdminAccounts() {
   const navigate = useNavigate();
@@ -159,7 +180,7 @@ export default function AdminAccounts() {
                   <Flame className="h-5 w-5 text-orange-500" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Hot (8+)</p>
+                  <p className="text-sm text-muted-foreground">Hot (70+)</p>
                   <p className="text-2xl font-bold">{stats.hot}</p>
                 </div>
               </div>
@@ -273,6 +294,7 @@ export default function AdminAccounts() {
                       <TableHead>Rep</TableHead>
                       <TableHead>Team</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Grade</TableHead>
                       <TableHead>Heat</TableHead>
                       <TableHead>Revenue</TableHead>
                       <TableHead>Stakeholders</TableHead>
@@ -321,6 +343,12 @@ export default function AdminAccounts() {
                           <Badge variant={statusVariants[prospect.status]}>
                             {statusLabels[prospect.status]}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {(() => {
+                            const coaching = getCoachingData(prospect.ai_extracted_info);
+                            return <CoachGradeBadge grade={coaching.avgGrade} trend={coaching.trend} showTrend />;
+                          })()}
                         </TableCell>
                         <TableCell>
                           <HeatScoreBadge score={prospect.heat_score} />
