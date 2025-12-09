@@ -29,8 +29,11 @@ import {
   Edit3,
   AlertTriangle,
   ExternalLink,
-  RefreshCw
+  RefreshCw,
+  Send,
+  Wand2
 } from 'lucide-react';
+import { editRecapEmail } from '@/api/aiCallAnalysis/analysis';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import type { StrategyAudit, SalesAssets, CallMetadata, PsychologyProfile } from '@/utils/analysis-schemas';
@@ -145,6 +148,10 @@ export function SalesAssetsGenerator({
   
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
   const [emailViewMode, setEmailViewMode] = useState<'edit' | 'preview'>('edit');
+  
+  // AI Editor state
+  const [editInstructions, setEditInstructions] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
 
   // Load existing assets on mount
   useEffect(() => {
@@ -321,6 +328,39 @@ export function SalesAssetsGenerator({
     });
     return highlighted;
   }, [emailBody]);
+
+  // AI Edit handler
+  const handleAIEdit = async (instructions: string) => {
+    if (!emailBody || !instructions.trim()) return;
+    
+    setIsEditing(true);
+    try {
+      const updatedEmail = await editRecapEmail(
+        emailBody,
+        instructions,
+        transcript.slice(0, 5000) // Pass truncated transcript for context
+      );
+      setEmailBody(updatedEmail);
+      setEditInstructions('');
+      toast.success('Email updated!');
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('rate limit')) {
+        toast.error('Too many edits - please wait a moment');
+      } else {
+        toast.error(error instanceof Error ? error.message : 'Failed to edit email');
+      }
+    } finally {
+      setIsEditing(false);
+    }
+  };
+
+  // Quick edit suggestions
+  const quickSuggestions = [
+    { label: 'Shorter', instruction: 'Make this email shorter and more concise' },
+    { label: 'Friendlier', instruction: 'Make this sound warmer and more friendly' },
+    { label: 'More Formal', instruction: 'Make this more professional and formal' },
+    { label: 'Add Urgency', instruction: 'Add a sense of urgency to encourage a quick response' },
+  ];
 
 
   if (!hasGenerated) {
@@ -499,6 +539,59 @@ export function SalesAssetsGenerator({
                   </div>
                 </TabsContent>
               </Tabs>
+            </div>
+
+            {/* AI Editor Section */}
+            <div className="p-3 rounded-lg bg-muted/50 border space-y-3">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Wand2 className="h-4 w-4 text-primary" />
+                AI Editor
+              </div>
+              
+              {/* Quick Suggestion Chips */}
+              <div className="flex flex-wrap gap-2">
+                {quickSuggestions.map((suggestion) => (
+                  <Button
+                    key={suggestion.label}
+                    variant="outline"
+                    size="sm"
+                    disabled={isEditing || !emailBody}
+                    onClick={() => handleAIEdit(suggestion.instruction)}
+                    className="h-7 text-xs"
+                  >
+                    {suggestion.label}
+                  </Button>
+                ))}
+              </div>
+              
+              {/* Custom Instruction Input */}
+              <div className="flex gap-2">
+                <Input
+                  value={editInstructions}
+                  onChange={(e) => setEditInstructions(e.target.value)}
+                  placeholder="e.g., Emphasize ROI benefits, simplify language..."
+                  disabled={isEditing || !emailBody}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey && editInstructions.trim()) {
+                      e.preventDefault();
+                      handleAIEdit(editInstructions);
+                    }
+                  }}
+                  className="flex-1"
+                />
+                <Button
+                  onClick={() => handleAIEdit(editInstructions)}
+                  disabled={isEditing || !emailBody || !editInstructions.trim()}
+                  size="icon"
+                  className="shrink-0"
+                >
+                  {isEditing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
             </div>
 
             {/* Copy Email Body Button */}
