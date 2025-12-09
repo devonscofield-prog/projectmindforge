@@ -11,7 +11,7 @@ interface HeatScoreBadgeProps {
 /**
  * Reusable heat score badge component with color-coded visual indicators
  * 
- * @param score - The heat score value (0-10) or null
+ * @param score - The heat score value (0-100) or null
  * @param variant - Display style: 'default' (compact inline) or 'card' (with background)
  * @param showNull - Whether to show "—" for null values (default: true for 'default', false for 'card')
  * @param className - Additional CSS classes
@@ -27,16 +27,22 @@ export function HeatScoreBadge({
     return <span className="text-muted-foreground">—</span>;
   }
 
-  // Determine color based on score
+  // Determine color based on score (0-100 scale)
   let colorClass = 'text-muted-foreground bg-muted';
-  if (score >= 8) {
+  let temperatureLabel = 'Cold';
+  
+  if (score >= 70) {
     colorClass = 'text-red-600 bg-red-100 dark:bg-red-900/30';
-  } else if (score >= 6) {
+    temperatureLabel = 'Hot';
+  } else if (score >= 50) {
     colorClass = 'text-orange-600 bg-orange-100 dark:bg-orange-900/30';
-  } else if (score >= 4) {
+    temperatureLabel = 'Warm';
+  } else if (score >= 25) {
     colorClass = 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30';
+    temperatureLabel = 'Lukewarm';
   } else {
     colorClass = 'text-blue-600 bg-blue-100 dark:bg-blue-900/30';
+    temperatureLabel = 'Cold';
   }
 
   if (variant === 'card') {
@@ -44,8 +50,8 @@ export function HeatScoreBadge({
       <div className={cn('flex items-center gap-2 px-3 py-2 md:py-3 rounded-lg', colorClass, className)}>
         <Flame className="h-4 w-4 md:h-5 md:w-5 shrink-0" />
         <div>
-          <p className="text-xs md:text-sm font-medium">Heat Score</p>
-          <p className="text-base md:text-lg font-bold">{score}/10</p>
+          <p className="text-xs md:text-sm font-medium">Deal Heat</p>
+          <p className="text-base md:text-lg font-bold">{score} <span className="text-xs font-normal">({temperatureLabel})</span></p>
         </div>
       </div>
     );
@@ -56,7 +62,7 @@ export function HeatScoreBadge({
   return (
     <div className={cn('flex items-center gap-1', className)}>
       <Flame className={cn('h-4 w-4', textColorClass)} />
-      <span className={textColorClass}>{score}/10</span>
+      <span className={textColorClass}>{score}</span>
     </div>
   );
 }
