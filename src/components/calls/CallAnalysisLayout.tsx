@@ -17,7 +17,6 @@ import {
   Clock,
   Mic,
   Target,
-  Mail,
   AlertTriangle,
   Pencil,
   RefreshCw,
@@ -60,7 +59,6 @@ interface CallAnalysisLayoutProps {
   behaviorContent: ReactNode;
   strategyContent: ReactNode;
   hazardsContent: ReactNode;
-  recapContent: ReactNode;
   canEdit?: boolean;
   onEditUserCounts?: () => void;
   onReanalyze?: () => void;
@@ -275,7 +273,6 @@ export function CallAnalysisLayout({
   behaviorContent,
   strategyContent,
   hazardsContent,
-  recapContent,
   canEdit = false,
   onEditUserCounts,
   onReanalyze,
@@ -726,13 +723,6 @@ export function CallAnalysisLayout({
             <AlertTriangle className="h-4 w-4" aria-hidden="true" />
             <span className="hidden sm:inline">Hazards</span>
           </TabsTrigger>
-          <TabsTrigger 
-            value="recap" 
-            className="flex items-center gap-1 sm:gap-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          >
-            <Mail className="h-4 w-4" aria-hidden="true" />
-            <span className="hidden sm:inline">Recap</span>
-          </TabsTrigger>
         </TabsList>
         
         <TabsContent value="behavior" className="mt-6 animate-in fade-in-50 duration-300">
@@ -745,10 +735,6 @@ export function CallAnalysisLayout({
         
         <TabsContent value="hazards" className="mt-6 animate-in fade-in-50 duration-300">
           {hazardsContent}
-        </TabsContent>
-        
-        <TabsContent value="recap" className="mt-6 animate-in fade-in-50 duration-300">
-          {recapContent}
         </TabsContent>
       </Tabs>
     </div>
