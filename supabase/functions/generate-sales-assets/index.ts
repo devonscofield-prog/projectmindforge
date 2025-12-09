@@ -8,6 +8,20 @@ const corsHeaders = {
 
 const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
+// Required links that MUST be included in every email
+const REQUIRED_LINKS = {
+  info_website: {
+    url: 'https://info.stormwind.com/',
+    text: 'StormWind Website',
+    context: 'General info about StormWind'
+  },
+  training_samples: {
+    url: 'https://info.stormwind.com/training-samples',
+    text: 'View Sample Courses',
+    context: 'Course demos and previews'
+  }
+};
+
 // Input validation schema
 const MAX_TRANSCRIPT_LENGTH = 500_000;
 
@@ -65,10 +79,16 @@ const SALES_ASSETS_TOOL = {
         recap_email: {
           type: "object",
           properties: {
-            subject_line: { type: "string", description: "Professional email subject line" },
-            body_html: { type: "string", description: "HTML formatted email body with proper paragraphs and formatting" }
+            subject_line: { 
+              type: "string", 
+              description: "Professional email subject line. Use {{ProspectFirstName}} placeholder if referencing the prospect." 
+            },
+            body_markdown: { 
+              type: "string", 
+              description: "Email body in Markdown format with proper paragraphs, bold text, and markdown links. Must include required StormWind links." 
+            }
           },
-          required: ["subject_line", "body_html"]
+          required: ["subject_line", "body_markdown"]
         },
         internal_notes_markdown: {
           type: "string",
@@ -80,36 +100,75 @@ const SALES_ASSETS_TOOL = {
   }
 };
 
-const COPYWRITER_SYSTEM_PROMPT = `You are an expert Sales Copywriter. Write a follow-up email and CRM notes.
+const COPYWRITER_SYSTEM_PROMPT = `You are an expert Sales Copywriter for StormWind Studios, a B2B training solutions company. Write a follow-up email and CRM notes.
 
-**CRITICAL:** Use the provided 'strategic_context' (specifically the 'relevance_map' and 'critical_gaps').
-- In the email, do NOT list generic features.
-- Use explicit format: 'Because you mentioned [Pain Identified], I recommend [Feature Pitched]...'
-- Keep the tone professional but conversational.
+**CRITICAL REQUIREMENTS:**
+
+1. **REQUIRED LINKS** - You MUST include these two links in EVERY email:
+   - StormWind Website: [StormWind Website](https://info.stormwind.com/) - Include after mentioning our solutions or company
+   - Training Samples: [View Sample Courses](https://info.stormwind.com/training-samples) - Include when discussing specific training solutions
+
+2. **PERSONALIZATION PLACEHOLDERS** - Use these placeholders (they will be replaced by the rep before sending):
+   - {{ProspectFirstName}} - The prospect's first name
+   - {{CompanyName}} - The prospect's company name
+   - {{RepFirstName}} - The rep's first name
+   - {{RepLastName}} - The rep's last name
+   - {{RepTitle}} - The rep's job title
+   - {{RepEmail}} - The rep's email address
+
+3. **USE STRATEGIC CONTEXT** - Use the provided 'strategic_context' (specifically the 'relevance_map' and 'critical_gaps'):
+   - Do NOT list generic features
+   - Use explicit format: "Because you mentioned [Pain Identified], I wanted to highlight how [Feature Pitched] can help..."
+   - Connect pains to solutions directly
 
 **COMMUNICATION STYLE ADAPTATION:**
 If a 'prospect_psychology' profile is provided, adapt your writing style:
 - **High D (Dominance):** Be brief, direct, bottom-line focused. Skip small talk. Use bullet points.
-- **High I (Influence):** Be enthusiastic, warm, storytelling. Use emojis sparingly. Keep energy high.
+- **High I (Influence):** Be enthusiastic, warm, storytelling. Keep energy high.
 - **High S (Steadiness):** Be calm, reassuring, process-oriented. Emphasize stability and support.
 - **High C (Compliance):** Be detailed, data-driven, precise. Include specifics and avoid vague claims.
 
-**EMAIL STRUCTURE:**
-1. Warm opening thanking them for their time
-2. Brief recap of what was discussed
-3. For each relevant pain-to-solution mapping, write: "Because you mentioned [pain], I'd like to highlight how [feature] can help..."
-4. Clear next steps
-5. Professional sign-off
+**EMAIL STRUCTURE (Markdown format, 200-350 words in body):**
+
+Subject: Following up on our {{TopicDiscussed}} conversation
+
+Hi {{ProspectFirstName}},
+
+[Warm opening thanking them for their time - 1-2 sentences]
+
+**Quick Recap of What We Discussed:**
+- [Key point 1 from the call]
+- [Key point 2 from the call]
+
+**How We Can Help:**
+Because you mentioned [specific pain from relevance_map], I wanted to highlight how [specific solution] can address this directly. You can [View Sample Courses](https://info.stormwind.com/training-samples) to see exactly what your team would experience.
+
+[Additional pain-to-solution connections using the same format]
+
+**Next Steps:**
+[Specific next step from the call OR what you're proposing]
+
+Feel free to explore more about our solutions on our [StormWind Website](https://info.stormwind.com/).
+
+Looking forward to helping {{CompanyName}} achieve [goal discussed].
+
+Best regards,
+{{RepFirstName}} {{RepLastName}}
+{{RepTitle}}
+StormWind Studios
+{{RepEmail}}
+
+---
 
 **INTERNAL NOTES STRUCTURE (Markdown):**
 ## Call Summary
-[Brief overview]
+[Brief 2-3 sentence overview]
 
 ## Key Pain Points Discussed
-- [List each pain point]
+- [List each pain point with severity if known]
 
 ## Solutions Pitched
-- [List solutions and their relevance]
+- [List solutions and their relevance to pains]
 
 ## Actionable Gaps
 Use the 'critical_gaps' to populate this section. For each gap:
@@ -117,10 +176,10 @@ Use the 'critical_gaps' to populate this section. For each gap:
   - *Ask this:* "[suggested_question]"
 
 ## Stakeholder Notes
-- [Key observations about participants]
+- [Key observations about participants, decision-making process]
 
 ## Next Steps
-- [Specific action items with owners]
+- [Specific action items with owners and dates]
 
 ## Follow-up Required
 - [Items needing attention based on gaps identified]`;
@@ -156,6 +215,40 @@ interface StrategicContext {
     missed_opportunities?: string[];
   };
   critical_gaps?: CriticalGap[];
+}
+
+// Validate that the email contains required links
+function validateEmailLinks(emailBody: string): { valid: boolean; missing: string[] } {
+  const missing: string[] = [];
+  
+  if (!emailBody.includes(REQUIRED_LINKS.info_website.url)) {
+    missing.push('StormWind Website link');
+  }
+  if (!emailBody.includes(REQUIRED_LINKS.training_samples.url)) {
+    missing.push('Training Samples link');
+  }
+  
+  return { valid: missing.length === 0, missing };
+}
+
+// Validate email quality
+function validateEmailQuality(emailBody: string): { valid: boolean; warnings: string[] } {
+  const warnings: string[] = [];
+  const wordCount = emailBody.split(/\s+/).filter(Boolean).length;
+  
+  if (wordCount < 150) {
+    warnings.push(`Email too short (${wordCount} words, minimum 150)`);
+  }
+  if (wordCount > 500) {
+    warnings.push(`Email too long (${wordCount} words, recommend 200-350)`);
+  }
+  
+  // Check for placeholder integrity (shouldn't have hallucinated names)
+  if (emailBody.match(/\bDear\s+[A-Z][a-z]+\b/) && !emailBody.includes('{{ProspectFirstName}}')) {
+    warnings.push('Email may contain hallucinated name instead of placeholder');
+  }
+  
+  return { valid: warnings.length === 0, warnings };
 }
 
 Deno.serve(async (req) => {
@@ -269,6 +362,11 @@ ${stakeholder_name ? `**Primary Contact:** ${stakeholder_name}` : ''}
 ${contextSection}
 ${psychologySection}
 
+**REMINDER:** 
+- Use {{ProspectFirstName}}, {{CompanyName}}, {{RepFirstName}}, {{RepLastName}}, {{RepTitle}}, {{RepEmail}} placeholders
+- Include BOTH required links: [StormWind Website](https://info.stormwind.com/) and [View Sample Courses](https://info.stormwind.com/training-samples)
+- Format the email body in Markdown (not HTML)
+
 **CALL TRANSCRIPT:**
 ${transcript.substring(0, 30000)}`;
 
@@ -287,7 +385,7 @@ ${transcript.substring(0, 30000)}`;
         tools: [SALES_ASSETS_TOOL],
         tool_choice: { type: 'function', function: { name: 'generate_sales_assets' } },
         max_tokens: 4096,
-        temperature: 0.7,
+        temperature: 0.5, // Reduced from 0.7 for more consistent output
       }),
     });
 
@@ -320,6 +418,25 @@ ${transcript.substring(0, 30000)}`;
     }
 
     const salesAssets = JSON.parse(toolCall.function.arguments);
+    
+    // Validate the generated email
+    const emailBody = salesAssets.recap_email?.body_markdown || salesAssets.recap_email?.body_html || '';
+    const linkValidation = validateEmailLinks(emailBody);
+    const qualityValidation = validateEmailQuality(emailBody);
+    
+    // Log warnings but don't fail
+    if (!linkValidation.valid) {
+      console.warn('[generate-sales-assets] Missing required links:', linkValidation.missing);
+      salesAssets.validation_warnings = salesAssets.validation_warnings || [];
+      salesAssets.validation_warnings.push(...linkValidation.missing.map(m => `Missing: ${m}`));
+    }
+    
+    if (!qualityValidation.valid) {
+      console.warn('[generate-sales-assets] Quality warnings:', qualityValidation.warnings);
+      salesAssets.validation_warnings = salesAssets.validation_warnings || [];
+      salesAssets.validation_warnings.push(...qualityValidation.warnings);
+    }
+    
     console.log('[generate-sales-assets] Successfully generated sales assets');
 
     return new Response(JSON.stringify(salesAssets), {
