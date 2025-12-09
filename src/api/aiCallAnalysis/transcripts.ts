@@ -501,15 +501,16 @@ export async function retryCallAnalysis(callId: string): Promise<{ success: bool
 }
 
 /**
- * Soft-deletes a failed transcript so the rep can resubmit.
- * Only allows deletion of transcripts with error status.
+ * Hard-deletes a failed transcript so the rep can resubmit fresh.
+ * Only allows deletion of transcripts with error or pending status.
+ * Deletes related records first (ai_call_analysis, call_products, call_stakeholder_mentions, transcript_chunks).
  * @param callId - The call transcript ID
  * @returns Success status and any error message
  */
 export async function deleteFailedTranscript(callId: string): Promise<{ success: boolean; error?: string }> {
-  log.info('Deleting failed transcript', { callId });
+  log.info('Deleting failed transcript (hard delete)', { callId });
 
-  // First verify the transcript has error status
+  // First verify the transcript has error or pending status
   const { data: transcript, error: fetchError } = await supabase
     .from('call_transcripts')
     .select('analysis_status')
@@ -521,25 +522,38 @@ export async function deleteFailedTranscript(callId: string): Promise<{ success:
     return { success: false, error: fetchError.message };
   }
 
-  if (transcript.analysis_status !== 'error') {
-    log.warn('Attempted to delete non-error transcript', { callId, status: transcript.analysis_status });
-    return { success: false, error: 'Can only delete transcripts with failed analysis' };
+  if (transcript.analysis_status !== 'error' && transcript.analysis_status !== 'pending') {
+    log.warn('Attempted to delete non-error/pending transcript', { callId, status: transcript.analysis_status });
+    return { success: false, error: 'Can only delete transcripts with failed or pending analysis' };
   }
 
-  // Soft delete the transcript
+  // Delete related records first (foreign key constraints)
+  const deleteOperations = [
+    supabase.from('ai_call_analysis').delete().eq('call_id', callId),
+    supabase.from('call_products').delete().eq('call_id', callId),
+    supabase.from('call_stakeholder_mentions').delete().eq('call_id', callId),
+    supabase.from('transcript_chunks').delete().eq('transcript_id', callId),
+  ];
+
+  const results = await Promise.all(deleteOperations);
+  const failedOps = results.filter(r => r.error);
+  if (failedOps.length > 0) {
+    log.warn('Some related record deletions failed', { callId, errors: failedOps.map(r => r.error) });
+    // Continue anyway - the main delete might still work
+  }
+
+  // Hard delete the transcript
   const { error: deleteError } = await supabase
     .from('call_transcripts')
-    .update({
-      deleted_at: new Date().toISOString(),
-    })
+    .delete()
     .eq('id', callId);
 
   if (deleteError) {
-    log.error('Failed to soft delete transcript', { callId, error: deleteError });
+    log.error('Failed to delete transcript', { callId, error: deleteError });
     return { success: false, error: deleteError.message };
   }
 
-  log.info('Transcript soft deleted successfully', { callId });
+  log.info('Transcript deleted successfully (hard delete)', { callId });
   return { success: true };
 }
 
