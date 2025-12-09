@@ -59,7 +59,7 @@ export function CallAnalysisResultsView({
               </div>
             </div>
 
-            {isOwner && (
+            {(isOwner || isManager) && (
               <div className="flex flex-wrap gap-3 pt-2">
                 <Button 
                   onClick={onRetryAnalysis} 
@@ -78,41 +78,43 @@ export function CallAnalysisResultsView({
                   )}
                 </Button>
 
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="outline" disabled={isRetrying || isDeleting}>
-                      {isDeleting ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Deleting...
-                        </>
-                      ) : (
-                        <>
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete & Resubmit
-                        </>
-                      )}
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Delete this call?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will permanently delete this call transcript. You can then resubmit the transcript with any corrections if needed.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={onDeleteCall} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                        Delete Call
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                {isOwner && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" disabled={isRetrying || isDeleting}>
+                        {isDeleting ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Deleting...
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete & Resubmit
+                          </>
+                        )}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete this call?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently delete this call transcript. You can then resubmit the transcript with any corrections if needed.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={onDeleteCall} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                          Delete Call
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
               </div>
             )}
 
-            {!isOwner && (
+            {!isOwner && !isManager && (
               <p className="text-sm text-muted-foreground">
                 Contact the call owner to retry or delete this transcript.
               </p>
@@ -132,7 +134,7 @@ export function CallAnalysisResultsView({
     return (
       <div className="space-y-4">
         <AnalysisProgress isComplete={false} />
-        {isStuck && isOwner && onRetryAnalysis && (
+        {isStuck && (isOwner || isManager) && onRetryAnalysis && (
           <Card className="border-amber-500/50 bg-amber-500/5">
             <CardContent className="py-4">
               <div className="flex items-center justify-between gap-4">
