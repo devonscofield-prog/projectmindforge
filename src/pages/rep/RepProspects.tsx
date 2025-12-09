@@ -38,12 +38,33 @@ import { MobileProspectCard } from '@/components/prospects/MobileProspectCard';
 import { statusLabels, statusVariants, industryOptions } from '@/constants/prospects';
 import { formatCurrency } from '@/lib/formatters';
 import { HeatScoreBadge } from '@/components/ui/heat-score-badge';
+import { CoachGradeBadge } from '@/components/ui/coach-grade-badge';
 import { 
   useRepProspects, 
   useCallCounts, 
   useStakeholderCounts,
   prospectKeys 
 } from '@/hooks/useProspectQueries';
+import { type ProspectIntel } from '@/api/prospects';
+
+// Helper to extract V2 coaching data from ai_extracted_info
+function getCoachingData(aiInfo: unknown): { avgGrade?: string; trend?: 'improving' | 'declining' | 'stable' } {
+  if (!aiInfo || typeof aiInfo !== 'object') return {};
+  const info = aiInfo as ProspectIntel;
+  
+  // Get trend from latest_heat_analysis
+  const heatTrend = info.latest_heat_analysis?.trend?.toLowerCase();
+  const trend = heatTrend === 'heating up' || heatTrend === 'improving'
+    ? 'improving' 
+    : heatTrend === 'cooling down' || heatTrend === 'declining'
+      ? 'declining' 
+      : 'stable';
+      
+  return {
+    avgGrade: info.coaching_trend?.avg_grade,
+    trend,
+  };
+}
 
 type SortDirection = 'asc' | 'desc';
 
@@ -138,7 +159,7 @@ function RepProspects() {
   const stats = useMemo(() => ({
     total: prospects.length,
     active: prospects.filter(p => p.status === 'active').length,
-    hot: prospects.filter(p => (p.heat_score ?? 0) >= 8).length,
+    hot: prospects.filter(p => (p.heat_score ?? 0) >= 70).length,
     pipelineValue: prospects
       .filter(p => p.status === 'active')
       .reduce((sum, p) => sum + (p.active_revenue ?? 0), 0),
@@ -203,7 +224,7 @@ function RepProspects() {
                     <Flame className="h-5 w-5 text-orange-500" aria-hidden="true" />
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Hot (8+)</p>
+                    <p className="text-sm text-muted-foreground">Hot (70+)</p>
                     <p className="text-2xl font-bold">{stats.hot}</p>
                   </div>
                 </div>
@@ -348,6 +369,7 @@ function RepProspects() {
                         </TableHead>
                         <TableHead scope="col">Status</TableHead>
                         <TableHead scope="col">Industry</TableHead>
+                        <TableHead scope="col">Grade</TableHead>
                         <TableHead 
                           scope="col"
                           className="cursor-pointer hover:bg-muted/50 select-none"
@@ -424,6 +446,12 @@ function RepProspects() {
                             ) : (
                               <span className="text-muted-foreground">—</span>
                             )}
+                          </TableCell>
+                          <TableCell>
+                            {(() => {
+                              const coaching = getCoachingData(prospect.ai_extracted_info);
+                              return <CoachGradeBadge grade={coaching.avgGrade} trend={coaching.trend} showTrend />;
+                            })()}
                           </TableCell>
                           <TableCell>
                             <HeatScoreBadge score={prospect.heat_score} />
