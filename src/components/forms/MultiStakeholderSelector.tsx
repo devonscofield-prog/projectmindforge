@@ -24,8 +24,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { listStakeholdersForProspect, influenceLevelOptions, influenceLevelLabels, type StakeholderInfluenceLevel } from '@/api/stakeholders';
 import type { StakeholderEntry } from '@/api/aiCallAnalysis/types';
+
+const MAX_STAKEHOLDERS = 10;
+
+// Normalize stakeholder name: trim and collapse whitespace
+const normalizeName = (name: string): string => {
+  return name.trim().replace(/\s+/g, ' ');
+};
 
 interface MultiStakeholderSelectorProps {
   prospectId: string | null;
@@ -52,23 +65,31 @@ export function MultiStakeholderSelector({
     staleTime: 2 * 60 * 1000,
   });
 
-  // Filter out already-added stakeholders
+  // Check if max stakeholders reached
+  const isMaxReached = stakeholders.length >= MAX_STAKEHOLDERS;
+
+  // Filter out already-added stakeholders with normalized comparison
   const availableStakeholders = existingStakeholders.filter(
-    es => !stakeholders.some(s => s.stakeholderId === es.id || s.stakeholderName.toLowerCase() === es.name.toLowerCase())
+    es => !stakeholders.some(s => 
+      s.stakeholderId === es.id || 
+      normalizeName(s.stakeholderName).toLowerCase() === normalizeName(es.name).toLowerCase()
+    )
   );
 
   const filteredStakeholders = availableStakeholders.filter(s =>
-    !searchValue || s.name.toLowerCase().includes(searchValue.toLowerCase())
+    !searchValue || normalizeName(s.name).toLowerCase().includes(normalizeName(searchValue).toLowerCase())
   );
 
-  const isNewStakeholder = searchValue.trim() && 
-    !existingStakeholders.some(s => s.name.toLowerCase() === searchValue.trim().toLowerCase()) &&
-    !stakeholders.some(s => s.stakeholderName.toLowerCase() === searchValue.trim().toLowerCase());
+  const normalizedSearchValue = normalizeName(searchValue);
+  const isNewStakeholder = normalizedSearchValue && 
+    !existingStakeholders.some(s => normalizeName(s.name).toLowerCase() === normalizedSearchValue.toLowerCase()) &&
+    !stakeholders.some(s => normalizeName(s.stakeholderName).toLowerCase() === normalizedSearchValue.toLowerCase());
 
   const handleAddStakeholder = (name: string, id: string | null) => {
+    if (isMaxReached) return;
     const newEntry: StakeholderEntry = {
       stakeholderId: id,
-      stakeholderName: name.trim(),
+      stakeholderName: normalizeName(name),
       influenceLevel: pendingInfluenceLevel,
     };
     onChange([...stakeholders, newEntry]);
@@ -105,7 +126,16 @@ export function MultiStakeholderSelector({
                 <Badge variant="outline" className="shrink-0 text-xs">new</Badge>
               )}
               {index === 0 && (
-                <Badge variant="secondary" className="shrink-0 text-xs">Primary</Badge>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge variant="secondary" className="shrink-0 text-xs cursor-help">Primary</Badge>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[200px]">
+                      <p className="text-xs">The primary stakeholder is the main point of contact for follow-ups and recap emails.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
               <Select
                 value={stakeholder.influenceLevel}
@@ -151,7 +181,7 @@ export function MultiStakeholderSelector({
                 aria-expanded={open}
                 aria-label="Add stakeholder"
                 className="w-full justify-between font-normal"
-                disabled={disabled}
+                disabled={disabled || isMaxReached}
               >
                 <span className="flex items-center gap-2 text-muted-foreground">
                   <Plus className="h-4 w-4" />
@@ -259,9 +289,13 @@ export function MultiStakeholderSelector({
         </Select>
       </div>
 
-      {stakeholders.length === 0 && (
+      {stakeholders.length === 0 ? (
         <p className="text-xs text-muted-foreground">
           Add at least one stakeholder who was on this call.
+        </p>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          {stakeholders.length}/{MAX_STAKEHOLDERS} stakeholders
         </p>
       )}
     </div>
