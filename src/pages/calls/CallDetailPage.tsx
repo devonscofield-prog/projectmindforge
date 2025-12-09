@@ -426,7 +426,7 @@ function CallDetailPage() {
                 transcript={transcript.raw_text}
                 strategicContext={analysis.analysis_strategy || null}
                 psychologyContext={analysis.analysis_psychology || null}
-                existingAssets={(analysis as any).sales_assets || null}
+                existingAssets={analysis.sales_assets || null}
                 callMetadata={analysis.analysis_metadata || null}
                 accountName={transcript.account_name}
                 stakeholderName={transcript.primary_stakeholder_name}

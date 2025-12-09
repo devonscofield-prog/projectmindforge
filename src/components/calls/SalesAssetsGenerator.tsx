@@ -31,7 +31,8 @@ import {
   ExternalLink,
   RefreshCw,
   Send,
-  Wand2
+  Wand2,
+  Save
 } from 'lucide-react';
 import { editRecapEmail } from '@/api/aiCallAnalysis/analysis';
 import { toast } from 'sonner';
@@ -152,6 +153,10 @@ export function SalesAssetsGenerator({
   // AI Editor state
   const [editInstructions, setEditInstructions] = useState('');
   const [isEditing, setIsEditing] = useState(false);
+  
+  // Track initial values for detecting changes
+  const [initialValues, setInitialValues] = useState<{ subject: string; body: string; notes: string } | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Load existing assets on mount
   useEffect(() => {
@@ -160,13 +165,61 @@ export function SalesAssetsGenerator({
       const processedBody = (existingAssets.recap_email as { body_markdown?: string; body_html?: string })?.body_markdown 
         || (existingAssets.recap_email as { body_html?: string })?.body_html 
         || '';
+      const processedNotes = existingAssets.internal_notes_markdown || '';
       
       setSubjectLine(processedSubject);
       setEmailBody(processedBody);
-      setInternalNotes(existingAssets.internal_notes_markdown || '');
+      setInternalNotes(processedNotes);
       setHasGenerated(true);
+      // Store initial values for change detection
+      setInitialValues({ subject: processedSubject, body: processedBody, notes: processedNotes });
     }
   }, [existingAssets]);
+
+  // Detect if there are unsaved changes
+  const hasUnsavedChanges = useMemo(() => {
+    if (!initialValues) return false;
+    return (
+      subjectLine !== initialValues.subject ||
+      emailBody !== initialValues.body ||
+      internalNotes !== initialValues.notes
+    );
+  }, [subjectLine, emailBody, internalNotes, initialValues]);
+
+  // Save function to persist changes
+  const handleSaveChanges = async () => {
+    if (!callId || !hasUnsavedChanges) return;
+    
+    setIsSaving(true);
+    try {
+      const updatedAssets = {
+        recap_email: {
+          subject_line: subjectLine,
+          body_markdown: emailBody,
+        },
+        internal_notes_markdown: internalNotes,
+      };
+
+      const { error } = await supabase
+        .from('ai_call_analysis')
+        .update({
+          sales_assets: updatedAssets,
+          sales_assets_generated_at: new Date().toISOString()
+        })
+        .eq('call_id', callId);
+
+      if (error) throw error;
+
+      // Update initial values after save
+      setInitialValues({ subject: subjectLine, body: emailBody, notes: internalNotes });
+      toast.success('Changes saved!');
+    } catch (error) {
+      console.error('Error saving assets:', error);
+      toast.error('Failed to save changes');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   // Calculate word/character counts for email body
   const emailStats = useMemo(() => {
@@ -244,6 +297,8 @@ export function SalesAssetsGenerator({
       setEmailBody(processedBody);
       setInternalNotes(result.internal_notes_markdown);
       
+      // Set initial values since this is a fresh generation (saved by edge function)
+      setInitialValues({ subject: processedSubject, body: processedBody, notes: result.internal_notes_markdown });
       setEmailViewMode('edit');
       setHasGenerated(true);
       
@@ -655,6 +710,28 @@ export function SalesAssetsGenerator({
             </Button>
           </CardContent>
         </Card>
+
+        {/* Save Changes Button - Always visible when there are unsaved changes */}
+        {hasUnsavedChanges && (
+          <Button
+            onClick={handleSaveChanges}
+            disabled={isSaving}
+            className="w-full gap-2"
+            variant="default"
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4" />
+                Save Changes
+              </>
+            )}
+          </Button>
+        )}
 
       </div>
     </div>
