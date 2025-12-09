@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { createCallTranscriptAndAnalyze } from '@/api/aiCallAnalysis';
-import type { ProductEntry } from '@/api/aiCallAnalysis';
+import type { ProductEntry, StakeholderEntry } from '@/api/aiCallAnalysis';
 import { updateProspect } from '@/api/prospects';
 import { CallType, callTypeOptions } from '@/constants/callTypes';
 import { format } from 'date-fns';
@@ -21,12 +21,11 @@ import { Send, Loader2, FileText, Pencil, BarChart3, Users } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AccountCombobox } from '@/components/forms/AccountCombobox';
-import { StakeholderCombobox } from '@/components/forms/StakeholderCombobox';
+import { MultiStakeholderSelector } from '@/components/forms/MultiStakeholderSelector';
 import { ProductSelector } from '@/components/forms/ProductSelector';
 import { PendingFollowUpsWidget } from '@/components/dashboard/PendingFollowUpsWidget';
 import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
-import type { StakeholderInfluenceLevel } from '@/api/stakeholders';
 
 // Salesforce URL validation pattern
 const SALESFORCE_URL_PATTERN = /salesforce|force\.com/i;
@@ -44,9 +43,7 @@ function RepDashboard() {
 
   // Form state
   const [transcript, setTranscript] = useState('');
-  const [stakeholderName, setStakeholderName] = useState('');
-  const [selectedStakeholderId, setSelectedStakeholderId] = useState<string | null>(null);
-  const [stakeholderInfluenceLevel, setStakeholderInfluenceLevel] = useState<StakeholderInfluenceLevel>('light_influencer');
+  const [stakeholders, setStakeholders] = useState<StakeholderEntry[]>([]);
   const [accountName, setAccountName] = useState('');
   const [selectedProspectId, setSelectedProspectId] = useState<string | null>(null);
   const [salesforceAccountLink, setSalesforceAccountLink] = useState('');
@@ -81,20 +78,13 @@ function RepDashboard() {
       setExistingAccountHasSalesforceLink(false);
       setIsEditingSalesforceLink(false);
     }
-    // Reset stakeholder when account changes
-    setStakeholderName('');
-    setSelectedStakeholderId(null);
-    setStakeholderInfluenceLevel('light_influencer');
-  };
-
-  const handleStakeholderChange = (name: string, stakeholderId: string | null) => {
-    setStakeholderName(name);
-    setSelectedStakeholderId(stakeholderId);
+    // Reset stakeholders when account changes
+    setStakeholders([]);
   };
 
   // Validation helpers
   const isAccountValid = accountName.trim().length >= 2;
-  const isStakeholderValid = stakeholderName.trim().length >= 2;
+  const isStakeholderValid = stakeholders.length > 0;
   const isTranscriptValid = transcript.trim().length > 0;
   const isSalesforceRequired = !selectedProspectId || !existingAccountHasSalesforceLink;
   const isSalesforceValid = !isSalesforceRequired || salesforceAccountLink.trim().length > 0;
@@ -120,19 +110,10 @@ function RepDashboard() {
     if (!user?.id) return undefined;
 
     // Validation
-    const trimmedStakeholderName = stakeholderName.trim();
-    if (!trimmedStakeholderName) {
+    if (stakeholders.length === 0) {
       toast({
         title: 'Error',
-        description: 'Stakeholder name is required',
-        variant: 'destructive'
-      });
-      return;
-    }
-    if (trimmedStakeholderName.length < 2) {
-      toast({
-        title: 'Error',
-        description: 'Stakeholder name must be at least 2 characters',
+        description: 'At least one stakeholder is required',
         variant: 'destructive'
       });
       return;
@@ -202,13 +183,11 @@ function RepDashboard() {
         callDate,
         callType,
         callTypeOther: callType === 'other' ? callTypeOther : undefined,
-        stakeholderName: stakeholderName.trim(),
-        stakeholderInfluenceLevel,
+        stakeholders,
         accountName: accountName.trim(),
         salesforceAccountLink: salesforceAccountLink.trim() || undefined,
         rawText: transcript,
         prospectId: selectedProspectId || undefined,
-        stakeholderId: selectedStakeholderId || undefined,
         products: selectedProducts.length > 0 ? selectedProducts.map(p => ({
           productId: p.productId,
           unitPrice: p.unitPrice,
@@ -305,7 +284,7 @@ function RepDashboard() {
               <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
                   {/* Account and Primary Stakeholder Row */}
-                  <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="accountName">Account Name *</Label>
                       <AccountCombobox 
@@ -318,16 +297,12 @@ function RepDashboard() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="stakeholderName">Stakeholder & Role *</Label>
-                      <StakeholderCombobox 
-                        prospectId={selectedProspectId} 
-                        value={stakeholderName} 
-                        selectedStakeholderId={selectedStakeholderId} 
-                        onChange={handleStakeholderChange}
-                        influenceLevel={stakeholderInfluenceLevel}
-                        onInfluenceLevelChange={setStakeholderInfluenceLevel}
-                        placeholder="Who was on the call?" 
-                        disabled={!user?.id || isSubmitting} 
+                      <Label>Stakeholders on this call *</Label>
+                      <MultiStakeholderSelector
+                        prospectId={selectedProspectId}
+                        stakeholders={stakeholders}
+                        onChange={setStakeholders}
+                        disabled={!user?.id || isSubmitting}
                       />
                     </div>
                   </div>

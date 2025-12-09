@@ -4,6 +4,7 @@ export type {
   AnalysisMetadata,
   CreateCallTranscriptParams,
   ProductEntry,
+  StakeholderEntry,
   CallTranscript,
   CallTranscriptWithHeat,
   AnalysisStatus,
