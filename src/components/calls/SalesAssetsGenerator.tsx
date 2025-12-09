@@ -52,47 +52,25 @@ const PLACEHOLDERS = [
   '{{TopicDiscussed}}'
 ];
 
-// Rep placeholders to strip from output (user adds signature in email client)
-// Convert markdown to HTML for rich text pasting (Outlook/Gmail compatibility)
-const markdownToHtml = (markdown: string): string => {
-  let html = markdown;
-  
-  // Convert bold **text** to <b>text</b>
-  html = html.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
-  
-  // Convert links [text](url) to <a href="url">text</a>
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
-  
-  // Convert list items - collect consecutive * lines into <ul>
-  const lines = html.split('\n');
-  const processedLines: string[] = [];
-  let inList = false;
-  
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith('* ')) {
-      if (!inList) {
-        processedLines.push('<ul>');
-        inList = true;
-      }
-      processedLines.push(`<li>${trimmed.slice(2)}</li>`);
-    } else {
-      if (inList) {
-        processedLines.push('</ul>');
-        inList = false;
-      }
-      processedLines.push(line);
+// Convert markdown to Outlook-friendly HTML with inline styles
+const formatForOutlook = (markdown: string): string => {
+  let html = markdown
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") // Escape HTML entities
+    .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>') // Bold
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color:#0563C1; text-decoration:underline">$1</a>'); // Links with Outlook blue
+
+  // Fix Lists: wrap lines starting with "* " in <ul> and <li>
+  // Split by double newline to handle blocks
+  html = html.split('\n\n').map(block => {
+    if (block.trim().startsWith('* ')) {
+      const items = block.split('\n').filter(l => l.trim().startsWith('* '));
+      return `<ul style="margin-top:0; margin-bottom:10px;">${items.map(i => `<li>${i.replace(/^\* /, '')}</li>`).join('')}</ul>`;
     }
-  }
-  if (inList) {
-    processedLines.push('</ul>');
-  }
-  html = processedLines.join('\n');
-  
-  // Convert remaining newlines to <br>
-  html = html.replace(/\n/g, '<br>');
-  
-  return html;
+    return `<p style="margin: 0 0 10px 0;">${block.replace(/\n/g, '<br>')}</p>`;
+  }).join('');
+
+  // Wrap in Outlook default font
+  return `<div style="font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #000000;">${html}</div>`;
 };
 
 const REP_PLACEHOLDERS = [
@@ -262,10 +240,10 @@ export function SalesAssetsGenerator({
     }
   };
 
-  const copyEmailBody = async () => {
+const copyEmailBody = async () => {
     try {
       const plainText = emailBody;
-      const htmlContent = markdownToHtml(emailBody);
+      const htmlContent = formatForOutlook(emailBody);
       
       // Use ClipboardItem to write both formats for rich text pasting
       const clipboardItem = new ClipboardItem({
