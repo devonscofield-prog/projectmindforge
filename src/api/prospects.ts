@@ -85,6 +85,27 @@ export interface ProspectIntel {
     ai_users?: number;
     source_quote?: string;
   };
+  // V2 aggregated fields
+  critical_gaps_summary?: { category: string; description: string; suggested_question?: string }[];
+  competitors_summary?: { name: string; status?: string; positioning?: string }[];
+  prospect_persona?: { 
+    disc?: string; 
+    archetype?: string; 
+    communication_style?: string;
+    dos?: string[];
+    donts?: string[];
+  };
+  coaching_trend?: { 
+    avg_grade?: string; 
+    primary_focus_area?: string; 
+    recent_grades?: string[];
+  };
+  latest_heat_analysis?: { 
+    score: number; 
+    temperature: string; 
+    trend: string; 
+    recommended_action?: string;
+  };
 }
 
 export interface ProspectActivity {

@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { TrendingUp, Users, Phone, Pencil, Check, X } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { TrendingUp, TrendingDown, Users, Phone, Pencil, Check, X, Flame, GraduationCap, Minus } from 'lucide-react';
 import { formatCurrency } from '@/lib/formatters';
 import { HeatScoreBadge } from '@/components/ui/heat-score-badge';
 import { useToast } from '@/hooks/use-toast';
-import type { Prospect } from '@/api/prospects';
+import type { Prospect, ProspectIntel } from '@/api/prospects';
 
 interface ProspectQuickStatsProps {
   prospect: Prospect;
@@ -20,6 +21,10 @@ export function ProspectQuickStats({ prospect, stakeholderCount, callCount, onUp
   const [isEditingRevenue, setIsEditingRevenue] = useState(false);
   const [editedRevenue, setEditedRevenue] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+
+  const aiInfo = prospect.ai_extracted_info as ProspectIntel | null;
+  const latestHeat = aiInfo?.latest_heat_analysis;
+  const coachingTrend = aiInfo?.coaching_trend;
 
   const handleStartEdit = () => {
     setEditedRevenue(prospect.active_revenue?.toString() || '0');
@@ -66,11 +71,70 @@ export function ProspectQuickStats({ prospect, stakeholderCount, callCount, onUp
     }
   };
 
+  const getGradeColor = (grade: string) => {
+    if (grade.startsWith('A')) return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
+    if (grade.startsWith('B')) return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
+    if (grade.startsWith('C')) return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400';
+    return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
+  };
+
+  const getTrendIcon = (trend: string) => {
+    if (trend === 'Heating Up') return <TrendingUp className="h-3 w-3 text-green-500" />;
+    if (trend === 'Cooling Down') return <TrendingDown className="h-3 w-3 text-red-500" />;
+    return <Minus className="h-3 w-3 text-muted-foreground" />;
+  };
+
+  const getTemperatureColor = (temp: string) => {
+    if (temp === 'Hot') return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
+    if (temp === 'Warm') return 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400';
+    if (temp === 'Lukewarm') return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400';
+    return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
+  };
+
   return (
     <Card className="group">
       <CardContent className="p-4">
         <div className="flex flex-wrap items-center gap-6">
-          <HeatScoreBadge score={prospect.heat_score} />
+          {/* Heat Score with V2 Deal Heat Integration */}
+          <div className="flex items-center gap-2">
+            {latestHeat ? (
+              <div className="flex items-center gap-2">
+                <Flame className="h-4 w-4 text-orange-500" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Deal Heat</p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-bold">{latestHeat.score}</span>
+                    <Badge variant="secondary" className={getTemperatureColor(latestHeat.temperature)}>
+                      {latestHeat.temperature}
+                    </Badge>
+                    {getTrendIcon(latestHeat.trend)}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <HeatScoreBadge score={prospect.heat_score} />
+            )}
+          </div>
+
+          {/* Coach Grade from V2 */}
+          {coachingTrend?.avg_grade && (
+            <div className="flex items-center gap-2">
+              <GraduationCap className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-xs text-muted-foreground">Avg Grade</p>
+                <div className="flex items-center gap-1">
+                  <Badge variant="secondary" className={getGradeColor(coachingTrend.avg_grade)}>
+                    {coachingTrend.avg_grade}
+                  </Badge>
+                  {coachingTrend.recent_grades && coachingTrend.recent_grades.length > 1 && (
+                    <span className="text-xs text-muted-foreground">
+                      ({coachingTrend.recent_grades.length} calls)
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
           
           <div className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-green-600" />
