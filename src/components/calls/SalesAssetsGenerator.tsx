@@ -45,15 +45,19 @@ const REQUIRED_LINKS = [
   { url: 'https://info.stormwind.com/training-samples', label: 'Training Samples' }
 ];
 
-// Placeholders that need to be replaced before sending
+// Placeholders that need to be replaced before sending (prospect-facing only)
 const PLACEHOLDERS = [
   '{{ProspectFirstName}}',
   '{{CompanyName}}',
+  '{{TopicDiscussed}}'
+];
+
+// Rep placeholders to strip from output (user adds signature in email client)
+const REP_PLACEHOLDERS = [
   '{{RepFirstName}}',
   '{{RepLastName}}',
   '{{RepTitle}}',
-  '{{RepEmail}}',
-  '{{TopicDiscussed}}'
+  '{{RepEmail}}'
 ];
 
 interface SalesAssetsGeneratorProps {
@@ -155,13 +159,33 @@ export function SalesAssetsGenerator({
       }
 
       const result = response.data as SalesAssets;
-      setAssets(result);
-      setSubjectLine(result.recap_email.subject_line);
-      // Handle both body_markdown (new) and body_html (legacy)
-      const body = (result.recap_email as { body_markdown?: string; body_html?: string }).body_markdown 
+      
+      // Get raw email content
+      let processedSubject = result.recap_email.subject_line;
+      let processedBody = (result.recap_email as { body_markdown?: string; body_html?: string }).body_markdown 
         || (result.recap_email as { body_html?: string }).body_html 
         || '';
-      setEmailBody(body);
+
+      // Auto-replace prospect placeholders if we have the data
+      if (stakeholderName) {
+        const firstName = stakeholderName.split(' ')[0];
+        processedSubject = processedSubject.replace(/\{\{ProspectFirstName\}\}/g, firstName);
+        processedBody = processedBody.replace(/\{\{ProspectFirstName\}\}/g, firstName);
+      }
+
+      if (accountName) {
+        processedSubject = processedSubject.replace(/\{\{CompanyName\}\}/g, accountName);
+        processedBody = processedBody.replace(/\{\{CompanyName\}\}/g, accountName);
+      }
+
+      // Remove Rep placeholders entirely (user will add signature in email client)
+      REP_PLACEHOLDERS.forEach(placeholder => {
+        processedBody = processedBody.replace(new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g'), '');
+      });
+
+      setAssets(result);
+      setSubjectLine(processedSubject);
+      setEmailBody(processedBody);
       setInternalNotes(result.internal_notes_markdown);
       setCheckedItems(new Set());
       setEmailViewMode('edit');
