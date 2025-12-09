@@ -1,6 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { createLogger } from '@/lib/logger';
 import { getOrCreateProspect, linkCallToProspect } from '@/api/prospects';
+import { getOrCreateStakeholder, createCallStakeholderMention } from '@/api/stakeholders';
 import { toCallTranscript, toCallAnalysis, toCoachOutput } from '@/lib/supabaseAdapters';
 import { insertCallProducts, updateProspectActiveRevenue } from '@/api/callProducts';
 import type {
@@ -29,6 +30,7 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
     callType,
     callTypeOther,
     stakeholderName,
+    stakeholderInfluenceLevel,
     accountName,
     salesforceAccountLink,
     potentialRevenue,
@@ -106,6 +108,32 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
     
     await linkCallToProspect(transcript.id, prospectId);
     log.debug('Linked call to prospect', { prospectId });
+
+    // Create or update stakeholder with influence level and link to call
+    try {
+      const { stakeholder, isNew } = await getOrCreateStakeholder({
+        prospectId,
+        repId,
+        name: stakeholderName,
+        influenceLevel: stakeholderInfluenceLevel,
+      });
+      
+      // Create mention linking stakeholder to this call
+      await createCallStakeholderMention({
+        callId: transcript.id,
+        stakeholderId: stakeholder.id,
+        wasPresent: true,
+      });
+      
+      log.info('Stakeholder linked to call', { 
+        stakeholderId: stakeholder.id, 
+        isNew, 
+        influenceLevel: stakeholderInfluenceLevel 
+      });
+    } catch (stakeholderError) {
+      log.error('Failed to create/link stakeholder', { error: stakeholderError });
+      // Non-fatal: continue with analysis even if stakeholder creation fails
+    }
   } catch (prospectError) {
     log.error('Failed to create/link prospect', { error: prospectError });
   }

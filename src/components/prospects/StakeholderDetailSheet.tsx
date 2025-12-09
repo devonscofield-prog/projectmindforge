@@ -64,6 +64,7 @@ const influenceLevelIcons: Record<StakeholderInfluenceLevel, React.ElementType> 
   secondary_dm: Star,
   heavy_influencer: User,
   light_influencer: User,
+  self_pay: User,
 };
 
 function ChampionScoreBar({ score }: { score: number | null }) {

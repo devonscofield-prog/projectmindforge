@@ -26,6 +26,7 @@ import { ProductSelector } from '@/components/forms/ProductSelector';
 import { PendingFollowUpsWidget } from '@/components/dashboard/PendingFollowUpsWidget';
 import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
+import type { StakeholderInfluenceLevel } from '@/api/stakeholders';
 
 // Salesforce URL validation pattern
 const SALESFORCE_URL_PATTERN = /salesforce|force\.com/i;
@@ -45,6 +46,7 @@ function RepDashboard() {
   const [transcript, setTranscript] = useState('');
   const [stakeholderName, setStakeholderName] = useState('');
   const [selectedStakeholderId, setSelectedStakeholderId] = useState<string | null>(null);
+  const [stakeholderInfluenceLevel, setStakeholderInfluenceLevel] = useState<StakeholderInfluenceLevel>('light_influencer');
   const [accountName, setAccountName] = useState('');
   const [selectedProspectId, setSelectedProspectId] = useState<string | null>(null);
   const [salesforceAccountLink, setSalesforceAccountLink] = useState('');
@@ -82,6 +84,7 @@ function RepDashboard() {
     // Reset stakeholder when account changes
     setStakeholderName('');
     setSelectedStakeholderId(null);
+    setStakeholderInfluenceLevel('light_influencer');
   };
 
   const handleStakeholderChange = (name: string, stakeholderId: string | null) => {
@@ -200,6 +203,7 @@ function RepDashboard() {
         callType,
         callTypeOther: callType === 'other' ? callTypeOther : undefined,
         stakeholderName: stakeholderName.trim(),
+        stakeholderInfluenceLevel,
         accountName: accountName.trim(),
         salesforceAccountLink: salesforceAccountLink.trim() || undefined,
         rawText: transcript,
@@ -314,12 +318,14 @@ function RepDashboard() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="stakeholderName">Stakeholder *</Label>
+                      <Label htmlFor="stakeholderName">Stakeholder & Role *</Label>
                       <StakeholderCombobox 
                         prospectId={selectedProspectId} 
                         value={stakeholderName} 
                         selectedStakeholderId={selectedStakeholderId} 
-                        onChange={handleStakeholderChange} 
+                        onChange={handleStakeholderChange}
+                        influenceLevel={stakeholderInfluenceLevel}
+                        onInfluenceLevelChange={setStakeholderInfluenceLevel}
                         placeholder="Who was on the call?" 
                         disabled={!user?.id || isSubmitting} 
                       />
