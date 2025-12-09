@@ -181,6 +181,10 @@ export function toProspect(row: ProspectRow): Prospect {
     heat_score: row.heat_score,
     follow_ups_generation_status: row.follow_ups_generation_status,
     follow_ups_last_generated_at: row.follow_ups_last_generated_at,
+    // Account Heat Score fields
+    account_heat_score: (row as any).account_heat_score ?? null,
+    account_heat_analysis: (row as any).account_heat_analysis ?? null,
+    account_heat_updated_at: (row as any).account_heat_updated_at ?? null,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };

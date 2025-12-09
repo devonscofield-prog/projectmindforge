@@ -1325,6 +1325,9 @@ export type Database = {
       }
       prospects: {
         Row: {
+          account_heat_analysis: Json | null
+          account_heat_score: number | null
+          account_heat_updated_at: string | null
           account_name: string | null
           active_revenue: number | null
           ai_extracted_info: Json | null
@@ -1348,6 +1351,9 @@ export type Database = {
           website: string | null
         }
         Insert: {
+          account_heat_analysis?: Json | null
+          account_heat_score?: number | null
+          account_heat_updated_at?: string | null
           account_name?: string | null
           active_revenue?: number | null
           ai_extracted_info?: Json | null
@@ -1371,6 +1377,9 @@ export type Database = {
           website?: string | null
         }
         Update: {
+          account_heat_analysis?: Json | null
+          account_heat_score?: number | null
+          account_heat_updated_at?: string | null
           account_name?: string | null
           active_revenue?: number | null
           ai_extracted_info?: Json | null

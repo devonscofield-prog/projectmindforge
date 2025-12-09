@@ -18,6 +18,7 @@ import {
   ProspectQuickActions,
   ProspectQuickInfoBar,
 } from '@/components/prospects/detail';
+import { AccountHeatCard } from '@/components/prospects/detail/AccountHeatCard';
 
 // Existing dialog/sheet components
 import { AddStakeholderDialog } from '@/components/prospects/AddStakeholderDialog';
@@ -122,6 +123,15 @@ function ProspectDetail() {
         <ProspectQuickInfoBar
           prospect={prospect}
           onUpdateProspect={handleUpdateProspect}
+        />
+
+        {/* Account Heat Score Card */}
+        <AccountHeatCard
+          prospectId={prospect.id}
+          accountHeatScore={prospect.account_heat_score ?? null}
+          accountHeatAnalysis={prospect.account_heat_analysis as any}
+          accountHeatUpdatedAt={prospect.account_heat_updated_at ?? null}
+          onRefresh={loadProspectData}
         />
 
         {/* Quick Actions Bar */}
