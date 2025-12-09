@@ -10,15 +10,20 @@ const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 // Required links that MUST be included in every email
 const REQUIRED_LINKS = {
-  stormwind_website: {
-    url: 'https://info.stormwind.com/',
-    text: 'StormWind Website',
-    context: 'General info about StormWind'
+  skill_assessments: {
+    url: 'https://info.stormwind.com/skill-assessments',
+    text: 'Skill Assessments',
+    context: 'Skills testing and validation'
   },
-  training_samples: {
-    url: 'https://info.stormwind.com/training-samples',
-    text: 'View Sample Courses',
-    context: 'Course demos and previews'
+  stormwind_ranges: {
+    url: 'https://info.stormwind.com/stormwind-ranges',
+    text: 'StormWind Ranges',
+    context: 'Hands-on lab environments'
+  },
+  webinars: {
+    url: 'https://info.stormwind.com/webinars',
+    text: 'Webinars',
+    context: 'Live training sessions'
   }
 };
 
@@ -101,46 +106,60 @@ const SALES_ASSETS_TOOL = {
   }
 };
 
-const COPYWRITER_SYSTEM_PROMPT = `You are an expert Enterprise Sales Copywriter for StormWind Studios. 
+const COPYWRITER_SYSTEM_PROMPT = `You are an expert Enterprise Sales Copywriter for StormWind Studios.
 
-**GOAL:** Write a professional post-call recap email that is skimmable on a mobile phone.
+**GOAL:** Write a professional post-call recap email that follows the exact structure below.
 
-**STYLE RULES (Strict):**
-1.  **NO "BECAUSE":** Do not start sentences with "Because you mentioned..." or "Since you need...". You must use Active Voice.
-2.  **NO FLUFF:** Delete conversational fillers like "Despite your busy schedule" or "It was a pleasure." Start directly with "Thanks for..."
-3.  **BULLETS:** Keep bullet points concise and actionable.
+**CRITICAL RULES:**
+1. **"Here is a quick recap" section** - Focus SOLELY on the prospect's needs, pain points, and specific interests in products/features. Do NOT include general product info or StormWind overviews here.
+2. **NO HALLUCINATION:** If key details are missing (client name, specific needs, pricing discussed), use placeholders. Never invent information.
+3. **Use placeholders:** {{ProspectFirstName}}, {{CompanyName}} where appropriate.
+4. **Active Voice:** Do not start sentences with "Because you mentioned..." or "Since you need..."
+5. **NO FLUFF:** Delete conversational fillers like "Despite your busy schedule" or "It was a pleasure."
 
-**MANDATORY LINKS:**
-* [StormWind Website](https://info.stormwind.com/)
-* [View Sample Courses](https://info.stormwind.com/training-samples)
+**MANDATORY LINKS (include all three):**
+* [Skill Assessments](https://info.stormwind.com/skill-assessments)
+* [StormWind Ranges](https://info.stormwind.com/stormwind-ranges)
+* [Webinars](https://info.stormwind.com/webinars)
 
-**STRUCTURE (Markdown):**
+**DEFAULT EMAIL FORMAT (Use this exact structure):**
 
 **Subject Line Options:**
-* Option 1: Recap: StormWind & {{CompanyName}} - [Primary Goal]
-* Option 2: Next steps: {{TopicDiscussed}}
+* Option 1: Recap: StormWind & {{CompanyName}} Training Discussion
+* Option 2: Next Steps: {{CompanyName}} Training Goals
 
 **Body:**
 
 Hi {{ProspectFirstName}},
 
-Thanks for discussing the team's training goals today.
+Thank you again for taking the time to meet with us today. It was great to walk through your goals and show how our platform can support your team's training needs.
 
-**Current Priorities:**
-* [Pain 1]
-* [Pain 2]
-* [Pain 3 if applicable]
+**Here is a quick recap of your needs:**
+* [Bullet: Prospect's specific need or pain point from the call]
+* [Bullet: Another need, e.g., interest in specific product tied to their challenge]
+* [Bullet: Key question or confirmation from them]
 
-**How We Help:**
-You mentioned [Pain 1]. Our [Solution 1] addresses this by [Result]. Regarding [Pain 2], our [Solution 2] allows your team to [Benefit]. [Continue mapping additional pains to solutions as needed.]
+**Helpful Links**
+* [Skill Assessments](https://info.stormwind.com/skill-assessments)
+* [StormWind Ranges](https://info.stormwind.com/stormwind-ranges)
+* [Webinars](https://info.stormwind.com/webinars)
 
-See course examples here: [View Sample Courses](https://info.stormwind.com/training-samples).
+**Training Approach**
+Our program combines:
+* Hands-on labs for real-world practice
+* Microlearning modules for quick, targeted lessons
+* Mentorship options to guide learners through complex topics
+* Assessments and practice exams to measure progress and readiness
 
-**Agreed Next Steps:**
-* [Action 1]
-* [Action 2]
+**Pricing**
+* Team License (up to 25 users): $4,500/year
+* Business License (up to 100 users): $15,000/year
+* Enterprise License (customized, 100+ users): pricing based on scope, with available volume discounts
 
-Find more details on our solutions here: [StormWind Website](https://info.stormwind.com/).
+**Next Steps**
+* [Bullet: Specific action discussed, e.g., I've attached the detailed course list]
+* [Bullet: Another action, e.g., Let's reconnect on Thursday at 2 PM EST]
+* [Closing sentiment, e.g., Excited to continue the conversation!]
 `;
 
 interface CriticalGap {
@@ -180,11 +199,14 @@ interface StrategicContext {
 function validateEmailLinks(emailBody: string): { valid: boolean; missing: string[] } {
   const missing: string[] = [];
   
-  if (!emailBody.includes(REQUIRED_LINKS.stormwind_website.url)) {
-    missing.push('StormWind Website link');
+  if (!emailBody.includes(REQUIRED_LINKS.skill_assessments.url)) {
+    missing.push('Skill Assessments link');
   }
-  if (!emailBody.includes(REQUIRED_LINKS.training_samples.url)) {
-    missing.push('Training Samples link');
+  if (!emailBody.includes(REQUIRED_LINKS.stormwind_ranges.url)) {
+    missing.push('StormWind Ranges link');
+  }
+  if (!emailBody.includes(REQUIRED_LINKS.webinars.url)) {
+    missing.push('Webinars link');
   }
   
   return { valid: missing.length === 0, missing };
@@ -321,7 +343,8 @@ ${psychologySection}
 
 **REMINDER:** 
 - Use {{ProspectFirstName}}, {{CompanyName}} placeholders
-- Include BOTH required links: [StormWind Website](https://info.stormwind.com/) and [View Sample Courses](https://info.stormwind.com/training-samples)
+- Include ALL three required links: Skill Assessments, StormWind Ranges, and Webinars
+- The "quick recap of your needs" section should ONLY contain prospect needs/pain points - NO product overviews
 - Do NOT include a signature block
 - Format the email body in Markdown (not HTML)
 
