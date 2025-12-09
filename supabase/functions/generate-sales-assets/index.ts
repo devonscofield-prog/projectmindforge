@@ -107,7 +107,28 @@ const SALES_ASSETS_TOOL = {
         },
         internal_notes_markdown: {
           type: "string",
-          description: "CRM-ready internal notes in markdown format with key points, next steps, and action items"
+          description: `CRM-ready internal notes in markdown format. MUST use this exact structure with bold section headers and bullet points:
+
+**Call Summary**
+* One-sentence overview of the call purpose and outcome
+
+**Key Discussion Points**
+* Bullet 1: Important topic discussed
+* Bullet 2: Another key point
+* Bullet 3: Additional details
+
+**Next Steps**
+* Action item 1 with owner and deadline
+* Action item 2 with owner and deadline
+
+**Critical Gaps/Unknowns**
+* Information still needed before deal can progress
+
+**Competitor Intel**
+* Any competitors mentioned and context (or "None mentioned" if not applicable)
+
+**Deal Health**
+* Current deal temperature (Hot/Warm/Cold) and reasoning`
         }
       },
       required: ["recap_email", "internal_notes_markdown"]
@@ -117,7 +138,17 @@ const SALES_ASSETS_TOOL = {
 
 const COPYWRITER_SYSTEM_PROMPT = `You are an expert Enterprise Sales Copywriter for StormWind Studios.
 
-**GOAL:** Write a professional post-call recap email that follows the exact structure below.
+**GOAL:** Write a professional post-call recap email AND internal CRM notes following the exact structures below.
+
+**INTERNAL CRM NOTES FORMAT:**
+- Use **bold markdown headers** (e.g., **Call Summary**)
+- Use bullet points (* item) under each section
+- Include ALL sections: Call Summary, Key Discussion Points, Next Steps, Critical Gaps/Unknowns, Competitor Intel, Deal Health
+- Keep each bullet point concise (1-2 sentences max)
+- Include specific names, dates, and action owners where available
+- For Deal Health, use Hot/Warm/Cold with brief reasoning
+
+**RECAP EMAIL GOAL:** Write a professional post-call recap email that follows the exact structure below.
 
 **CRITICAL RULES:**
 1. **"Here is a quick recap" section** - Focus SOLELY on the prospect's needs, pain points, and specific interests in products/features. Do NOT include general product info or StormWind overviews here.

@@ -371,6 +371,34 @@ export function SalesAssetsGenerator({
     }
   };
 
+  // Copy notes with rich text formatting (similar to email)
+  const copyNotesRichText = async () => {
+    try {
+      const plainText = internalNotes;
+      const htmlContent = formatForOutlook(internalNotes);
+      
+      const clipboardItem = new ClipboardItem({
+        'text/plain': new Blob([plainText], { type: 'text/plain' }),
+        'text/html': new Blob([htmlContent], { type: 'text/html' }),
+      });
+      
+      await navigator.clipboard.write([clipboardItem]);
+      setCopiedNotes(true);
+      setTimeout(() => setCopiedNotes(false), 2000);
+      toast.success('Notes copied with formatting!');
+    } catch {
+      // Fallback to plain text
+      try {
+        await navigator.clipboard.writeText(internalNotes);
+        setCopiedNotes(true);
+        setTimeout(() => setCopiedNotes(false), 2000);
+        toast.success('Notes copied (plain text)');
+      } catch {
+        toast.error('Failed to copy to clipboard');
+      }
+    }
+  };
+
 
   // Highlight placeholders in preview
   const highlightedEmailBody = useMemo(() => {
@@ -682,14 +710,36 @@ export function SalesAssetsGenerator({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Textarea
-              value={internalNotes}
-              onChange={(e) => setInternalNotes(e.target.value)}
-              placeholder="Internal notes (Markdown format)..."
-              className="min-h-[200px] font-mono text-sm"
-            />
+            <Tabs defaultValue="edit" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="edit" className="gap-1.5">
+                  <Edit3 className="h-3.5 w-3.5" />
+                  Edit
+                </TabsTrigger>
+                <TabsTrigger value="preview" className="gap-1.5">
+                  <Eye className="h-3.5 w-3.5" />
+                  Preview
+                </TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="edit" className="mt-2">
+                <Textarea
+                  value={internalNotes}
+                  onChange={(e) => setInternalNotes(e.target.value)}
+                  placeholder="Internal notes (Markdown format)..."
+                  className="min-h-[250px] font-mono text-sm"
+                />
+              </TabsContent>
+              
+              <TabsContent value="preview" className="mt-2">
+                <div className="min-h-[250px] max-h-[400px] overflow-y-auto p-4 rounded-md border bg-card prose prose-sm dark:prose-invert max-w-none">
+                  <ReactMarkdown>{internalNotes}</ReactMarkdown>
+                </div>
+              </TabsContent>
+            </Tabs>
+
             <Button
-              onClick={() => copyToClipboard(internalNotes, 'notes')}
+              onClick={copyNotesRichText}
               variant="outline"
               className={cn(
                 "w-full gap-2",
@@ -704,7 +754,7 @@ export function SalesAssetsGenerator({
               ) : (
                 <>
                   <Copy className="h-4 w-4" />
-                  Copy Notes
+                  Copy Notes (Rich Text)
                 </>
               )}
             </Button>
