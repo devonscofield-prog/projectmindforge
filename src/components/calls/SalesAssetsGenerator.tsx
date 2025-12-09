@@ -369,9 +369,9 @@ export function SalesAssetsGenerator({
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-3">
-      {/* Left Column - The Editor (2/3 width) */}
-      <div className="lg:col-span-2 space-y-6">
+    <div className="space-y-6">
+      {/* Main Content */}
+      <div className="space-y-6">
         {/* Email Section */}
         <Card>
           <CardHeader className="pb-3">
@@ -591,68 +591,6 @@ export function SalesAssetsGenerator({
               </Button>
               
             </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Right Column - Context (1/3 width) */}
-      <div className="space-y-6">
-
-        {/* Quick Reference - User Counts */}
-        {userCounts && (userCounts.itUsers || userCounts.endUsers) && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Quick Reference</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {userCounts.itUsers && (
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                  <Monitor className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">IT Users</p>
-                    <p className="font-semibold">{userCounts.itUsers}</p>
-                  </div>
-                </div>
-              )}
-              {userCounts.endUsers && (
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                  <Users className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">End Users</p>
-                    <p className="font-semibold">{userCounts.endUsers}</p>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Account Info */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Account Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            {accountName && (
-              <div>
-                <span className="text-muted-foreground">Account: </span>
-                <span className="font-medium">{accountName}</span>
-              </div>
-            )}
-            {stakeholderName && (
-              <div>
-                <span className="text-muted-foreground">Primary Contact: </span>
-                <span className="font-medium">{stakeholderName}</span>
-              </div>
-            )}
-            {psychologyContext?.disc_profile && (
-              <div>
-                <span className="text-muted-foreground">DISC Profile: </span>
-                <Badge variant="outline" className="ml-1">
-                  {psychologyContext.disc_profile}
-                </Badge>
-              </div>
-            )}
           </CardContent>
         </Card>
       </div>
