@@ -202,7 +202,7 @@ function CallDetailPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate(getBackPath())} aria-label="Back">
+            <Button variant="ghost" size="icon" onClick={() => navigate(getBackPath())} aria-label="Go back to call history">
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
@@ -367,7 +367,9 @@ function CallDetailPage() {
                     transcript.analysis_status === 'error' ? 'destructive' : 
                     'secondary'
                   }>
-                    {transcript.analysis_status === 'processing' || shouldPoll ? 'Analyzing...' : transcript.analysis_status}
+                    {transcript.analysis_status === 'processing' || shouldPoll 
+                      ? 'Analyzing...' 
+                      : transcript.analysis_status.charAt(0).toUpperCase() + transcript.analysis_status.slice(1)}
                   </Badge>
                 </div>
               </div>
@@ -457,7 +459,7 @@ function CallDetailPage() {
                 <CardTitle className="flex items-center justify-between">
                   <span className="flex items-center gap-2">
                     <ScrollText className="h-5 w-5" />
-                    📜 Raw Transcript
+                    Raw Transcript
                   </span>
                   <ChevronDown className={`h-5 w-5 transition-transform duration-200 ${isTranscriptOpen ? 'rotate-180' : ''}`} />
                 </CardTitle>

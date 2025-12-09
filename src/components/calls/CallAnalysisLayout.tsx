@@ -32,15 +32,18 @@ import {
   DealHeatSchema,
   PsychologyProfileSchema,
   CallClassificationSchema,
+  CoachingSynthesisSchema,
   type BehaviorScore, 
   type StrategyAudit, 
   type CallMetadata,
   type DealHeat,
   type PsychologyProfile,
-  type CallClassification
+  type CallClassification,
+  type CoachingSynthesis
 } from '@/utils/analysis-schemas';
 import { DealHeatCard } from './DealHeatCard';
 import { ProspectPersonaCard } from './ProspectPersonaCard';
+import { CoachGradeBadge } from '@/components/ui/coach-grade-badge';
 
 interface CallAnalysisLayoutProps {
   transcript: CallTranscript;
@@ -238,9 +241,9 @@ export function CallAnalysisLayout({
   isReanalyzing = false,
 }: CallAnalysisLayoutProps) {
   // Defensive JSON parsing with Zod validation
-  const { behaviorData, strategyData, metadataData, dealHeatData, psychologyData, callClassificationData, parseError } = useMemo(() => {
+  const { behaviorData, strategyData, metadataData, dealHeatData, psychologyData, callClassificationData, coachingData, parseError } = useMemo(() => {
     if (!analysis) {
-      return { behaviorData: null, strategyData: null, metadataData: null, dealHeatData: null, psychologyData: null, callClassificationData: null, parseError: null };
+      return { behaviorData: null, strategyData: null, metadataData: null, dealHeatData: null, psychologyData: null, callClassificationData: null, coachingData: null, parseError: null };
     }
 
     try {
@@ -264,6 +267,11 @@ export function CallAnalysisLayout({
         ? PsychologyProfileSchema.safeParse(analysis.analysis_psychology)
         : { success: false, data: null };
 
+      // Parse coaching data
+      const coachingResult = analysis.analysis_coaching
+        ? CoachingSynthesisSchema.safeParse(analysis.analysis_coaching)
+        : { success: false, data: null };
+
       // Parse call classification from raw_json
       const rawJson = analysis.raw_json as { call_classification?: unknown } | null;
       const callClassificationResult = rawJson?.call_classification
@@ -284,6 +292,7 @@ export function CallAnalysisLayout({
       const dealHeat = dealHeatResult.success ? dealHeatResult.data : null;
       const psychology = psychologyResult.success ? psychologyResult.data : null;
       const callClassification = callClassificationResult.success ? callClassificationResult.data : null;
+      const coaching = coachingResult.success ? coachingResult.data : null;
 
       // If both critical schemas failed but data exists, that's a parse error
       const hasCriticalError = analysis.analysis_behavior && analysis.analysis_strategy 
@@ -296,6 +305,7 @@ export function CallAnalysisLayout({
         dealHeatData: dealHeat as DealHeat | null,
         psychologyData: psychology as PsychologyProfile | null,
         callClassificationData: callClassification as CallClassification | null,
+        coachingData: coaching as CoachingSynthesis | null,
         parseError: hasCriticalError ? 'Analysis data could not be parsed' : null
       };
     } catch (err) {
@@ -307,6 +317,7 @@ export function CallAnalysisLayout({
         dealHeatData: null,
         psychologyData: null,
         callClassificationData: null,
+        coachingData: null,
         parseError: 'Unexpected error parsing analysis data' 
       };
     }
@@ -467,8 +478,18 @@ export function CallAnalysisLayout({
                 )}
               </div>
               
-              {/* Right: Big Scores */}
-              <div className="flex justify-center gap-8 lg:gap-12">
+              {/* Right: Coach Grade + Big Scores */}
+              <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-center sm:gap-8 lg:gap-12">
+                {/* Coach Grade - Prominent Display */}
+                {coachingData?.overall_grade && (
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="text-4xl font-bold">
+                      <CoachGradeBadge grade={coachingData.overall_grade} size="default" />
+                    </div>
+                    <p className="text-sm font-medium text-muted-foreground">Coach Grade</p>
+                  </div>
+                )}
+                
                 {isLegacyAnalysis ? (
                   <div className="text-center p-4 border rounded-lg bg-muted/50">
                     <AlertTriangle className="h-8 w-8 text-yellow-500 mx-auto mb-2" />
@@ -624,23 +645,35 @@ export function CallAnalysisLayout({
       {/* Tabbed Interface */}
       <Tabs defaultValue="behavior" className="w-full">
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="behavior" className="flex items-center gap-2">
-            <Mic className="h-4 w-4" />
+          <TabsTrigger 
+            value="behavior" 
+            className="flex items-center gap-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <Mic className="h-4 w-4" aria-hidden="true" />
             <span className="hidden sm:inline">Behavior</span>
             <span className="sm:hidden">Behavior</span>
           </TabsTrigger>
-          <TabsTrigger value="strategy" className="flex items-center gap-2">
-            <Target className="h-4 w-4" />
+          <TabsTrigger 
+            value="strategy" 
+            className="flex items-center gap-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <Target className="h-4 w-4" aria-hidden="true" />
             <span className="hidden sm:inline">Strategy</span>
             <span className="sm:hidden">Strategy</span>
           </TabsTrigger>
-          <TabsTrigger value="hazards" className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4" />
+          <TabsTrigger 
+            value="hazards" 
+            className="flex items-center gap-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <AlertTriangle className="h-4 w-4" aria-hidden="true" />
             <span className="hidden sm:inline">Deal Hazards</span>
             <span className="sm:hidden">Hazards</span>
           </TabsTrigger>
-          <TabsTrigger value="recap" className="flex items-center gap-2">
-            <Mail className="h-4 w-4" />
+          <TabsTrigger 
+            value="recap" 
+            className="flex items-center gap-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <Mail className="h-4 w-4" aria-hidden="true" />
             <span className="hidden sm:inline">Recap</span>
             <span className="sm:hidden">Recap</span>
           </TabsTrigger>

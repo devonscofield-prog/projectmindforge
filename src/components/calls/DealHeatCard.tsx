@@ -139,7 +139,7 @@ export function DealHeatCard({
   // Initial state - show calculate button
   if (!heatData) {
     return (
-      <Card className="border-dashed border-2 hover:border-primary/50 transition-colors">
+      <Card className="border-dashed border-2 border-muted-foreground/25 hover:border-primary/50 transition-colors">
         <CardContent className="py-8">
           <div className="flex flex-col items-center gap-4">
             <div className="flex items-center gap-2 text-muted-foreground">
@@ -167,6 +167,9 @@ export function DealHeatCard({
                 </>
               )}
             </Button>
+            {!isCalculating && (
+              <p className="text-xs text-muted-foreground">Takes about 5-10 seconds</p>
+            )}
           </div>
         </CardContent>
       </Card>

@@ -16,6 +16,7 @@ import { EditProductDialog } from './EditProductDialog';
 import { AddProductToCallDialog } from './AddProductToCallDialog';
 import { Package, DollarSign, Hash, Tag, Pencil, Trash2, Plus } from 'lucide-react';
 import { formatCurrency } from '@/lib/formatters';
+import { Skeleton } from '@/components/ui/skeleton';
 import { 
   useCallProducts, 
   useUpdateCallProduct, 
@@ -70,7 +71,22 @@ export function CallProductsSummary({ callId, prospectId, isOwner }: CallProduct
   };
 
   if (isLoading) {
-    return null;
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Package className="h-5 w-5" />
+            Products Discussed
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-24 w-full" />
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
 
   if (products.length === 0) {
