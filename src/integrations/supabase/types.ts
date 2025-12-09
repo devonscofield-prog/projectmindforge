@@ -1910,7 +1910,6 @@ export type Database = {
         Returns: Database["public"]["Enums"]["user_role"]
       }
       has_role:
-        | { Args: { p_role: string; p_user_id: string }; Returns: boolean }
         | {
             Args: {
               _role: Database["public"]["Enums"]["user_role"]
@@ -1918,6 +1917,7 @@ export type Database = {
             }
             Returns: boolean
           }
+        | { Args: { p_role: string; p_user_id: string }; Returns: boolean }
       invalidate_cache: { Args: { p_cache_key: string }; Returns: undefined }
       is_manager_of_user: {
         Args: { _manager_id: string; _rep_id: string }
