@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate, Link, useBlocker } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { createLogger } from '@/lib/logger';
 
@@ -17,7 +17,7 @@ import type { ProductEntry, StakeholderEntry } from '@/api/aiCallAnalysis';
 import { updateProspect } from '@/api/prospects';
 import { CallType, callTypeOptions } from '@/constants/callTypes';
 import { format } from 'date-fns';
-import { Send, Loader2, FileText, Pencil, BarChart3, Users } from 'lucide-react';
+import { Send, Loader2, FileText, Pencil, BarChart3, Users, AlertTriangle, Info, Keyboard } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AccountCombobox } from '@/components/forms/AccountCombobox';
@@ -26,9 +26,48 @@ import { ProductSelector } from '@/components/forms/ProductSelector';
 import { PendingFollowUpsWidget } from '@/components/dashboard/PendingFollowUpsWidget';
 import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Progress } from '@/components/ui/progress';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 // Salesforce URL validation pattern
 const SALESFORCE_URL_PATTERN = /salesforce|force\.com/i;
+
+// Validation constants
+const MIN_TRANSCRIPT_LENGTH = 500;
+const MAX_ADDITIONAL_SPEAKERS = 5;
+const SUBMISSION_COOLDOWN_MS = 2000;
+
+// Draft storage key
+const DRAFT_KEY = 'rep_dashboard_call_draft';
+
+interface FormDraft {
+  transcript: string;
+  accountName: string;
+  salesforceAccountLink: string;
+  callDate: string;
+  callType: CallType;
+  callTypeOther: string;
+  additionalSpeakersText: string;
+  managerOnCall: boolean;
+  additionalSpeakersEnabled: boolean;
+  savedAt: number;
+}
 
 function RepDashboard() {
   const {
@@ -40,6 +79,7 @@ function RepDashboard() {
   } = useToast();
   const navigate = useNavigate();
   const callTypeOtherRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   // Form state
   const [transcript, setTranscript] = useState('');
@@ -57,6 +97,158 @@ function RepDashboard() {
   const [additionalSpeakersEnabled, setAdditionalSpeakersEnabled] = useState(false);
   const [additionalSpeakersText, setAdditionalSpeakersText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [lastSubmitTime, setLastSubmitTime] = useState(0);
+  
+  // Draft state
+  const [hasDraft, setHasDraft] = useState(false);
+  const [showDraftDialog, setShowDraftDialog] = useState(false);
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
+
+  // Calculate if form has meaningful content (dirty state)
+  const isDirty = useCallback(() => {
+    return (
+      transcript.trim().length > 0 ||
+      accountName.trim().length > 0 ||
+      stakeholders.length > 0 ||
+      selectedProducts.length > 0
+    );
+  }, [transcript, accountName, stakeholders, selectedProducts]);
+
+  // Check for existing draft on mount
+  useEffect(() => {
+    try {
+      const savedDraft = localStorage.getItem(DRAFT_KEY);
+      if (savedDraft) {
+        const draft: FormDraft = JSON.parse(savedDraft);
+        // Only show restore prompt if draft has meaningful content and is less than 24 hours old
+        const isRecent = Date.now() - draft.savedAt < 24 * 60 * 60 * 1000;
+        if (isRecent && (draft.transcript.trim().length > 0 || draft.accountName.trim().length > 0)) {
+          setHasDraft(true);
+          setShowDraftDialog(true);
+        } else {
+          localStorage.removeItem(DRAFT_KEY);
+        }
+      }
+    } catch {
+      // Invalid draft, remove it
+      localStorage.removeItem(DRAFT_KEY);
+    }
+  }, []);
+
+  // Autosave draft every 30 seconds if form has content
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (isDirty() && !isSubmitting) {
+        const draft: FormDraft = {
+          transcript,
+          accountName,
+          salesforceAccountLink,
+          callDate,
+          callType,
+          callTypeOther,
+          additionalSpeakersText,
+          managerOnCall,
+          additionalSpeakersEnabled,
+          savedAt: Date.now(),
+        };
+        try {
+          localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+        } catch {
+          // Storage full or unavailable
+        }
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [transcript, accountName, salesforceAccountLink, callDate, callType, callTypeOther, additionalSpeakersText, managerOnCall, additionalSpeakersEnabled, isDirty, isSubmitting]);
+
+  // Warn before leaving with unsaved changes (browser close/refresh)
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty() && !isSubmitting) {
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty, isSubmitting]);
+
+  // Block in-app navigation with unsaved changes
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      isDirty() && !isSubmitting && currentLocation.pathname !== nextLocation.pathname
+  );
+
+  useEffect(() => {
+    if (blocker.state === 'blocked') {
+      setShowUnsavedDialog(true);
+      setPendingNavigation(() => () => blocker.proceed());
+    }
+  }, [blocker]);
+
+  const handleConfirmLeave = () => {
+    setShowUnsavedDialog(false);
+    if (pendingNavigation) {
+      pendingNavigation();
+      setPendingNavigation(null);
+    }
+  };
+
+  const handleCancelLeave = () => {
+    setShowUnsavedDialog(false);
+    setPendingNavigation(null);
+    if (blocker.state === 'blocked') {
+      blocker.reset();
+    }
+  };
+
+  const restoreDraft = () => {
+    try {
+      const savedDraft = localStorage.getItem(DRAFT_KEY);
+      if (savedDraft) {
+        const draft: FormDraft = JSON.parse(savedDraft);
+        setTranscript(draft.transcript || '');
+        setAccountName(draft.accountName || '');
+        setSalesforceAccountLink(draft.salesforceAccountLink || '');
+        setCallDate(draft.callDate || format(new Date(), 'yyyy-MM-dd'));
+        setCallType(draft.callType || 'first_demo');
+        setCallTypeOther(draft.callTypeOther || '');
+        setAdditionalSpeakersText(draft.additionalSpeakersText || '');
+        setManagerOnCall(draft.managerOnCall || false);
+        setAdditionalSpeakersEnabled(draft.additionalSpeakersEnabled || false);
+        toast({
+          title: 'Draft restored',
+          description: 'Your previous work has been restored.',
+        });
+      }
+    } catch {
+      toast({
+        title: 'Error',
+        description: 'Could not restore draft',
+        variant: 'destructive',
+      });
+    }
+    setShowDraftDialog(false);
+    setHasDraft(false);
+  };
+
+  const discardDraft = () => {
+    localStorage.removeItem(DRAFT_KEY);
+    setShowDraftDialog(false);
+    setHasDraft(false);
+  };
+
+  const clearDraft = () => {
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+    } catch {
+      // Ignore
+    }
+  };
 
   // Auto-focus "Specify Call Type" input when "Other" is selected
   useEffect(() => {
@@ -64,6 +256,21 @@ function RepDashboard() {
       callTypeOtherRef.current.focus();
     }
   }, [callType]);
+
+  // Keyboard shortcut: Cmd/Ctrl + Enter to submit
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        if (canSubmit && formRef.current) {
+          formRef.current.requestSubmit();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const handleAccountChange = (name: string, prospectId: string | null, salesforceLink?: string | null) => {
     setAccountName(name);
@@ -82,16 +289,53 @@ function RepDashboard() {
     setStakeholders([]);
   };
 
+  // Normalize transcript: collapse multiple whitespace, trim
+  const normalizeTranscript = (text: string): string => {
+    return text
+      .replace(/\r\n/g, '\n') // Normalize line endings
+      .replace(/\n{3,}/g, '\n\n') // Max 2 consecutive newlines
+      .replace(/[ \t]+/g, ' ') // Collapse multiple spaces/tabs to single space
+      .trim();
+  };
+
+  // Parse additional speakers and validate count
+  const parseAdditionalSpeakers = (text: string): { speakers: string[]; isValid: boolean } => {
+    const speakers = text
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+    return {
+      speakers,
+      isValid: speakers.length <= MAX_ADDITIONAL_SPEAKERS,
+    };
+  };
+
   // Validation helpers
   const isAccountValid = accountName.trim().length >= 2;
   const isStakeholderValid = stakeholders.length > 0;
-  const isTranscriptValid = transcript.trim().length > 0;
+  const normalizedTranscript = normalizeTranscript(transcript);
+  const isTranscriptLengthValid = normalizedTranscript.length >= MIN_TRANSCRIPT_LENGTH;
+  const isTranscriptValid = normalizedTranscript.length > 0;
   const isSalesforceRequired = !selectedProspectId || !existingAccountHasSalesforceLink;
   const isSalesforceValid = !isSalesforceRequired || salesforceAccountLink.trim().length > 0;
   const isSalesforceUrlValid = !salesforceAccountLink.trim() || SALESFORCE_URL_PATTERN.test(salesforceAccountLink);
   const isCallTypeOtherValid = callType !== 'other' || callTypeOther.trim().length > 0;
+  const { speakers: additionalSpeakers, isValid: isAdditionalSpeakersValid } = parseAdditionalSpeakers(additionalSpeakersText);
 
-  const canSubmit = isAccountValid && isStakeholderValid && isTranscriptValid && isSalesforceValid && isSalesforceUrlValid && isCallTypeOtherValid && !isSubmitting;
+  // Transcript length progress (0-100, capped at 100)
+  const transcriptProgress = Math.min(100, (normalizedTranscript.length / MIN_TRANSCRIPT_LENGTH) * 100);
+
+  const canSubmit = 
+    isAccountValid && 
+    isStakeholderValid && 
+    isTranscriptValid && 
+    isTranscriptLengthValid &&
+    isSalesforceValid && 
+    isSalesforceUrlValid && 
+    isCallTypeOtherValid && 
+    isAdditionalSpeakersValid &&
+    !isSubmitting &&
+    (Date.now() - lastSubmitTime >= SUBMISSION_COOLDOWN_MS);
 
   // Get validation hints for incomplete fields
   const getValidationHints = () => {
@@ -101,13 +345,22 @@ function RepDashboard() {
     if (!isSalesforceValid) hints.push('Salesforce Link');
     if (!isSalesforceUrlValid) hints.push('Valid Salesforce URL');
     if (!isTranscriptValid) hints.push('Transcript');
+    if (isTranscriptValid && !isTranscriptLengthValid) hints.push(`Transcript (min ${MIN_TRANSCRIPT_LENGTH} chars)`);
     if (!isCallTypeOtherValid) hints.push('Call Type');
+    if (!isAdditionalSpeakersValid) hints.push(`Max ${MAX_ADDITIONAL_SPEAKERS} speakers`);
     return hints;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user?.id) return undefined;
+
+    // Submission debouncing - prevent double submits
+    const now = Date.now();
+    if (now - lastSubmitTime < SUBMISSION_COOLDOWN_MS) {
+      return;
+    }
+    setLastSubmitTime(now);
 
     // Validation
     if (stakeholders.length === 0) {
@@ -154,10 +407,19 @@ function RepDashboard() {
       });
       return;
     }
-    if (!transcript.trim()) {
+    // Validate transcript
+    if (!normalizedTranscript) {
       toast({
         title: 'Error',
         description: 'Transcript is required',
+        variant: 'destructive'
+      });
+      return;
+    }
+    if (normalizedTranscript.length < MIN_TRANSCRIPT_LENGTH) {
+      toast({
+        title: 'Error',
+        description: `Transcript must be at least ${MIN_TRANSCRIPT_LENGTH} characters for meaningful analysis`,
         variant: 'destructive'
       });
       return;
@@ -170,6 +432,16 @@ function RepDashboard() {
       });
       return;
     }
+    // Validate additional speakers count
+    if (additionalSpeakersEnabled && !isAdditionalSpeakersValid) {
+      toast({
+        title: 'Error',
+        description: `Maximum ${MAX_ADDITIONAL_SPEAKERS} additional speakers allowed`,
+        variant: 'destructive'
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       // If user edited the Salesforce link for an existing account, update the prospect
@@ -186,7 +458,7 @@ function RepDashboard() {
         stakeholders,
         accountName: accountName.trim(),
         salesforceAccountLink: salesforceAccountLink.trim() || undefined,
-        rawText: transcript,
+        rawText: normalizedTranscript, // Use normalized transcript
         prospectId: selectedProspectId || undefined,
         products: selectedProducts.length > 0 ? selectedProducts.map(p => ({
           productId: p.productId,
@@ -195,10 +467,13 @@ function RepDashboard() {
           promotionNotes: p.promotionNotes,
         })) : undefined,
         managerOnCall,
-        additionalSpeakers: additionalSpeakersEnabled && additionalSpeakersText.trim() 
-          ? additionalSpeakersText.split(',').map(s => s.trim()).filter(Boolean)
+        additionalSpeakers: additionalSpeakersEnabled && additionalSpeakers.length > 0
+          ? additionalSpeakers
           : undefined,
       });
+
+      // Clear draft on successful submission
+      clearDraft();
 
       // Check for rate limit error in analyze response
       if (result.analyzeResponse?.isRateLimited) {
@@ -250,7 +525,40 @@ function RepDashboard() {
 
   const validationHints = getValidationHints();
 
-  return <AppLayout>
+  return (
+    <AppLayout>
+      {/* Draft Restore Dialog */}
+      <AlertDialog open={showDraftDialog} onOpenChange={setShowDraftDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restore Previous Work?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have an unsaved call submission from a previous session. Would you like to restore it?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={discardDraft}>Discard</AlertDialogCancel>
+            <AlertDialogAction onClick={restoreDraft}>Restore Draft</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Unsaved Changes Dialog */}
+      <AlertDialog open={showUnsavedDialog} onOpenChange={setShowUnsavedDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unsaved Changes</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have unsaved changes that will be lost if you leave this page. Are you sure you want to leave?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelLeave}>Stay</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmLeave}>Leave</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <div className="space-y-6 md:space-y-8">
         {/* Header */}
         <div className="text-center space-y-2">
@@ -282,7 +590,7 @@ function RepDashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
+                <form ref={formRef} onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
                   {/* Account and Primary Stakeholder Row */}
                   <div className="space-y-4">
                     <div className="space-y-2">
@@ -367,33 +675,53 @@ function RepDashboard() {
                   </div>
 
                   {/* Manager on Call Checkbox */}
-                  <div className="flex items-center space-x-2">
-                    <Checkbox 
-                      id="managerOnCall" 
-                      checked={managerOnCall} 
-                      onCheckedChange={(checked) => setManagerOnCall(checked === true)}
-                      disabled={isSubmitting}
-                    />
-                    <Label htmlFor="managerOnCall" className="text-sm font-normal flex items-center gap-1.5 cursor-pointer">
-                      <Users className="h-4 w-4 text-muted-foreground" />
-                      Manager was on this call
-                    </Label>
-                  </div>
+                  <TooltipProvider>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox 
+                        id="managerOnCall" 
+                        checked={managerOnCall} 
+                        onCheckedChange={(checked) => setManagerOnCall(checked === true)}
+                        disabled={isSubmitting}
+                      />
+                      <Label htmlFor="managerOnCall" className="text-sm font-normal flex items-center gap-1.5 cursor-pointer">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        Manager was on this call
+                      </Label>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="max-w-xs">Check this if your manager joined to help close the deal. Enables coaching differentiation.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </TooltipProvider>
 
                   {/* Additional Speakers Checkbox + Input */}
                   <div className="space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox 
-                        id="additionalSpeakers" 
-                        checked={additionalSpeakersEnabled} 
-                        onCheckedChange={(checked) => setAdditionalSpeakersEnabled(checked === true)}
-                        disabled={isSubmitting}
-                      />
-                      <Label htmlFor="additionalSpeakers" className="text-sm font-normal flex items-center gap-1.5 cursor-pointer">
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                        Additional speakers on this call
-                      </Label>
-                    </div>
+                    <TooltipProvider>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox 
+                          id="additionalSpeakers" 
+                          checked={additionalSpeakersEnabled} 
+                          onCheckedChange={(checked) => setAdditionalSpeakersEnabled(checked === true)}
+                          disabled={isSubmitting}
+                        />
+                        <Label htmlFor="additionalSpeakers" className="text-sm font-normal flex items-center gap-1.5 cursor-pointer">
+                          <Users className="h-4 w-4 text-muted-foreground" />
+                          Additional speakers on this call
+                        </Label>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="max-w-xs">Include names of other participants like sales engineers or technical specialists.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </TooltipProvider>
                     {additionalSpeakersEnabled && (
                       <div className="space-y-1">
                         <Input 
@@ -403,10 +731,26 @@ function RepDashboard() {
                           disabled={isSubmitting}
                           maxLength={200}
                           className="text-sm"
+                          aria-describedby="speakers-hint"
                         />
-                        <p className="text-xs text-muted-foreground">
-                          Max 5 additional speakers
-                        </p>
+                        <div className="flex justify-between">
+                          <p id="speakers-hint" className="text-xs text-muted-foreground">
+                            Max {MAX_ADDITIONAL_SPEAKERS} additional speakers
+                          </p>
+                          {additionalSpeakers.length > 0 && (
+                            <p className={`text-xs ${isAdditionalSpeakersValid ? 'text-muted-foreground' : 'text-destructive'}`}>
+                              {additionalSpeakers.length}/{MAX_ADDITIONAL_SPEAKERS} speakers
+                            </p>
+                          )}
+                        </div>
+                        {!isAdditionalSpeakersValid && (
+                          <Alert variant="destructive" className="py-2">
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertDescription>
+                              Please reduce to {MAX_ADDITIONAL_SPEAKERS} speakers or fewer.
+                            </AlertDescription>
+                          </Alert>
+                        )}
                       </div>
                     )}
                   </div>
@@ -438,13 +782,25 @@ function RepDashboard() {
                       maxLength={100000}
                       disabled={isSubmitting}
                       required 
+                      aria-describedby="transcript-hint"
                     />
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Include the full conversation for best analysis results.</span>
-                      <span className={transcript.length < 500 ? 'text-amber-500' : 'text-muted-foreground'}>
-                        {transcript.length.toLocaleString()} characters
-                        {transcript.length < 500 && transcript.length > 0 && ' (short)'}
-                      </span>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>Min {MIN_TRANSCRIPT_LENGTH} characters for meaningful analysis</span>
+                        <span className={normalizedTranscript.length < MIN_TRANSCRIPT_LENGTH ? 'text-amber-500' : 'text-muted-foreground'}>
+                          {normalizedTranscript.length.toLocaleString()} / {MIN_TRANSCRIPT_LENGTH.toLocaleString()} min
+                        </span>
+                      </div>
+                      <Progress 
+                        value={transcriptProgress} 
+                        className="h-1.5"
+                        aria-label="Transcript length progress"
+                      />
+                      {normalizedTranscript.length > 0 && normalizedTranscript.length < MIN_TRANSCRIPT_LENGTH && (
+                        <p id="transcript-hint" className="text-xs text-amber-500">
+                          Add {(MIN_TRANSCRIPT_LENGTH - normalizedTranscript.length).toLocaleString()} more characters for analysis
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -476,11 +832,21 @@ function RepDashboard() {
                           Analyze Call
                         </>}
                     </Button>
-                    {!canSubmit && validationHints.length > 0 && !isSubmitting && (
-                      <p className="text-xs text-muted-foreground text-center">
-                        Missing: {validationHints.join(', ')}
-                      </p>
-                    )}
+                    
+                    {/* Validation hints with aria-live for accessibility */}
+                    <div aria-live="polite" aria-atomic="true">
+                      {!canSubmit && validationHints.length > 0 && !isSubmitting && (
+                        <p className="text-xs text-muted-foreground text-center">
+                          Missing: {validationHints.join(', ')}
+                        </p>
+                      )}
+                    </div>
+                    
+                    {/* Keyboard shortcut hint */}
+                    <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1">
+                      <Keyboard className="h-3 w-3" />
+                      Press <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">⌘</kbd>+<kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">Enter</kbd> to submit
+                    </p>
                   </div>
                 </form>
               </CardContent>
@@ -495,7 +861,8 @@ function RepDashboard() {
           </div>
         </div>
       </div>
-    </AppLayout>;
+    </AppLayout>
+  );
 }
 
 export default withPageErrorBoundary(RepDashboard, 'Dashboard');
