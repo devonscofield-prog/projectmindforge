@@ -4,7 +4,8 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { User, Check, X, Quote, Mail, Copy } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { User, Check, X, Quote, Mail, Copy, ChevronDown } from 'lucide-react';
 import type { PsychologyProfile } from '@/utils/analysis-schemas';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -31,6 +32,7 @@ const DISC_COLORS: Record<string, string> = {
 
 export function ProspectPersonaCard({ psychology, isLoading = false }: ProspectPersonaCardProps) {
   const [copiedSubject, setCopiedSubject] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
   const { toast } = useToast();
 
   const handleCopySubject = async () => {
@@ -93,131 +95,151 @@ export function ProspectPersonaCard({ psychology, isLoading = false }: ProspectP
   const discColor = DISC_COLORS[psychology.disc_profile] || 'bg-muted text-muted-foreground';
 
   return (
-    <Card className="overflow-hidden">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center gap-2">
-          <User className="h-4 w-4 text-primary" />
-          Prospect Persona
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Persona & DISC Header */}
-        <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-3xl">
-            {discEmoji}
-          </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-lg truncate">
-              {psychology.prospect_persona}
-            </h3>
-            <Badge 
-              variant="outline" 
-              className={cn("mt-1", discColor)}
-            >
-              {psychology.disc_profile}
-            </Badge>
-          </div>
-        </div>
-
-        {/* Evidence Quote */}
-        {psychology.evidence_quote && (
-          <div className="rounded-lg bg-muted/30 p-3 border-l-2 border-primary/50">
-            <p className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-1">
-              <Quote className="h-3 w-3" />
-              Evidence
-            </p>
-            <p className="text-sm italic text-muted-foreground">
-              "{psychology.evidence_quote}"
-            </p>
-          </div>
-        )}
-
-        {/* Communication Style */}
-        <div className="rounded-lg bg-muted/50 p-3 space-y-2">
-          <p className="text-sm font-medium">Communication Style</p>
-          <div className="text-sm text-muted-foreground space-y-1">
-            <p><span className="font-medium text-foreground">Tone:</span> {psychology.communication_style.tone}</p>
-            <p><span className="font-medium text-foreground">Preference:</span> {psychology.communication_style.preference}</p>
-          </div>
-        </div>
-
-        {/* Suggested Email Subject */}
-        {psychology.suggested_email_subject && (
-          <div className="rounded-lg bg-primary/5 p-3 space-y-2">
-            <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-              <Mail className="h-3 w-3" />
-              Suggested Email Subject
-            </p>
-            <div className="flex items-center gap-2">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <p className="text-sm font-medium flex-1 truncate cursor-help">
-                      {psychology.suggested_email_subject}
-                    </p>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="max-w-xs">
-                    <p className="text-sm">{psychology.suggested_email_subject}</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-              <Button
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  "h-7 w-7 p-0 shrink-0 transition-colors",
-                  copiedSubject && "text-green-600"
-                )}
-                aria-label="Copy email subject to clipboard"
-                onClick={handleCopySubject}
-              >
-                {copiedSubject ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-              </Button>
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <Card className="overflow-hidden">
+        <CollapsibleTrigger asChild>
+          <CardHeader className="pb-3 cursor-pointer hover:bg-muted/50 transition-colors">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <User className="h-4 w-4 text-primary" />
+                Prospect Persona
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Badge 
+                  variant="outline" 
+                  className={cn("text-xs", discColor)}
+                >
+                  {discEmoji} {psychology.disc_profile}
+                </Badge>
+                <ChevronDown className={cn(
+                  'h-4 w-4 text-muted-foreground transition-transform',
+                  isOpen && 'rotate-180'
+                )} />
+              </div>
             </div>
-          </div>
-        )}
-
-        <Separator />
-
-        {/* How to Sell to Me */}
-        <div className="space-y-3">
-          <p className="text-sm font-semibold">How to Sell to This Buyer</p>
-          
-          {/* Dos */}
-          {psychology.dos_and_donts.do.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-green-600 flex items-center gap-1">
-                <Check className="h-3 w-3" />
-                DO
-              </p>
-              <ul className="space-y-1">
-                {psychology.dos_and_donts.do.map((item, idx) => (
-                  <li key={idx} className="text-sm text-muted-foreground pl-4 relative before:absolute before:left-0 before:content-['•'] before:text-green-500">
-                    {item}
-                  </li>
-                ))}
-              </ul>
+          </CardHeader>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <CardContent className="space-y-4 pt-0">
+            {/* Persona & DISC Header */}
+            <div className="flex items-center gap-4">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-3xl shrink-0">
+                {discEmoji}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-lg truncate">
+                  {psychology.prospect_persona}
+                </h3>
+                <Badge 
+                  variant="outline" 
+                  className={cn("mt-1", discColor)}
+                >
+                  {psychology.disc_profile}
+                </Badge>
+              </div>
             </div>
-          )}
-          
-          {/* Don'ts */}
-          {psychology.dos_and_donts.dont.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-destructive flex items-center gap-1">
-                <X className="h-3 w-3" />
-                DON'T
-              </p>
-              <ul className="space-y-1">
-                {psychology.dos_and_donts.dont.map((item, idx) => (
-                  <li key={idx} className="text-sm text-muted-foreground pl-4 relative before:absolute before:left-0 before:content-['•'] before:text-destructive">
-                    {item}
-                  </li>
-                ))}
-              </ul>
+
+            {/* Evidence Quote */}
+            {psychology.evidence_quote && (
+              <div className="rounded-lg bg-muted/30 p-3 border-l-2 border-primary/50">
+                <p className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-1">
+                  <Quote className="h-3 w-3" />
+                  Evidence
+                </p>
+                <p className="text-sm italic text-muted-foreground">
+                  "{psychology.evidence_quote}"
+                </p>
+              </div>
+            )}
+
+            {/* Communication Style */}
+            <div className="rounded-lg bg-muted/50 p-3 space-y-2">
+              <p className="text-sm font-medium">Communication Style</p>
+              <div className="text-sm text-muted-foreground space-y-1">
+                <p><span className="font-medium text-foreground">Tone:</span> {psychology.communication_style.tone}</p>
+                <p><span className="font-medium text-foreground">Preference:</span> {psychology.communication_style.preference}</p>
+              </div>
             </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+
+            {/* Suggested Email Subject */}
+            {psychology.suggested_email_subject && (
+              <div className="rounded-lg bg-primary/5 p-3 space-y-2">
+                <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                  <Mail className="h-3 w-3" />
+                  Suggested Email Subject
+                </p>
+                <div className="flex items-center gap-2">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <p className="text-sm font-medium flex-1 truncate cursor-help">
+                          {psychology.suggested_email_subject}
+                        </p>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs">
+                        <p className="text-sm">{psychology.suggested_email_subject}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={cn(
+                      "h-7 w-7 p-0 shrink-0 transition-colors",
+                      copiedSubject && "text-green-600"
+                    )}
+                    aria-label="Copy email subject to clipboard"
+                    onClick={handleCopySubject}
+                  >
+                    {copiedSubject ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <Separator />
+
+            {/* How to Sell to Me */}
+            <div className="space-y-3">
+              <p className="text-sm font-semibold">How to Sell to This Buyer</p>
+              
+              {/* Dos */}
+              {psychology.dos_and_donts.do.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-green-600 flex items-center gap-1">
+                    <Check className="h-3 w-3" />
+                    DO
+                  </p>
+                  <ul className="space-y-1">
+                    {psychology.dos_and_donts.do.map((item, idx) => (
+                      <li key={idx} className="text-sm text-muted-foreground pl-4 relative before:absolute before:left-0 before:content-['•'] before:text-green-500">
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              
+              {/* Don'ts */}
+              {psychology.dos_and_donts.dont.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-destructive flex items-center gap-1">
+                    <X className="h-3 w-3" />
+                    DON'T
+                  </p>
+                  <ul className="space-y-1">
+                    {psychology.dos_and_donts.dont.map((item, idx) => (
+                      <li key={idx} className="text-sm text-muted-foreground pl-4 relative before:absolute before:left-0 before:content-['•'] before:text-destructive">
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
   );
 }
