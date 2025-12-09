@@ -43,31 +43,51 @@ function TalkRatioBar({ repPercentage }: { repPercentage: number }) {
         <span className="text-muted-foreground">Prospect: {prospectPercentage}%</span>
       </div>
       
-      {/* Stacked Bar */}
-      <div className="relative h-6 w-full rounded-full bg-secondary overflow-hidden">
-        {/* Rep portion */}
-        <div 
-          className={cn(
-            "absolute left-0 top-0 h-full transition-all",
-            repPercentage > 60 ? "bg-orange-500" : repPercentage < 40 ? "bg-yellow-500" : "bg-primary"
-          )}
-          style={{ width: `${repPercentage}%` }}
-        />
-        {/* Prospect portion */}
-        <div 
-          className="absolute right-0 top-0 h-full bg-green-500/80"
-          style={{ width: `${prospectPercentage}%` }}
-        />
+      {/* Stacked Bar with Ideal Range Labels */}
+      <div className="relative">
+        {/* Range Labels Above Bar */}
+        <div className="relative h-4 mb-1">
+          <span 
+            className="absolute text-[10px] text-muted-foreground/70 -translate-x-1/2"
+            style={{ left: '40%' }}
+          >
+            40%
+          </span>
+          <span 
+            className="absolute text-[10px] text-muted-foreground/70 -translate-x-1/2"
+            style={{ left: '60%' }}
+          >
+            60%
+          </span>
+        </div>
         
-        {/* Ideal Range Markers (40-60%) */}
-        <div 
-          className="absolute top-0 h-full border-l-2 border-dashed border-foreground/50"
-          style={{ left: '40%' }}
-        />
-        <div 
-          className="absolute top-0 h-full border-l-2 border-dashed border-foreground/50"
-          style={{ left: '60%' }}
-        />
+        <div className="relative h-6 w-full rounded-full bg-secondary overflow-hidden">
+          {/* Rep portion */}
+          <div 
+            className={cn(
+              "absolute left-0 top-0 h-full transition-all",
+              repPercentage > 60 ? "bg-orange-500" : repPercentage < 40 ? "bg-yellow-500" : "bg-primary"
+            )}
+            style={{ width: `${repPercentage}%` }}
+          />
+          {/* Prospect portion */}
+          <div 
+            className="absolute right-0 top-0 h-full bg-green-500/80"
+            style={{ width: `${prospectPercentage}%` }}
+          />
+          
+          {/* Ideal Range Markers (40-60%) */}
+          <div 
+            className="absolute top-0 h-full border-l-2 border-dashed border-foreground/50"
+            style={{ left: '40%' }}
+            aria-hidden="true"
+          />
+          <div 
+            className="absolute top-0 h-full border-l-2 border-dashed border-foreground/50"
+            style={{ left: '60%' }}
+            aria-hidden="true"
+          />
+        </div>
       </div>
       
       {/* Ideal Range Label */}
@@ -245,6 +265,15 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
         <Card 
           className="cursor-pointer transition-colors hover:bg-accent/50"
           onClick={() => setPatienceSheetOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              setPatienceSheetOpen(true);
+            }
+          }}
+          tabIndex={0}
+          role="button"
+          aria-label="View patience details"
         >
           <CardContent className="pt-6">
             <GaugeBar 
@@ -256,7 +285,7 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
             />
             <div className="mt-2 flex items-center justify-between">
               <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <ChevronRight className="h-3 w-3" />
+                <ChevronRight className="h-3 w-3" aria-hidden="true" />
                 Click to view details
               </span>
               <Badge 
@@ -278,6 +307,15 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
         <Card 
           className="cursor-pointer transition-colors hover:bg-accent/50"
           onClick={() => setQuestionsSheetOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              setQuestionsSheetOpen(true);
+            }
+          }}
+          tabIndex={0}
+          role="button"
+          aria-label="View question leverage details"
         >
           <CardContent className="pt-6">
             {/* Header with Score */}

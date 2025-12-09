@@ -213,10 +213,19 @@ function MissedOpportunityCard({ pain, severity, suggestedPitch, talkTrack }: Mi
 
       <div 
         onClick={handleCopy}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleCopy();
+          }
+        }}
+        role="button"
+        tabIndex={0}
+        aria-label="Copy talk track to clipboard"
         className={cn(
           "group relative p-3 rounded-lg cursor-pointer transition-all",
           "bg-background/50 border border-dashed hover:border-solid hover:bg-background",
-          "dark:bg-background/30"
+          "dark:bg-background/30 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
         )}
         title="Click to copy"
       >
@@ -281,10 +290,19 @@ function CriticalGapCard({ category, description, impact, suggestedQuestion }: C
       {/* Bottom Line: Suggested Question - Styled as copyable tip box */}
       <div 
         onClick={handleCopy}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleCopy();
+          }
+        }}
+        role="button"
+        tabIndex={0}
+        aria-label="Copy suggested question to clipboard"
         className={cn(
           "group relative p-3 rounded-lg cursor-pointer transition-all",
           "bg-background/50 border border-dashed hover:border-solid hover:bg-background",
-          "dark:bg-background/30"
+          "dark:bg-background/30 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
         )}
         title="Click to copy"
       >
@@ -325,7 +343,7 @@ function ScoreBreakdown({ breakdown }: ScoreBreakdownProps) {
     : 100;
 
   return (
-    <div className="grid grid-cols-3 gap-4 p-4 rounded-lg bg-muted/30 border">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-lg bg-muted/30 border">
       <div className="text-center">
         <div className="text-2xl font-bold text-destructive">
           {breakdown.high_pains_addressed}/{breakdown.high_pains_total}

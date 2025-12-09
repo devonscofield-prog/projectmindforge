@@ -1,4 +1,4 @@
-import { ReactNode, useMemo } from 'react';
+import { ReactNode, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -6,6 +6,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { 
   Users, 
   Monitor, 
@@ -23,7 +28,8 @@ import {
   UserCircle,
   FileText,
   Tag,
-  History
+  History,
+  ChevronDown
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -228,6 +234,38 @@ function ParticipantBadge({ participant }: ParticipantBadgeProps) {
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
+  );
+}
+
+// Detection Signals Collapsible Component
+function DetectionSignalsCollapsible({ signals }: { signals: string[] }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const displayedSignals = signals.slice(0, 5);
+  const hasMore = signals.length > 5;
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="mt-2">
+      <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors group">
+        <ChevronDown className={cn(
+          "h-3 w-3 transition-transform",
+          isOpen && "rotate-180"
+        )} />
+        <span>Why this classification? ({signals.length} signals)</span>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="mt-2 space-y-1 pl-4">
+        {displayedSignals.map((signal, idx) => (
+          <p key={idx} className="text-xs text-muted-foreground">
+            <span className="text-muted-foreground/60 mr-1">•</span>
+            <span className="italic">"{signal}"</span>
+          </p>
+        ))}
+        {hasMore && (
+          <p className="text-xs text-muted-foreground/60 italic">
+            and {signals.length - 5} more signals...
+          </p>
+        )}
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
@@ -447,18 +485,7 @@ export function CallAnalysisLayout({
                     
                     {/* Detection Signals - Enhancement #2 */}
                     {callClassificationData?.detection_signals && callClassificationData.detection_signals.length > 0 && (
-                      <details className="mt-2">
-                        <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors">
-                          Why this classification? ({callClassificationData.detection_signals.length} signals)
-                        </summary>
-                        <ul className="mt-2 space-y-1 text-xs text-muted-foreground pl-4">
-                          {callClassificationData.detection_signals.slice(0, 5).map((signal, idx) => (
-                            <li key={idx} className="list-disc">
-                              <span className="italic">"{signal}"</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </details>
+                      <DetectionSignalsCollapsible signals={callClassificationData.detection_signals} />
                     )}
                   </div>
                   {canEdit && onReanalyze && (

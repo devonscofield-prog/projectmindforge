@@ -380,14 +380,6 @@ export function SalesAssetsGenerator({
                 )}
               </Button>
               
-              <Button 
-                onClick={handleSaveToCRM}
-                variant="secondary"
-                className="flex-1 gap-2"
-              >
-                <Save className="h-4 w-4" />
-                Save to CRM
-              </Button>
             </div>
           </CardContent>
         </Card>
