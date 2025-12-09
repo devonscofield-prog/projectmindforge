@@ -47,6 +47,7 @@ const getGradeStyles = (grade: string) => {
 
 export function CoachingCard({ data, className, isLoading = false }: CoachingCardProps) {
   const [isReasoningOpen, setIsReasoningOpen] = useState(false);
+  const [isCardOpen, setIsCardOpen] = useState(true);
 
   // Loading skeleton state
   if (isLoading) {
@@ -89,31 +90,41 @@ export function CoachingCard({ data, className, isLoading = false }: CoachingCar
   const gradeStyles = getGradeStyles(data.overall_grade);
 
   return (
-    <Card className={cn('overflow-hidden', className)}>
-      {/* Header Section */}
-      <div className="flex items-center gap-6 p-6 border-b border-border bg-muted/30">
-        <div
-          className={cn(
-            'flex items-center justify-center w-20 h-20 rounded-xl border-2 font-bold text-3xl',
-            gradeStyles.bg,
-            gradeStyles.text,
-            gradeStyles.border
-          )}
-        >
-          {data.overall_grade}
-        </div>
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-2">
-            <GraduationCap className="h-5 w-5 text-muted-foreground" />
-            <span className="text-sm font-medium text-muted-foreground">Primary Focus</span>
+    <Collapsible open={isCardOpen} onOpenChange={setIsCardOpen}>
+      <Card className={cn('overflow-hidden', className)}>
+        {/* Header Section - Always visible, acts as trigger */}
+        <CollapsibleTrigger asChild>
+          <div className="flex items-center justify-between gap-6 p-6 border-b border-border bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors">
+            <div className="flex items-center gap-6">
+              <div
+                className={cn(
+                  'flex items-center justify-center w-16 h-16 md:w-20 md:h-20 rounded-xl border-2 font-bold text-2xl md:text-3xl',
+                  gradeStyles.bg,
+                  gradeStyles.text,
+                  gradeStyles.border
+                )}
+              >
+                {data.overall_grade}
+              </div>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <GraduationCap className="h-5 w-5 text-muted-foreground" />
+                  <span className="text-sm font-medium text-muted-foreground">Primary Focus</span>
+                </div>
+                <Badge variant="secondary" className="text-sm px-3 py-1">
+                  {data.primary_focus_area}
+                </Badge>
+              </div>
+            </div>
+            <ChevronDown className={cn(
+              'h-5 w-5 text-muted-foreground transition-transform shrink-0',
+              isCardOpen && 'rotate-180'
+            )} />
           </div>
-          <Badge variant="secondary" className="text-sm px-3 py-1">
-            {data.primary_focus_area}
-          </Badge>
-        </div>
-      </div>
+        </CollapsibleTrigger>
 
-      <CardContent className="p-6 space-y-6">
+        <CollapsibleContent>
+          <CardContent className="p-6 space-y-6">
         {/* The One Big Thing */}
         <div className="rounded-lg bg-primary/10 border border-primary/20 p-4">
           <div className="flex items-center gap-2 mb-2">
@@ -169,8 +180,10 @@ export function CoachingCard({ data, className, isLoading = false }: CoachingCar
           <CollapsibleContent className="pt-3">
             <p className="text-sm text-muted-foreground leading-relaxed">{data.grade_reasoning}</p>
           </CollapsibleContent>
-        </Collapsible>
-      </CardContent>
-    </Card>
+          </Collapsible>
+        </CardContent>
+      </CollapsibleContent>
+      </Card>
+    </Collapsible>
   );
 }
