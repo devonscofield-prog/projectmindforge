@@ -5,7 +5,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -25,8 +24,6 @@ import {
   Check, 
   Mail, 
   FileText,
-  Users,
-  Monitor,
   AlertCircle,
   Eye,
   Edit3,
@@ -110,7 +107,7 @@ export function SalesAssetsGenerator({
   const [copiedEmail, setCopiedEmail] = useState(false);
   const [copiedNotes, setCopiedNotes] = useState(false);
   const [copiedSubject, setCopiedSubject] = useState(false);
-  const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
+  
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
   const [emailViewMode, setEmailViewMode] = useState<'edit' | 'preview'>('edit');
 
@@ -146,29 +143,6 @@ export function SalesAssetsGenerator({
     return PLACEHOLDERS.filter(p => emailBody.includes(p) || subjectLine.includes(p));
   }, [emailBody, subjectLine]);
 
-  // Generate checklist based on critical gaps with High impact
-  const checklistItems = useMemo(() => {
-    if (!strategicContext?.critical_gaps) return [];
-    
-    return strategicContext.critical_gaps
-      .filter(gap => gap.impact === 'High' || gap.impact === 'Medium')
-      .map((gap, index) => ({
-        id: `gap-${index}`,
-        label: gap.description,
-        category: gap.category,
-        impact: gap.impact,
-        suggestedQuestion: gap.suggested_question,
-      }));
-  }, [strategicContext]);
-
-  // User counts from metadata
-  const userCounts = useMemo(() => {
-    if (!callMetadata?.user_counts) return null;
-    return {
-      itUsers: callMetadata.user_counts.it_users ?? null,
-      endUsers: callMetadata.user_counts.end_users ?? null,
-    };
-  }, [callMetadata]);
 
   const handleGenerate = async () => {
     if (!transcript) {
@@ -227,7 +201,7 @@ export function SalesAssetsGenerator({
       setSubjectLine(processedSubject);
       setEmailBody(processedBody);
       setInternalNotes(result.internal_notes_markdown);
-      setCheckedItems(new Set());
+      
       setEmailViewMode('edit');
       setHasGenerated(true);
       
@@ -300,15 +274,6 @@ export function SalesAssetsGenerator({
     }
   };
 
-  const toggleChecked = (id: string) => {
-    const newChecked = new Set(checkedItems);
-    if (newChecked.has(id)) {
-      newChecked.delete(id);
-    } else {
-      newChecked.add(id);
-    }
-    setCheckedItems(newChecked);
-  };
 
   // Highlight placeholders in preview
   const highlightedEmailBody = useMemo(() => {
@@ -563,88 +528,6 @@ export function SalesAssetsGenerator({
           </CardContent>
         </Card>
 
-        {/* Sidebar Info - Checklist and User Counts */}
-        {(checklistItems.length > 0 || userCounts) && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 text-primary" />
-                Pre-Send Checklist
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Critical Gaps Checklist */}
-              {checklistItems.length > 0 && (
-                <div className="space-y-3">
-                  <p className="text-sm text-muted-foreground">
-                    Verify these items are addressed before sending:
-                  </p>
-                  {checklistItems.map((item) => (
-                    <div 
-                      key={item.id} 
-                      className={cn(
-                        "flex items-start gap-3 p-2 rounded-md",
-                        checkedItems.has(item.id) ? "bg-green-500/10" : "bg-muted/50"
-                      )}
-                    >
-                      <Checkbox
-                        id={item.id}
-                        checked={checkedItems.has(item.id)}
-                        onCheckedChange={() => toggleChecked(item.id)}
-                        className="mt-0.5"
-                      />
-                      <div className="flex-1 space-y-1">
-                        <label 
-                          htmlFor={item.id} 
-                          className={cn(
-                            "text-sm cursor-pointer",
-                            checkedItems.has(item.id) && "line-through text-muted-foreground"
-                          )}
-                        >
-                          <span className="font-medium">{item.category}:</span> {item.label}
-                        </label>
-                        {item.suggestedQuestion && (
-                          <p className="text-xs text-muted-foreground italic">
-                            Ask: "{item.suggestedQuestion}"
-                          </p>
-                        )}
-                      </div>
-                      <Badge 
-                        variant={item.impact === 'High' ? 'destructive' : 'secondary'}
-                        className="shrink-0 text-xs"
-                      >
-                        {item.impact}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {checklistItems.length > 0 && userCounts && <Separator />}
-
-              {/* User Counts Reference */}
-              {userCounts && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Account User Counts</p>
-                  <div className="flex gap-4 text-sm">
-                    {userCounts.itUsers !== null && (
-                      <div className="flex items-center gap-2">
-                        <Monitor className="h-4 w-4 text-muted-foreground" />
-                        <span>{userCounts.itUsers} IT Users</span>
-                      </div>
-                    )}
-                    {userCounts.endUsers !== null && (
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                        <span>{userCounts.endUsers} End Users</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
       </div>
     </div>
   );
