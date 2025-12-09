@@ -63,33 +63,45 @@ const formatForOutlook = (markdown: string): string => {
     const trimmedBlock = block.trim();
     const lines = trimmedBlock.split('\n');
     
-    // Check if first line is a header (entirely bold) and remaining lines are list items
     const firstLine = lines[0]?.trim() || '';
     const isHeaderLine = /^<b>[^<]+<\/b>$/.test(firstLine);
     const remainingLines = lines.slice(1);
     const hasListItems = remainingLines.some(l => l.trim().startsWith('* '));
+    const hasNonListContent = remainingLines.some(l => l.trim() && !l.trim().startsWith('* '));
     
-    // Pattern: Header followed by list items (no blank line between them in markdown)
-    if (isHeaderLine && hasListItems) {
-      const header = `<p style="margin: 16px 0 6px 0;">${firstLine}</p>`;
+    // Pattern 1: Header followed by list items only
+    if (isHeaderLine && hasListItems && !hasNonListContent) {
+      const header = `<p style="margin: 16px 0 6px 0; line-height: 1.5;">${firstLine}</p>`;
       const listItems = remainingLines.filter(l => l.trim().startsWith('* '));
-      const list = `<ul style="margin: 0 0 10px 20px; padding-left: 0;">${listItems.map(i => `<li style="margin-bottom: 4px;">${i.trim().replace(/^\* /, '')}</li>`).join('')}</ul>`;
+      const list = `<ul style="margin: 0 0 12px 24px; padding-left: 0; line-height: 1.6;">${listItems.map(i => 
+        `<li style="margin-bottom: 6px;">${i.trim().replace(/^\* /, '')}</li>`
+      ).join('')}</ul>`;
       return header + list;
     }
     
-    // Pure list block (all lines are list items)
+    // Pattern 2: Header followed by paragraph text (like "How We Help:")
+    if (isHeaderLine && remainingLines.length > 0 && hasNonListContent) {
+      const header = `<p style="margin: 16px 0 6px 0; line-height: 1.5;">${firstLine}</p>`;
+      const paragraphText = remainingLines.join(' ').trim();
+      const paragraph = `<p style="margin: 0 0 12px 0; line-height: 1.6;">${paragraphText}</p>`;
+      return header + paragraph;
+    }
+    
+    // Pattern 3: Pure list block (all lines are list items)
     if (trimmedBlock.startsWith('* ')) {
       const items = lines.filter(l => l.trim().startsWith('* '));
-      return `<ul style="margin: 0 0 10px 20px; padding-left: 0;">${items.map(i => `<li style="margin-bottom: 4px;">${i.trim().replace(/^\* /, '')}</li>`).join('')}</ul>`;
+      return `<ul style="margin: 0 0 12px 24px; padding-left: 0; line-height: 1.6;">${items.map(i => 
+        `<li style="margin-bottom: 6px;">${i.trim().replace(/^\* /, '')}</li>`
+      ).join('')}</ul>`;
     }
     
-    // Section header only (single bold line)
+    // Pattern 4: Section header only (single bold line)
     if (isHeaderLine && lines.length === 1) {
-      return `<p style="margin: 16px 0 6px 0;">${firstLine}</p>`;
+      return `<p style="margin: 16px 0 6px 0; line-height: 1.5;">${firstLine}</p>`;
     }
     
-    // Regular paragraph
-    return `<p style="margin: 0 0 10px 0;">${block.replace(/\n/g, '<br>')}</p>`;
+    // Pattern 5: Regular paragraph
+    return `<p style="margin: 0 0 12px 0; line-height: 1.6;">${block.replace(/\n/g, '<br>')}</p>`;
   }).join('');
 
   // Wrap in Outlook default font
