@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate, Link, useBlocker } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { createLogger } from '@/lib/logger';
 
@@ -182,18 +182,9 @@ function RepDashboard() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [isDirty, isSubmitting]);
 
-  // Block in-app navigation with unsaved changes
-  const blocker = useBlocker(
-    ({ currentLocation, nextLocation }) =>
-      isDirty() && !isSubmitting && currentLocation.pathname !== nextLocation.pathname
-  );
-
-  useEffect(() => {
-    if (blocker.state === 'blocked') {
-      setShowUnsavedDialog(true);
-      setPendingNavigation(() => () => blocker.proceed());
-    }
-  }, [blocker]);
+  // Note: In-app navigation blocking removed due to useBlocker requiring data router.
+  // The beforeunload event handler above still protects against browser close/refresh.
+  // For full in-app navigation blocking, the app would need to migrate to createBrowserRouter.
 
   const handleConfirmLeave = () => {
     setShowUnsavedDialog(false);
@@ -206,9 +197,6 @@ function RepDashboard() {
   const handleCancelLeave = () => {
     setShowUnsavedDialog(false);
     setPendingNavigation(null);
-    if (blocker.state === 'blocked') {
-      blocker.reset();
-    }
   };
 
   const restoreDraft = () => {
