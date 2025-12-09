@@ -57,13 +57,22 @@ const formatForOutlook = (markdown: string): string => {
     .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>') // Bold
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color:#0563C1; text-decoration:underline">$1</a>'); // Links with Outlook blue
 
-  // Fix Lists: wrap lines starting with "* " in <ul> and <li>
-  // Split by double newline to handle blocks
+  // Process blocks separated by double newlines
   html = html.split('\n\n').map(block => {
-    if (block.trim().startsWith('* ')) {
+    const trimmedBlock = block.trim();
+    
+    // Check if block is a list (starts with "* ")
+    if (trimmedBlock.startsWith('* ')) {
       const items = block.split('\n').filter(l => l.trim().startsWith('* '));
-      return `<ul style="margin-top:0; margin-bottom:10px;">${items.map(i => `<li>${i.replace(/^\* /, '')}</li>`).join('')}</ul>`;
+      return `<ul style="margin: 0 0 10px 20px; padding-left: 0;">${items.map(i => `<li style="margin-bottom: 4px;">${i.replace(/^\* /, '')}</li>`).join('')}</ul>`;
     }
+    
+    // Check if block is a section header (single line that's entirely bold like "<b>Header:</b>")
+    if (trimmedBlock.match(/^<b>[^<]+<\/b>$/) && !trimmedBlock.includes('\n')) {
+      return `<p style="margin: 16px 0 6px 0;">${trimmedBlock}</p>`;
+    }
+    
+    // Regular paragraph
     return `<p style="margin: 0 0 10px 0;">${block.replace(/\n/g, '<br>')}</p>`;
   }).join('');
 
