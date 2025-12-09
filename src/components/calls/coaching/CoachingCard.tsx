@@ -42,7 +42,18 @@ export function CoachingCard({ data, className }: CoachingCardProps) {
   const [isReasoningOpen, setIsReasoningOpen] = useState(false);
 
   if (!data) {
-    return null;
+    return (
+      <Card className={cn('overflow-hidden border-dashed border-2 border-muted-foreground/25', className)}>
+        <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+          <div className="p-3 rounded-full bg-muted/50 mb-3">
+            <GraduationCap className="h-6 w-6 text-muted-foreground" />
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Coaching synthesis will appear when analysis completes
+          </p>
+        </CardContent>
+      </Card>
+    );
   }
 
   const gradeStyles = getGradeStyles(data.overall_grade);

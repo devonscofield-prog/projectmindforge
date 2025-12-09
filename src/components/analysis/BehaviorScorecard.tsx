@@ -394,7 +394,7 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
 
       {/* Questions Detail Sheet */}
       <Sheet open={questionsSheetOpen} onOpenChange={setQuestionsSheetOpen}>
-        <SheetContent className="overflow-y-auto sm:max-w-lg">
+        <SheetContent className="overflow-y-auto sm:max-w-xl">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
               <HelpCircle className="h-5 w-5" />

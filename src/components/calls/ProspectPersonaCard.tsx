@@ -27,7 +27,21 @@ const DISC_COLORS: Record<string, string> = {
 
 export function ProspectPersonaCard({ psychology }: ProspectPersonaCardProps) {
   if (!psychology) {
-    return null;
+    return (
+      <Card className="overflow-hidden border-dashed border-2 border-muted-foreground/25">
+        <CardContent className="flex flex-col items-center justify-center py-8 text-center">
+          <div className="p-3 rounded-full bg-muted/50 mb-3">
+            <User className="h-6 w-6 text-muted-foreground" />
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Analyzing prospect persona...
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Psychology profile will appear after analysis
+          </p>
+        </CardContent>
+      </Card>
+    );
   }
 
   const discEmoji = DISC_EMOJIS[psychology.disc_profile] || '👤';

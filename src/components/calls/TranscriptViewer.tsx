@@ -86,7 +86,7 @@ export function TranscriptViewer({ transcriptText }: TranscriptViewerProps) {
       </div>
 
       {/* Raw Transcript Content */}
-      <ScrollArea className="h-[500px] rounded-lg border bg-muted/20 p-4">
+      <ScrollArea className="max-h-[50vh] min-h-[200px] rounded-lg border bg-muted/20 p-4">
         <pre className="whitespace-pre-wrap text-sm font-mono text-foreground leading-relaxed">
           {highlightText(transcriptText, searchTerm)}
         </pre>
