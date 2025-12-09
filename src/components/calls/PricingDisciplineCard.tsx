@@ -14,7 +14,19 @@ export function PricingDisciplineCard({ data }: PricingDisciplineCardProps) {
   const [isOpen, setIsOpen] = useState(true);
 
   if (!data) {
-    return null;
+    return (
+      <Card className="border-dashed border-2 border-muted-foreground/25">
+        <CardContent className="flex items-center gap-3 py-6">
+          <div className="p-2 rounded-full bg-green-500/10">
+            <CheckCircle className="h-5 w-5 text-green-600" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-muted-foreground">No pricing discussion detected</p>
+            <p className="text-xs text-muted-foreground">This call didn't include price negotiations</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
 
   const getScoreColor = (score: number) => {

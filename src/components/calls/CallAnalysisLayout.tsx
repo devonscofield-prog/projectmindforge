@@ -473,25 +473,23 @@ export function CallAnalysisLayout({
                 </div>
                 
                 {/* Prospect Persona Card */}
-                {psychologyData && (
-                  <ProspectPersonaCard psychology={psychologyData} />
-                )}
+                <ProspectPersonaCard psychology={psychologyData} />
               </div>
               
               {/* Right: Coach Grade + Big Scores */}
-              <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-center sm:gap-8 lg:gap-12">
+              <div className="grid grid-cols-2 gap-4 sm:flex sm:flex-row sm:items-center sm:justify-center sm:gap-8 lg:gap-12">
                 {/* Coach Grade - Prominent Display */}
                 {coachingData?.overall_grade && (
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="text-4xl font-bold">
-                      <CoachGradeBadge grade={coachingData.overall_grade} size="default" />
+                  <div className="flex flex-col items-center gap-2 col-span-2 sm:col-span-1">
+                    <div className="flex h-20 w-20 items-center justify-center rounded-xl border-2 border-primary/30 bg-primary/10">
+                      <span className="text-3xl font-bold text-primary">{coachingData.overall_grade}</span>
                     </div>
                     <p className="text-sm font-medium text-muted-foreground">Coach Grade</p>
                   </div>
                 )}
                 
                 {isLegacyAnalysis ? (
-                  <div className="text-center p-4 border rounded-lg bg-muted/50">
+                  <div className="text-center p-4 border rounded-lg bg-muted/50 col-span-2">
                     <AlertTriangle className="h-8 w-8 text-yellow-500 mx-auto mb-2" />
                     <p className="text-sm text-muted-foreground">
                       This call was analyzed with an older pipeline.
@@ -502,8 +500,8 @@ export function CallAnalysisLayout({
                   </div>
                 ) : (
                   <>
-                    <CircularScore score={behaviorScore} label="Behavior" />
-                    <CircularScore score={strategyScore} label="Strategy" />
+                    <CircularScore score={behaviorScore} label="Behavior" size="sm" />
+                    <CircularScore score={strategyScore} label="Strategy" size="sm" />
                   </>
                 )}
               </div>

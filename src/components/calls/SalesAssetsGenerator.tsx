@@ -7,6 +7,16 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { 
   Loader2, 
   Sparkles, 
@@ -49,6 +59,7 @@ export function SalesAssetsGenerator({
   const [copiedEmail, setCopiedEmail] = useState(false);
   const [copiedNotes, setCopiedNotes] = useState(false);
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
+  const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
 
   // Generate checklist based on critical gaps with High impact
   const checklistItems = useMemo(() => {
@@ -214,8 +225,9 @@ export function SalesAssetsGenerator({
               <Button 
                 variant="ghost" 
                 size="sm" 
-                onClick={handleGenerate}
+                onClick={() => setShowRegenerateConfirm(true)}
                 disabled={isLoading}
+                title="Regenerate assets"
               >
                 {isLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -223,6 +235,27 @@ export function SalesAssetsGenerator({
                   <Sparkles className="h-4 w-4" />
                 )}
               </Button>
+
+              {/* Regenerate Confirmation Dialog */}
+              <AlertDialog open={showRegenerateConfirm} onOpenChange={setShowRegenerateConfirm}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Regenerate assets?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will replace your edited email and notes with newly generated content. Any changes you've made will be lost.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => {
+                      setShowRegenerateConfirm(false);
+                      handleGenerate();
+                    }}>
+                      Regenerate
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
