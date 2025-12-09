@@ -53,6 +53,48 @@ const PLACEHOLDERS = [
 ];
 
 // Rep placeholders to strip from output (user adds signature in email client)
+// Convert markdown to HTML for rich text pasting (Outlook/Gmail compatibility)
+const markdownToHtml = (markdown: string): string => {
+  let html = markdown;
+  
+  // Convert bold **text** to <b>text</b>
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+  
+  // Convert links [text](url) to <a href="url">text</a>
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+  
+  // Convert list items - collect consecutive * lines into <ul>
+  const lines = html.split('\n');
+  const processedLines: string[] = [];
+  let inList = false;
+  
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('* ')) {
+      if (!inList) {
+        processedLines.push('<ul>');
+        inList = true;
+      }
+      processedLines.push(`<li>${trimmed.slice(2)}</li>`);
+    } else {
+      if (inList) {
+        processedLines.push('</ul>');
+        inList = false;
+      }
+      processedLines.push(line);
+    }
+  }
+  if (inList) {
+    processedLines.push('</ul>');
+  }
+  html = processedLines.join('\n');
+  
+  // Convert remaining newlines to <br>
+  html = html.replace(/\n/g, '<br>');
+  
+  return html;
+};
+
 const REP_PLACEHOLDERS = [
   '{{RepFirstName}}',
   '{{RepLastName}}',
@@ -220,9 +262,32 @@ export function SalesAssetsGenerator({
     }
   };
 
-  const copyFullEmail = () => {
-    const fullEmail = `Subject: ${subjectLine}\n\n${emailBody}`;
-    copyToClipboard(fullEmail, 'email');
+  const copyEmailBody = async () => {
+    try {
+      const plainText = emailBody;
+      const htmlContent = markdownToHtml(emailBody);
+      
+      // Use ClipboardItem to write both formats for rich text pasting
+      const clipboardItem = new ClipboardItem({
+        'text/plain': new Blob([plainText], { type: 'text/plain' }),
+        'text/html': new Blob([htmlContent], { type: 'text/html' }),
+      });
+      
+      await navigator.clipboard.write([clipboardItem]);
+      setCopiedEmail(true);
+      setTimeout(() => setCopiedEmail(false), 2000);
+      toast.success('Email body copied with formatting!');
+    } catch {
+      // Fallback to plain text if ClipboardItem not supported
+      try {
+        await navigator.clipboard.writeText(emailBody);
+        setCopiedEmail(true);
+        setTimeout(() => setCopiedEmail(false), 2000);
+        toast.success('Email body copied (plain text)');
+      } catch {
+        toast.error('Failed to copy to clipboard');
+      }
+    }
   };
 
   const copySubject = async () => {
@@ -466,7 +531,7 @@ export function SalesAssetsGenerator({
             
             {/* Copy Button - Prominent */}
             <Button 
-              onClick={copyFullEmail}
+              onClick={copyEmailBody}
               className={cn(
                 "w-full gap-2 transition-all",
                 copiedEmail && "bg-green-500 hover:bg-green-600"
@@ -480,7 +545,7 @@ export function SalesAssetsGenerator({
               ) : (
                 <>
                   <Copy className="h-5 w-5" />
-                  Copy Email
+                  Copy Email Body
                 </>
               )}
             </Button>
