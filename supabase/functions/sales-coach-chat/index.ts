@@ -316,7 +316,7 @@ function buildAccountContext(
   
   let context = `### ACCOUNT: ${prospect.account_name || prospect.prospect_name}
 Status: ${prospect.status}
-Heat Score: ${prospect.heat_score || 'Not rated'}/10
+Heat Score: ${prospect.heat_score || 'Not rated'}/100
 Potential Revenue: ${prospect.potential_revenue ? `$${prospect.potential_revenue.toLocaleString()}` : 'Unknown'}
 Last Contact: ${prospect.last_contact_date || 'Unknown'}
 `;

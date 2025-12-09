@@ -416,7 +416,7 @@ export async function createProspectActivity(params: {
 }
 
 /**
- * Gets calls linked to a prospect with coach grades
+ * Gets calls linked to a prospect with coach grades and deal heat
  */
 export async function getCallsForProspect(prospectId: string): Promise<{
   id: string;
@@ -425,6 +425,9 @@ export async function getCallsForProspect(prospectId: string): Promise<{
   analysis_status: string;
   primary_stakeholder_name: string | null;
   coach_grade: string | null;
+  heat_score: number | null;
+  detected_call_type: string | null;
+  critical_gaps_count: number | null;
 }[]> {
   const { data, error } = await supabase
     .from('call_transcripts')
@@ -441,23 +444,36 @@ export async function getCallsForProspect(prospectId: string): Promise<{
     return [];
   }
 
-  // Fetch coach grades from ai_call_analysis
+  // Fetch coach grades and deal heat from ai_call_analysis
   const callIds = data.map(c => c.id);
   const { data: analyses } = await supabase
     .from('ai_call_analysis')
-    .select('call_id, analysis_coaching')
+    .select('call_id, analysis_coaching, deal_heat_analysis, detected_call_type, analysis_strategy')
     .in('call_id', callIds);
 
-  // Create a map of call_id -> coach_grade
+  // Create maps for call data
   const gradeMap = new Map<string, string | null>();
+  const heatMap = new Map<string, number | null>();
+  const callTypeMap = new Map<string, string | null>();
+  const gapsMap = new Map<string, number | null>();
+  
   analyses?.forEach(a => {
     const coaching = a.analysis_coaching as { overall_grade?: string } | null;
+    const dealHeat = a.deal_heat_analysis as { heat_score?: number } | null;
+    const strategy = a.analysis_strategy as { critical_gaps?: unknown[] } | null;
+    
     gradeMap.set(a.call_id, coaching?.overall_grade ?? null);
+    heatMap.set(a.call_id, dealHeat?.heat_score ?? null);
+    callTypeMap.set(a.call_id, a.detected_call_type ?? null);
+    gapsMap.set(a.call_id, strategy?.critical_gaps?.length ?? null);
   });
 
   return data.map(call => ({
     ...call,
     coach_grade: gradeMap.get(call.id) ?? null,
+    heat_score: heatMap.get(call.id) ?? null,
+    detected_call_type: callTypeMap.get(call.id) ?? null,
+    critical_gaps_count: gapsMap.get(call.id) ?? null,
   }));
 }
 

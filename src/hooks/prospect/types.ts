@@ -11,6 +11,9 @@ export interface CallRecord {
   analysis_status: string;
   primary_stakeholder_name: string | null;
   coach_grade: string | null;
+  heat_score: number | null;
+  detected_call_type: string | null;
+  critical_gaps_count: number | null;
 }
 
 export interface ProspectCoreState {
