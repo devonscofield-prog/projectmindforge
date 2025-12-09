@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, X, AlertCircle } from 'lucide-react';
+import { Plus, X, AlertCircle, Check, ChevronsUpDown, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -8,13 +8,20 @@ import { Textarea } from '@/components/ui/textarea';
 import { useProducts } from '@/hooks/useProducts';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatCurrency } from '@/lib/formatters';
+import { cn } from '@/lib/utils';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 
 export interface ProductEntry {
   productId: string;
@@ -31,16 +38,17 @@ interface ProductSelectorProps {
 
 export function ProductSelector({ value, onChange }: ProductSelectorProps) {
   const { data: products, isLoading } = useProducts();
-  const [selectedProductId, setSelectedProductId] = useState('');
+  const [open, setOpen] = useState(false);
+  const [searchValue, setSearchValue] = useState('');
 
-  const addProduct = () => {
-    if (!selectedProductId || !products) return;
+  const addProduct = (productId: string) => {
+    if (!productId || !products) return;
 
-    const product = products.find(p => p.id === selectedProductId);
+    const product = products.find(p => p.id === productId);
     if (!product) return;
 
     // Check if product already added
-    if (value.some(p => p.productId === selectedProductId)) return;
+    if (value.some(p => p.productId === productId)) return;
 
     const newEntry: ProductEntry = {
       productId: product.id,
@@ -51,7 +59,8 @@ export function ProductSelector({ value, onChange }: ProductSelectorProps) {
     };
 
     onChange([...value, newEntry]);
-    setSelectedProductId('');
+    setOpen(false);
+    setSearchValue('');
   };
 
   const removeProduct = (productId: string) => {
@@ -84,32 +93,59 @@ export function ProductSelector({ value, onChange }: ProductSelectorProps) {
     p => !value.some(v => v.productId === p.id)
   );
 
+  // Filter products based on search
+  const filteredProducts = availableProducts?.filter(p =>
+    !searchValue || p.name.toLowerCase().includes(searchValue.toLowerCase())
+  );
+
   return (
     <div className="space-y-4">
-      <div className="flex gap-2">
-        <Select value={selectedProductId} onValueChange={setSelectedProductId}>
-          <SelectTrigger className="flex-1">
-            <SelectValue placeholder="Select a product..." />
-          </SelectTrigger>
-          <SelectContent>
-            {availableProducts?.map(product => (
-              <SelectItem key={product.id} value={product.id}>
-                {product.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button
-          type="button"
-          onClick={addProduct}
-          disabled={!selectedProductId}
-          variant="outline"
-          size="default"
-        >
-          <Plus className="h-4 w-4 mr-1" />
-          Add
-        </Button>
-      </div>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className="w-full justify-between font-normal"
+            disabled={!availableProducts?.length}
+          >
+            <span className="flex items-center gap-2 text-muted-foreground">
+              <Package className="h-4 w-4" />
+              {availableProducts?.length 
+                ? `Select a product... (${availableProducts.length} available)`
+                : 'All products added'}
+            </span>
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+          <Command shouldFilter={false}>
+            <CommandInput 
+              placeholder="Search products..." 
+              value={searchValue}
+              onValueChange={setSearchValue}
+            />
+            <CommandList>
+              <CommandEmpty>No products found.</CommandEmpty>
+              {filteredProducts && filteredProducts.length > 0 && (
+                <CommandGroup>
+                  {filteredProducts.map((product) => (
+                    <CommandItem
+                      key={product.id}
+                      value={product.id}
+                      onSelect={() => addProduct(product.id)}
+                    >
+                      <Check className={cn('mr-2 h-4 w-4', 'opacity-0')} />
+                      <Package className="mr-2 h-4 w-4 text-muted-foreground" />
+                      {product.name}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
 
       {value.length === 0 ? (
         <div className="text-sm text-muted-foreground text-center py-6 border-2 border-dashed rounded-lg">

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Check, ChevronsUpDown, Plus, Building2 } from 'lucide-react';
+import { Check, ChevronsUpDown, Plus, Building2, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -94,7 +94,10 @@ export function AccountCombobox({
               )}
             </span>
           ) : (
-            <span className="text-muted-foreground">{placeholder}</span>
+            <span className="flex items-center gap-2 text-muted-foreground">
+              {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+              {placeholder}
+            </span>
           )}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
