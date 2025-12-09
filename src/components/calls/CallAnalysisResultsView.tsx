@@ -123,9 +123,47 @@ export function CallAnalysisResultsView({
     );
   }
 
-  // Loading state for pending/processing - show animated progress
+  // Loading state for pending/processing - show animated progress with force retry option
   if (!analysis && (call?.analysis_status === 'pending' || call?.analysis_status === 'processing')) {
-    return <AnalysisProgress isComplete={false} />;
+    // Check if stuck (created more than 2 minutes ago and still pending/processing)
+    const createdAt = call?.created_at ? new Date(call.created_at) : null;
+    const isStuck = createdAt && (Date.now() - createdAt.getTime() > 2 * 60 * 1000);
+    
+    return (
+      <div className="space-y-4">
+        <AnalysisProgress isComplete={false} />
+        {isStuck && isOwner && onRetryAnalysis && (
+          <Card className="border-amber-500/50 bg-amber-500/5">
+            <CardContent className="py-4">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                  <AlertTriangle className="h-5 w-5" />
+                  <span className="text-sm font-medium">Taking longer than expected?</span>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={onRetryAnalysis}
+                  disabled={isRetrying}
+                >
+                  {isRetrying ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Retrying...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Force Retry
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    );
   }
 
   // No analysis and not in progress - shouldn't normally reach here
