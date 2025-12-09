@@ -19,6 +19,8 @@ import {
   Activity,
   Settings,
   Upload,
+  PanelLeftClose,
+  PanelLeft,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -210,6 +212,29 @@ function MainContent({ children }: { children: React.ReactNode }) {
   );
 }
 
+function DesktopSidebarToggle() {
+  const { state } = useSidebar();
+  const isExpanded = state === 'expanded';
+  
+  return (
+    <div className="hidden md:flex sticky top-0 z-40 h-12 items-center border-b bg-background px-4">
+      <SidebarTrigger 
+        className="h-8 w-8 flex items-center justify-center hover:bg-accent rounded-md transition-colors" 
+        aria-label={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
+      >
+        {isExpanded ? (
+          <PanelLeftClose className="h-5 w-5" aria-hidden="true" />
+        ) : (
+          <PanelLeft className="h-5 w-5" aria-hidden="true" />
+        )}
+      </SidebarTrigger>
+      <span className="ml-2 text-xs text-muted-foreground hidden lg:inline">
+        ⌘B
+      </span>
+    </div>
+  );
+}
+
 export function AppLayout({ children }: AppLayoutProps) {
   // Enable real-time performance alert toasts for admins
   usePerformanceAlertToasts();
@@ -228,6 +253,9 @@ export function AppLayout({ children }: AppLayoutProps) {
           </Sidebar>
           
           <SidebarInset>
+            {/* Desktop sidebar toggle */}
+            <DesktopSidebarToggle />
+            
             {/* Mobile header */}
             <header 
               className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b bg-background px-4 md:hidden"
