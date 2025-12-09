@@ -595,70 +595,8 @@ export function SalesAssetsGenerator({
         </Card>
       </div>
 
-      {/* Right Column - Context & Checklist (1/3 width) */}
+      {/* Right Column - Context (1/3 width) */}
       <div className="space-y-6">
-        {/* Pre-Send Checklist - Based on Critical Gaps */}
-        {checklistItems.length > 0 && (
-          <Card className="border-yellow-500/30 bg-yellow-500/5">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 text-yellow-600" />
-                Pre-Send Checklist
-              </CardTitle>
-              <p className="text-xs text-muted-foreground">
-                Address these gaps before sending
-              </p>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {checklistItems.map((item) => (
-                <div 
-                  key={item.id}
-                  className="flex items-start gap-3 p-2 rounded-lg hover:bg-yellow-500/10 transition-colors"
-                >
-                  <Checkbox
-                    id={item.id}
-                    checked={checkedItems.has(item.id)}
-                    onCheckedChange={() => toggleChecked(item.id)}
-                    className="mt-0.5"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <label 
-                      htmlFor={item.id}
-                      className={cn(
-                        "text-sm cursor-pointer block",
-                        checkedItems.has(item.id) && "line-through text-muted-foreground"
-                      )}
-                    >
-                      {item.label}
-                    </label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge 
-                        variant="outline" 
-                        className={cn(
-                          "text-xs",
-                          item.impact === 'High' 
-                            ? "border-destructive/50 text-destructive" 
-                            : "border-yellow-500/50 text-yellow-600"
-                        )}
-                      >
-                        {item.category}
-                      </Badge>
-                    </div>
-                  </div>
-                </div>
-              ))}
-
-              <Separator className="my-3" />
-              
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Completed</span>
-                <Badge variant="secondary">
-                  {checkedItems.size} / {checklistItems.length}
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Quick Reference - User Counts */}
         {userCounts && (userCounts.itUsers || userCounts.endUsers) && (
