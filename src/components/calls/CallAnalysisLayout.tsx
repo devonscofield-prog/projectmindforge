@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   Users, 
   Monitor, 
@@ -21,8 +22,10 @@ import {
   Quote,
   UserCircle,
   FileText,
-  Tag
+  Tag,
+  History
 } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import type { CallAnalysis, CallTranscript } from '@/api/aiCallAnalysis';
 import { 
@@ -204,7 +207,7 @@ function ParticipantBadge({ participant }: ParticipantBadgeProps) {
             {participant.is_decision_maker && (
               <Crown className="h-3 w-3 text-amber-500" />
             )}
-            <span className="font-medium truncate max-w-[120px]">{participant.name}</span>
+            <span className="font-medium truncate max-w-[180px]">{participant.name}</span>
           </div>
         </TooltipTrigger>
         <TooltipContent side="bottom">
@@ -481,23 +484,33 @@ export function CallAnalysisLayout({
                 {/* Coach Grade - Prominent Display */}
                 {coachingData?.overall_grade && (
                   <div className="flex flex-col items-center gap-2 col-span-2 sm:col-span-1">
-                    <div className="flex h-20 w-20 items-center justify-center rounded-xl border-2 border-primary/30 bg-primary/10">
+                    <div 
+                      className="flex h-20 w-20 items-center justify-center rounded-xl border-2 border-primary/30 bg-primary/10"
+                      role="img"
+                      aria-label={`Overall coach grade: ${coachingData.overall_grade}`}
+                    >
                       <span className="text-3xl font-bold text-primary">{coachingData.overall_grade}</span>
                     </div>
-                    <p className="text-sm font-medium text-muted-foreground">Coach Grade</p>
+                    <div className="text-center">
+                      <p className="text-sm font-medium text-muted-foreground">Coach Grade</p>
+                      {analysis?.created_at && (
+                        <p className="text-xs text-muted-foreground/70 flex items-center gap-1 justify-center mt-1">
+                          <History className="h-3 w-3" aria-hidden="true" />
+                          <span>Analyzed {formatDistanceToNow(new Date(analysis.created_at), { addSuffix: true })}</span>
+                        </p>
+                      )}
+                    </div>
                   </div>
                 )}
                 
                 {isLegacyAnalysis ? (
-                  <div className="text-center p-4 border rounded-lg bg-muted/50 col-span-2">
-                    <AlertTriangle className="h-8 w-8 text-yellow-500 mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">
-                      This call was analyzed with an older pipeline.
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Re-run to get full insights.
-                    </p>
-                  </div>
+                  <Alert className="col-span-2 border-amber-500/50 bg-amber-500/10">
+                    <AlertTriangle className="h-4 w-4 text-amber-600" />
+                    <AlertDescription className="text-sm">
+                      <span className="font-medium text-amber-700 dark:text-amber-400">Legacy Analysis</span>
+                      <span className="text-muted-foreground"> — This call was analyzed with an older pipeline. Re-run to get full insights.</span>
+                    </AlertDescription>
+                  </Alert>
                 ) : (
                   <>
                     <CircularScore score={behaviorScore} label="Behavior" size="sm" />

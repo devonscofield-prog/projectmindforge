@@ -58,8 +58,17 @@ export function SalesAssetsGenerator({
   const [internalNotes, setInternalNotes] = useState('');
   const [copiedEmail, setCopiedEmail] = useState(false);
   const [copiedNotes, setCopiedNotes] = useState(false);
+  const [copiedSubject, setCopiedSubject] = useState(false);
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
+
+  // Calculate word/character counts for email body
+  const emailStats = useMemo(() => {
+    const text = emailBody.replace(/<[^>]*>/g, '');
+    const words = text.split(/\s+/).filter(Boolean).length;
+    const chars = text.length;
+    return { words, chars };
+  }, [emailBody]);
 
   // Generate checklist based on critical gaps with High impact
   const checklistItems = useMemo(() => {
@@ -148,6 +157,17 @@ export function SalesAssetsGenerator({
   const copyFullEmail = () => {
     const fullEmail = `Subject: ${subjectLine}\n\n${emailBody.replace(/<[^>]*>/g, '')}`;
     copyToClipboard(fullEmail, 'email');
+  };
+
+  const copySubject = async () => {
+    try {
+      await navigator.clipboard.writeText(subjectLine);
+      setCopiedSubject(true);
+      setTimeout(() => setCopiedSubject(false), 2000);
+      toast.success('Subject line copied');
+    } catch {
+      toast.error('Failed to copy');
+    }
   };
 
   const toggleChecked = (id: string) => {
@@ -261,15 +281,35 @@ export function SalesAssetsGenerator({
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="subject">Subject Line</Label>
-              <Input
-                id="subject"
-                value={subjectLine}
-                onChange={(e) => setSubjectLine(e.target.value)}
-                placeholder="Email subject..."
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="subject"
+                  value={subjectLine}
+                  onChange={(e) => setSubjectLine(e.target.value)}
+                  placeholder="Email subject..."
+                  className="flex-1"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={copySubject}
+                  className={cn(
+                    "shrink-0",
+                    copiedSubject && "text-green-600"
+                  )}
+                  title="Copy subject line"
+                >
+                  {copiedSubject ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="body">Email Body</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="body">Email Body</Label>
+                <span className="text-xs text-muted-foreground">
+                  {emailStats.words} words · {emailStats.chars.toLocaleString()} characters
+                </span>
+              </div>
               <Textarea
                 id="body"
                 value={emailBody.replace(/<[^>]*>/g, '')}
