@@ -1,9 +1,9 @@
 import { CallType } from '@/constants/callTypes';
-import type { BehaviorScore, CallMetadata, StrategyAudit, DealHeat, PsychologyProfile, CoachingSynthesis, PricingDiscipline } from '@/utils/analysis-schemas';
+import type { BehaviorScore, CallMetadata, StrategyAudit, DealHeat, PsychologyProfile, CoachingSynthesis, PricingDiscipline, SalesAssets } from '@/utils/analysis-schemas';
 import type { StakeholderInfluenceLevel } from '@/api/stakeholders';
 
 // Re-export for convenience
-export type { BehaviorScore, CallMetadata, StrategyAudit, DealHeat, PsychologyProfile, CoachingSynthesis, PricingDiscipline } from '@/utils/analysis-schemas';
+export type { BehaviorScore, CallMetadata, StrategyAudit, DealHeat, PsychologyProfile, CoachingSynthesis, PricingDiscipline, SalesAssets } from '@/utils/analysis-schemas';
 
 // ============= ANALYSIS TIER TYPES =============
 export type AnalysisTier = 'direct' | 'sampled' | 'hierarchical';
@@ -201,6 +201,9 @@ export interface CallAnalysis {
   analysis_pricing: PricingDiscipline | null;
   analysis_coaching: CoachingSynthesis | null;
   deal_heat_analysis: DealHeat | null;
+  // Sales assets fields
+  sales_assets: SalesAssets | null;
+  sales_assets_generated_at: string | null;
 }
 
 // ============= AI SCORE STATS =============

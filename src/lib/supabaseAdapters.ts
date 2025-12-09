@@ -33,6 +33,7 @@ import type {
   PsychologyProfile,
   CoachingSynthesis,
   PricingDiscipline,
+  SalesAssets,
 } from '@/api/aiCallAnalysis/types';
 import type { UserActivityLog, UserActivityType } from '@/api/userActivityLogs';
 import { parseJsonField, isObject, isString, isStringArray, isNumber } from './typeUtils';
@@ -147,6 +148,14 @@ export function isPsychologyProfile(value: unknown): value is PsychologyProfile 
 export function isCoachingSynthesis(value: unknown): value is CoachingSynthesis {
   if (!isObject(value)) return false;
   return 'overall_grade' in value && 'coaching_prescription' in value && 'top_3_strengths' in value;
+}
+
+/**
+ * Type guard for SalesAssets
+ */
+export function isSalesAssets(value: unknown): value is SalesAssets {
+  if (!isObject(value)) return false;
+  return 'recap_email' in value || 'internal_notes_markdown' in value;
 }
 
 /**
@@ -326,6 +335,9 @@ export function toCallAnalysis(row: AiCallAnalysisRow): CallAnalysis {
     analysis_pricing: parseJsonField<PricingDiscipline>(row.analysis_pricing, isPricingDiscipline),
     analysis_coaching: parseJsonField<CoachingSynthesis>(row.analysis_coaching, isCoachingSynthesis),
     deal_heat_analysis: parseJsonField<DealHeat>(row.deal_heat_analysis, isDealHeat),
+    // Sales assets fields
+    sales_assets: parseJsonField<SalesAssets>(row.sales_assets, isSalesAssets),
+    sales_assets_generated_at: row.sales_assets_generated_at ?? null,
   };
 }
 
