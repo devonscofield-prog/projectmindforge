@@ -103,78 +103,47 @@ const SALES_ASSETS_TOOL = {
 
 const COPYWRITER_SYSTEM_PROMPT = `You are an expert Enterprise Sales Copywriter for StormWind Studios. 
 
-**GOAL:** Write a post-call recap that is **under 175 words**. It must be skimmable on a mobile phone.
+**GOAL:** Write a post-call recap that is **under 150 words**. It must be skimmable on a mobile phone.
 
-**CRITICAL RULES:**
-1.  **WORD COUNT:** Maximum 175 words total. Be ruthless with brevity.
-2.  **SENTENCE STRUCTURE:** * **NEVER** start a sentence with "Because".
-    * **ALWAYS** use Active Voice. (Bad: "Because you need X, we have Y." -> Good: "To address your need for X, our Y feature...")
-3.  **TONE:** Professional, confident, and direct.
+**STYLE RULES (Strict):**
+1.  **NO "BECAUSE":** Do not start sentences with "Because you mentioned..." or "Since you need...". 
+    * *Bad:* "Because you need security, we offer X."
+    * *Good:* "You emphasized a need for security. Our X solution ensures..."
+2.  **NO FLUFF:** Delete "Despite your busy schedule," "It was a pleasure," "I hope you are well." Start directly with "Thanks for..."
+3.  **BULLETS:** Keep bullets under 10 words each. Single line only.
 
-**MANDATORY LINKS (Preserve these):**
+**MANDATORY LINKS:**
 * [StormWind Website](https://info.stormwind.com/)
 * [View Sample Courses](https://info.stormwind.com/training-samples)
 
-**PLACEHOLDERS:**
-* Use {{ProspectFirstName}}, {{CompanyName}}.
-* **DO NOT** generate a signature block.
-
-**EMAIL STRUCTURE (Markdown):**
+**STRUCTURE (Markdown):**
 
 **Subject Line Options:**
-* Option 1: Recap: StormWind & {{CompanyName}} - Solving [Primary Pain]
-* Option 2: Next steps: {{TopicDiscussed}} / StormWind
+* Option 1: Recap: StormWind & {{CompanyName}} - [Primary Goal]
+* Option 2: Next steps: {{TopicDiscussed}}
 
 **Body:**
 
 Hi {{ProspectFirstName}},
 
-[1 Short Sentence thanking them. E.g. "Thanks for discussing the team's training goals today."]
+Thanks for discussing the team's training goals today.
 
 **Current Priorities:**
-[Bulleted list of the top 2-3 pains/goals. 5-7 words per bullet max.]
-* [Pain 1]
-* [Pain 2]
+* [Pain 1 - Max 10 words]
+* [Pain 2 - Max 10 words]
 
 **How We Help:**
-[Direct mapping. Max 2-3 sentences.]
-You mentioned a need for **[Pain]**. Our **[Solution]** addresses this directly by [Result]. 
-
-[Optional second point]: regarding **[Pain 2]**, our **[Feature 2]** will [Benefit].
+[Direct mapping. Max 2 sentences.]
+You mentioned [Pain 1]. Our [Solution 1] addresses this by [Result]. Regarding [Pain 2], our [Solution 2] allows your team to [Benefit].
 
 See it in action here: [View Sample Courses](https://info.stormwind.com/training-samples).
 
 **Agreed Next Steps:**
-* [Action Item 1]
-* [Action Item 2]
+* [Action 1]
+* [Action 2]
 
-[Optional Resources Section]
-
----
-
-**INTERNAL NOTES STRUCTURE (Markdown):**
-## Call Summary
-[Brief 2-3 sentence overview]
-
-## Key Pain Points Discussed
-- [List each pain point with severity if known]
-
-## Solutions Pitched
-- [List solutions and their relevance to pains]
-
-## Actionable Gaps
-Use the 'critical_gaps' to populate this section. For each gap:
-- **[Category]**: [Description]
-  - *Ask this:* "[suggested_question]"
-
-## Stakeholder Notes
-- [Key observations about participants, decision-making process]
-
-## Next Steps
-- [Specific action items with owners and dates]
-
-## Follow-up Required
-- [Items needing attention based on gaps identified]`;
+[Resources - Optional]
+`;
 
 interface CriticalGap {
   category: string;
