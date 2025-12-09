@@ -36,6 +36,13 @@ import { getStakeholdersForCall, influenceLevelLabels } from '@/api/stakeholders
 import type { CallMetadata } from '@/utils/analysis-schemas';
 import { HeatScoreBadge } from '@/components/ui/heat-score-badge';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
   ArrowLeft, 
   Calendar, 
   Loader2, 
@@ -50,7 +57,9 @@ import {
   Users,
   ChevronDown,
   ScrollText,
-  Crown
+  Crown,
+  Mail,
+  ChevronRight
 } from 'lucide-react';
 
 function CallDetailPage() {
@@ -104,6 +113,7 @@ function CallDetailPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isUserCountsDialogOpen, setIsUserCountsDialogOpen] = useState(false);
   const [isTranscriptOpen, setIsTranscriptOpen] = useState(false);
+  const [isRecapDialogOpen, setIsRecapDialogOpen] = useState(false);
 
   // Extract current user counts from analysis metadata
   const currentUserCounts = useMemo(() => {
@@ -394,6 +404,35 @@ function CallDetailPage() {
           </CardContent>
         </Card>
 
+        {/* Quick Access: Recap Assets - Right below Call Information */}
+        {transcript.analysis_status === 'completed' && analysis && (
+          <Dialog open={isRecapDialogOpen} onOpenChange={setIsRecapDialogOpen}>
+            <DialogTrigger asChild>
+              <button className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-card hover:bg-muted/50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring w-full sm:w-auto">
+                <Mail className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium">Recap & Follow-up Email</span>
+                <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto" />
+              </button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-2xl md:max-w-3xl lg:max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Mail className="h-5 w-5 text-primary" />
+                  Recap & Follow-up Email
+                </DialogTitle>
+              </DialogHeader>
+              <SalesAssetsGenerator
+                transcript={transcript.raw_text}
+                strategicContext={analysis.analysis_strategy || null}
+                psychologyContext={analysis.analysis_psychology || null}
+                callMetadata={analysis.analysis_metadata || null}
+                accountName={transcript.account_name}
+                stakeholderName={transcript.primary_stakeholder_name}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
+
         {/* AI Coaching Synthesis Card - First Thing User Sees */}
         {(transcript.analysis_status === 'pending' || transcript.analysis_status === 'processing') && (
           <Card>
@@ -442,16 +481,6 @@ function CallDetailPage() {
                 <CriticalGapsPanel data={analysis.analysis_strategy} />
                 <CompetitiveIntelPanel data={analysis.analysis_strategy?.competitive_intel} />
               </div>
-            }
-            recapContent={
-              <SalesAssetsGenerator
-                transcript={transcript.raw_text}
-                strategicContext={analysis.analysis_strategy || null}
-                psychologyContext={analysis.analysis_psychology || null}
-                callMetadata={analysis.analysis_metadata || null}
-                accountName={transcript.account_name}
-                stakeholderName={transcript.primary_stakeholder_name}
-              />
             }
           />
         )}
