@@ -101,6 +101,12 @@ interface AccountInsights {
   relationship_health?: string;
   industry?: string;
   last_analyzed_at?: string;
+  // V2 aggregated fields
+  critical_gaps_summary?: { category: string; description: string; suggested_question?: string }[];
+  competitors_summary?: { name: string; status?: string; positioning?: string }[];
+  prospect_persona?: { disc?: string; archetype?: string; communication_style?: string; dos?: string[]; donts?: string[] };
+  coaching_trend?: { avg_grade?: string; primary_focus_area?: string; recent_grades?: string[] };
+  latest_heat_analysis?: { score: number; temperature: string; trend: string; recommended_action?: string };
 }
 
 Deno.serve(async (req) => {
@@ -212,14 +218,22 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch AI analyses for calls
+    // Fetch AI analyses for calls - now using V2 fields
     const callIds = (calls || []).map(c => c.id);
     let analyses: Record<string, any> = {};
     
     if (callIds.length > 0) {
       const { data: analysisData } = await supabase
         .from('ai_call_analysis')
-        .select('call_id, call_summary, deal_gaps, coach_output, prospect_intel')
+        .select(`
+          call_id, 
+          call_summary, 
+          analysis_metadata, 
+          analysis_strategy, 
+          analysis_psychology,
+          analysis_coaching,
+          deal_heat_analysis
+        `)
         .in('call_id', callIds);
       
       if (analysisData) {
@@ -327,6 +341,11 @@ Deno.serve(async (req) => {
       try {
         insights = JSON.parse(toolCall.function.arguments);
         insights.last_analyzed_at = new Date().toISOString();
+        
+        // Merge V2 aggregated insights from analyses
+        const v2Insights = extractV2Insights(analyses);
+        insights = { ...insights, ...v2Insights };
+        console.log('[regenerate-account-insights] Merged V2 insights:', Object.keys(v2Insights));
       } catch (e) {
         console.error('[regenerate-account-insights] Failed to parse tool arguments:', e);
       }
@@ -381,7 +400,7 @@ function buildInsightsPrompt(
   
   let prompt = `## ACCOUNT: ${prospect.account_name || prospect.prospect_name}
 Status: ${prospect.status}
-Heat Score: ${prospect.heat_score || 'Not rated'}/10
+Heat Score: ${prospect.heat_score || 'Not rated'}/100
 Potential Revenue: ${prospect.potential_revenue ? `$${prospect.potential_revenue.toLocaleString()}` : 'Unknown'}
 
 ## STAKEHOLDERS (${stakeholders.length})
@@ -393,25 +412,63 @@ Potential Revenue: ${prospect.potential_revenue ? `$${prospect.potential_revenue
 
   prompt += `\n## CALL HISTORY (${calls.length} calls)\n`;
   
-  for (const call of calls.slice(0, 5)) {
+  // Aggregate V2 data for summary
+  const allCriticalGaps: any[] = [];
+  const allCompetitors: any[] = [];
+  const coachGrades: string[] = [];
+  let latestPsychology: any = null;
+  let latestHeat: any = null;
+  
+  for (const call of calls.slice(0, 10)) {
     const analysis = analyses[call.id];
     prompt += `\n### ${call.call_date} - ${call.call_type || 'Call'}\n`;
     
     if (analysis) {
       if (analysis.call_summary) prompt += `Summary: ${analysis.call_summary}\n`;
-      if (analysis.prospect_intel) {
-        const intel = analysis.prospect_intel;
-        if (intel.business_context) prompt += `Business: ${intel.business_context}\n`;
-        if (intel.pain_points?.length) prompt += `Pain Points: ${intel.pain_points.join(', ')}\n`;
+      
+      // V2 Strategy data
+      if (analysis.analysis_strategy) {
+        const strategy = analysis.analysis_strategy;
+        if (strategy.critical_gaps?.length) {
+          prompt += `Critical Gaps: ${strategy.critical_gaps.map((g: any) => `[${g.category}] ${g.description}`).join('; ')}\n`;
+          allCriticalGaps.push(...strategy.critical_gaps);
+        }
+        if (strategy.competitive_intel?.competitors?.length) {
+          prompt += `Competitors: ${strategy.competitive_intel.competitors.map((c: any) => c.name).join(', ')}\n`;
+          allCompetitors.push(...strategy.competitive_intel.competitors);
+        }
       }
-      if (analysis.deal_gaps?.critical_missing_info?.length) {
-        prompt += `Gaps: ${analysis.deal_gaps.critical_missing_info.join(', ')}\n`;
+      
+      // V2 Coaching data
+      if (analysis.analysis_coaching?.overall_grade) {
+        coachGrades.push(analysis.analysis_coaching.overall_grade);
+        prompt += `Coach Grade: ${analysis.analysis_coaching.overall_grade}\n`;
+      }
+      
+      // V2 Psychology data (take the latest)
+      if (analysis.analysis_psychology && !latestPsychology) {
+        latestPsychology = analysis.analysis_psychology;
+        prompt += `Prospect DISC: ${analysis.analysis_psychology.disc_profile || 'Unknown'}\n`;
+      }
+      
+      // Deal heat (take the latest)
+      if (analysis.deal_heat_analysis && !latestHeat) {
+        latestHeat = analysis.deal_heat_analysis;
+        prompt += `Deal Heat: ${analysis.deal_heat_analysis.heat_score}/100 (${analysis.deal_heat_analysis.temperature})\n`;
+      }
+      
+      // V2 Metadata
+      if (analysis.analysis_metadata?.participants?.length) {
+        const decisionMakers = analysis.analysis_metadata.participants.filter((p: any) => p.is_decision_maker);
+        if (decisionMakers.length) {
+          prompt += `Decision Makers: ${decisionMakers.map((p: any) => p.name).join(', ')}\n`;
+        }
       }
     }
     
-    // Include transcript excerpt
-    const excerpt = call.raw_text.substring(0, 1000);
-    prompt += `Transcript: ${excerpt}${call.raw_text.length > 1000 ? '...' : ''}\n`;
+    // Include transcript excerpt (shorter now that we have rich analysis)
+    const excerpt = call.raw_text.substring(0, 500);
+    prompt += `Transcript excerpt: ${excerpt}${call.raw_text.length > 500 ? '...' : ''}\n`;
   }
 
   if (emailLogs.length > 0) {
@@ -443,4 +500,107 @@ Analyze ALL the data above and generate comprehensive account insights. Focus on
 6. Identifying opportunities for the rep`;
 
   return prompt;
+}
+
+// Extract V2 aggregated insights from analyses
+function extractV2Insights(analyses: Record<string, any>): Partial<AccountInsights> {
+  const allCriticalGaps: any[] = [];
+  const competitorMap = new Map<string, any>();
+  const coachGrades: string[] = [];
+  let latestPsychology: any = null;
+  let latestHeat: any = null;
+  let primaryFocusArea: string | undefined;
+  
+  for (const analysis of Object.values(analyses)) {
+    // Aggregate critical gaps
+    if (analysis.analysis_strategy?.critical_gaps?.length) {
+      allCriticalGaps.push(...analysis.analysis_strategy.critical_gaps);
+    }
+    
+    // Aggregate competitors (dedupe by name)
+    if (analysis.analysis_strategy?.competitive_intel?.competitors?.length) {
+      for (const comp of analysis.analysis_strategy.competitive_intel.competitors) {
+        if (comp.name && !competitorMap.has(comp.name.toLowerCase())) {
+          competitorMap.set(comp.name.toLowerCase(), comp);
+        }
+      }
+    }
+    
+    // Coach grades
+    if (analysis.analysis_coaching?.overall_grade) {
+      coachGrades.push(analysis.analysis_coaching.overall_grade);
+      if (!primaryFocusArea && analysis.analysis_coaching.primary_focus_area) {
+        primaryFocusArea = analysis.analysis_coaching.primary_focus_area;
+      }
+    }
+    
+    // Latest psychology
+    if (analysis.analysis_psychology && !latestPsychology) {
+      latestPsychology = analysis.analysis_psychology;
+    }
+    
+    // Latest heat
+    if (analysis.deal_heat_analysis && !latestHeat) {
+      latestHeat = analysis.deal_heat_analysis;
+    }
+  }
+  
+  const v2Insights: Partial<AccountInsights> = {};
+  
+  // Dedupe critical gaps by category+description
+  const gapSet = new Set<string>();
+  v2Insights.critical_gaps_summary = allCriticalGaps
+    .filter(g => {
+      const key = `${g.category}:${g.description}`;
+      if (gapSet.has(key)) return false;
+      gapSet.add(key);
+      return true;
+    })
+    .slice(0, 5)
+    .map(g => ({
+      category: g.category,
+      description: g.description,
+      suggested_question: g.suggested_question,
+    }));
+  
+  // Competitors summary
+  if (competitorMap.size > 0) {
+    v2Insights.competitors_summary = Array.from(competitorMap.values()).slice(0, 5).map(c => ({
+      name: c.name,
+      status: c.status,
+      positioning: c.positioning || c.silver_bullet,
+    }));
+  }
+  
+  // Prospect persona
+  if (latestPsychology) {
+    v2Insights.prospect_persona = {
+      disc: latestPsychology.disc_profile,
+      archetype: latestPsychology.persona_archetype,
+      communication_style: latestPsychology.communication_style?.preference,
+      dos: latestPsychology.selling_dos,
+      donts: latestPsychology.selling_donts,
+    };
+  }
+  
+  // Coaching trend
+  if (coachGrades.length > 0) {
+    v2Insights.coaching_trend = {
+      avg_grade: coachGrades[0], // Most recent
+      primary_focus_area: primaryFocusArea,
+      recent_grades: coachGrades.slice(0, 5),
+    };
+  }
+  
+  // Latest heat
+  if (latestHeat) {
+    v2Insights.latest_heat_analysis = {
+      score: latestHeat.heat_score,
+      temperature: latestHeat.temperature,
+      trend: latestHeat.trend,
+      recommended_action: latestHeat.recommended_action,
+    };
+  }
+  
+  return v2Insights;
 }

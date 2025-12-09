@@ -269,6 +269,27 @@ Deno.serve(async (req) => {
       }
 
       console.log(`[${correlationId}] Successfully saved deal heat for ${updateData.length} row(s). Verified heat_score: ${updateData[0]?.deal_heat_analysis?.heat_score}`);
+
+      // Phase 1.1: Also update the prospect's heat_score from the latest deal heat
+      // Get the prospect_id from the call transcript
+      const { data: callData } = await supabaseClient
+        .from('call_transcripts')
+        .select('prospect_id')
+        .eq('id', call_id)
+        .single();
+
+      if (callData?.prospect_id) {
+        const { error: prospectError } = await supabaseClient
+          .from('prospects')
+          .update({ heat_score: dealHeat.heat_score })
+          .eq('id', callData.prospect_id);
+
+        if (prospectError) {
+          console.warn(`[${correlationId}] Failed to update prospect heat_score:`, prospectError.message);
+        } else {
+          console.log(`[${correlationId}] Updated prospect ${callData.prospect_id} heat_score to ${dealHeat.heat_score}`);
+        }
+      }
       
       return new Response(
         JSON.stringify({ deal_heat: dealHeat, saved: true }),
@@ -281,7 +302,6 @@ Deno.serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
 
   } catch (error) {
     console.error(`[${correlationId}] Error:`, error);
