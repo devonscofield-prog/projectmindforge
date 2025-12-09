@@ -1,5 +1,6 @@
 import { CallType } from '@/constants/callTypes';
 import type { BehaviorScore, CallMetadata, StrategyAudit, DealHeat, PsychologyProfile, CoachingSynthesis, PricingDiscipline } from '@/utils/analysis-schemas';
+import type { StakeholderInfluenceLevel } from '@/api/stakeholders';
 
 // Re-export for convenience
 export type { BehaviorScore, CallMetadata, StrategyAudit, DealHeat, PsychologyProfile, CoachingSynthesis, PricingDiscipline } from '@/utils/analysis-schemas';
@@ -37,6 +38,7 @@ export interface CreateCallTranscriptParams {
   callType: CallType;
   callTypeOther?: string;
   stakeholderName: string;
+  stakeholderInfluenceLevel?: StakeholderInfluenceLevel;
   accountName: string;
   salesforceAccountLink?: string;
   potentialRevenue?: number;

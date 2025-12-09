@@ -37,6 +37,7 @@ const influenceLevelStyles: Record<StakeholderInfluenceLevel, { bg: string; text
   secondary_dm: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-300', icon: Star },
   heavy_influencer: { bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-700 dark:text-orange-300', icon: User },
   light_influencer: { bg: 'bg-muted', text: 'text-muted-foreground', icon: User },
+  self_pay: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-300', icon: User },
 };
 
 function ChampionScoreGauge({ score }: { score: number | null }) {

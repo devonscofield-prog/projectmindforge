@@ -40,6 +40,7 @@ const influenceLevelColors: Record<StakeholderInfluenceLevel, string> = {
   secondary_dm: 'hsl(var(--chart-2))',
   heavy_influencer: 'hsl(var(--chart-3))',
   light_influencer: 'hsl(var(--muted-foreground))',
+  self_pay: 'hsl(var(--chart-4))',
 };
 
 interface NodePosition {

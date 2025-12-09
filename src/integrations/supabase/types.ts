@@ -1977,6 +1977,7 @@ export type Database = {
         | "heavy_influencer"
         | "secondary_dm"
         | "final_dm"
+        | "self_pay"
       user_activity_type:
         | "login"
         | "logout"
@@ -2148,6 +2149,7 @@ export const Constants = {
         "heavy_influencer",
         "secondary_dm",
         "final_dm",
+        "self_pay",
       ],
       user_activity_type: [
         "login",

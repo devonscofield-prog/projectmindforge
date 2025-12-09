@@ -4,7 +4,7 @@ import { toStakeholder, toStakeholderMention } from '@/lib/supabaseAdapters';
 
 const log = createLogger('stakeholders');
 
-export type StakeholderInfluenceLevel = 'light_influencer' | 'heavy_influencer' | 'secondary_dm' | 'final_dm';
+export type StakeholderInfluenceLevel = 'light_influencer' | 'heavy_influencer' | 'secondary_dm' | 'final_dm' | 'self_pay';
 
 export interface Stakeholder {
   id: string;
@@ -41,10 +41,11 @@ export interface StakeholderMention {
 }
 
 export const influenceLevelLabels: Record<StakeholderInfluenceLevel, string> = {
-  light_influencer: 'Light Influencer',
-  heavy_influencer: 'Heavy Influencer',
+  final_dm: 'DM (Decision Maker)',
   secondary_dm: 'Secondary DM',
-  final_dm: 'Final DM',
+  heavy_influencer: 'Heavy Influencer',
+  light_influencer: 'Light Influencer',
+  self_pay: 'Self Pay',
 };
 
 export const influenceLevelOrder: Record<StakeholderInfluenceLevel, number> = {
@@ -52,7 +53,17 @@ export const influenceLevelOrder: Record<StakeholderInfluenceLevel, number> = {
   secondary_dm: 2,
   heavy_influencer: 3,
   light_influencer: 4,
+  self_pay: 5,
 };
+
+/** Influence level options for dropdowns in the order they should appear */
+export const influenceLevelOptions: { value: StakeholderInfluenceLevel; label: string }[] = [
+  { value: 'final_dm', label: 'DM (Decision Maker)' },
+  { value: 'secondary_dm', label: 'Secondary DM' },
+  { value: 'heavy_influencer', label: 'Heavy Influencer' },
+  { value: 'light_influencer', label: 'Light Influencer' },
+  { value: 'self_pay', label: 'Self Pay' },
+];
 
 /**
  * Creates a new stakeholder
@@ -118,7 +129,9 @@ export async function findStakeholderByName(
 }
 
 /**
- * Gets or creates a stakeholder
+ * Gets or creates a stakeholder.
+ * If stakeholder exists and a new influence level is provided, updates the influence level
+ * (allowing reps to "promote" contacts over time).
  */
 export async function getOrCreateStakeholder(params: {
   prospectId: string;
@@ -131,13 +144,35 @@ export async function getOrCreateStakeholder(params: {
   const existing = await findStakeholderByName(params.prospectId, params.name);
 
   if (existing) {
-    // Update last interaction date
-    await supabase
-      .from('stakeholders')
-      .update({ last_interaction_date: new Date().toISOString().split('T')[0] })
-      .eq('id', existing.id);
+    // Build update object - always update last_interaction_date
+    const updateData: Record<string, unknown> = {
+      last_interaction_date: new Date().toISOString().split('T')[0],
+    };
+    
+    // Update influence level if provided and different from current
+    if (params.influenceLevel && params.influenceLevel !== existing.influence_level) {
+      updateData.influence_level = params.influenceLevel;
+      log.info('Updating stakeholder influence level', {
+        stakeholderId: existing.id,
+        oldLevel: existing.influence_level,
+        newLevel: params.influenceLevel,
+      });
+    }
 
-    return { stakeholder: existing, isNew: false };
+    const { data, error } = await supabase
+      .from('stakeholders')
+      .update(updateData)
+      .eq('id', existing.id)
+      .select()
+      .single();
+
+    if (error) {
+      log.error('Failed to update stakeholder', { error });
+      // Return existing without update on error
+      return { stakeholder: existing, isNew: false };
+    }
+
+    return { stakeholder: toStakeholder(data), isNew: false };
   }
 
   const newStakeholder = await createStakeholder(params);
