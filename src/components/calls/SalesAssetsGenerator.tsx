@@ -52,24 +52,40 @@ const PLACEHOLDERS = [
 
 // Convert markdown to Outlook-friendly HTML with inline styles
 const formatForOutlook = (markdown: string): string => {
+  // Step 1: Convert markdown syntax to HTML tags
   let html = markdown
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") // Escape HTML entities
     .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>') // Bold
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color:#0563C1; text-decoration:underline">$1</a>'); // Links with Outlook blue
 
-  // Process blocks separated by double newlines
+  // Step 2: Process blocks separated by double newlines
   html = html.split('\n\n').map(block => {
     const trimmedBlock = block.trim();
+    const lines = trimmedBlock.split('\n');
     
-    // Check if block is a list (starts with "* ")
-    if (trimmedBlock.startsWith('* ')) {
-      const items = block.split('\n').filter(l => l.trim().startsWith('* '));
-      return `<ul style="margin: 0 0 10px 20px; padding-left: 0;">${items.map(i => `<li style="margin-bottom: 4px;">${i.replace(/^\* /, '')}</li>`).join('')}</ul>`;
+    // Check if first line is a header (entirely bold) and remaining lines are list items
+    const firstLine = lines[0]?.trim() || '';
+    const isHeaderLine = /^<b>[^<]+<\/b>$/.test(firstLine);
+    const remainingLines = lines.slice(1);
+    const hasListItems = remainingLines.some(l => l.trim().startsWith('* '));
+    
+    // Pattern: Header followed by list items (no blank line between them in markdown)
+    if (isHeaderLine && hasListItems) {
+      const header = `<p style="margin: 16px 0 6px 0;">${firstLine}</p>`;
+      const listItems = remainingLines.filter(l => l.trim().startsWith('* '));
+      const list = `<ul style="margin: 0 0 10px 20px; padding-left: 0;">${listItems.map(i => `<li style="margin-bottom: 4px;">${i.trim().replace(/^\* /, '')}</li>`).join('')}</ul>`;
+      return header + list;
     }
     
-    // Check if block is a section header (single line that's entirely bold like "<b>Header:</b>")
-    if (trimmedBlock.match(/^<b>[^<]+<\/b>$/) && !trimmedBlock.includes('\n')) {
-      return `<p style="margin: 16px 0 6px 0;">${trimmedBlock}</p>`;
+    // Pure list block (all lines are list items)
+    if (trimmedBlock.startsWith('* ')) {
+      const items = lines.filter(l => l.trim().startsWith('* '));
+      return `<ul style="margin: 0 0 10px 20px; padding-left: 0;">${items.map(i => `<li style="margin-bottom: 4px;">${i.trim().replace(/^\* /, '')}</li>`).join('')}</ul>`;
+    }
+    
+    // Section header only (single bold line)
+    if (isHeaderLine && lines.length === 1) {
+      return `<p style="margin: 16px 0 6px 0;">${firstLine}</p>`;
     }
     
     // Regular paragraph
