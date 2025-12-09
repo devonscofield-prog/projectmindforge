@@ -198,9 +198,7 @@ function validateEmailQuality(emailBody: string): { valid: boolean; warnings: st
   if (wordCount < 75) {
     warnings.push(`Email too short (${wordCount} words, minimum 75)`);
   }
-  if (wordCount > 200) {
-    warnings.push(`Email too long (${wordCount} words, maximum 175 recommended)`);
-  }
+  // Removed upper word limit - we want substantive emails
   
   // Check for placeholder integrity (shouldn't have hallucinated names)
   if (emailBody.match(/\bDear\s+[A-Z][a-z]+\b/) && !emailBody.includes('{{ProspectFirstName}}')) {

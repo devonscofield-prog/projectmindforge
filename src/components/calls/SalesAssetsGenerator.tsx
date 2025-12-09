@@ -50,62 +50,60 @@ const PLACEHOLDERS = [
   '{{TopicDiscussed}}'
 ];
 
-// Convert markdown to Outlook-friendly HTML with inline styles
+// Convert markdown to Outlook-friendly HTML using <br> tags for reliable spacing
 const formatForOutlook = (markdown: string): string => {
   // Step 1: Convert markdown syntax to HTML tags
   let html = markdown
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") // Escape HTML entities
-    .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>') // Bold
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color:#0563C1; text-decoration:underline">$1</a>'); // Links with Outlook blue
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color:#0563C1; text-decoration:underline">$1</a>');
 
   // Step 2: Process blocks separated by double newlines
-  html = html.split('\n\n').map(block => {
+  const blocks = html.split('\n\n').map(block => {
     const trimmedBlock = block.trim();
-    const lines = trimmedBlock.split('\n');
+    if (!trimmedBlock) return '';
     
+    const lines = trimmedBlock.split('\n');
     const firstLine = lines[0]?.trim() || '';
     const isHeaderLine = /^<b>[^<]+<\/b>$/.test(firstLine);
     const remainingLines = lines.slice(1);
-    const hasListItems = remainingLines.some(l => l.trim().startsWith('* '));
-    const hasNonListContent = remainingLines.some(l => l.trim() && !l.trim().startsWith('* '));
+    const listItems = remainingLines.filter(l => l.trim().startsWith('* '));
+    const nonListLines = remainingLines.filter(l => l.trim() && !l.trim().startsWith('* '));
     
     // Pattern 1: Header followed by list items only
-    if (isHeaderLine && hasListItems && !hasNonListContent) {
-      const header = `<p style="margin: 16px 0 6px 0; line-height: 1.5;">${firstLine}</p>`;
-      const listItems = remainingLines.filter(l => l.trim().startsWith('* '));
-      const list = `<ul style="margin: 0 0 12px 24px; padding-left: 0; line-height: 1.6;">${listItems.map(i => 
-        `<li style="margin-bottom: 6px;">${i.trim().replace(/^\* /, '')}</li>`
-      ).join('')}</ul>`;
-      return header + list;
+    if (isHeaderLine && listItems.length > 0 && nonListLines.length === 0) {
+      const items = listItems.map(i => 
+        `&nbsp;&nbsp;&nbsp;• ${i.trim().replace(/^\* /, '')}`
+      ).join('<br>');
+      return `${firstLine}<br>${items}`;
     }
     
     // Pattern 2: Header followed by paragraph text (like "How We Help:")
-    if (isHeaderLine && remainingLines.length > 0 && hasNonListContent) {
-      const header = `<p style="margin: 16px 0 6px 0; line-height: 1.5;">${firstLine}</p>`;
-      const paragraphText = remainingLines.join(' ').trim();
-      const paragraph = `<p style="margin: 0 0 12px 0; line-height: 1.6;">${paragraphText}</p>`;
-      return header + paragraph;
+    if (isHeaderLine && remainingLines.length > 0 && nonListLines.length > 0) {
+      const paragraphContent = remainingLines.map(l => l.trim()).join('<br>');
+      return `${firstLine}<br>${paragraphContent}`;
     }
     
     // Pattern 3: Pure list block (all lines are list items)
     if (trimmedBlock.startsWith('* ')) {
       const items = lines.filter(l => l.trim().startsWith('* '));
-      return `<ul style="margin: 0 0 12px 24px; padding-left: 0; line-height: 1.6;">${items.map(i => 
-        `<li style="margin-bottom: 6px;">${i.trim().replace(/^\* /, '')}</li>`
-      ).join('')}</ul>`;
+      return items.map(i => `&nbsp;&nbsp;&nbsp;• ${i.trim().replace(/^\* /, '')}`).join('<br>');
     }
     
     // Pattern 4: Section header only (single bold line)
     if (isHeaderLine && lines.length === 1) {
-      return `<p style="margin: 16px 0 6px 0; line-height: 1.5;">${firstLine}</p>`;
+      return firstLine;
     }
     
-    // Pattern 5: Regular paragraph
-    return `<p style="margin: 0 0 12px 0; line-height: 1.6;">${block.replace(/\n/g, '<br>')}</p>`;
-  }).join('');
+    // Pattern 5: Regular paragraph - preserve internal line breaks
+    return lines.map(l => l.trim()).join('<br>');
+  }).filter(Boolean);
 
-  // Wrap in Outlook default font
-  return `<div style="font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #000000;">${html}</div>`;
+  // Join blocks with double line breaks for section spacing
+  const content = blocks.join('<br><br>');
+
+  // Wrap in Outlook-compatible container
+  return `<div style="font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #000000; line-height: 1.5;">${content}</div>`;
 };
 
 const REP_PLACEHOLDERS = [
