@@ -31,6 +31,7 @@ function sanitizeUserInput(input: string): string {
 }
 
 const generateSalesAssetsSchema = z.object({
+  call_id: z.string().uuid().optional(), // Optional call_id to save assets to DB
   transcript: z.string()
     .min(100, "Transcript too short")
     .max(MAX_TRANSCRIPT_LENGTH, `Transcript too long (max ${MAX_TRANSCRIPT_LENGTH} chars)`)
@@ -300,9 +301,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { transcript, strategic_context, psychology_context, account_name, stakeholder_name } = validation.data;
+    const { call_id, transcript, strategic_context, psychology_context, account_name, stakeholder_name } = validation.data;
 
-    console.log(`[generate-sales-assets] Generating assets for user ${user.id}`);
+    console.log(`[generate-sales-assets] Generating assets for user ${user.id}${call_id ? `, call ${call_id}` : ''}`);
 
     // Build the context for the AI
     let contextSection = '';
@@ -427,6 +428,28 @@ ${transcript.substring(0, 30000)}`;
       console.warn('[generate-sales-assets] Quality warnings:', qualityValidation.warnings);
       salesAssets.validation_warnings = salesAssets.validation_warnings || [];
       salesAssets.validation_warnings.push(...qualityValidation.warnings);
+    }
+
+    // Save to database if call_id is provided
+    if (call_id) {
+      console.log(`[generate-sales-assets] Saving assets to database for call ${call_id}`);
+      
+      const { error: updateError } = await supabase
+        .from('ai_call_analysis')
+        .update({
+          sales_assets: salesAssets,
+          sales_assets_generated_at: new Date().toISOString()
+        })
+        .eq('call_id', call_id);
+
+      if (updateError) {
+        console.error('[generate-sales-assets] Failed to save assets to database:', updateError);
+        // Don't fail the request, just log the error
+        salesAssets.save_error = 'Failed to persist assets to database';
+      } else {
+        console.log('[generate-sales-assets] Assets saved to database successfully');
+        salesAssets.saved = true;
+      }
     }
     
     console.log('[generate-sales-assets] Successfully generated sales assets');
