@@ -524,19 +524,12 @@ function RepDashboard() {
       // Clear draft on successful submission
       clearDraft();
 
-      // Check for rate limit error in analyze response
-      if (result.analyzeResponse?.isRateLimited) {
-        toast({
-          title: 'Too many requests',
-          description: 'Your call was saved but analysis is queued. Please wait a moment before submitting another.',
-          variant: 'destructive'
-        });
-      } else {
-        toast({
-          title: 'Call submitted for analysis',
-          description: 'Redirecting to your call details...'
-        });
-      }
+      // Show success toast immediately - this confirms the call was saved
+      // regardless of background analysis status
+      toast({
+        title: '✅ Call saved successfully!',
+        description: 'Redirecting to your call details. Analysis will complete shortly.'
+      });
 
       // Navigate to the call detail page
       navigate(`/calls/${result.transcript.id}`);
