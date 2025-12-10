@@ -76,6 +76,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
   // Frontend-driven NER backfill state (using useRef to avoid stale closure issues)
   const [isNERBackfillRunning, setIsNERBackfillRunning] = useState(false);
   const [nerProgress, setNerProgress] = useState<{ processed: number; total: number } | null>(null);
+  const [nerLastUpdateTime, setNerLastUpdateTime] = useState<number | null>(null);
   const shouldStopNERRef = useRef(false);
   const nerRetryCountRef = useRef(0);
   const nerBatchCountRef = useRef(0);
@@ -737,6 +738,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
             processed: result.total - result.remaining,
             total: result.total
           });
+          setNerLastUpdateTime(Date.now());
           
           // Reset retry count on success
           nerRetryCountRef.current = 0;
@@ -1013,6 +1015,9 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     resetProgress,
     embeddingsProgress,
     entitiesProgress,
+    isEmbeddingsJobStalled,
+    isNERJobStalled: isNERBackfillRunning && nerLastUpdateTime !== null && (Date.now() - nerLastUpdateTime > 60000),
+    isReindexJobStalled,
     
     // Pagination
     currentPage,

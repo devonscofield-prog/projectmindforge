@@ -10,6 +10,7 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { TranscriptChatPanel } from '@/components/admin/TranscriptChatPanel';
+import { BackfillProgressBar } from '@/components/admin/BackfillProgressBar';
 import { cn } from '@/lib/utils';
 import {
   CheckSquare,
@@ -55,6 +56,9 @@ interface TranscriptSelectionBarProps {
   resetProgress?: string | null;
   embeddingsProgress?: { processed: number; total: number } | null;
   entitiesProgress?: { processed: number; total: number } | null;
+  isEmbeddingsStalled?: boolean;
+  isNERStalled?: boolean;
+  isReindexStalled?: boolean;
   analysisMode: { label: string; color: string; useRag: boolean };
   chatOpen: boolean;
   isAdmin?: boolean;
@@ -93,6 +97,9 @@ export function TranscriptSelectionBar({
   resetProgress,
   embeddingsProgress,
   entitiesProgress,
+  isEmbeddingsStalled,
+  isNERStalled,
+  isReindexStalled,
   analysisMode,
   chatOpen,
   isAdmin,
@@ -121,8 +128,48 @@ export function TranscriptSelectionBar({
     (globalChunkStatus?.totalChunks && globalChunkStatus.totalChunks > 0)
   );
 
+  // Show progress bars when backfills are running
+  const showProgressBars = isBackfillingEmbeddings || isBackfillingEntities || isResetting;
+
   return (
-    <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-muted/50 rounded-lg">
+    <div className="space-y-3">
+      {/* Progress Bars - shown above main bar when running */}
+      {showProgressBars && (
+        <div className="space-y-2">
+          {isBackfillingEmbeddings && embeddingsProgress && (
+            <BackfillProgressBar
+              label="Embeddings"
+              processed={embeddingsProgress.processed}
+              total={embeddingsProgress.total}
+              isStalled={isEmbeddingsStalled}
+              onStop={onStopEmbeddingsBackfill}
+              variant="embeddings"
+            />
+          )}
+          {isBackfillingEntities && entitiesProgress && (
+            <BackfillProgressBar
+              label="NER Extraction"
+              processed={entitiesProgress.processed}
+              total={entitiesProgress.total}
+              isStalled={isNERStalled}
+              onStop={onStopNERBackfill}
+              variant="ner"
+            />
+          )}
+          {isResetting && resetProgress && (
+            <BackfillProgressBar
+              label="Reindexing"
+              processed={parseInt(resetProgress.match(/\d+/)?.[0] || '0')}
+              total={globalChunkStatus?.total || 0}
+              isStalled={isReindexStalled}
+              onStop={onStopReindex}
+              variant="reindex"
+            />
+          )}
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-muted/50 rounded-lg">
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2">
           <Button 
@@ -452,6 +499,7 @@ export function TranscriptSelectionBar({
           </SheetContent>
         </Sheet>
       </div>
+    </div>
     </div>
   );
 }
