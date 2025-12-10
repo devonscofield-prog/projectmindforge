@@ -127,6 +127,44 @@ function checkRateLimit(userId: string): { allowed: boolean; retryAfter?: number
   return { allowed: true };
 }
 
+// Structured logging helper
+function createLogger(correlationId: string) {
+  const startTime = Date.now();
+  return {
+    info: (phase: string, message: string, data?: Record<string, unknown>) => {
+      console.log(JSON.stringify({
+        level: 'info',
+        correlationId,
+        phase,
+        message,
+        elapsed: Date.now() - startTime,
+        ...data,
+      }));
+    },
+    warn: (phase: string, message: string, data?: Record<string, unknown>) => {
+      console.warn(JSON.stringify({
+        level: 'warn',
+        correlationId,
+        phase,
+        message,
+        elapsed: Date.now() - startTime,
+        ...data,
+      }));
+    },
+    error: (phase: string, message: string, error?: unknown, data?: Record<string, unknown>) => {
+      console.error(JSON.stringify({
+        level: 'error',
+        correlationId,
+        phase,
+        message,
+        error: error instanceof Error ? error.message : String(error),
+        elapsed: Date.now() - startTime,
+        ...data,
+      }));
+    },
+  };
+}
+
 // Analysis 2.0 types for behavioral and strategy data
 interface BehaviorScore {
   overall_score: number;
@@ -583,6 +621,9 @@ function formatChunkSummariesForPrompt(chunks: ChunkSummary[]): string {
 }
 
 Deno.serve(async (req) => {
+  const correlationId = crypto.randomUUID().slice(0, 8);
+  const log = createLogger(correlationId);
+  
   const origin = req.headers.get('Origin');
   const corsHeaders = getCorsHeaders(origin);
   
@@ -603,10 +644,12 @@ Deno.serve(async (req) => {
     }
   }
 
+  log.info('request_received', 'Coaching trends request received', { userId: userId.slice(0, 8) });
+
   // Check rate limit
   const rateLimitResult = checkRateLimit(userId);
   if (!rateLimitResult.allowed) {
-    console.warn(`[generate-coaching-trends] Rate limit exceeded for user ${userId}`);
+    log.warn('rate_limit', 'Rate limit exceeded', { userId: userId.slice(0, 8) });
     return new Response(
       JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
       { 
@@ -631,6 +674,7 @@ Deno.serve(async (req) => {
     let systemPrompt: string;
     let userPrompt: string;
     let totalCalls: number;
+    let analysisMode: 'direct' | 'hierarchical';
 
     if ('hierarchicalMode' in requestBody && requestBody.hierarchicalMode) {
       // Hierarchical mode: synthesize chunk summaries
@@ -643,7 +687,12 @@ Deno.serve(async (req) => {
         );
       }
 
-      console.log(`[generate-coaching-trends] Hierarchical mode: synthesizing ${chunkSummaries.length} chunks (${total} total calls)`);
+      analysisMode = 'hierarchical';
+      log.info('mode_determined', 'Hierarchical mode activated', { 
+        chunks: chunkSummaries.length, 
+        totalCalls: total,
+        dateRange 
+      });
       
       totalCalls = total;
       systemPrompt = HIERARCHICAL_SYNTHESIS_PROMPT;
@@ -666,7 +715,11 @@ Provide a comprehensive trend analysis that identifies patterns across all perio
         );
       }
 
-      console.log(`[generate-coaching-trends] Direct mode: analyzing ${calls.length} calls from ${dateRange.from} to ${dateRange.to}`);
+      analysisMode = 'direct';
+      log.info('mode_determined', 'Direct mode activated', { 
+        callCount: calls.length,
+        dateRange 
+      });
       
       totalCalls = calls.length;
       systemPrompt = TREND_ANALYSIS_SYSTEM_PROMPT;
@@ -678,6 +731,8 @@ ${formattedCalls}
 
 Provide a comprehensive trend analysis with specific evidence and actionable recommendations.`;
     }
+
+    log.info('ai_request_started', 'Sending request to AI Gateway', { mode: analysisMode, totalCalls });
 
     // Timeout controller for AI request (55 seconds)
     const controller = new AbortController();
@@ -693,8 +748,8 @@ Provide a comprehensive trend analysis with specific evidence and actionable rec
         },
         body: JSON.stringify({
           model: 'google/gemini-2.5-flash',
-          temperature: 0.3, // Lower temperature for consistency
-          max_tokens: 8192, // Explicit token limit
+          temperature: 0.3,
+          max_tokens: 8192,
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt }
@@ -707,7 +762,7 @@ Provide a comprehensive trend analysis with specific evidence and actionable rec
     } catch (fetchError) {
       clearTimeout(timeoutId);
       if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-        console.error('[generate-coaching-trends] AI request timed out after 55 seconds');
+        log.error('ai_timeout', 'AI request timed out after 55 seconds', fetchError);
         throw new Error('AI analysis timed out. Try with fewer calls.');
       }
       throw fetchError;
@@ -717,29 +772,32 @@ Provide a comprehensive trend analysis with specific evidence and actionable rec
 
     if (!aiResponse.ok) {
       if (aiResponse.status === 429) {
+        log.warn('ai_rate_limit', 'AI Gateway rate limit hit');
         return new Response(
           JSON.stringify({ error: 'Rate limit exceeded, please try again in a moment' }),
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       if (aiResponse.status === 402) {
+        log.warn('ai_payment_required', 'AI Gateway payment required');
         return new Response(
           JSON.stringify({ error: 'Usage limit reached, please add credits' }),
           { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       const errorText = await aiResponse.text();
-      console.error('[generate-coaching-trends] AI Gateway error:', aiResponse.status, errorText);
+      log.error('ai_error', 'AI Gateway error', null, { status: aiResponse.status, errorText });
       throw new Error(`AI Gateway error: ${aiResponse.status}`);
     }
 
+    log.info('ai_response_received', 'AI response received, processing');
+
     const aiData = await aiResponse.json();
-    console.log('[generate-coaching-trends] AI response received, processing...');
 
     // Extract the function call result
     const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
     if (!toolCall || toolCall.function?.name !== 'provide_trend_analysis') {
-      console.error('[generate-coaching-trends] Unexpected AI response format:', JSON.stringify(aiData));
+      log.error('ai_format_error', 'Unexpected AI response format', null, { response: JSON.stringify(aiData).slice(0, 500) });
       throw new Error('Unexpected AI response format');
     }
 
@@ -751,15 +809,14 @@ Provide a comprehensive trend analysis with specific evidence and actionable rec
       const validationResult = TrendAnalysisSchema.safeParse(parsed);
       
       if (!validationResult.success) {
-        console.warn('[generate-coaching-trends] Schema validation failed:', validationResult.error.format());
-        // Use parsed data but log validation issues for debugging
+        log.warn('validation_warning', 'Schema validation failed', { errors: validationResult.error.format() });
         trendAnalysis = parsed;
       } else {
         trendAnalysis = validationResult.data;
-        console.log('[generate-coaching-trends] Schema validation passed');
+        log.info('validation_complete', 'Schema validation passed');
       }
     } catch (parseError) {
-      console.error('[generate-coaching-trends] Failed to parse AI response:', parseError);
+      log.error('parse_error', 'Failed to parse AI response', parseError);
       throw new Error('Failed to parse AI analysis');
     }
 
@@ -811,7 +868,7 @@ Provide a comprehensive trend analysis with specific evidence and actionable rec
       };
     }
 
-    console.log(`[generate-coaching-trends] Successfully generated trend analysis for ${totalCalls} calls`);
+    log.info('complete', 'Trend analysis complete', { totalCalls, mode: analysisMode });
 
     return new Response(
       JSON.stringify(trendAnalysis),
@@ -819,7 +876,7 @@ Provide a comprehensive trend analysis with specific evidence and actionable rec
     );
 
   } catch (error) {
-    console.error('[generate-coaching-trends] Error:', error);
+    log.error('fatal', 'Unhandled error', error);
     const errorMessage = error instanceof Error ? error.message : 'Internal server error';
     return new Response(
       JSON.stringify({ error: errorMessage }),

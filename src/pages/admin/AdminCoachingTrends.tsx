@@ -51,7 +51,16 @@ import {
   Globe,
   Download,
   GitCompareArrows,
+  Timer,
+  GitBranch,
+  MessageCircleWarning,
 } from 'lucide-react';
+import { 
+  BehaviorTrendCard, 
+  createPatienceProps, 
+  createStrategicThreadingProps, 
+  createMonologueProps 
+} from '@/components/coaching/BehaviorTrendCard';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 type AnalysisScope = 'organization' | 'team' | 'rep';
@@ -687,6 +696,37 @@ export default function AdminCoachingTrends() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Analysis 2.0 Behavioral Trends */}
+            {displayAnalysis.trendAnalysis.patience && (
+              <div>
+                <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5 text-primary" />
+                  Behavioral Trends
+                </h2>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <BehaviorTrendCard
+                    title="Patience"
+                    icon={<Timer className="h-4 w-4 text-blue-500" />}
+                    {...createPatienceProps(displayAnalysis.trendAnalysis.patience)}
+                  />
+                  {displayAnalysis.trendAnalysis.strategicThreading && (
+                    <BehaviorTrendCard
+                      title="Strategic Threading"
+                      icon={<GitBranch className="h-4 w-4 text-purple-500" />}
+                      {...createStrategicThreadingProps(displayAnalysis.trendAnalysis.strategicThreading)}
+                    />
+                  )}
+                  {displayAnalysis.trendAnalysis.monologueViolations && (
+                    <BehaviorTrendCard
+                      title="Monologue Discipline"
+                      icon={<MessageCircleWarning className="h-4 w-4 text-amber-500" />}
+                      {...createMonologueProps(displayAnalysis.trendAnalysis.monologueViolations)}
+                    />
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Framework Trends */}
             <div>
