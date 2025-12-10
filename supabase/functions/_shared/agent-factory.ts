@@ -19,9 +19,12 @@ const AGENT_TIMEOUT_MS = {
   'google/gemini-2.5-pro': 30000,    // 30s for pro models (reduced from 45s)
 } as const;
 
-// Agent-specific timeout overrides (some agents need longer due to output size)
+// Agent-specific timeout overrides (some agents need longer due to output size or complexity)
 const AGENT_TIMEOUT_OVERRIDES: Record<string, number> = {
   'speaker_labeler': 25000,  // 25s - must output full labeled transcript
+  'skeptic': 20000,          // 20s - complex gap analysis, high variance observed
+  'negotiator': 20000,       // 20s - objection analysis, high variance observed
+  'coach': 25000,            // 25s - synthesis needs more time due to multi-agent input
 } as const;
 
 export function getAgentTimeout(model: 'google/gemini-2.5-flash' | 'google/gemini-2.5-pro', agentId?: string): number {
