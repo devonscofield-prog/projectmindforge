@@ -56,6 +56,7 @@ export {
   listCallTranscriptsForTeamWithFilters,
   getCallWithAnalysis,
   retryCallAnalysis,
+  triggerPendingCallAnalysis,
   deleteFailedTranscript,
   updateCallTranscript,
   adminDeleteCall,

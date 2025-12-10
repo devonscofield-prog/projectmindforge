@@ -1,4 +1,5 @@
-import { format } from 'date-fns';
+import { useState } from 'react';
+import { format, differenceInMinutes } from 'date-fns';
 import { parseDateOnly } from '@/lib/formatters';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,8 +11,11 @@ import { PaginationControls } from '@/components/ui/pagination-controls';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { MessageSquare, FileText, Loader2, AlertCircle, CheckCircle, Clock, SkipForward, Users } from 'lucide-react';
+import { MessageSquare, FileText, Loader2, AlertCircle, CheckCircle, Clock, SkipForward, Users, Play, AlertTriangle } from 'lucide-react';
 import { CALL_TYPES, Transcript } from './constants';
+import { triggerPendingCallAnalysis } from '@/api/aiCallAnalysis';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 interface TranscriptTableProps {
   transcripts: Transcript[];
@@ -59,6 +63,16 @@ const STATUS_CONFIG = {
   },
 } as const;
 
+// Helper to check if a pending call is stuck (>5 minutes old)
+function isStuckPending(transcript: Transcript): boolean {
+  if (transcript.analysis_status !== 'pending') return false;
+  // Use call_date as a proxy - in reality we'd want created_at or updated_at from the transcript
+  // For now, check if the call was created more than 5 minutes ago
+  const createdAt = new Date(transcript.call_date);
+  const now = new Date();
+  return differenceInMinutes(now, createdAt) > 5;
+}
+
 export function TranscriptTable({
   transcripts,
   totalCount,
@@ -71,6 +85,33 @@ export function TranscriptTable({
   onPageChange,
   onClearFilters,
 }: TranscriptTableProps) {
+  const queryClient = useQueryClient();
+  const [triggeringIds, setTriggeringIds] = useState<Set<string>>(new Set());
+
+  const handleTriggerAnalysis = async (e: React.MouseEvent, transcriptId: string) => {
+    e.stopPropagation();
+    setTriggeringIds(prev => new Set(prev).add(transcriptId));
+    
+    try {
+      const result = await triggerPendingCallAnalysis(transcriptId);
+      if (result.success) {
+        toast.success('Analysis triggered successfully');
+        queryClient.invalidateQueries({ queryKey: ['admin-transcripts'] });
+        queryClient.invalidateQueries({ queryKey: ['admin-recent-calls'] });
+      } else {
+        toast.error(result.error || 'Failed to trigger analysis');
+      }
+    } catch (err) {
+      toast.error('Failed to trigger analysis');
+    } finally {
+      setTriggeringIds(prev => {
+        const next = new Set(prev);
+        next.delete(transcriptId);
+        return next;
+      });
+    }
+  };
+
   const renderStatusBadge = (status: string) => {
     const config = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.pending;
     const Icon = config.icon;
@@ -123,7 +164,7 @@ export function TranscriptTable({
                   <th className="p-3">Status</th>
                   <th className="p-3">Rep</th>
                   <th className="p-3">Team</th>
-                  <th className="p-3">Preview</th>
+                  <th className="p-3">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -175,38 +216,75 @@ export function TranscriptTable({
                       </Badge>
                     </td>
                     <td className="p-3">
-                      {renderStatusBadge(transcript.analysis_status)}
+                      <div className="flex items-center gap-1">
+                        {renderStatusBadge(transcript.analysis_status)}
+                        {transcript.analysis_status === 'pending' && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
+                              </TooltipTrigger>
+                              <TooltipContent>Call may be stuck - try triggering analysis</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                      </div>
                     </td>
                     <td className="p-3 text-sm">{transcript.rep_name}</td>
                     <td className="p-3 text-sm text-muted-foreground">{transcript.team_name}</td>
                     <td className="p-3">
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="text-xs"
-                            onClick={(e) => e.stopPropagation()}
-                            aria-label={`Preview transcript for ${transcript.account_name || 'Unknown'}`}
-                          >
-                            <MessageSquare className="h-3 w-3 mr-1" />
-                            Preview
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-lg max-h-[80vh]">
-                          <DialogHeader>
-                            <DialogTitle>
-                              {transcript.account_name} - {format(parseDateOnly(transcript.call_date), 'MMM d, yyyy')}
-                            </DialogTitle>
-                          </DialogHeader>
-                          <ScrollArea className="h-[400px] pr-4">
-                            <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                              {transcript.raw_text?.substring(0, 2000)}
-                              {(transcript.raw_text?.length || 0) > 2000 && '...'}
-                            </p>
-                          </ScrollArea>
-                        </DialogContent>
-                      </Dialog>
+                      <div className="flex items-center gap-1">
+                        {transcript.analysis_status === 'pending' && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                                  onClick={(e) => handleTriggerAnalysis(e, transcript.id)}
+                                  disabled={triggeringIds.has(transcript.id)}
+                                  aria-label={`Trigger analysis for ${transcript.account_name || 'Unknown'}`}
+                                >
+                                  {triggeringIds.has(transcript.id) ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <Play className="h-3 w-3" />
+                                  )}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Trigger Analysis</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="text-xs"
+                              onClick={(e) => e.stopPropagation()}
+                              aria-label={`Preview transcript for ${transcript.account_name || 'Unknown'}`}
+                            >
+                              <MessageSquare className="h-3 w-3 mr-1" />
+                              Preview
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-lg max-h-[80vh]">
+                            <DialogHeader>
+                              <DialogTitle>
+                                {transcript.account_name} - {format(parseDateOnly(transcript.call_date), 'MMM d, yyyy')}
+                              </DialogTitle>
+                            </DialogHeader>
+                            <ScrollArea className="h-[400px] pr-4">
+                              <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                                {transcript.raw_text?.substring(0, 2000)}
+                                {(transcript.raw_text?.length || 0) > 2000 && '...'}
+                              </p>
+                            </ScrollArea>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
                     </td>
                   </tr>
                 ))}
