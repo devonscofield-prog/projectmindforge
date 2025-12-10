@@ -8,11 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { listCallTranscriptsForTeamWithFilters } from '@/api/aiCallAnalysis';
+import { listCallTranscriptsForTeamWithFilters, triggerPendingCallAnalysis } from '@/api/aiCallAnalysis';
 import { useAdminUsers } from '@/hooks/useAdminUsersQueries';
 import { useAdminTeams } from '@/hooks/useAdminTeamsQueries';
 import { useAdminDeleteCall, useStuckCalls, useAdminRetryCall } from '@/hooks/useCallDetailQueries';
-import { Search, History, Users, Building2, AlertTriangle, RefreshCw, Loader2 } from 'lucide-react';
+import { Search, History, Users, Building2, AlertTriangle, RefreshCw, Loader2, Play } from 'lucide-react';
+import { toast } from 'sonner';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 import { formatDistanceToNow } from 'date-fns';
 import {
@@ -26,6 +27,7 @@ function AdminCallHistory() {
   const [selectedTeamId, setSelectedTeamId] = useState<string>('all');
   const [selectedRepId, setSelectedRepId] = useState<string>('all');
   const [retryingCallId, setRetryingCallId] = useState<string | null>(null);
+  const [triggeringCallId, setTriggeringCallId] = useState<string | null>(null);
 
   // Fetch all users and teams
   const { data: users = [], isLoading: usersLoading } = useAdminUsers();
@@ -46,6 +48,20 @@ function AdminCallHistory() {
       await retryMutation.mutateAsync(callId);
     } finally {
       setRetryingCallId(null);
+    }
+  };
+
+  const handleTriggerAnalysis = async (callId: string) => {
+    setTriggeringCallId(callId);
+    try {
+      await triggerPendingCallAnalysis(callId);
+      toast.success('Analysis triggered successfully');
+      refetch();
+      refetchStuckCalls();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to trigger analysis');
+    } finally {
+      setTriggeringCallId(null);
     }
   };
 
@@ -208,8 +224,23 @@ function AdminCallHistory() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 ml-4">
+                        {call.analysis_status === 'pending' && (
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => handleTriggerAnalysis(call.id)}
+                            disabled={triggeringCallId === call.id}
+                          >
+                            {triggeringCallId === call.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                            ) : (
+                              <Play className="h-4 w-4 mr-1" />
+                            )}
+                            Trigger Now
+                          </Button>
+                        )}
                         <Button
-                          variant="default"
+                          variant="outline"
                           size="sm"
                           onClick={() => handleRetryCall(call.id)}
                           disabled={isRetrying || retryMutation.isPending}
@@ -324,6 +355,9 @@ function AdminCallHistory() {
           isAdmin
           onDeleteCall={deleteCall}
           isDeletingCall={isDeletingCall}
+          onTriggerAnalysis={handleTriggerAnalysis}
+          isTriggeringAnalysis={!!triggeringCallId}
+          triggeringCallId={triggeringCallId}
         />
       </div>
     </AppLayout>

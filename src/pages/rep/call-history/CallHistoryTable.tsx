@@ -41,6 +41,7 @@ import {
   Users,
   Trash2,
   Loader2,
+  Play,
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { PAGE_SIZE_OPTIONS, SortColumn } from './constants';
@@ -62,6 +63,9 @@ interface CallHistoryTableProps {
   isAdmin?: boolean;
   onDeleteCall?: (callId: string) => void;
   isDeletingCall?: boolean;
+  onTriggerAnalysis?: (callId: string) => void;
+  isTriggeringAnalysis?: boolean;
+  triggeringCallId?: string | null;
 }
 
 export function CallHistoryTable({
@@ -81,6 +85,9 @@ export function CallHistoryTable({
   isAdmin = false,
   onDeleteCall,
   isDeletingCall = false,
+  onTriggerAnalysis,
+  isTriggeringAnalysis = false,
+  triggeringCallId = null,
 }: CallHistoryTableProps) {
   const navigate = useNavigate();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -312,26 +319,53 @@ export function CallHistoryTable({
                       <TableCell>{getStatusBadge(t.analysis_status)}</TableCell>
                       {isAdmin && (
                         <TableCell>
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                  onClick={(e) => handleDeleteClick(e, t)}
-                                  disabled={isDeletingCall}
-                                >
-                                  {isDeletingCall ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <Trash2 className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Delete call</TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
+                          <div className="flex items-center gap-1">
+                            {t.analysis_status === 'pending' && onTriggerAnalysis && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 text-muted-foreground hover:text-primary"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onTriggerAnalysis(t.id);
+                                      }}
+                                      disabled={isTriggeringAnalysis && triggeringCallId === t.id}
+                                    >
+                                      {isTriggeringAnalysis && triggeringCallId === t.id ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <Play className="h-4 w-4" />
+                                      )}
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Trigger analysis</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                    onClick={(e) => handleDeleteClick(e, t)}
+                                    disabled={isDeletingCall}
+                                  >
+                                    {isDeletingCall ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <Trash2 className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Delete call</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
                         </TableCell>
                       )}
                       <TableCell>
