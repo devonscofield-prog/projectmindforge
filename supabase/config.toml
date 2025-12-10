@@ -86,3 +86,6 @@ verify_jwt = false
 
 [functions.complete-password-reset]
 verify_jwt = false
+
+[functions.set-user-password]
+verify_jwt = true

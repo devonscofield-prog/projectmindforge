@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
-import { ArrowLeft, Save, KeyRound, Copy, CheckCircle2, AlertTriangle, Loader2, ShieldOff, Trash2, Mail, MessageSquare, Info } from 'lucide-react';
+import { ArrowLeft, Save, KeyRound, AlertTriangle, Loader2, ShieldOff, Trash2 } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -51,7 +51,7 @@ function AdminUserEdit() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [sendingResetCode, setSendingResetCode] = useState(false);
+  const [settingPassword, setSettingPassword] = useState(false);
   const [resettingMFA, setResettingMFA] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -64,8 +64,9 @@ function AdminUserEdit() {
     hire_date: '',
     notes: '',
   });
-  const [resetCodeSent, setResetCodeSent] = useState(false);
-  const [resetCodeError, setResetCodeError] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [deleteConfirmEmail, setDeleteConfirmEmail] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
@@ -213,22 +214,33 @@ function AdminUserEdit() {
     }
   };
 
-  const handleSendResetCode = async () => {
+  const handleSetPassword = async () => {
     if (!userId) return;
 
-    setSendingResetCode(true);
-    setResetCodeSent(false);
-    setResetCodeError(null);
+    setPasswordError(null);
+
+    // Validate passwords match
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Passwords do not match');
+      return;
+    }
+
+    // Validate password complexity
+    const hasMinLength = newPassword.length >= 8;
+    const hasUppercase = /[A-Z]/.test(newPassword);
+    const hasLowercase = /[a-z]/.test(newPassword);
+    const hasNumber = /[0-9]/.test(newPassword);
+
+    if (!hasMinLength || !hasUppercase || !hasLowercase || !hasNumber) {
+      setPasswordError('Password must be at least 8 characters with uppercase, lowercase, and number');
+      return;
+    }
+
+    setSettingPassword(true);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast.error('You must be logged in');
-        return;
-      }
-
-      const response = await supabase.functions.invoke('generate-password-reset-otp', {
-        body: { userId },
+      const response = await supabase.functions.invoke('set-user-password', {
+        body: { userId, newPassword },
       });
 
       if (response.error) {
@@ -236,25 +248,20 @@ function AdminUserEdit() {
       }
 
       const result = response.data;
-      
-      if (result.emailSent) {
-        setResetCodeSent(true);
-        toast.success('Reset code sent', {
-          description: `A 6-digit code was sent to ${result.email}`
-        });
-      } else {
-        setResetCodeError(result.emailError || 'Email delivery failed');
-        toast.warning('Code generated but email failed', {
-          description: 'Please contact the user directly with their reset code'
-        });
+      if (result.error) {
+        throw new Error(result.error);
       }
+
+      toast.success('Password updated successfully');
+      setNewPassword('');
+      setConfirmPassword('');
     } catch (error) {
-      log.error('Failed to send reset code', { error });
-      const errorMessage = error instanceof Error ? error.message : 'Failed to send reset code';
-      setResetCodeError(errorMessage);
+      log.error('Failed to set password', { error });
+      const errorMessage = error instanceof Error ? error.message : 'Failed to set password';
+      setPasswordError(errorMessage);
       toast.error(errorMessage);
     } finally {
-      setSendingResetCode(false);
+      setSettingPassword(false);
     }
   };
 
@@ -324,9 +331,10 @@ function AdminUserEdit() {
     }
   };
 
-  const handleResendCode = () => {
-    setResetCodeSent(false);
-    setResetCodeError(null);
+  const clearPasswordForm = () => {
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordError(null);
   };
 
   const isOwnAccount = currentUser?.id === userId;
@@ -627,54 +635,56 @@ function AdminUserEdit() {
           <div className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Password Reset</CardTitle>
+                <CardTitle className="text-lg">Set Password</CardTitle>
                 <CardDescription>
-                  Send a secure 6-digit reset code to the user
+                  Manually set a new password for this user
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  This will send a 6-digit code to the user's email. They can enter it on the login page to reset their password.
+                <div className="space-y-2">
+                  <Label htmlFor="newPassword">New Password</Label>
+                  <Input
+                    id="newPassword"
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter new password"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPassword">Confirm Password</Label>
+                  <Input
+                    id="confirmPassword"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm new password"
+                  />
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  Password must be at least 8 characters with uppercase, lowercase, and number.
                 </p>
+
+                {passwordError && (
+                  <Alert variant="destructive" className="bg-destructive/10">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription className="text-xs">
+                      {passwordError}
+                    </AlertDescription>
+                  </Alert>
+                )}
 
                 <Button
                   variant="default"
                   className="w-full"
-                  onClick={handleSendResetCode}
-                  disabled={sendingResetCode}
+                  onClick={handleSetPassword}
+                  disabled={settingPassword || !newPassword || !confirmPassword}
                 >
                   <KeyRound className="h-4 w-4 mr-2" />
-                  {sendingResetCode ? 'Sending...' : 'Send Reset Code'}
+                  {settingPassword ? 'Setting Password...' : 'Set Password'}
                 </Button>
-
-                {resetCodeSent && (
-                  <Alert className="bg-green-500/10 border-green-500/30">
-                    <CheckCircle2 className="h-4 w-4 text-green-600" />
-                    <AlertDescription className="text-xs text-green-700">
-                      Reset code sent to {user?.email}. Tell the user to check their email and click "Have a reset code?" on the login page.
-                    </AlertDescription>
-                  </Alert>
-                )}
-                
-                {resetCodeError && (
-                  <Alert variant="destructive" className="bg-destructive/10">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertDescription className="text-xs">
-                      {resetCodeError}
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                {resetCodeSent && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
-                    onClick={handleResendCode}
-                  >
-                    Send Another Code
-                  </Button>
-                )}
               </CardContent>
             </Card>
 
