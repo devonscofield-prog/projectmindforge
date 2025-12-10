@@ -94,7 +94,7 @@ const NER_BATCH_TIMEOUT_MS = 90000;
 
 export async function processNERBatch(
   token: string, 
-  batchSize: number = 10
+  batchSize: number = 5 // Reduced from 10 to prevent edge function timeout
 ): Promise<NERBatchResult> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), NER_BATCH_TIMEOUT_MS);
