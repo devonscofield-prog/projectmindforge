@@ -32,6 +32,7 @@ import { getCallDetailBreadcrumbs } from '@/lib/breadcrumbConfig';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 import { formatCurrency, parseDateOnly } from '@/lib/formatters';
 import { useCallWithAnalysis, useAnalysisPolling, callDetailKeys, useRetryAnalysis, useDeleteFailedCall, useUpdateCallTranscript, useUpdateAnalysisUserCounts, useReanalyzeCall } from '@/hooks/useCallDetailQueries';
+import { useCallAnalysisRealtime } from '@/hooks/useCallAnalysisRealtime';
 import { getStakeholdersForCall, influenceLevelLabels } from '@/api/stakeholders';
 import type { CallMetadata } from '@/utils/analysis-schemas';
 import { HeatScoreBadge } from '@/components/ui/heat-score-badge';
@@ -84,8 +85,11 @@ function CallDetailPage() {
     return status === 'pending' || status === 'processing';
   }, [callData?.transcript]);
 
-  // Poll for analysis when needed
+  // Poll for analysis when needed (fallback for real-time)
   const { data: polledAnalysis } = useAnalysisPolling(id, shouldPoll);
+
+  // Real-time subscription for instant updates when analysis completes
+  useCallAnalysisRealtime(id, shouldPoll);
 
   // Use polled analysis if available, otherwise use initial analysis
   const transcript = callData?.transcript;
