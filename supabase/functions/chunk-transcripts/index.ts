@@ -72,11 +72,12 @@ const chunkTranscriptsSchema = z.object({
 // Constants
 const CHUNK_SIZE = 2000;
 const CHUNK_OVERLAP = 200;
-const NER_BATCH_SIZE = 10;
+const NER_BATCH_SIZE = 5; // Reduced from 10 to prevent timeout
 const BASE_DELAY_MS = 200;
 const MAX_DELAY_MS = 5000;
 const MAX_RETRIES = 3;
-const NER_CHUNKS_PER_API_CALL = 3;
+const NER_CHUNKS_PER_API_CALL = 3; // Kept for legacy background jobs
+const NER_INTERNAL_TIMEOUT_MS = 120000; // 120 seconds internal timeout (edge function limit is 150s)
 const CHUNKING_BATCH_SIZE = 50;
 const EMBEDDING_BATCH_SIZE = 10;
 const EMBEDDING_DELAY_MS = 500;
@@ -1366,7 +1367,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ========== NER BATCH MODE (Frontend-driven, synchronous) ==========
+    // ========== NER BATCH MODE (Frontend-driven, synchronous with parallel processing) ==========
     if (ner_batch) {
       if (!isAdmin) {
         return new Response(
@@ -1377,6 +1378,8 @@ Deno.serve(async (req) => {
 
       const effectiveBatchSize = batch_size || NER_BATCH_SIZE;
       console.log(`[chunk-transcripts] Admin ${userId} processing NER batch (size: ${effectiveBatchSize})`);
+      
+      const batchStartTime = Date.now();
 
       // Get total counts first
       const { count: totalChunks } = await supabase
@@ -1416,69 +1419,88 @@ Deno.serve(async (req) => {
 
       let processed = 0;
       let errors = 0;
+      let timedOut = false;
 
-      // Process chunks in mini-batches for API efficiency
-      for (let i = 0; i < chunksNeedingNER.length; i += NER_CHUNKS_PER_API_CALL) {
-        const batch = chunksNeedingNER.slice(i, i + NER_CHUNKS_PER_API_CALL);
-        
-        const firstMetadata = batch[0]?.metadata as { account_name?: string; rep_name?: string; call_type?: string } | undefined;
+      // Process ALL chunks in parallel using Promise.allSettled for speed
+      const parallelPromises = chunksNeedingNER.map(async (chunk) => {
+        // Check internal timeout before processing each chunk
+        if (Date.now() - batchStartTime > NER_INTERNAL_TIMEOUT_MS) {
+          timedOut = true;
+          return { chunkId: chunk.id, success: false, reason: 'timeout' };
+        }
+
+        const metadata = chunk.metadata as { account_name?: string; rep_name?: string; call_type?: string } | undefined;
         const context = {
-          accountName: firstMetadata?.account_name,
-          repName: firstMetadata?.rep_name,
-          callType: firstMetadata?.call_type
+          accountName: metadata?.account_name,
+          repName: metadata?.rep_name,
+          callType: metadata?.call_type
         };
 
         try {
-          const batchInput = batch.map(chunk => ({
-            id: chunk.id,
-            text: chunk.chunk_text
-          }));
-
+          const batchInput = [{ id: chunk.id, text: chunk.chunk_text }];
           const nerResults = await extractEntitiesBatch(batchInput, context, lovableApiKey);
+          const nerResult = nerResults.get(chunk.id);
 
-          for (const chunk of batch) {
-            const nerResult = nerResults.get(chunk.id);
-            if (nerResult) {
-              const { error: updateError } = await supabase
-                .from('transcript_chunks')
-                .update({
-                  entities: nerResult.entities,
-                  topics: nerResult.topics,
-                  meddpicc_elements: nerResult.meddpicc_elements,
-                  extraction_status: 'completed'
-                })
-                .eq('id', chunk.id);
+          if (nerResult) {
+            const { error: updateError } = await supabase
+              .from('transcript_chunks')
+              .update({
+                entities: nerResult.entities,
+                topics: nerResult.topics,
+                meddpicc_elements: nerResult.meddpicc_elements,
+                extraction_status: 'completed'
+              })
+              .eq('id', chunk.id);
 
-              if (updateError) {
-                console.error(`[chunk-transcripts] Failed to save NER for chunk ${chunk.id}:`, updateError);
-                errors++;
-              } else {
-                processed++;
-              }
+            if (updateError) {
+              console.error(`[chunk-transcripts] Failed to save NER for chunk ${chunk.id}:`, updateError);
+              return { chunkId: chunk.id, success: false, reason: 'db_error' };
+            }
+            return { chunkId: chunk.id, success: true };
+          } else {
+            return { chunkId: chunk.id, success: false, reason: 'no_result' };
+          }
+        } catch (error) {
+          console.error(`[chunk-transcripts] NER failed for chunk ${chunk.id}:`, error);
+          await supabase
+            .from('transcript_chunks')
+            .update({ extraction_status: 'failed' })
+            .eq('id', chunk.id);
+          return { chunkId: chunk.id, success: false, reason: 'api_error' };
+        }
+      });
+
+      // Wait for all parallel operations with internal timeout protection
+      const timeoutPromise = new Promise<null>((resolve) => {
+        setTimeout(() => resolve(null), NER_INTERNAL_TIMEOUT_MS);
+      });
+
+      const raceResult = await Promise.race([
+        Promise.allSettled(parallelPromises),
+        timeoutPromise.then(() => {
+          timedOut = true;
+          return null;
+        })
+      ]);
+
+      // Count results from completed operations
+      if (raceResult && Array.isArray(raceResult)) {
+        for (const result of raceResult) {
+          if (result.status === 'fulfilled') {
+            if (result.value.success) {
+              processed++;
             } else {
               errors++;
             }
-          }
-        } catch (error) {
-          console.error(`[chunk-transcripts] NER batch failed:`, error);
-          // Mark failed chunks
-          for (const chunk of batch) {
-            await supabase
-              .from('transcript_chunks')
-              .update({ extraction_status: 'failed' })
-              .eq('id', chunk.id);
+          } else {
             errors++;
           }
         }
-
-        // Small delay between mini-batches to avoid rate limits
-        if (i + NER_CHUNKS_PER_API_CALL < chunksNeedingNER.length) {
-          await new Promise(r => setTimeout(r, NER_BATCH_DELAY_MS));
-        }
       }
 
+      const elapsedMs = Date.now() - batchStartTime;
       const remaining = Math.max(0, (pendingChunks || 0) - processed);
-      console.log(`[chunk-transcripts] NER batch complete: ${processed} processed, ${errors} errors, ${remaining} remaining`);
+      console.log(`[chunk-transcripts] NER batch complete in ${elapsedMs}ms: ${processed} processed, ${errors} errors, ${remaining} remaining${timedOut ? ' (timed out)' : ''}`);
 
       return new Response(
         JSON.stringify({
@@ -1486,7 +1508,8 @@ Deno.serve(async (req) => {
           remaining,
           total: totalChunks || 0,
           errors,
-          complete: remaining === 0
+          complete: remaining === 0,
+          timed_out: timedOut
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
