@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
+import { signRequest } from "../_shared/hmac.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -322,7 +323,7 @@ Deno.serve(async (req) => {
       console.log(`[generate-aggregate-coaching-trends] Hierarchical downsampled to ${sampled.length} calls`);
     }
 
-    // Call the AI edge function with timeout protection
+    // Call the AI edge function with timeout protection and HMAC signing
     log('info', 'Invoking generate-coaching-trends', { correlationId, callCount: callsToAnalyze.length });
     
     const controller = new AbortController();
@@ -332,11 +333,34 @@ Deno.serve(async (req) => {
     let trendError;
     
     try {
-      const response = await supabase.functions.invoke('generate-coaching-trends', {
-        body: { calls: callsToAnalyze, dateRange: { from: fromDate, to: toDate } }
+      // Prepare request body with correlation ID for log tracing
+      const requestBody = { 
+        calls: callsToAnalyze, 
+        dateRange: { from: fromDate, to: toDate },
+        correlationId // Pass correlation ID for observability
+      };
+      const bodyString = JSON.stringify(requestBody);
+      
+      // Sign the request with HMAC for security
+      const hmacHeaders = await signRequest(bodyString, supabaseKey);
+      
+      const response = await fetch(`${supabaseUrl}/functions/v1/generate-coaching-trends`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+          ...hmacHeaders,
+        },
+        body: bodyString,
+        signal: controller.signal,
       });
-      trendData = response.data;
-      trendError = response.error;
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        trendError = { message: `HTTP ${response.status}: ${errorText}` };
+      } else {
+        trendData = await response.json();
+      }
     } catch (invokeErr) {
       clearTimeout(timeoutId);
       if (invokeErr instanceof Error && invokeErr.name === 'AbortError') {
