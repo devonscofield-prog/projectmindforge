@@ -79,9 +79,9 @@ const BATCH_DELAY_MS = 300;
 // Reduced from 20s to 15s to leave more time for analysis agents
 const PHASE0_BUDGET_MS = 15000;
 
-// Maximum transcript length for speaker labeling (40k chars ~ 10k words)
-// Reduced from 60k to prevent 20+ second Speaker Labeler runs
-const MAX_TRANSCRIPT_LENGTH_FOR_LABELING = 40000;
+// Maximum transcript length for speaker labeling (30k chars ~ 7.5k words)
+// Reduced from 40k to prevent 15+ second Speaker Labeler runs
+const MAX_TRANSCRIPT_LENGTH_FOR_LABELING = 30000;
 
 // ============= CONTEXT-AWARE PROMPT BUILDERS =============
 
@@ -347,6 +347,50 @@ function buildSpeakerLabelerPrompt(transcript: string, context: SpeakerContext):
   const prompt = SPEAKER_LABELER_PROMPT.replace('{SPEAKER_CONTEXT}', speakerContext);
   
   return `${prompt}\n\n--- TRANSCRIPT TO LABEL ---\n${transcript}`;
+}
+
+// ============= SMART SKIP DETECTION =============
+
+/**
+ * Detect if transcript already has speaker labels (e.g., "Rep:", "Prospect:", "Speaker 1:")
+ * If so, skip the Speaker Labeler agent to save time
+ */
+function hasExistingSpeakerLabels(transcript: string): { hasLabels: boolean; coverage: number; pattern: string | null } {
+  const lines = transcript.split('\n').filter(l => l.trim());
+  if (lines.length === 0) return { hasLabels: false, coverage: 0, pattern: null };
+  
+  // Common speaker label patterns
+  const patterns = [
+    /^(REP|PROSPECT|MANAGER|OTHER):/i,                    // Our format
+    /^(Speaker\s*\d+):/i,                                  // Generic numbered
+    /^([A-Z][a-z]+\s*[A-Z]?[a-z]*):/,                     // Name format (e.g., "John Smith:")
+    /^(\[[^\]]+\]):/,                                      // Bracketed format [John]:
+    /^(Host|Guest|Interviewer|Participant\s*\d*):/i,      // Meeting formats
+  ];
+  
+  let labeledCount = 0;
+  let matchedPattern: string | null = null;
+  
+  // Check first 50 lines for label patterns
+  const sampleSize = Math.min(50, lines.length);
+  for (let i = 0; i < sampleSize; i++) {
+    const line = lines[i].trim();
+    for (const pattern of patterns) {
+      if (pattern.test(line)) {
+        labeledCount++;
+        if (!matchedPattern) matchedPattern = pattern.source;
+        break;
+      }
+    }
+  }
+  
+  const coverage = labeledCount / sampleSize;
+  // Consider transcript pre-labeled if >50% of sample has labels
+  return { 
+    hasLabels: coverage > 0.5, 
+    coverage: Math.round(coverage * 100), 
+    pattern: matchedPattern 
+  };
 }
 
 // ============= CLIENT-SIDE LABEL APPLICATION =============
@@ -658,7 +702,19 @@ export async function runAnalysisPipeline(
   if (skipLabeling) {
     const lengthKb = Math.round(transcript.length / 1000);
     warnings.push(`Transcript too long for speaker labeling (${lengthKb}k chars), using raw transcript`);
-    console.log(`[Pipeline] Phase 0: Skipping speaker labeling (${lengthKb}k chars exceeds limit)`);
+    console.log(`[Pipeline] Phase 0: Skipping speaker labeling (${lengthKb}k chars exceeds ${MAX_TRANSCRIPT_LENGTH_FOR_LABELING / 1000}k limit)`);
+  }
+  
+  // Smart skip detection: check if transcript already has speaker labels
+  let hasPreLabels = false;
+  if (!skipLabeling) {
+    const labelCheck = hasExistingSpeakerLabels(transcript);
+    if (labelCheck.hasLabels) {
+      hasPreLabels = true;
+      processedTranscript = transcript; // Use as-is, already labeled
+      warnings.push(`Transcript already has speaker labels (${labelCheck.coverage}% coverage, pattern: ${labelCheck.pattern})`);
+      console.log(`[Pipeline] Phase 0: SMART SKIP - Transcript pre-labeled (${labelCheck.coverage}% coverage, pattern: ${labelCheck.pattern})`);
+    }
   }
   
   // Run Phase 0 agents in parallel (within timeout)
@@ -669,8 +725,8 @@ export async function runAnalysisPipeline(
     phase0Promises.push(executeAgentWithPrompt(sentinelConfig, sentinelPrompt, supabase, callId));
   }
   
-  // Add Speaker Labeler (only if context provided and not too long)
-  if (speakerLabelerConfig && labelerPrompt && !skipLabeling) {
+  // Add Speaker Labeler (only if context provided, not too long, and no pre-existing labels)
+  if (speakerLabelerConfig && labelerPrompt && !skipLabeling && !hasPreLabels) {
     phase0Promises.push(executeAgentWithPrompt(speakerLabelerConfig, labelerPrompt, supabase, callId));
   }
   
@@ -710,8 +766,8 @@ export async function runAnalysisPipeline(
       }
     }
     
-    // Process Speaker Labeler result
-    if (speakerLabelerConfig && labelerPrompt && !skipLabeling && results[resultIndex]) {
+    // Process Speaker Labeler result (only if we ran it)
+    if (speakerLabelerConfig && labelerPrompt && !skipLabeling && !hasPreLabels && results[resultIndex]) {
       const labelerResult = results[resultIndex] as AgentResult<SpeakerLabelerOutput>;
       
       if (labelerResult.success) {
@@ -802,10 +858,9 @@ export async function runAnalysisPipeline(
   // Small delay between batches to let rate limits recover
   await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
 
-  // ============= BATCH 2: Strategic + Deep Dive (P1 Optimized) =============
-  // Skeptic runs async (non-blocking) to reduce critical path
+  // ============= BATCH 2: Strategic + Deep Dive (Split into 2a/2b for rate limit control) =============
   // Skeptic runs async (non-blocking) and we await before Coach
-  console.log('[Pipeline] Batch 2/2: Running Profiler, Strategist, Referee, Interrogator, Negotiator + Skeptic (async)...');
+  console.log('[Pipeline] Batch 2a: Running Profiler, Strategist, Referee + Skeptic (async)...');
   const batch2Start = performance.now();
 
   // Build context-aware prompts using processedTranscript
@@ -826,17 +881,11 @@ export async function runAnalysisPipeline(
     callClassification?.scoring_hints,
     callClassification?.detected_call_type
   );
-  const interrogatorPrompt = buildInterrogatorPrompt(
-    processedTranscript, 
-    callClassification?.scoring_hints,
-    callClassification?.detected_call_type
-  );
   const competitorNames = spyResult.success 
     ? spy.competitive_intel.map(c => c.competitor_name) 
     : undefined;
 
-  // Fire Skeptic async (non-blocking) - P1 optimization
-  // This runs independently and we'll await it before Coach
+  // Fire Skeptic async (non-blocking) - runs independently, await before Coach
   const skepticPrompt = buildSkepticPrompt(
     processedTranscript, 
     undefined, // missed opportunities - populated after strategist runs
@@ -846,48 +895,63 @@ export async function runAnalysisPipeline(
   pendingSkepticResult = executeAgentWithPrompt(skepticConfig, skepticPrompt, supabase, callId);
   console.log('[Pipeline] Skeptic fired async (non-blocking)');
 
-  // Run Batch 2a: Strategist runs first so we can extract pitched features for Negotiator
-  // Auditor needs context from Strategist for pain severities, so we run Strategist first
-  const [profilerResult, strategistResult, refereeResult, interrogatorResult] = await Promise.all([
+  // Batch 2a: Profiler, Strategist, Referee (3 agents)
+  const [profilerResult, strategistResult, refereeResult] = await Promise.all([
     executeAgentWithPrompt(profilerConfig, profilerPrompt, supabase, callId),
     executeAgentWithPrompt(strategistConfig, strategistPrompt, supabase, callId),
     executeAgentWithPrompt(refereeConfig, behaviorPrompt, supabase, callId),
-    executeAgentWithPrompt(interrogatorConfig, interrogatorPrompt, supabase, callId),
   ]);
   
-  // Extract pain severities from Strategist for Auditor context
-  const strategistDataForAuditor = strategistResult.data as StrategistOutput;
-  const painSeverities = strategistResult.success && strategistDataForAuditor?.strategic_threading?.relevance_map
-    ? strategistDataForAuditor.strategic_threading.relevance_map
+  const batch2aDuration = performance.now() - batch2Start;
+  console.log(`[Pipeline] Batch 2a complete in ${Math.round(batch2aDuration)}ms`);
+  
+  // Small delay between sub-batches to reduce API pressure
+  await new Promise(resolve => setTimeout(resolve, 200));
+  
+  // Batch 2b: Interrogator, Negotiator, Auditor (3 agents)
+  // These need context from Batch 2a (Strategist)
+  console.log('[Pipeline] Batch 2b: Running Interrogator, Negotiator, Auditor...');
+  const batch2bStart = performance.now();
+  
+  const interrogatorPrompt = buildInterrogatorPrompt(
+    processedTranscript, 
+    callClassification?.scoring_hints,
+    callClassification?.detected_call_type
+  );
+  
+  // Extract context from Strategist for Negotiator and Auditor
+  const strategistDataForContext = strategistResult.data as StrategistOutput;
+  const pitchedFeatures = strategistResult.success && strategistDataForContext?.strategic_threading?.relevance_map
+    ? strategistDataForContext.strategic_threading.relevance_map.map(p => p.feature_pitched)
+    : undefined;
+  const painSeverities = strategistResult.success && strategistDataForContext?.strategic_threading?.relevance_map
+    ? strategistDataForContext.strategic_threading.relevance_map
         .filter(p => p.pain_severity)
         .map(p => ({ pain: p.pain_identified, severity: p.pain_severity as string }))
     : undefined;
-  
-  // Run Auditor with context from Sentinel (call type) and Strategist (pain severities)
-  const auditorPrompt = buildAuditorPrompt(
-    processedTranscript,
-    callClassification?.detected_call_type,
-    painSeverities
-  );
-  const auditorResult = await executeAgentWithPrompt(auditorConfig, auditorPrompt, supabase, callId);
-
-  // Extract pitched features from Strategist for Negotiator context
-  const strategistData = strategistResult.data as StrategistOutput;
-  const pitchedFeatures = strategistResult.success && strategistData?.strategic_threading?.relevance_map
-    ? strategistData.strategic_threading.relevance_map.map(p => p.feature_pitched)
-    : undefined;
-  
-  // Run Negotiator with full context from Spy (competitors) + Strategist (pitched features)
+    
   const negotiatorPrompt = buildNegotiatorPrompt(
     processedTranscript, 
     competitorNames, 
     pitchedFeatures,
     callClassification?.detected_call_type
   );
-  const negotiatorResult = await executeAgentWithPrompt(negotiatorConfig, negotiatorPrompt, supabase, callId);
+  const auditorPrompt = buildAuditorPrompt(
+    processedTranscript,
+    callClassification?.detected_call_type,
+    painSeverities
+  );
+  
+  const [interrogatorResult, negotiatorResult, auditorResult] = await Promise.all([
+    executeAgentWithPrompt(interrogatorConfig, interrogatorPrompt, supabase, callId),
+    executeAgentWithPrompt(negotiatorConfig, negotiatorPrompt, supabase, callId),
+    executeAgentWithPrompt(auditorConfig, auditorPrompt, supabase, callId),
+  ]);
+  
+  const batch2bDuration = performance.now() - batch2bStart;
+  console.log(`[Pipeline] Batch 2b complete in ${Math.round(batch2bDuration)}ms`);
 
   const batch2Duration = performance.now() - batch2Start;
-  console.log(`[Pipeline] Batch 2 complete in ${Math.round(batch2Duration)}ms`);
   
   // Check timeout after Batch 2
   checkTimeout(pipelineStart, 'After Batch 2');

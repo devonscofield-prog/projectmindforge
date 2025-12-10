@@ -19,15 +19,17 @@ const AGENT_TIMEOUT_MS = {
   'google/gemini-2.5-pro': 30000,    // 30s for pro models (reduced from 45s)
 } as const;
 
-// Agent-specific timeout overrides (some agents need longer due to output size or complexity)
+// Agent-specific timeout overrides (tuned based on P95 data)
 const AGENT_TIMEOUT_OVERRIDES: Record<string, number> = {
-  'speaker_labeler': 20000,  // 20s - reduced from 25s, now uses 40k char limit
-  'skeptic': 15000,          // 15s - reduced from 20s for early termination
-  'negotiator': 15000,       // 15s - reduced from 20s for early termination
-  'coach': 20000,            // 20s - reduced from 25s, synthesis still needs time
-  'auditor': 12000,          // 12s - pricing analysis is straightforward
-  'profiler': 12000,         // 12s - psychology profile is bounded
-  'interrogator': 12000,     // 12s - question analysis is bounded
+  'speaker_labeler': 15000,  // 15s - reduced from 20s, now uses 30k char limit + smart skip
+  'skeptic': 15000,          // 15s - complex gap analysis
+  'negotiator': 12000,       // 12s - reduced from 15s, avg 4.5s
+  'coach': 18000,            // 18s - reduced from 20s, synthesis
+  'auditor': 8000,           // 8s - reduced from 12s, P95 is 13s so fail fast on outliers
+  'profiler': 10000,         // 10s - reduced from 12s
+  'interrogator': 10000,     // 10s - reduced from 12s
+  'strategist': 12000,       // 12s - P95 is 8s
+  'referee': 10000,          // 10s - behavioral scoring is bounded
 } as const;
 
 // Non-critical agents that can fail gracefully without blocking analysis
