@@ -1,6 +1,9 @@
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
 
+// Version indicator for deployment verification
+console.log('[chunk-transcripts] Version: v2-parallel-batch5');
+
 // Declare EdgeRuntime for Deno edge functions
 declare const EdgeRuntime: {
   waitUntil(promise: Promise<unknown>): void;
