@@ -89,25 +89,42 @@ export interface NERBatchResult {
   complete?: boolean;
 }
 
+// Timeout for NER batch requests (90 seconds - edge functions can take time)
+const NER_BATCH_TIMEOUT_MS = 90000;
+
 export async function processNERBatch(
   token: string, 
   batchSize: number = 10
 ): Promise<NERBatchResult> {
-  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chunk-transcripts`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-    },
-    body: JSON.stringify({ ner_batch: true, batch_size: batchSize }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), NER_BATCH_TIMEOUT_MS);
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`[${response.status}] ${errorText || 'Failed to process NER batch'}`);
+  try {
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chunk-transcripts`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ ner_batch: true, batch_size: batchSize }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`[${response.status}] ${errorText || 'Failed to process NER batch'}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('NER batch request timed out - will retry');
+    }
+    throw error;
   }
-
-  return await response.json();
 }
 
 // Legacy function - kept for backward compatibility but now uses frontend-driven pattern
