@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { listCallTranscriptsForTeamWithFilters } from '@/api/aiCallAnalysis';
 import { useAdminUsers } from '@/hooks/useAdminUsersQueries';
 import { useAdminTeams } from '@/hooks/useAdminTeamsQueries';
+import { useAdminDeleteCall } from '@/hooks/useCallDetailQueries';
 import { Search, History, Users, Building2 } from 'lucide-react';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 import {
@@ -24,6 +25,9 @@ function AdminCallHistory() {
   // Fetch all users and teams
   const { data: users = [], isLoading: usersLoading } = useAdminUsers();
   const { data: teams = [], isLoading: teamsLoading } = useAdminTeams();
+  
+  // Admin delete mutation
+  const { mutate: deleteCall, isPending: isDeletingCall } = useAdminDeleteCall();
 
   const {
     search,
@@ -218,6 +222,9 @@ function AdminCallHistory() {
           onGoToPage={(page) => goToPage(page, totalPages)}
           onPageSizeChange={handlePageSizeChange}
           showRepName
+          isAdmin
+          onDeleteCall={deleteCall}
+          isDeletingCall={isDeletingCall}
         />
       </div>
     </AppLayout>

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,6 +16,16 @@ import { cn } from '@/lib/utils';
 import { getDashboardUrl } from '@/lib/routes';
 import { formatCurrency } from '@/lib/formatters';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   CheckCircle,
   AlertCircle,
   Clock,
@@ -28,6 +39,8 @@ import {
   Flame,
   Mic,
   Users,
+  Trash2,
+  Loader2,
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { PAGE_SIZE_OPTIONS, SortColumn } from './constants';
@@ -46,6 +59,9 @@ interface CallHistoryTableProps {
   onGoToPage: (page: number) => void;
   onPageSizeChange: (size: number) => void;
   showRepName?: boolean;
+  isAdmin?: boolean;
+  onDeleteCall?: (callId: string) => void;
+  isDeletingCall?: boolean;
 }
 
 export function CallHistoryTable({
@@ -62,8 +78,27 @@ export function CallHistoryTable({
   onGoToPage,
   onPageSizeChange,
   showRepName = false,
+  isAdmin = false,
+  onDeleteCall,
+  isDeletingCall = false,
 }: CallHistoryTableProps) {
   const navigate = useNavigate();
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [callToDelete, setCallToDelete] = useState<{ id: string; accountName: string | null } | null>(null);
+
+  const handleDeleteClick = (e: React.MouseEvent, call: CallTranscriptWithHeat) => {
+    e.stopPropagation(); // Prevent row click navigation
+    setCallToDelete({ id: call.id, accountName: call.account_name });
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (callToDelete && onDeleteCall) {
+      onDeleteCall(callToDelete.id);
+    }
+    setDeleteDialogOpen(false);
+    setCallToDelete(null);
+  };
 
   const startItem = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const endItem = Math.min(currentPage * pageSize, totalCount);
@@ -227,6 +262,7 @@ export function CallHistoryTable({
                     </TableHead>
                     <TableHead>Revenue</TableHead>
                     <TableHead>Status</TableHead>
+                    {isAdmin && <TableHead className="w-[50px]">Actions</TableHead>}
                     <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -266,6 +302,30 @@ export function CallHistoryTable({
                       <TableCell>{getHeatBadge(t.heat_score)}</TableCell>
                       <TableCell>{formatCurrency(t.potential_revenue)}</TableCell>
                       <TableCell>{getStatusBadge(t.analysis_status)}</TableCell>
+                      {isAdmin && (
+                        <TableCell>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                  onClick={(e) => handleDeleteClick(e, t)}
+                                  disabled={isDeletingCall}
+                                >
+                                  {isDeletingCall ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Delete call</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </TableCell>
+                      )}
                       <TableCell>
                         <ArrowRight className="h-4 w-4 text-muted-foreground" />
                       </TableCell>
@@ -352,6 +412,37 @@ export function CallHistoryTable({
         )}
       </CardContent>
     </Card>
+
+    {/* Delete Confirmation Dialog */}
+    <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete Call?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This will permanently delete the call transcript
+            {callToDelete?.accountName && ` for "${callToDelete.accountName}"`} and all related 
+            analysis data. This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={isDeletingCall}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleConfirmDelete}
+            disabled={isDeletingCall}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            {isDeletingCall ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Deleting...
+              </>
+            ) : (
+              'Delete'
+            )}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     </ComponentErrorBoundary>
   );
 }

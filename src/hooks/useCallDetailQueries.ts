@@ -468,3 +468,41 @@ export function useReanalyzeCall(callId: string) {
     },
   });
 }
+
+/**
+ * Hook for admins to delete any call transcript
+ */
+export function useAdminDeleteCall() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (callId: string) => {
+      const { adminDeleteCall } = await import('@/api/aiCallAnalysis');
+      const result = await adminDeleteCall(callId);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete call');
+      }
+      return result;
+    },
+    onSuccess: () => {
+      // Invalidate all call history queries to refresh the list
+      queryClient.invalidateQueries({ queryKey: ['admin-call-history'] });
+      queryClient.invalidateQueries({ queryKey: ['call-history'] });
+      queryClient.invalidateQueries({ queryKey: callDetailKeys.all });
+      
+      toast({
+        title: 'Call Deleted',
+        description: 'The call and all related data have been permanently deleted.',
+      });
+    },
+    onError: (error: Error) => {
+      log.error('Admin delete call failed', { error: error.message });
+      toast({
+        title: 'Delete Failed',
+        description: error.message || 'Failed to delete the call. Please try again.',
+        variant: 'destructive',
+      });
+    },
+  });
+}

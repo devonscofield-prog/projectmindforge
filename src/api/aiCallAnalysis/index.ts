@@ -58,6 +58,7 @@ export {
   retryCallAnalysis,
   deleteFailedTranscript,
   updateCallTranscript,
+  adminDeleteCall,
 } from './transcripts';
 export type { UpdateCallTranscriptParams, CallTranscriptWithHeatAndRep } from './transcripts';
 
