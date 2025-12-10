@@ -183,7 +183,7 @@ export const AuditorSchema = z.object({
   pricing_score: z.number().min(0).max(100).describe("Pricing discipline score 0-100"),
   grade: z.enum(['Pass', 'Fail']).describe("Pass if score >= 60, Fail otherwise"),
   summary: z.string().describe("1-2 sentence assessment of pricing discipline"),
-  coaching_tips: z.array(z.string()).max(3).describe("2-3 specific tips for improving pricing discipline"),
+  coaching_tips: z.array(z.string()).max(5).describe("2-3 specific tips for improving pricing discipline"),
 });
 
 // The Coach - synthesis
