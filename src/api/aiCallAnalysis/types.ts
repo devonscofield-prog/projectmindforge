@@ -96,7 +96,7 @@ export interface CallHistoryFilters {
   dateFrom?: string;
   dateTo?: string;
   heatRange?: HeatRange;
-  sortBy?: 'call_date' | 'account_name' | 'created_at' | 'heat_score';
+  sortBy?: 'call_date' | 'account_name' | 'created_at' | 'heat_score' | 'coach_grade';
   sortOrder?: 'asc' | 'desc';
   limit?: number;
   offset?: number;

@@ -296,7 +296,8 @@ export async function listCallTranscriptsForRepWithFilters(
 ): Promise<{ data: CallTranscriptWithHeat[]; count: number }> {
   const needsHeatFiltering = !!filters.heatRange;
   const needsHeatSorting = filters.sortBy === 'heat_score';
-  const shouldFetchAll = needsHeatFiltering || needsHeatSorting;
+  const needsGradeSorting = filters.sortBy === 'coach_grade';
+  const shouldFetchAll = needsHeatFiltering || needsHeatSorting || needsGradeSorting;
 
   let query = supabase
     .from('call_transcripts')
@@ -329,8 +330,8 @@ export async function listCallTranscriptsForRepWithFilters(
     query = query.lte('call_date', filters.dateTo);
   }
 
-  // Only apply DB sorting if not sorting by heat_score
-  if (!needsHeatSorting) {
+  // Only apply DB sorting if not sorting by heat_score or coach_grade
+  if (!needsHeatSorting && !needsGradeSorting) {
     const sortBy = filters.sortBy || 'call_date';
     const sortOrder = filters.sortOrder || 'desc';
     query = query.order(sortBy, { ascending: sortOrder === 'asc' });
@@ -431,6 +432,22 @@ export async function listCallTranscriptsForRepWithFilters(
       const aScore = a.heat_score ?? -1;
       const bScore = b.heat_score ?? -1;
       return sortOrder === 'desc' ? bScore - aScore : aScore - bScore;
+    });
+  }
+
+  // Apply grade sorting if specified
+  if (needsGradeSorting) {
+    const GRADE_ORDER = ['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'D-', 'F'];
+    const getGradeRank = (grade: string | null): number => {
+      if (!grade) return -1;
+      const index = GRADE_ORDER.indexOf(grade);
+      return index === -1 ? -1 : GRADE_ORDER.length - index;
+    };
+    const sortOrder = filters.sortOrder || 'desc';
+    transcriptsWithHeat.sort((a, b) => {
+      const aRank = getGradeRank(a.coach_grade);
+      const bRank = getGradeRank(b.coach_grade);
+      return sortOrder === 'desc' ? bRank - aRank : aRank - bRank;
     });
   }
 
@@ -663,7 +680,8 @@ export async function listCallTranscriptsForTeamWithFilters(
 
   const needsHeatFiltering = !!filters.heatRange;
   const needsHeatSorting = filters.sortBy === 'heat_score';
-  const shouldFetchAll = needsHeatFiltering || needsHeatSorting;
+  const needsGradeSorting = filters.sortBy === 'coach_grade';
+  const shouldFetchAll = needsHeatFiltering || needsHeatSorting || needsGradeSorting;
 
   let query = supabase
     .from('call_transcripts')
@@ -696,8 +714,8 @@ export async function listCallTranscriptsForTeamWithFilters(
     query = query.lte('call_date', filters.dateTo);
   }
 
-  // Only apply DB sorting if not sorting by heat_score
-  if (!needsHeatSorting) {
+  // Only apply DB sorting if not sorting by heat_score or coach_grade
+  if (!needsHeatSorting && !needsGradeSorting) {
     const sortBy = filters.sortBy || 'call_date';
     const sortOrder = filters.sortOrder || 'desc';
     query = query.order(sortBy, { ascending: sortOrder === 'asc' });
@@ -803,6 +821,22 @@ export async function listCallTranscriptsForTeamWithFilters(
       const aScore = a.heat_score ?? -1;
       const bScore = b.heat_score ?? -1;
       return sortOrder === 'desc' ? bScore - aScore : aScore - bScore;
+    });
+  }
+
+  // Apply grade sorting if specified
+  if (needsGradeSorting) {
+    const GRADE_ORDER = ['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'D-', 'F'];
+    const getGradeRank = (grade: string | null): number => {
+      if (!grade) return -1;
+      const index = GRADE_ORDER.indexOf(grade);
+      return index === -1 ? -1 : GRADE_ORDER.length - index;
+    };
+    const sortOrder = filters.sortOrder || 'desc';
+    transcriptsWithHeat.sort((a, b) => {
+      const aRank = getGradeRank(a.coach_grade);
+      const bRank = getGradeRank(b.coach_grade);
+      return sortOrder === 'desc' ? bRank - aRank : aRank - bRank;
     });
   }
 
