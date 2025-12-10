@@ -19,4 +19,4 @@ export const heatRangeOptions: { value: HeatRange; label: string }[] = [
   { value: 'cold', label: '❄️ Cold (1-3)' },
 ];
 
-export type SortColumn = 'call_date' | 'account_name' | 'created_at' | 'heat_score';
+export type SortColumn = 'call_date' | 'account_name' | 'created_at' | 'heat_score' | 'coach_grade';

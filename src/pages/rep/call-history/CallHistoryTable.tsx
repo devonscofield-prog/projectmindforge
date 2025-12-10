@@ -248,7 +248,15 @@ export function CallHistoryTable({
                         <ArrowUpDown className="h-3 w-3" />
                       </div>
                     </TableHead>
-                    <TableHead>Grade</TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => onToggleSort('coach_grade')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Grade
+                        <ArrowUpDown className="h-3 w-3" />
+                      </div>
+                    </TableHead>
                     <TableHead>Call Type</TableHead>
                     <TableHead 
                       className="cursor-pointer hover:bg-muted/50"
