@@ -711,6 +711,16 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     nerRetryCountRef.current = 0;
     nerBatchCountRef.current = 0;
     setIsNERBackfillRunning(true);
+    
+    // Set initial progress immediately so progress bar shows
+    const initialPending = globalChunkStatus?.nerPending || 0;
+    const initialCompleted = globalChunkStatus?.nerCompleted || 0;
+    setNerProgress({
+      processed: initialCompleted,
+      total: initialCompleted + initialPending
+    });
+    setNerLastUpdateTime(Date.now());
+    
     toast.success('NER extraction started...');
     
     // Frontend-driven loop with token refresh
