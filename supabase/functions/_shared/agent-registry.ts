@@ -285,7 +285,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (t) => `Analyze this sales call transcript. Find the 3-5 most dangerous UNKNOWNS or MISSING INFORMATION that could block this deal:\n\n${t}`,
     toolName: 'identify_deal_gaps',
     toolDescription: 'Identify critical information gaps blocking a sales deal',
-    options: { model: 'google/gemini-2.5-flash', temperature: 0.1, maxTokens: 2048 }, // Reduced from 4096 for performance
+    options: { model: 'google/gemini-2.5-flash', temperature: 0.1, maxTokens: 1536 }, // Reduced from 2048 for lower variance
     isCritical: false,
     default: DEFAULT_SKEPTIC,
     phase: 1,
@@ -299,7 +299,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (t) => `Analyze this sales call transcript for objections and pushback. Identify how the rep handled each moment of friction:\n\n${t}`,
     toolName: 'analyze_objection_handling',
     toolDescription: 'Analyze how the rep handled objections and pushback during the sales call',
-    options: { model: 'google/gemini-2.5-flash', temperature: 0.1, maxTokens: 2048 }, // Reduced from 4096 for performance
+    options: { model: 'google/gemini-2.5-flash', temperature: 0.1, maxTokens: 1536 }, // Reduced from 2048 for lower variance
     isCritical: false,
     default: DEFAULT_NEGOTIATOR,
     phase: 1,
@@ -356,7 +356,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (input) => `Based on the following analysis reports from 9 specialized agents, synthesize a coaching plan for the sales rep:\n\n${input}`,
     toolName: 'synthesize_coaching',
     toolDescription: 'Synthesize all analysis into a prioritized coaching plan',
-    options: { model: 'google/gemini-2.5-flash', temperature: 0.3, maxTokens: 3072 }, // Reduced from 4096 for performance
+    options: { model: 'google/gemini-2.5-flash', temperature: 0.3, maxTokens: 2560 }, // Reduced from 3072 for lower variance
     isCritical: false,
     default: DEFAULT_COACH,
     phase: 2,
