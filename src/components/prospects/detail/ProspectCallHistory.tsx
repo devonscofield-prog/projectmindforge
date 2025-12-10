@@ -5,6 +5,7 @@ import { CollapsibleSection } from '@/components/ui/collapsible-section';
 import { HeatScoreBadge } from '@/components/ui/heat-score-badge';
 import { Phone, ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
+import { parseDateOnly } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import type { CallRecord } from '@/hooks/prospect/types';
 
@@ -70,7 +71,7 @@ function CallRow({ call }: { call: CallRecord }) {
               }
             </p>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span>{format(new Date(call.call_date), 'MMM d, yyyy')}</span>
+              <span>{format(parseDateOnly(call.call_date), 'MMM d, yyyy')}</span>
               {call.detected_call_type && (
                 <Badge variant="outline" className="text-[10px] px-1.5 py-0">
                   {formatCallType(call.detected_call_type)}

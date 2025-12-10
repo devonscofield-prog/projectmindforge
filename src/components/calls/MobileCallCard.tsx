@@ -1,4 +1,5 @@
 import { format } from 'date-fns';
+import { parseDateOnly } from '@/lib/formatters';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle, AlertCircle, Clock, ChevronRight, Flame, Users } from 'lucide-react';
@@ -108,7 +109,7 @@ export function MobileCallCard({ call, onClick }: MobileCallCardProps) {
             )}
             
             <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
-              <span>{format(new Date(call.call_date), 'MMM d, yyyy')}</span>
+              <span>{format(parseDateOnly(call.call_date), 'MMM d, yyyy')}</span>
               <Badge variant="outline" className="text-xs">{getCallTypeDisplay()}</Badge>
               {getGradeBadge(call.coach_grade)}
               {call.heat_score != null && (

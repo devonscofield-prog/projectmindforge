@@ -1,4 +1,5 @@
 import { format } from 'date-fns';
+import { parseDateOnly } from '@/lib/formatters';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -152,7 +153,7 @@ export function TranscriptTable({
                     </td>
                     <td className="p-3 text-sm">
                       <div className="flex items-center gap-2">
-                        {format(new Date(transcript.call_date), 'MMM d, yyyy')}
+                        {format(parseDateOnly(transcript.call_date), 'MMM d, yyyy')}
                         {transcript.manager_id && (
                           <TooltipProvider>
                             <Tooltip>
@@ -195,7 +196,7 @@ export function TranscriptTable({
                         <DialogContent className="max-w-lg max-h-[80vh]">
                           <DialogHeader>
                             <DialogTitle>
-                              {transcript.account_name} - {format(new Date(transcript.call_date), 'MMM d, yyyy')}
+                              {transcript.account_name} - {format(parseDateOnly(transcript.call_date), 'MMM d, yyyy')}
                             </DialogTitle>
                           </DialogHeader>
                           <ScrollArea className="h-[400px] pr-4">

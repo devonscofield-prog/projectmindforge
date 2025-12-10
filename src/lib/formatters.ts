@@ -1,4 +1,16 @@
 /**
+ * Parse a date-only string (YYYY-MM-DD) as a local date, avoiding timezone issues.
+ * JavaScript's `new Date("YYYY-MM-DD")` interprets as UTC midnight, causing dates
+ * to appear as the previous day in negative UTC offset timezones.
+ * @param dateStr - Date string in YYYY-MM-DD format
+ * @returns Date object representing the date in local timezone
+ */
+export function parseDateOnly(dateStr: string): Date {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
+/**
  * Format a number as USD currency with no decimal places
  * @param value - The number to format (or null)
  * @returns Formatted currency string or "—" if null

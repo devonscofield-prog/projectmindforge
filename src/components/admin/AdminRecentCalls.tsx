@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Phone, ArrowRight, User, Building2, Clock, Users } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { format } from 'date-fns';
+import { parseDateOnly } from '@/lib/formatters';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 interface RecentCall {
@@ -180,7 +181,7 @@ export function AdminRecentCalls() {
                         </div>
                         <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                           <Clock className="h-3 w-3 shrink-0" />
-                          <span>{format(new Date(call.call_date), 'MMM d, yyyy')}</span>
+                          <span>{format(parseDateOnly(call.call_date), 'MMM d, yyyy')}</span>
                           <span>•</span>
                           <span>{callTypeLabels[call.call_type || ''] || call.call_type || 'Unknown'}</span>
                       </div>
@@ -217,7 +218,7 @@ export function AdminRecentCalls() {
                     >
                       <td className="py-3 text-sm">
                         <div className="flex items-center gap-2">
-                          {format(new Date(call.call_date), 'MMM d, yyyy')}
+                          {format(parseDateOnly(call.call_date), 'MMM d, yyyy')}
                           {call.manager_id && (
                             <TooltipProvider>
                               <Tooltip>

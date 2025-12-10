@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format, formatDistanceToNow } from 'date-fns';
+import { parseDateOnly } from '@/lib/formatters';
 import {
   Sheet,
   SheetContent,
@@ -131,8 +132,8 @@ export function CoachingTrendHistorySheet({
 
   const handleLoad = (item: CoachingTrendHistoryItem) => {
     const dateRange = {
-      from: new Date(item.date_range_from),
-      to: new Date(item.date_range_to),
+      from: parseDateOnly(item.date_range_from),
+      to: parseDateOnly(item.date_range_to),
     };
     onLoadAnalysis(item.analysis_data, dateRange);
     onOpenChange(false);
@@ -141,8 +142,8 @@ export function CoachingTrendHistorySheet({
   const handleCompare = (item: CoachingTrendHistoryItem) => {
     if (onCompareWithCurrent) {
       const dateRange = {
-        from: new Date(item.date_range_from),
-        to: new Date(item.date_range_to),
+        from: parseDateOnly(item.date_range_from),
+        to: parseDateOnly(item.date_range_to),
       };
       onCompareWithCurrent(item.analysis_data, dateRange);
       onOpenChange(false);
@@ -335,9 +336,9 @@ function HistoryCard({
   isUpdatingTitle,
   canCompare,
 }: HistoryCardProps) {
-  const fromDate = new Date(item.date_range_from);
-  const toDate = new Date(item.date_range_to);
-  const createdAt = new Date(item.created_at);
+  const fromDate = parseDateOnly(item.date_range_from);
+  const toDate = parseDateOnly(item.date_range_to);
+  const createdAt = new Date(item.created_at); // TIMESTAMP, not DATE-only
 
   return (
     <Card className={cn(

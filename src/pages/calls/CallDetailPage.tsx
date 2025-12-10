@@ -30,7 +30,7 @@ import { format } from 'date-fns';
 import { getDashboardUrl, getCallHistoryUrl } from '@/lib/routes';
 import { getCallDetailBreadcrumbs } from '@/lib/breadcrumbConfig';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
-import { formatCurrency } from '@/lib/formatters';
+import { formatCurrency, parseDateOnly } from '@/lib/formatters';
 import { useCallWithAnalysis, useAnalysisPolling, callDetailKeys, useRetryAnalysis, useDeleteFailedCall, useUpdateCallTranscript, useUpdateAnalysisUserCounts, useReanalyzeCall } from '@/hooks/useCallDetailQueries';
 import { getStakeholdersForCall, influenceLevelLabels } from '@/api/stakeholders';
 import type { CallMetadata } from '@/utils/analysis-schemas';
@@ -311,7 +311,7 @@ function CallDetailPage() {
                 <Calendar className="h-4 w-4 text-muted-foreground" />
                 <div>
                   <p className="text-xs text-muted-foreground">Date</p>
-                  <p className="font-medium">{format(new Date(transcript.call_date), 'MMMM d, yyyy')}</p>
+                  <p className="font-medium">{format(parseDateOnly(transcript.call_date), 'MMMM d, yyyy')}</p>
                 </div>
               </div>
 
