@@ -740,7 +740,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
             currentToken = freshToken;
           }
           
-          const result = await processNERBatch(currentToken, 10);
+          const result = await processNERBatch(currentToken, 5);
           nerBatchCountRef.current++;
           
           // Update progress
