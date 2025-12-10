@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
+import { parseDateOnly } from '@/lib/formatters';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -38,7 +39,7 @@ export function EmailLogItem({ email, stakeholder, onDelete }: EmailLogItemProps
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   
   const isOutgoing = email.direction === 'outgoing';
-  const displayDate = format(new Date(email.email_date), 'MMM d, yyyy');
+  const displayDate = format(parseDateOnly(email.email_date), 'MMM d, yyyy');
   
   // Truncate body preview
   const bodyPreview = email.body.length > 150 

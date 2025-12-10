@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Profile, CoachingSession } from '@/types/database';
 import { Users, Phone, TrendingUp, TrendingDown, Minus, RefreshCw } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
+import { parseDateOnly } from '@/lib/formatters';
 import { AiScoreStats } from '@/api/aiCallAnalysis';
 import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
@@ -255,7 +256,7 @@ function ManagerDashboard() {
                             {rep.lastCoaching ? (
                               <div className="space-y-0.5">
                                 <div className={`text-sm font-medium ${daysSinceCoaching && daysSinceCoaching > 14 ? 'text-warning' : 'text-foreground'}`}>
-                                  {format(new Date(rep.lastCoaching.session_date), 'MMM d, yyyy')}
+                                  {format(parseDateOnly(rep.lastCoaching.session_date), 'MMM d, yyyy')}
                                 </div>
                                 {daysSinceCoaching !== null && (
                                   <div className="text-xs text-muted-foreground">

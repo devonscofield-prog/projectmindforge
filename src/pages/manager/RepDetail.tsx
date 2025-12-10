@@ -19,6 +19,7 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/component
 import { Plus, AlertCircle, Loader2, Phone, Calendar, Sparkles, ExternalLink, ChevronDown, Brain, Search, RefreshCw, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { format, subDays, isAfter } from 'date-fns';
+import { parseDateOnly } from '@/lib/formatters';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
 import { getDashboardUrl } from '@/lib/routes';
 import { getRepDetailBreadcrumbs } from '@/lib/breadcrumbConfig';
@@ -369,7 +370,7 @@ export default function RepDetail() {
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-medium">{session.focus_area}</span>
                           <span className="text-sm text-muted-foreground">
-                            {format(new Date(session.session_date), 'MMM d, yyyy')}
+                            {format(parseDateOnly(session.session_date), 'MMM d, yyyy')}
                           </span>
                         </div>
                         {session.notes && (
@@ -386,7 +387,7 @@ export default function RepDetail() {
                         )}
                         {session.follow_up_date && (
                           <p className="text-sm text-muted-foreground">
-                            Follow-up: {format(new Date(session.follow_up_date), 'MMM d, yyyy')}
+                            Follow-up: {format(parseDateOnly(session.follow_up_date), 'MMM d, yyyy')}
                           </p>
                         )}
                       </div>
@@ -519,7 +520,7 @@ export default function RepDetail() {
                           <TableCell className="font-medium">
                             <div className="flex items-center gap-2">
                               <Calendar className="h-4 w-4 text-muted-foreground" />
-                              {format(new Date(transcript.call_date), 'MMM d, yyyy')}
+                              {format(parseDateOnly(transcript.call_date), 'MMM d, yyyy')}
                               {transcript.manager_id && (
                                 <TooltipProvider>
                                   <Tooltip>

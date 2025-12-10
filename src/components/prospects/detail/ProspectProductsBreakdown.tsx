@@ -21,7 +21,7 @@ import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { getCallDetailUrl } from '@/lib/routes';
 import { createLogger } from '@/lib/logger';
-import { formatCurrency } from '@/lib/formatters';
+import { formatCurrency, parseDateOnly } from '@/lib/formatters';
 
 const log = createLogger('ProspectProductsBreakdown');
 
@@ -151,7 +151,7 @@ export function ProspectProductsBreakdown({ prospectId }: ProspectProductsBreakd
                             {formatCurrency(product.avg_unit_price ?? 0)}
                           </TableCell>
                           <TableCell className="text-right text-sm text-muted-foreground">
-                            {format(new Date(product.most_recent_call_date), 'MMM d, yyyy')}
+                            {format(parseDateOnly(product.most_recent_call_date), 'MMM d, yyyy')}
                           </TableCell>
                           <TableCell>
                             <CollapsibleTrigger asChild>
@@ -176,7 +176,7 @@ export function ProspectProductsBreakdown({ prospectId }: ProspectProductsBreakd
                                       <div className="flex items-center gap-4 flex-1">
                                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                           <Calendar className="h-4 w-4" />
-                                          {format(new Date(call.call_date), 'MMM d, yyyy')}
+                                          {format(parseDateOnly(call.call_date), 'MMM d, yyyy')}
                                         </div>
                                         <div className="flex items-center gap-2 text-sm">
                                           <DollarSign className="h-4 w-4 text-muted-foreground" />

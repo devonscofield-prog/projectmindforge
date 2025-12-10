@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { createLogger } from '@/lib/logger';
 import { sanitizeHtmlForPdf } from '@/lib/sanitize';
 import { format } from 'date-fns';
+import { parseDateOnly } from '@/lib/formatters';
 import {
   Dialog,
   DialogContent,
@@ -62,7 +63,7 @@ export function ExportChatDialog({
     if (includeTranscriptList && selectedTranscripts.length > 0) {
       md += `## Selected Transcripts\n\n`;
       selectedTranscripts.forEach((t) => {
-        const date = format(new Date(t.call_date), 'MMM d, yyyy');
+        const date = format(parseDateOnly(t.call_date), 'MMM d, yyyy');
         md += `- **${t.account_name || 'Unknown Account'}** (${date}) - ${t.rep_name || 'Unknown Rep'}\n`;
       });
       md += '\n';

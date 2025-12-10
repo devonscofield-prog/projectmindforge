@@ -28,6 +28,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
 import { format } from 'date-fns';
+import { parseDateOnly } from '@/lib/formatters';
 import { Plus, ArrowUpDown, Pencil, Trash2, Calendar, User, Target, FileText, CheckSquare, CalendarClock, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -475,12 +476,12 @@ export default function ManagerCoaching() {
                         className="cursor-pointer hover:bg-muted/50"
                         onClick={() => setViewingSession(session)}
                       >
-                        <TableCell>{format(new Date(session.session_date), 'MMM d, yyyy')}</TableCell>
+                        <TableCell>{format(parseDateOnly(session.session_date), 'MMM d, yyyy')}</TableCell>
                         <TableCell className="font-medium">{session.rep?.name || 'Unknown'}</TableCell>
                         <TableCell>{session.focus_area}</TableCell>
                         <TableCell>
                           {session.follow_up_date
-                            ? format(new Date(session.follow_up_date), 'MMM d, yyyy')
+                            ? format(parseDateOnly(session.follow_up_date), 'MMM d, yyyy')
                             : '-'}
                         </TableCell>
                         <TableCell>
@@ -573,7 +574,7 @@ export default function ManagerCoaching() {
             <AlertDialogTitle>Delete Coaching Session?</AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently delete the coaching session with {deletingSession?.rep?.name || 'this rep'} 
-              {deletingSession && ` on ${format(new Date(deletingSession.session_date), 'MMM d, yyyy')}`}. 
+              {deletingSession && ` on ${format(parseDateOnly(deletingSession.session_date), 'MMM d, yyyy')}`}. 
               This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -610,7 +611,7 @@ export default function ManagerCoaching() {
                     Session Date
                   </div>
                   <p className="font-medium">
-                    {format(new Date(viewingSession.session_date), 'MMMM d, yyyy')}
+                    {format(parseDateOnly(viewingSession.session_date), 'MMMM d, yyyy')}
                   </p>
                 </div>
                 
@@ -674,7 +675,7 @@ export default function ManagerCoaching() {
                 </div>
                 {viewingSession.follow_up_date ? (
                   <p className="font-medium">
-                    {format(new Date(viewingSession.follow_up_date), 'MMMM d, yyyy')}
+                    {format(parseDateOnly(viewingSession.follow_up_date), 'MMMM d, yyyy')}
                   </p>
                 ) : (
                   <p className="text-sm text-muted-foreground italic">No follow-up scheduled</p>

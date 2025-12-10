@@ -14,7 +14,7 @@ import { CallType, callTypeLabels } from '@/constants/callTypes';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { getDashboardUrl } from '@/lib/routes';
-import { formatCurrency } from '@/lib/formatters';
+import { formatCurrency, parseDateOnly } from '@/lib/formatters';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -283,7 +283,7 @@ export function CallHistoryTable({
                     >
                     <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
-                          {format(new Date(t.call_date), 'MMM d, yyyy')}
+                          {format(parseDateOnly(t.call_date), 'MMM d, yyyy')}
                           {t.manager_id && (
                             <TooltipProvider>
                               <Tooltip>
