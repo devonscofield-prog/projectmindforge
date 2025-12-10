@@ -285,7 +285,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (t) => `Analyze this sales call transcript. Find the 3-5 most dangerous UNKNOWNS or MISSING INFORMATION that could block this deal:\n\n${t}`,
     toolName: 'identify_deal_gaps',
     toolDescription: 'Identify critical information gaps blocking a sales deal',
-    options: { model: 'google/gemini-2.5-flash', temperature: 0.1, maxTokens: 4096 }, // Changed from pro to flash for performance
+    options: { model: 'google/gemini-2.5-flash', temperature: 0.1, maxTokens: 2048 }, // Reduced from 4096 for performance
     isCritical: false,
     default: DEFAULT_SKEPTIC,
     phase: 1,
@@ -299,7 +299,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (t) => `Analyze this sales call transcript for objections and pushback. Identify how the rep handled each moment of friction:\n\n${t}`,
     toolName: 'analyze_objection_handling',
     toolDescription: 'Analyze how the rep handled objections and pushback during the sales call',
-    options: { model: 'google/gemini-2.5-flash', temperature: 0.1, maxTokens: 4096 },
+    options: { model: 'google/gemini-2.5-flash', temperature: 0.1, maxTokens: 2048 }, // Reduced from 4096 for performance
     isCritical: false,
     default: DEFAULT_NEGOTIATOR,
     phase: 1,
@@ -327,7 +327,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (t) => `Analyze this sales call transcript for competitive intelligence. Find ALL mentions of other vendors, tools, or incumbents and build a battlecard:\n\n${t}`,
     toolName: 'analyze_competitors',
     toolDescription: 'Extract competitive intelligence from a sales call transcript',
-    options: { model: 'google/gemini-2.5-flash', temperature: 0.2, maxTokens: 4096 },
+    options: { model: 'google/gemini-2.5-flash', temperature: 0.2, maxTokens: 2048 }, // Reduced from 4096 for performance
     isCritical: false,
     default: DEFAULT_SPY,
     phase: 1,
@@ -356,7 +356,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (input) => `Based on the following analysis reports from 9 specialized agents, synthesize a coaching plan for the sales rep:\n\n${input}`,
     toolName: 'synthesize_coaching',
     toolDescription: 'Synthesize all analysis into a prioritized coaching plan',
-    options: { model: 'google/gemini-2.5-flash', temperature: 0.3, maxTokens: 4096 },
+    options: { model: 'google/gemini-2.5-flash', temperature: 0.3, maxTokens: 3072 }, // Reduced from 4096 for performance
     isCritical: false,
     default: DEFAULT_COACH,
     phase: 2,

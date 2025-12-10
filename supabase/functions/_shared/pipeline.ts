@@ -646,7 +646,7 @@ export async function runAnalysisPipeline(
   const labelerPrompt = speakerContext 
     ? buildSpeakerLabelerPrompt(transcript, speakerContext)
     : null;
-  const sentinelPrompt = `Classify this sales call transcript by type:\n\n${transcript.slice(0, 50000)}`; // Limit for classifier
+  const sentinelPrompt = `Classify this sales call transcript by type:\n\n${transcript.slice(0, 20000)}`; // Reduced from 50k to 20k for faster classification
   
   // Create timeout race for Phase 0 (20 second budget)
   const phase0Timeout = new Promise<'timeout'>((resolve) => 
