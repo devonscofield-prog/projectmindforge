@@ -17,6 +17,9 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
+// Lazy load - Auth related pages
+const ResetVerify = lazy(() => import("./pages/auth/ResetVerify"));
+
 // Lazy load - Rep pages
 const RepDashboard = lazy(() => import("./pages/rep/RepDashboard"));
 const RepCallHistory = lazy(() => import("./pages/rep/RepCallHistory"));
@@ -89,6 +92,7 @@ const App = () => (
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/auth" element={<Auth />} />
+                <Route path="/auth/reset-verify" element={<ResetVerify />} />
 
                 {/* Rep Routes */}
                 <Route path="/rep" element={
