@@ -1107,6 +1107,36 @@ export type Database = {
         }
         Relationships: []
       }
+      password_reset_otps: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          id: string
+          otp_code: string
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          otp_code: string
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          otp_code?: string
+          used_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       performance_alert_config: {
         Row: {
           alert_on_critical: boolean | null

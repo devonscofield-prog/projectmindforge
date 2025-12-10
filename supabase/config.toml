@@ -77,3 +77,12 @@ verify_jwt = true
 
 [functions.calculate-account-heat]
 verify_jwt = true
+
+[functions.generate-password-reset-otp]
+verify_jwt = true
+
+[functions.verify-password-reset-otp]
+verify_jwt = false
+
+[functions.complete-password-reset]
+verify_jwt = false

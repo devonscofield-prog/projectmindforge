@@ -51,7 +51,7 @@ function AdminUserEdit() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [resettingPassword, setResettingPassword] = useState(false);
+  const [sendingResetCode, setSendingResetCode] = useState(false);
   const [resettingMFA, setResettingMFA] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -64,10 +64,8 @@ function AdminUserEdit() {
     hire_date: '',
     notes: '',
   });
-  const [resetLink, setResetLink] = useState<string | null>(null);
-  const [copiedLink, setCopiedLink] = useState(false);
-  const [resetEmailSent, setResetEmailSent] = useState(false);
-  const [resetEmailError, setResetEmailError] = useState<string | null>(null);
+  const [resetCodeSent, setResetCodeSent] = useState(false);
+  const [resetCodeError, setResetCodeError] = useState<string | null>(null);
   const [deleteConfirmEmail, setDeleteConfirmEmail] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
@@ -215,13 +213,12 @@ function AdminUserEdit() {
     }
   };
 
-  const handleResetPassword = async (skipEmail: boolean = false) => {
+  const handleSendResetCode = async () => {
     if (!userId) return;
 
-    setResettingPassword(true);
-    setResetLink(null);
-    setResetEmailSent(false);
-    setResetEmailError(null);
+    setSendingResetCode(true);
+    setResetCodeSent(false);
+    setResetCodeError(null);
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -230,13 +227,8 @@ function AdminUserEdit() {
         return;
       }
 
-      const response = await supabase.functions.invoke('reset-user-password', {
-        body: {
-          userId,
-          sendEmail: !skipEmail,
-          skipEmail,
-          redirectTo: `${window.location.origin}/auth`,
-        },
+      const response = await supabase.functions.invoke('generate-password-reset-otp', {
+        body: { userId },
       });
 
       if (response.error) {
@@ -244,31 +236,25 @@ function AdminUserEdit() {
       }
 
       const result = response.data;
-      setResetLink(result.resetLink);
-      setResetEmailSent(result.emailSent || false);
-      setResetEmailError(result.emailError || null);
       
       if (result.emailSent) {
-        toast.success('Password reset email sent', {
-          description: `Email sent to ${result.email}`
-        });
-      } else if (skipEmail) {
-        toast.success('Reset link generated', {
-          description: 'Copy and share the link via Slack or Teams'
-        });
-      } else if (result.emailError) {
-        toast.warning('Link generated but email failed', {
-          description: 'Please share the link manually'
+        setResetCodeSent(true);
+        toast.success('Reset code sent', {
+          description: `A 6-digit code was sent to ${result.email}`
         });
       } else {
-        toast.success('Password reset link generated');
+        setResetCodeError(result.emailError || 'Email delivery failed');
+        toast.warning('Code generated but email failed', {
+          description: 'Please contact the user directly with their reset code'
+        });
       }
     } catch (error) {
-      log.error('Failed to reset password', { error });
-      const errorMessage = error instanceof Error ? error.message : 'Failed to generate reset link';
+      log.error('Failed to send reset code', { error });
+      const errorMessage = error instanceof Error ? error.message : 'Failed to send reset code';
+      setResetCodeError(errorMessage);
       toast.error(errorMessage);
     } finally {
-      setResettingPassword(false);
+      setSendingResetCode(false);
     }
   };
 
@@ -338,13 +324,9 @@ function AdminUserEdit() {
     }
   };
 
-  const handleCopyResetLink = async () => {
-    if (resetLink) {
-      await navigator.clipboard.writeText(resetLink);
-      setCopiedLink(true);
-      toast.success('Reset link copied to clipboard');
-      setTimeout(() => setCopiedLink(false), 2000);
-    }
+  const handleResendCode = () => {
+    setResetCodeSent(false);
+    setResetCodeError(null);
   };
 
   const isOwnAccount = currentUser?.id === userId;
@@ -647,91 +629,51 @@ function AdminUserEdit() {
               <CardHeader>
                 <CardTitle className="text-lg">Password Reset</CardTitle>
                 <CardDescription>
-                  Send a secure password reset link to the user
+                  Send a secure 6-digit reset code to the user
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Corporate email warning */}
-                <Alert className="bg-amber-500/10 border-amber-500/30">
-                  <Info className="h-4 w-4 text-amber-600" />
-                  <AlertDescription className="text-xs">
-                    <strong>Corporate email users:</strong> Microsoft 365 and Google Workspace 
-                    security scanners may invalidate email links. Use "Get Link Only" for 
-                    corporate emails and share via Slack/Teams.
-                  </AlertDescription>
-                </Alert>
+                <p className="text-sm text-muted-foreground">
+                  This will send a 6-digit code to the user's email. They can enter it on the login page to reset their password.
+                </p>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    variant="default"
-                    className="w-full"
-                    onClick={() => handleResetPassword(false)}
-                    disabled={resettingPassword}
-                  >
-                    <Mail className="h-4 w-4 mr-2" />
-                    {resettingPassword ? 'Sending...' : 'Send Email'}
-                  </Button>
+                <Button
+                  variant="default"
+                  className="w-full"
+                  onClick={handleSendResetCode}
+                  disabled={sendingResetCode}
+                >
+                  <KeyRound className="h-4 w-4 mr-2" />
+                  {sendingResetCode ? 'Sending...' : 'Send Reset Code'}
+                </Button>
+
+                {resetCodeSent && (
+                  <Alert className="bg-green-500/10 border-green-500/30">
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    <AlertDescription className="text-xs text-green-700">
+                      Reset code sent to {user?.email}. Tell the user to check their email and click "Have a reset code?" on the login page.
+                    </AlertDescription>
+                  </Alert>
+                )}
+                
+                {resetCodeError && (
+                  <Alert variant="destructive" className="bg-destructive/10">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription className="text-xs">
+                      {resetCodeError}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {resetCodeSent && (
                   <Button
                     variant="outline"
+                    size="sm"
                     className="w-full"
-                    onClick={() => handleResetPassword(true)}
-                    disabled={resettingPassword}
+                    onClick={handleResendCode}
                   >
-                    <MessageSquare className="h-4 w-4 mr-2" />
-                    Get Link Only
+                    Send Another Code
                   </Button>
-                </div>
-
-                {resetLink && (
-                  <div className="space-y-3">
-                    {/* Email status indicator */}
-                    {resetEmailSent && (
-                      <Alert className="bg-green-500/10 border-green-500/30">
-                        <CheckCircle2 className="h-4 w-4 text-green-600" />
-                        <AlertDescription className="text-xs text-green-700">
-                          Email sent to {user?.email}. Link also available below as backup.
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                    
-                    {resetEmailError && (
-                      <Alert variant="destructive" className="bg-destructive/10">
-                        <AlertTriangle className="h-4 w-4" />
-                        <AlertDescription className="text-xs">
-                          Email failed: {resetEmailError}. Please share the link manually.
-                        </AlertDescription>
-                      </Alert>
-                    )}
-
-                    <div className="space-y-2">
-                      <Label className="text-xs font-medium">Reset Link</Label>
-                      <div className="flex gap-2">
-                        <Input
-                          value={resetLink}
-                          readOnly
-                          className="font-mono text-xs bg-muted"
-                        />
-                        <Button
-                          variant={copiedLink ? 'default' : 'outline'}
-                          size="icon"
-                          onClick={handleCopyResetLink}
-                          title="Copy to clipboard"
-                        >
-                          {copiedLink ? (
-                            <CheckCircle2 className="h-4 w-4" />
-                          ) : (
-                            <Copy className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {resetEmailSent 
-                          ? 'Backup link - share via Slack/Teams if email doesn\'t arrive'
-                          : 'Share this link via Slack, Teams, or another secure channel'
-                        }
-                      </p>
-                    </div>
-                  </div>
                 )}
               </CardContent>
             </Card>
