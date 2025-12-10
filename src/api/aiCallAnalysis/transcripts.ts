@@ -167,98 +167,38 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
     }
   }
 
-  // Call the analyze_call edge function with retry logic
-  log.info('Invoking analyze-call edge function', { callId: transcript.id });
+  // Fire-and-forget: Trigger analysis without blocking the user
+  // The database trigger provides guaranteed execution even if this fails
+  log.info('Triggering analyze-call edge function (fire-and-forget)', { callId: transcript.id });
   
-  let analyzeData: unknown;
-  let analyzeError: Error | null = null;
-  
-  const MAX_RETRIES = 2;
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      const result = await supabase.functions.invoke('analyze-call', {
-        body: { call_id: transcript.id }
-      });
-      analyzeData = result.data;
-      analyzeError = result.error;
-      
-      log.info('Analyze-call invoke completed', { 
+  // Non-blocking invoke - don't await, let it run in background
+  supabase.functions.invoke('analyze-call', {
+    body: { call_id: transcript.id }
+  }).then(result => {
+    if (result.error) {
+      log.warn('Background analysis invoke returned error', { 
         callId: transcript.id, 
-        attempt: attempt + 1,
-        hasData: !!result.data, 
-        hasError: !!result.error,
-        errorMessage: result.error?.message 
+        error: result.error.message 
       });
-      
-      // If successful or rate limited, don't retry
-      if (!result.error || result.error.message?.toLowerCase().includes('rate limit')) {
-        break;
-      }
-      
-      // Retry on transient failures
-      if (attempt < MAX_RETRIES) {
-        const delay = 1000 * (attempt + 1); // 1s, 2s backoff
-        log.warn('Retrying analyze-call', { callId: transcript.id, attempt: attempt + 1, delay });
-        await new Promise(r => setTimeout(r, delay));
-      }
-    } catch (invokeErr) {
-      log.error('Analyze-call invoke threw exception', { 
-        callId: transcript.id, 
-        attempt: attempt + 1,
-        error: invokeErr instanceof Error ? invokeErr.message : String(invokeErr)
-      });
-      analyzeError = invokeErr instanceof Error ? invokeErr : new Error(String(invokeErr));
-      
-      // Retry on exceptions
-      if (attempt < MAX_RETRIES) {
-        const delay = 1000 * (attempt + 1);
-        log.warn('Retrying after exception', { callId: transcript.id, attempt: attempt + 1, delay });
-        await new Promise(r => setTimeout(r, delay));
-      }
+    } else {
+      log.info('Background analysis invoke completed', { callId: transcript.id });
     }
-  }
+  }).catch(err => {
+    // Log but don't throw - database trigger will catch it
+    log.warn('Background analysis invoke failed', { 
+      callId: transcript.id, 
+      error: err instanceof Error ? err.message : String(err)
+    });
+  });
 
-  if (analyzeError) {
-    log.error('Analyze function error', { error: analyzeError });
-    const isRateLimited = analyzeError.message?.toLowerCase().includes('rate limit') ||
-                          analyzeError.message?.includes('429');
-    
-    // Update transcript status to error so it shows retry button
-    const { error: statusUpdateError } = await supabase
-      .from('call_transcripts')
-      .update({
-        analysis_status: 'error',
-        analysis_error: analyzeError.message || 'Analysis failed - please retry',
-      })
-      .eq('id', transcript.id);
-    
-    if (statusUpdateError) {
-      log.error('Failed to update transcript status to error', { 
-        callId: transcript.id, 
-        error: statusUpdateError 
-      });
-    }
-    
-    return {
-      transcript: toCallTranscript(transcript),
-      analyzeResponse: { error: analyzeError.message, isRateLimited }
-    };
-  }
-
-  // Check if the response indicates rate limiting
-  const responseData = analyzeData as { error?: string } | undefined;
-  if (responseData?.error?.toLowerCase().includes('rate limit')) {
-    return {
-      transcript: toCallTranscript(transcript),
-      analyzeResponse: { error: responseData.error, isRateLimited: true }
-    };
-  }
-
-  log.debug('Analysis response received', { transcriptId: transcript.id });
+  // Return immediately - user doesn't need to wait for analysis
+  log.info('Returning transcript immediately (analysis running in background)', { 
+    transcriptId: transcript.id 
+  });
 
   return {
     transcript: toCallTranscript(transcript),
-    analyzeResponse: analyzeData as AnalyzeCallResponse
+    analyzeResponse: { processing: true }
   };
 }
 
