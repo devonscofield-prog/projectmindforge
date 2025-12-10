@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
-import { User, Session, RealtimeChannel } from '@supabase/supabase-js';
+import { User, Session, RealtimeChannel, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { UserRole, Profile } from '@/types/database';
 import { toast } from 'sonner';
@@ -32,13 +32,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
   const [loading, setLoading] = useState(true);
   const [presenceChannel, setPresenceChannel] = useState<RealtimeChannel | null>(null);
   const hasLoggedLogin = useRef(false);
+  const hasHandledSessionExpiry = useRef(false);
+
+  // Handle session expiry gracefully
+  const handleSessionExpired = () => {
+    // Prevent multiple redirects
+    if (hasHandledSessionExpiry.current) return;
+    hasHandledSessionExpiry.current = true;
+
+    log.info('Session expired, redirecting to auth');
+    
+    // Clear local state
+    setUser(null);
+    setSession(null);
+    setProfile(null);
+    setRole(null);
+    hasLoggedLogin.current = false;
+
+    // Show friendly toast
+    toast.info('Your session has expired. Please sign in again.');
+
+    // Redirect to auth page with expired flag (only if not already on auth page)
+    if (!window.location.pathname.includes('/auth')) {
+      window.location.href = '/auth?expired=true';
+    }
+
+    // Reset the flag after a delay to allow future expiry handling
+    setTimeout(() => {
+      hasHandledSessionExpiry.current = false;
+    }, 5000);
+  };
 
   // Update last_seen_at in database
   const updateLastSeen = async (userId: string) => {
-    await supabase
-      .from('profiles')
-      .update({ last_seen_at: new Date().toISOString() })
-      .eq('id', userId);
+    try {
+      await supabase
+        .from('profiles')
+        .update({ last_seen_at: new Date().toISOString() })
+        .eq('id', userId);
+    } catch (error) {
+      // Check if this is a session-related error
+      if (error instanceof Error && error.message.includes('refresh_token')) {
+        handleSessionExpired();
+      }
+    }
   };
 
   // Set up presence tracking and last_seen updates
@@ -84,23 +121,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
   }, [user?.id]);
 
   const checkUserActive = async (userId: string): Promise<boolean> => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('is_active')
-      .eq('id', userId)
-      .maybeSingle();
-    
-    return data?.is_active ?? false;
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('is_active')
+        .eq('id', userId)
+        .maybeSingle();
+      
+      // Check for session-related errors
+      if (error) {
+        const errorMessage = error.message?.toLowerCase() || '';
+        if (errorMessage.includes('refresh') || errorMessage.includes('token') || errorMessage.includes('jwt')) {
+          handleSessionExpired();
+          return false;
+        }
+      }
+      
+      return data?.is_active ?? false;
+    } catch (error) {
+      log.error('Error checking user active status', { error });
+      return false;
+    }
   };
 
   const fetchUserData = async (userId: string) => {
     try {
       // Fetch profile
-      const { data: profileData } = await supabase
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .maybeSingle();
+
+      // Check for session-related errors
+      if (profileError) {
+        const errorMessage = profileError.message?.toLowerCase() || '';
+        if (errorMessage.includes('refresh') || errorMessage.includes('token') || errorMessage.includes('jwt')) {
+          handleSessionExpired();
+          return;
+        }
+      }
 
       if (profileData) {
         // Check if user is active
@@ -113,11 +173,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
       }
 
       // Fetch role
-      const { data: roleData } = await supabase
+      const { data: roleData, error: roleError } = await supabase
         .from('user_roles')
         .select('role')
         .eq('user_id', userId)
         .maybeSingle();
+
+      // Check for session-related errors
+      if (roleError) {
+        const errorMessage = roleError.message?.toLowerCase() || '';
+        if (errorMessage.includes('refresh') || errorMessage.includes('token') || errorMessage.includes('jwt')) {
+          handleSessionExpired();
+          return;
+        }
+      }
 
       if (roleData) {
         const userRole = roleData.role as UserRole;
@@ -134,6 +203,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        log.info('Auth state change', { event, hasSession: !!session });
+        
+        // Handle token refresh failure
+        if (event === 'TOKEN_REFRESHED' && !session) {
+          log.warn('Token refresh failed - no session returned');
+          handleSessionExpired();
+          return;
+        }
+
+        // Handle sign out
+        if (event === 'SIGNED_OUT') {
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setRole(null);
+          setLoading(false);
+          return;
+        }
+
         setSession(session);
         setUser(session?.user ?? null);
 
@@ -146,15 +234,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
           setProfile(null);
           setRole(null);
         }
-
-        if (event === 'SIGNED_OUT') {
-          setLoading(false);
-        }
       }
     );
 
     // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      // Check for session errors (invalid refresh token, etc.)
+      if (error) {
+        const errorMessage = (error as AuthError).message?.toLowerCase() || '';
+        if (errorMessage.includes('refresh') || errorMessage.includes('token') || errorMessage.includes('invalid')) {
+          log.warn('Invalid session on load', { error: errorMessage });
+          handleSessionExpired();
+          setLoading(false);
+          return;
+        }
+      }
+
       setSession(session);
       setUser(session?.user ?? null);
 
@@ -182,7 +277,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
 
     const interval = setInterval(async () => {
       const isActive = await checkUserActive(user.id);
-      if (!isActive) {
+      if (!isActive && user) {
         toast.error('Your account has been deactivated. You have been signed out.');
         await supabase.auth.signOut();
       }

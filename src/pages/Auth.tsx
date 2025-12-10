@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FormInput, SubmitButton } from '@/components/ui/form-fields';
 import { useToast } from '@/hooks/use-toast';
 import { z } from 'zod';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, AlertTriangle, Clock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 
 const authSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -28,11 +30,23 @@ const newPasswordSchema = z.object({
 });
 
 export default function Auth() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
+  
+  // Check for link expired error in URL hash
+  const [linkExpired] = useState(() => {
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const error = hashParams.get('error');
+    const errorDescription = hashParams.get('error_description');
+    return error === 'access_denied' && errorDescription?.toLowerCase().includes('expired');
+  });
+
+  // Check for session expired in URL query params
+  const sessionExpired = searchParams.get('expired') === 'true';
   
   // Recovery mode states - check synchronously on mount to prevent race condition
   const [isRecoveryMode, setIsRecoveryMode] = useState(() => {
@@ -46,6 +60,24 @@ export default function Auth() {
   const { user, role, signIn, signUp, resetPassword, updatePassword } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  // Clear URL hash/params after displaying error states
+  useEffect(() => {
+    if (linkExpired) {
+      // Clear the hash after a short delay to prevent it persisting on refresh
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+  }, [linkExpired]);
+
+  // Auto-dismiss session expired banner after 5 seconds
+  useEffect(() => {
+    if (sessionExpired) {
+      const timer = setTimeout(() => {
+        setSearchParams({});
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [sessionExpired, setSearchParams]);
 
   // Listen for PASSWORD_RECOVERY event from Supabase Auth
   useEffect(() => {
@@ -68,6 +100,11 @@ export default function Auth() {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Clear session expired message on sign in attempt
+    if (sessionExpired) {
+      setSearchParams({});
+    }
     
     try {
       authSchema.parse({ email, password });
@@ -207,6 +244,86 @@ export default function Auth() {
     window.history.replaceState(null, '', window.location.pathname);
   };
 
+  // Link Expired UI
+  if (linkExpired && !isResettingPassword) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md" role="region" aria-labelledby="link-expired-title">
+          <CardHeader className="text-center">
+            <CardTitle id="link-expired-title" className="text-2xl font-bold text-primary">
+              StormWind Sales Hub
+            </CardTitle>
+            <CardDescription>Password reset link expired</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              <div className="flex flex-col items-center space-y-4 text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
+                  <Clock className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold">This Link Has Expired</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Password reset links are only valid for a limited time. Please request a new one to reset your password.
+                  </p>
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                <FormInput
+                  label="Email"
+                  type="email"
+                  placeholder="you@stormwind.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
+                />
+                <Button 
+                  className="w-full" 
+                  onClick={async () => {
+                    if (!email) {
+                      toast({
+                        title: 'Email Required',
+                        description: 'Please enter your email address',
+                        variant: 'destructive',
+                      });
+                      return;
+                    }
+                    setIsLoading(true);
+                    const { error } = await resetPassword(email);
+                    setIsLoading(false);
+                    if (error) {
+                      toast({
+                        title: 'Request Failed',
+                        description: error.message,
+                        variant: 'destructive',
+                      });
+                    } else {
+                      toast({
+                        title: 'Check Your Email',
+                        description: 'We sent you a new password reset link.',
+                      });
+                    }
+                  }}
+                  disabled={isLoading}
+                >
+                  {isLoading ? 'Sending...' : 'Request New Link'}
+                </Button>
+                <button
+                  type="button"
+                  onClick={handleBackToSignIn}
+                  className="w-full text-sm text-muted-foreground hover:text-primary transition-colors"
+                >
+                  Back to Sign In
+                </button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   // Recovery mode - Set New Password form
   if (isRecoveryMode) {
     return (
@@ -300,6 +417,16 @@ export default function Auth() {
           <CardDescription>Sign in to access your sales dashboard</CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Session Expired Banner */}
+          {sessionExpired && (
+            <Alert className="mb-4 border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/50">
+              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              <AlertDescription className="text-amber-800 dark:text-amber-200">
+                Your session has expired. Please sign in again.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {isResettingPassword ? (
             <div className="space-y-4">
               <div className="space-y-2 text-center">
