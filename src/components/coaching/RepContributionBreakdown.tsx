@@ -31,6 +31,12 @@ export interface RepContribution {
     // Legacy BANT field - optional for new MEDDPICC-based analyses
     bant?: number | null;
   };
+  // Analysis 2.0 behavioral metrics
+  analysis2_0_metrics?: {
+    patienceAvg: number | null;
+    strategicThreadingAvg: number | null;
+    monologueViolationsAvg: number | null;
+  };
 }
 
 interface RepContributionBreakdownProps {
@@ -200,8 +206,8 @@ export function RepContributionBreakdown({
                   rep.frameworkScores.bant != null ||
                   rep.frameworkScores.gapSelling !== null || 
                   rep.frameworkScores.activeListening !== null) && (
-                  <div className="flex items-center gap-3 mt-2 pt-2 border-t border-dashed">
-                    <span className="text-xs text-muted-foreground">Framework Scores:</span>
+                  <div className="flex items-center gap-3 mt-2 pt-2 border-t border-dashed flex-wrap">
+                    <span className="text-xs text-muted-foreground">Framework:</span>
                     {rep.frameworkScores.meddpicc != null && (
                       <div className="flex items-center gap-1">
                         <div className={cn("w-2 h-2 rounded-full", getScoreColor(rep.frameworkScores.meddpicc))} />
@@ -224,6 +230,31 @@ export function RepContributionBreakdown({
                       <div className="flex items-center gap-1">
                         <div className={cn("w-2 h-2 rounded-full", getScoreColor(rep.frameworkScores.activeListening))} />
                         <span className="text-xs">Listen: {rep.frameworkScores.activeListening.toFixed(1)}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Analysis 2.0 Behavioral Metrics */}
+                {rep.analysis2_0_metrics && (
+                  <div className="flex items-center gap-3 mt-2 pt-2 border-t border-dashed flex-wrap">
+                    <span className="text-xs text-muted-foreground">Behavior:</span>
+                    {rep.analysis2_0_metrics.patienceAvg != null && (
+                      <div className="flex items-center gap-1">
+                        <div className={cn("w-2 h-2 rounded-full", getScoreColor(rep.analysis2_0_metrics.patienceAvg / 10))} />
+                        <span className="text-xs">Patience: {rep.analysis2_0_metrics.patienceAvg.toFixed(0)}</span>
+                      </div>
+                    )}
+                    {rep.analysis2_0_metrics.strategicThreadingAvg != null && (
+                      <div className="flex items-center gap-1">
+                        <div className={cn("w-2 h-2 rounded-full", getScoreColor(rep.analysis2_0_metrics.strategicThreadingAvg / 10))} />
+                        <span className="text-xs">Threading: {rep.analysis2_0_metrics.strategicThreadingAvg.toFixed(0)}</span>
+                      </div>
+                    )}
+                    {rep.analysis2_0_metrics.monologueViolationsAvg != null && (
+                      <div className="flex items-center gap-1">
+                        <div className={cn("w-2 h-2 rounded-full", rep.analysis2_0_metrics.monologueViolationsAvg <= 1 ? 'bg-green-500' : rep.analysis2_0_metrics.monologueViolationsAvg <= 3 ? 'bg-amber-500' : 'bg-red-500')} />
+                        <span className="text-xs">Monologues: {rep.analysis2_0_metrics.monologueViolationsAvg.toFixed(1)}</span>
                       </div>
                     )}
                   </div>
