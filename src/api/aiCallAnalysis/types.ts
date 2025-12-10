@@ -361,6 +361,10 @@ export interface ChunkSummary {
     heat: number | null;
     // Legacy BANT field for backward compatibility
     bant?: number | null;
+    // Analysis 2.0 metrics
+    patienceAvg?: number | null;
+    strategicThreadingAvg?: number | null;
+    monologueViolationsTotal?: number | null;
   };
   dominantTrends: {
     meddpicc: 'improving' | 'stable' | 'declining';
@@ -368,6 +372,10 @@ export interface ChunkSummary {
     activeListening: 'improving' | 'stable' | 'declining';
     // Legacy BANT field for backward compatibility
     bant?: 'improving' | 'stable' | 'declining';
+    // Analysis 2.0 trends
+    patience?: 'improving' | 'stable' | 'declining';
+    strategicThreading?: 'improving' | 'stable' | 'declining';
+    monologue?: 'improving' | 'stable' | 'declining';
   };
   topMissingInfo: string[];
   topImprovementAreas: string[];
@@ -409,6 +417,12 @@ export interface RepContributionData {
     activeListening: number | null;
     // Legacy BANT field - optional for new MEDDPICC-based analyses
     bant?: number | null;
+  };
+  // Analysis 2.0 metrics
+  analysis2_0_metrics?: {
+    patienceAvg: number | null;
+    strategicThreadingAvg: number | null;
+    monologueViolationsAvg: number | null;
   };
 }
 
