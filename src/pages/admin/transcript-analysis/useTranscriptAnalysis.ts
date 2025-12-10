@@ -12,6 +12,7 @@ import {
   fetchBackgroundJob, 
   fetchActiveJob, 
   cancelBackgroundJob, 
+  cancelStalledJob,
   startEmbeddingsBackfillJob,
   startFullReindexJob,
   isJobStalled,
@@ -391,9 +392,42 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     },
   });
 
-  // Check if jobs are stalled
+  // Check if jobs are stalled (no update in 60+ seconds)
   const isEmbeddingsJobStalled = embeddingsJobStatus ? isJobStalled(embeddingsJobStatus) : false;
   const isReindexJobStalled = reindexJobStatus ? isJobStalled(reindexJobStatus) : false;
+
+  // Auto-cancel stalled jobs after 2 minutes of no updates
+  useEffect(() => {
+    if (isEmbeddingsJobStalled && embeddingsJobStatus && activeEmbeddingsJobId) {
+      const stalledMs = Date.now() - new Date(embeddingsJobStatus.updated_at).getTime();
+      if (stalledMs > 120000) { // 2 minutes
+        cancelStalledJob(activeEmbeddingsJobId).then(cancelled => {
+          if (cancelled) {
+            toast.warning('Embeddings job was stalled and has been cancelled. You can restart it.');
+            setActiveEmbeddingsJobId(null);
+            refetchGlobalChunkStatus();
+          }
+        });
+      }
+    }
+  }, [isEmbeddingsJobStalled, embeddingsJobStatus, activeEmbeddingsJobId, refetchGlobalChunkStatus]);
+
+  useEffect(() => {
+    if (isReindexJobStalled && reindexJobStatus && activeReindexJobId) {
+      const stalledMs = Date.now() - new Date(reindexJobStatus.updated_at).getTime();
+      if (stalledMs > 120000) { // 2 minutes
+        cancelStalledJob(activeReindexJobId).then(cancelled => {
+          if (cancelled) {
+            toast.warning('Reindex job was stalled and has been cancelled. You can restart it.');
+            setActiveReindexJobId(null);
+            setIsResetting(false);
+            setResetProgress(null);
+            refetchGlobalChunkStatus();
+          }
+        });
+      }
+    }
+  }, [isReindexJobStalled, reindexJobStatus, activeReindexJobId, refetchGlobalChunkStatus]);
 
   // Handle embeddings job status changes
   useEffect(() => {
