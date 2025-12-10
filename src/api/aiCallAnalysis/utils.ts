@@ -279,6 +279,7 @@ export async function invokeCoachingTrendsFunction(
 
 /**
  * Calculate per-rep contribution metrics from analyses
+ * Includes Analysis 2.0 metrics (patience, strategic threading, monologue violations)
  */
 export function calculateRepContributions(
   analyses: CallAnalysis[],
@@ -301,25 +302,69 @@ export function calculateRepContributions(
     const repCalls = repAnalyses.get(rep.id) || [];
     if (repCalls.length === 0) return; // Skip reps with no calls
 
-    // Calculate average heat score
+    // Calculate average heat score - prefer deal_heat_analysis, fallback to legacy
     const heatScores = repCalls
-      .map(a => a.coach_output?.heat_signature?.score)
+      .map(a => {
+        // Try Analysis 2.0 deal_heat first
+        const dealHeat = a.deal_heat_analysis as { heat_score?: number } | null;
+        if (dealHeat?.heat_score !== undefined) return dealHeat.heat_score;
+        // Fallback to legacy coach_output heat
+        return a.coach_output?.heat_signature?.score;
+      })
       .filter((s): s is number => s !== null && s !== undefined);
     const avgHeat = heatScores.length > 0 
       ? heatScores.reduce((sum, s) => sum + s, 0) / heatScores.length 
       : null;
 
-    // Calculate framework scores
+    // Legacy framework scores
     const bantScores: number[] = [];
     const meddpiccScores: number[] = [];
     const gapScores: number[] = [];
     const listenScores: number[] = [];
 
+    // Analysis 2.0 metrics
+    const patienceScores: number[] = [];
+    const strategicThreadingScores: number[] = [];
+    const monologueViolationCounts: number[] = [];
+
     repCalls.forEach(a => {
+      // Extract Analysis 2.0 metrics
+      const behavior = a.analysis_behavior as { metrics?: { 
+        patience?: { score?: number };
+        monologue?: { violation_count?: number };
+      }} | null;
+      const strategy = a.analysis_strategy as { 
+        strategic_threading?: { score?: number };
+        meddpicc?: { overall_score?: number };
+      } | null;
+      
+      if (behavior?.metrics) {
+        if (behavior.metrics.patience?.score !== undefined) {
+          patienceScores.push(behavior.metrics.patience.score);
+        }
+        if (behavior.metrics.monologue?.violation_count !== undefined) {
+          monologueViolationCounts.push(behavior.metrics.monologue.violation_count);
+        }
+      }
+      
+      if (strategy) {
+        if (strategy.strategic_threading?.score !== undefined) {
+          strategicThreadingScores.push(strategy.strategic_threading.score);
+        }
+        // Also get MEDDPICC from Strategy analysis
+        if (strategy.meddpicc?.overall_score !== undefined) {
+          meddpiccScores.push(strategy.meddpicc.overall_score);
+        }
+      }
+      
+      // Legacy fallback for framework scores
       const fs = a.coach_output?.framework_scores;
-      // New MEDDPICC scores
-      if (fs?.meddpicc?.overall_score !== undefined) meddpiccScores.push(fs.meddpicc.overall_score);
-      // Legacy BANT scores for backward compatibility
+      
+      // Only use legacy MEDDPICC if no Analysis 2.0 data
+      if (!strategy && fs?.meddpicc?.overall_score !== undefined) {
+        meddpiccScores.push(fs.meddpicc.overall_score);
+      }
+      
       if (fs?.bant?.score !== undefined) bantScores.push(fs.bant.score);
       if (fs?.gap_selling?.score !== undefined) gapScores.push(fs.gap_selling.score);
       if (fs?.active_listening?.score !== undefined) listenScores.push(fs.active_listening.score);
@@ -341,6 +386,12 @@ export function calculateRepContributions(
         // Legacy BANT for backward compatibility
         bant: avg(bantScores),
       },
+      // Include Analysis 2.0 metrics if available
+      analysis2_0_metrics: patienceScores.length > 0 || strategicThreadingScores.length > 0 ? {
+        patienceAvg: avg(patienceScores),
+        strategicThreadingAvg: avg(strategicThreadingScores),
+        monologueViolationsAvg: avg(monologueViolationCounts),
+      } : undefined,
     });
   });
 

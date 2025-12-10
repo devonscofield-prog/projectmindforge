@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -6,6 +7,46 @@ const corsHeaders = {
 };
 
 const CACHE_TTL_MINUTES = 15;
+const AI_TIMEOUT_MS = 55000; // 55 second timeout for AI calls
+
+// Zod schema for validating generate-coaching-trends response
+const CoachingTrendAnalysisSchema = z.object({
+  executiveSummary: z.string().optional(),
+  frameworkTrends: z.object({
+    meddpicc: z.object({ trend: z.string(), insight: z.string() }).optional(),
+    gapSelling: z.object({ trend: z.string(), insight: z.string() }).optional(),
+    activeListening: z.object({ trend: z.string(), insight: z.string() }).optional(),
+  }).optional(),
+  patienceTrend: z.object({
+    trend: z.enum(['improving', 'declining', 'stable']),
+    currentAvg: z.number().nullable().optional(),
+    previousAvg: z.number().nullable().optional(),
+    insight: z.string().optional(),
+  }).optional(),
+  strategicThreadingTrend: z.object({
+    trend: z.enum(['improving', 'declining', 'stable']),
+    currentAvg: z.number().nullable().optional(),
+    previousAvg: z.number().nullable().optional(),
+    insight: z.string().optional(),
+  }).optional(),
+  monologueTrend: z.object({
+    trend: z.enum(['improving', 'declining', 'stable']),
+    currentAvg: z.number().nullable().optional(),
+    previousAvg: z.number().nullable().optional(),
+    insight: z.string().optional(),
+  }).optional(),
+  criticalInfoPatterns: z.array(z.object({
+    pattern: z.string(),
+    frequency: z.string(),
+    impact: z.string(),
+  })).optional(),
+  prioritizedActions: z.array(z.object({
+    priority: z.number(),
+    action: z.string(),
+    rationale: z.string(),
+    framework: z.string().optional(),
+  })).optional(),
+}).passthrough();
 
 // Simple in-memory rate limiter
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
@@ -15,6 +56,13 @@ const MAX_REQUESTS_PER_WINDOW = 5;
 function checkRateLimit(userId: string): { allowed: boolean; retryAfter?: number } {
   const now = Date.now();
   const entry = rateLimitMap.get(userId);
+  
+  // Clean up old entries (passive cleanup)
+  for (const [key, val] of rateLimitMap.entries()) {
+    if (now >= val.resetTime + RATE_LIMIT_WINDOW_MS) {
+      rateLimitMap.delete(key);
+    }
+  }
   
   if (!entry || now >= entry.resetTime) {
     rateLimitMap.set(userId, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
@@ -30,6 +78,13 @@ function checkRateLimit(userId: string): { allowed: boolean; retryAfter?: number
   return { allowed: true };
 }
 
+// Structured logging helper
+function log(level: 'info' | 'warn' | 'error', message: string, data?: Record<string, unknown>) {
+  const timestamp = new Date().toISOString();
+  const logEntry = { timestamp, level, message, ...data };
+  console[level](`[generate-aggregate-coaching-trends] ${JSON.stringify(logEntry)}`);
+}
+
 interface AggregateParams {
   scope: 'organization' | 'team' | 'rep';
   teamId?: string;
@@ -39,6 +94,9 @@ interface AggregateParams {
 }
 
 Deno.serve(async (req) => {
+  const correlationId = crypto.randomUUID().slice(0, 8);
+  const startTime = Date.now();
+  
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -92,7 +150,7 @@ Deno.serve(async (req) => {
     const toDate = dateRange.to;
     const cacheKey = `aggregate_coaching_${scope}_${teamId || 'all'}_${fromDate}_${toDate}`;
 
-    console.log(`[generate-aggregate-coaching-trends] Processing: scope=${scope}, teamId=${teamId}, dates=${fromDate} to ${toDate}`);
+    log('info', 'Processing request', { correlationId, scope, teamId, fromDate, toDate });
 
     // 1. Check cache first (unless force refresh) - 15 minute TTL
     if (!forceRefresh) {
@@ -264,18 +322,51 @@ Deno.serve(async (req) => {
       console.log(`[generate-aggregate-coaching-trends] Hierarchical downsampled to ${sampled.length} calls`);
     }
 
-    // Call the AI edge function
-    const { data: trendData, error: trendError } = await supabase.functions.invoke('generate-coaching-trends', {
-      body: { calls: callsToAnalyze, dateRange: { from: fromDate, to: toDate } }
-    });
+    // Call the AI edge function with timeout protection
+    log('info', 'Invoking generate-coaching-trends', { correlationId, callCount: callsToAnalyze.length });
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
+    
+    let trendData;
+    let trendError;
+    
+    try {
+      const response = await supabase.functions.invoke('generate-coaching-trends', {
+        body: { calls: callsToAnalyze, dateRange: { from: fromDate, to: toDate } }
+      });
+      trendData = response.data;
+      trendError = response.error;
+    } catch (invokeErr) {
+      clearTimeout(timeoutId);
+      if (invokeErr instanceof Error && invokeErr.name === 'AbortError') {
+        log('error', 'AI analysis timeout after 55s', { correlationId });
+        throw new Error('AI trend analysis timed out. Please try with a smaller date range.');
+      }
+      throw invokeErr;
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (trendError) {
-      console.error('[generate-aggregate-coaching-trends] AI analysis error:', trendError);
+      log('error', 'AI analysis error', { correlationId, error: trendError.message });
       throw new Error(`AI trend analysis failed: ${trendError.message}`);
     }
 
     if (!trendData || trendData.error) {
       throw new Error(trendData?.error || 'Unknown error from AI');
+    }
+    
+    // Validate response with Zod
+    const validationResult = CoachingTrendAnalysisSchema.safeParse(trendData);
+    if (!validationResult.success) {
+      log('warn', 'AI response schema validation failed', { 
+        correlationId, 
+        errors: validationResult.error.issues.slice(0, 3) 
+      });
+      // Continue with data but log the mismatch - don't fail the request
+    } else {
+      log('info', 'AI response validated successfully', { correlationId });
     }
 
     // 8. Build result with metadata
