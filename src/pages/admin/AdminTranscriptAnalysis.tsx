@@ -77,6 +77,9 @@ function AdminTranscriptAnalysis() {
     resetProgress,
     embeddingsProgress,
     entitiesProgress,
+    isEmbeddingsJobStalled,
+    isNERJobStalled,
+    isReindexJobStalled,
     
     // Pagination
     currentPage,
@@ -213,6 +216,9 @@ function AdminTranscriptAnalysis() {
             resetProgress={resetProgress}
             embeddingsProgress={embeddingsProgress}
             entitiesProgress={entitiesProgress}
+            isEmbeddingsStalled={isEmbeddingsJobStalled}
+            isNERStalled={isNERJobStalled}
+            isReindexStalled={isReindexJobStalled}
             analysisMode={analysisMode}
             chatOpen={chatOpen}
             isAdmin={isAdmin}
