@@ -18,6 +18,10 @@ export type {
   AiScoreStats,
   CoachingSummary,
   FrameworkTrend,
+  // Analysis 2.0 trend types
+  PatienceTrend,
+  StrategicThreadingTrend,
+  MonologueTrend,
   PersistentGap,
   CoachingTrendAnalysis,
   CoachingTrendAnalysisWithMeta,

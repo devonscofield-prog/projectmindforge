@@ -13,6 +13,9 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
+  Timer,
+  GitBranch,
+  MessageCircleWarning,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CoachingTrendAnalysis, AnalysisMetadata } from '@/api/aiCallAnalysis';
@@ -41,6 +44,13 @@ export function ExecutiveSummaryCard({
   dataUpdatedAt,
   loadedAnalysis,
 }: ExecutiveSummaryCardProps) {
+  // Extract Analysis 2.0 metrics for quick-glance KPIs
+  const patienceTrend = analysis.trendAnalysis.patience;
+  const strategicThreadingTrend = analysis.trendAnalysis.strategicThreading;
+  const monologueTrend = analysis.trendAnalysis.monologueViolations;
+
+  const hasAnalysis2Data = patienceTrend || strategicThreadingTrend || monologueTrend;
+
   return (
     <Card className="bg-gradient-to-br from-primary/5 via-background to-background border-primary/20">
       <CardHeader className="pb-3">
@@ -89,6 +99,36 @@ export function ExecutiveSummaryCard({
             {getTrendIcon(analysis.periodAnalysis.heatScoreTrend)}
           </div>
         </div>
+
+        {/* Analysis 2.0 Quick KPIs */}
+        {hasAnalysis2Data && (
+          <div className="flex flex-wrap items-center gap-4 mt-3 pt-3 border-t border-dashed">
+            {patienceTrend && (
+              <div className="flex items-center gap-2">
+                <Timer className="h-4 w-4 text-blue-500" />
+                <span className="text-sm text-muted-foreground">Avg Patience:</span>
+                <span className="font-semibold">{patienceTrend.endingAvg?.toFixed(0) ?? 'N/A'}/30</span>
+                {getTrendIcon(patienceTrend.trend)}
+              </div>
+            )}
+            {strategicThreadingTrend && (
+              <div className="flex items-center gap-2">
+                <GitBranch className="h-4 w-4 text-purple-500" />
+                <span className="text-sm text-muted-foreground">Strategic Threading:</span>
+                <span className="font-semibold">{strategicThreadingTrend.endingAvg?.toFixed(0) ?? 'N/A'}%</span>
+                {getTrendIcon(strategicThreadingTrend.trend)}
+              </div>
+            )}
+            {monologueTrend && (
+              <div className="flex items-center gap-2">
+                <MessageCircleWarning className="h-4 w-4 text-orange-500" />
+                <span className="text-sm text-muted-foreground">Avg Monologues/Call:</span>
+                <span className="font-semibold">{monologueTrend.avgPerCall?.toFixed(1) ?? 'N/A'}</span>
+                {getTrendIcon(monologueTrend.trend)}
+              </div>
+            )}
+          </div>
+        )}
         
         {/* Analysis Metadata */}
         {metadata && (
