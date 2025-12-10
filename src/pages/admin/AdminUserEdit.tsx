@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
-import { ArrowLeft, Save, KeyRound, Copy, CheckCircle2, AlertTriangle, Loader2, ShieldOff, Trash2 } from 'lucide-react';
+import { ArrowLeft, Save, KeyRound, Copy, CheckCircle2, AlertTriangle, Loader2, ShieldOff, Trash2, Mail, MessageSquare, Info } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -66,6 +66,8 @@ function AdminUserEdit() {
   });
   const [resetLink, setResetLink] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [resetEmailSent, setResetEmailSent] = useState(false);
+  const [resetEmailError, setResetEmailError] = useState<string | null>(null);
   const [deleteConfirmEmail, setDeleteConfirmEmail] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
@@ -213,11 +215,13 @@ function AdminUserEdit() {
     }
   };
 
-  const handleResetPassword = async () => {
+  const handleResetPassword = async (skipEmail: boolean = false) => {
     if (!userId) return;
 
     setResettingPassword(true);
     setResetLink(null);
+    setResetEmailSent(false);
+    setResetEmailError(null);
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -229,7 +233,8 @@ function AdminUserEdit() {
       const response = await supabase.functions.invoke('reset-user-password', {
         body: {
           userId,
-          sendEmail: true,
+          sendEmail: !skipEmail,
+          skipEmail,
           redirectTo: `${window.location.origin}/auth`,
         },
       });
@@ -240,7 +245,24 @@ function AdminUserEdit() {
 
       const result = response.data;
       setResetLink(result.resetLink);
-      toast.success('Password reset link generated');
+      setResetEmailSent(result.emailSent || false);
+      setResetEmailError(result.emailError || null);
+      
+      if (result.emailSent) {
+        toast.success('Password reset email sent', {
+          description: `Email sent to ${result.email}`
+        });
+      } else if (skipEmail) {
+        toast.success('Reset link generated', {
+          description: 'Copy and share the link via Slack or Teams'
+        });
+      } else if (result.emailError) {
+        toast.warning('Link generated but email failed', {
+          description: 'Please share the link manually'
+        });
+      } else {
+        toast.success('Password reset link generated');
+      }
     } catch (error) {
       log.error('Failed to reset password', { error });
       const errorMessage = error instanceof Error ? error.message : 'Failed to generate reset link';
@@ -625,45 +647,90 @@ function AdminUserEdit() {
               <CardHeader>
                 <CardTitle className="text-lg">Password Reset</CardTitle>
                 <CardDescription>
-                  Generate a secure link for the user to reset their password
+                  Send a secure password reset link to the user
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={handleResetPassword}
-                  disabled={resettingPassword}
-                >
-                  <KeyRound className="h-4 w-4 mr-2" />
-                  {resettingPassword ? 'Generating...' : 'Reset Password'}
-                </Button>
+                {/* Corporate email warning */}
+                <Alert className="bg-amber-500/10 border-amber-500/30">
+                  <Info className="h-4 w-4 text-amber-600" />
+                  <AlertDescription className="text-xs">
+                    <strong>Corporate email users:</strong> Microsoft 365 and Google Workspace 
+                    security scanners may invalidate email links. Use "Get Link Only" for 
+                    corporate emails and share via Slack/Teams.
+                  </AlertDescription>
+                </Alert>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="default"
+                    className="w-full"
+                    onClick={() => handleResetPassword(false)}
+                    disabled={resettingPassword}
+                  >
+                    <Mail className="h-4 w-4 mr-2" />
+                    {resettingPassword ? 'Sending...' : 'Send Email'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => handleResetPassword(true)}
+                    disabled={resettingPassword}
+                  >
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    Get Link Only
+                  </Button>
+                </div>
 
                 {resetLink && (
-                  <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">Reset Link</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        value={resetLink}
-                        readOnly
-                        className="font-mono text-xs"
-                      />
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={handleCopyResetLink}
-                        className={copiedLink ? 'bg-primary text-primary-foreground' : ''}
-                      >
-                        {copiedLink ? (
-                          <CheckCircle2 className="h-4 w-4" />
-                        ) : (
-                          <Copy className="h-4 w-4" />
-                        )}
-                      </Button>
+                  <div className="space-y-3">
+                    {/* Email status indicator */}
+                    {resetEmailSent && (
+                      <Alert className="bg-green-500/10 border-green-500/30">
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        <AlertDescription className="text-xs text-green-700">
+                          Email sent to {user?.email}. Link also available below as backup.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                    
+                    {resetEmailError && (
+                      <Alert variant="destructive" className="bg-destructive/10">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertDescription className="text-xs">
+                          Email failed: {resetEmailError}. Please share the link manually.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">Reset Link</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          value={resetLink}
+                          readOnly
+                          className="font-mono text-xs bg-muted"
+                        />
+                        <Button
+                          variant={copiedLink ? 'default' : 'outline'}
+                          size="icon"
+                          onClick={handleCopyResetLink}
+                          title="Copy to clipboard"
+                        >
+                          {copiedLink ? (
+                            <CheckCircle2 className="h-4 w-4" />
+                          ) : (
+                            <Copy className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {resetEmailSent 
+                          ? 'Backup link - share via Slack/Teams if email doesn\'t arrive'
+                          : 'Share this link via Slack, Teams, or another secure channel'
+                        }
+                      </p>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      Share this link with the user to set a new password
-                    </p>
                   </div>
                 )}
               </CardContent>
