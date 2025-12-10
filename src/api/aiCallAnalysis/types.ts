@@ -108,6 +108,7 @@ export interface AnalyzeCallResponse {
   analysis_id?: string;
   error?: string;
   isRateLimited?: boolean;
+  processing?: boolean; // True when analysis is running in background (fire-and-forget)
 }
 
 // ============================================================
