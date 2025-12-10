@@ -27,12 +27,15 @@ export function createDateRange(daysBack: number): { from: Date; to: Date } {
   return { from, to };
 }
 
-export type TranscriptAnalysisStatus = 'completed' | 'skipped';
+export type TranscriptAnalysisStatus = 'pending' | 'processing' | 'completed' | 'error' | 'skipped';
 
 export const ANALYSIS_STATUS_OPTIONS = [
   { value: 'all', label: 'All Statuses' },
   { value: 'completed', label: 'Analyzed' },
   { value: 'skipped', label: 'Indexed Only' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'processing', label: 'Processing' },
+  { value: 'error', label: 'Error' },
 ];
 
 export interface Transcript {
@@ -46,6 +49,7 @@ export interface Transcript {
   rep_name?: string;
   team_name?: string;
   manager_id?: string | null;
+  created_at?: string;
 }
 
 export interface TranscriptFilters {

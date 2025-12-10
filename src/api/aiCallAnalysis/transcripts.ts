@@ -559,6 +559,53 @@ export async function retryCallAnalysis(callId: string): Promise<{ success: bool
 }
 
 /**
+ * Triggers analysis for a call stuck in pending status (admin-only capability).
+ * Unlike retryCallAnalysis, this doesn't require error status - works for any stuck pending call.
+ * @param callId - The call transcript ID
+ * @returns Success status and any error message
+ */
+export async function triggerPendingCallAnalysis(callId: string): Promise<{ success: boolean; error?: string; isRateLimited?: boolean }> {
+  log.info('Admin triggering analysis for pending call', { callId });
+
+  // Verify call exists and is in pending status
+  const { data: transcript, error: fetchError } = await supabase
+    .from('call_transcripts')
+    .select('analysis_status')
+    .eq('id', callId)
+    .single();
+
+  if (fetchError) {
+    log.error('Failed to fetch transcript', { callId, error: fetchError });
+    return { success: false, error: fetchError.message };
+  }
+
+  if (transcript.analysis_status !== 'pending') {
+    log.warn('Attempted to trigger analysis for non-pending call', { callId, status: transcript.analysis_status });
+    return { success: false, error: `Call is in "${transcript.analysis_status}" status, not pending` };
+  }
+
+  // Invoke analyze-call edge function with force flag
+  const { data: analyzeData, error: analyzeError } = await supabase.functions.invoke('analyze-call', {
+    body: { call_id: callId, force_reanalyze: true }
+  });
+
+  if (analyzeError) {
+    log.error('Analyze function error', { callId, error: analyzeError });
+    const isRateLimited = analyzeError.message?.toLowerCase().includes('rate limit') ||
+                          analyzeError.message?.includes('429');
+    return { success: false, error: analyzeError.message, isRateLimited };
+  }
+
+  // Check if the response indicates rate limiting
+  if (analyzeData?.error?.toLowerCase().includes('rate limit')) {
+    return { success: false, error: analyzeData.error, isRateLimited: true };
+  }
+
+  log.info('Analysis triggered successfully', { callId });
+  return { success: true };
+}
+
+/**
  * Hard-deletes a failed transcript so the rep can resubmit fresh.
  * Only allows deletion of transcripts with error or pending status.
  * Deletes related records first (ai_call_analysis, call_products, call_stakeholder_mentions, transcript_chunks).
