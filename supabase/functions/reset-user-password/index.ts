@@ -104,9 +104,11 @@ Deno.serve(async (req) => {
     // Generate password reset link (recovery type, not magiclink)
     // Use custom domain from env if available, otherwise fall back to lovableproject.com
     const customDomain = Deno.env.get('CUSTOM_DOMAIN');
-    const defaultRedirect = customDomain 
-      ? `https://${customDomain}/auth`
-      : `${supabaseUrl.replace('.supabase.co', '.lovableproject.com')}/auth`;
+    const baseUrl = customDomain 
+      ? `https://${customDomain}`
+      : `${supabaseUrl.replace('.supabase.co', '.lovableproject.com')}`;
+    
+    const defaultRedirect = `${baseUrl}/auth`;
     
     const { data: resetData, error: resetError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'recovery',
@@ -138,7 +140,14 @@ Deno.serve(async (req) => {
 
     const userName = targetProfile?.name || 'there';
     const userEmail = targetProfile?.email || userData.user.email;
-    const resetLink = resetData.properties.action_link;
+    
+    // The raw Supabase reset link
+    const supabaseResetLink = resetData.properties.action_link;
+    
+    // Create an intermediate landing page link that requires user interaction
+    // This prevents corporate email scanners from consuming the one-time token
+    const encodedSupabaseLink = btoa(supabaseResetLink);
+    const resetLink = `${baseUrl}/auth/reset-verify?link=${encodeURIComponent(encodedSupabaseLink)}`;
 
     // Send email via Resend if not explicitly skipped
     let emailSent = false;
@@ -175,11 +184,11 @@ Deno.serve(async (req) => {
                     </a>
                   </div>
                   
-                  <div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 15px; margin: 20px 0;">
-                    <p style="margin: 0; color: #856404; font-size: 14px;">
-                      <strong>⚠️ Important:</strong> If you're using a corporate email (Microsoft 365, Google Workspace), 
-                      your email security may scan and invalidate this link. If the button doesn't work, please contact 
-                      your administrator to share the reset link via Slack or Teams instead.
+                  <div style="background: #d4edda; border: 1px solid #28a745; border-radius: 8px; padding: 15px; margin: 20px 0;">
+                    <p style="margin: 0; color: #155724; font-size: 14px;">
+                      <strong>✓ Scanner-Safe Link:</strong> This link uses a confirmation page that prevents 
+                      corporate email security scanners from invalidating your reset. Simply click the button 
+                      and confirm on the next page.
                     </p>
                   </div>
                   
