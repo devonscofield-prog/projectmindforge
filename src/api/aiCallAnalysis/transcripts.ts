@@ -168,28 +168,38 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
   }
 
   // Fire-and-forget: Trigger analysis without blocking the user
-  // The database trigger provides guaranteed execution even if this fails
+  // The pg_cron job provides guaranteed execution even if this fails
   log.info('Triggering analyze-call edge function (fire-and-forget)', { callId: transcript.id });
   
-  // Non-blocking invoke - don't await, let it run in background
-  supabase.functions.invoke('analyze-call', {
-    body: { call_id: transcript.id }
-  }).then(result => {
-    if (result.error) {
-      log.warn('Background analysis invoke returned error', { 
+  // Wrap entire invoke in try-catch to make it truly silent
+  // This prevents any synchronous errors from bubbling up to the UI
+  try {
+    // Non-blocking invoke - don't await, let it run in background
+    supabase.functions.invoke('analyze-call', {
+      body: { call_id: transcript.id }
+    }).then(result => {
+      if (result.error) {
+        log.warn('Background analysis invoke returned error (non-critical)', { 
+          callId: transcript.id, 
+          error: result.error.message 
+        });
+      } else {
+        log.info('Background analysis invoke completed', { callId: transcript.id });
+      }
+    }).catch(err => {
+      // Log but don't throw - pg_cron will catch pending calls
+      log.warn('Background analysis invoke failed (non-critical)', { 
         callId: transcript.id, 
-        error: result.error.message 
+        error: err instanceof Error ? err.message : String(err)
       });
-    } else {
-      log.info('Background analysis invoke completed', { callId: transcript.id });
-    }
-  }).catch(err => {
-    // Log but don't throw - database trigger will catch it
-    log.warn('Background analysis invoke failed', { 
-      callId: transcript.id, 
-      error: err instanceof Error ? err.message : String(err)
     });
-  });
+  } catch (syncError) {
+    // Catch any synchronous errors from the invoke call itself
+    log.warn('Background analysis invoke sync error (non-critical)', { 
+      callId: transcript.id, 
+      error: syncError instanceof Error ? syncError.message : String(syncError)
+    });
+  }
 
   // Return immediately - user doesn't need to wait for analysis
   log.info('Returning transcript immediately (analysis running in background)', { 

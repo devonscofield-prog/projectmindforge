@@ -23,14 +23,15 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    // Find calls that are pending for more than 30 seconds
-    const thirtySecondsAgo = new Date(Date.now() - 30 * 1000).toISOString();
+    // Find calls that are pending for more than 10 seconds
+    // Reduced from 30s to minimize wait time for users
+    const tenSecondsAgo = new Date(Date.now() - 10 * 1000).toISOString();
     
     const { data: pendingCalls, error: queryError } = await supabase
       .from('call_transcripts')
       .select('id, account_name, created_at')
       .eq('analysis_status', 'pending')
-      .lt('created_at', thirtySecondsAgo)
+      .lt('created_at', tenSecondsAgo)
       .is('deleted_at', null)
       .order('created_at', { ascending: true })
       .limit(5); // Process max 5 at a time to avoid overload
