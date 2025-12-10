@@ -1974,6 +1974,7 @@ export type Database = {
         Args: never
         Returns: {
           account_name: string
+          previous_status: string
           stuck_since: string
           transcript_id: string
         }[]
