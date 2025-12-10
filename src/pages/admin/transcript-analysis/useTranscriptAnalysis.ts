@@ -223,9 +223,9 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
         repIds = (teamReps || []).map(r => r.id);
       }
 
-      // Determine analysis status filter
+      // Determine analysis status filter - include all statuses when 'all' selected
       const analysisStatusFilter = selectedAnalysisStatus === 'all' 
-        ? ['completed', 'skipped'] 
+        ? ['completed', 'skipped', 'pending', 'processing', 'error'] 
         : [selectedAnalysisStatus];
 
       // Use optimized RPC function - single query with JOINs instead of 3 separate queries
