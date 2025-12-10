@@ -1,5 +1,8 @@
 project_id = "wuquclmippzuejqbcksl"
 
+[functions.trigger-pending-analyses]
+verify_jwt = false
+
 [functions.seed-demo-data]
 verify_jwt = true
 
