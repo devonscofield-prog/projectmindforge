@@ -740,7 +740,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
             currentToken = freshToken;
           }
           
-          const result = await processNERBatch(currentToken, 3); // Match backend's NER_BATCH_SIZE of 3
+          const result = await processNERBatch(currentToken, 10); // TRUE BATCHING: 10 chunks per single AI call
           nerBatchCountRef.current++;
           
           // Update progress
