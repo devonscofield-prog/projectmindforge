@@ -797,3 +797,45 @@ export async function listCallTranscriptsForTeamWithFilters(
     count: totalCount,
   };
 }
+
+/**
+ * Admin function to delete any call transcript regardless of status.
+ * This performs a hard delete of the transcript and all related records.
+ * Only admins can use this function (enforced by RLS).
+ * @param callId - The call transcript ID to delete
+ * @returns Success status and any error message
+ */
+export async function adminDeleteCall(
+  callId: string
+): Promise<{ success: boolean; error?: string }> {
+  log.info('Admin deleting call transcript', { callId });
+
+  // Delete related records first (these have foreign key constraints)
+  const deleteOperations = [
+    supabase.from('ai_call_analysis').delete().eq('call_id', callId),
+    supabase.from('call_products').delete().eq('call_id', callId),
+    supabase.from('call_stakeholder_mentions').delete().eq('call_id', callId),
+    supabase.from('transcript_chunks').delete().eq('transcript_id', callId),
+  ];
+
+  const results = await Promise.all(deleteOperations);
+  const failedOps = results.filter(r => r.error);
+  if (failedOps.length > 0) {
+    log.warn('Some related record deletions failed', { callId, errors: failedOps.map(r => r.error) });
+    // Continue anyway - the main delete might still work
+  }
+
+  // Hard delete the transcript
+  const { error: deleteError } = await supabase
+    .from('call_transcripts')
+    .delete()
+    .eq('id', callId);
+
+  if (deleteError) {
+    log.error('Admin failed to delete transcript', { callId, error: deleteError });
+    return { success: false, error: deleteError.message };
+  }
+
+  log.info('Admin deleted transcript successfully', { callId });
+  return { success: true };
+}
