@@ -198,6 +198,23 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
     log.error('Analyze function error', { error: analyzeError });
     const isRateLimited = analyzeError.message?.toLowerCase().includes('rate limit') ||
                           analyzeError.message?.includes('429');
+    
+    // Update transcript status to error so it shows retry button
+    const { error: statusUpdateError } = await supabase
+      .from('call_transcripts')
+      .update({
+        analysis_status: 'error',
+        analysis_error: analyzeError.message || 'Analysis failed - please retry',
+      })
+      .eq('id', transcript.id);
+    
+    if (statusUpdateError) {
+      log.error('Failed to update transcript status to error', { 
+        callId: transcript.id, 
+        error: statusUpdateError 
+      });
+    }
+    
     return {
       transcript: toCallTranscript(transcript),
       analyzeResponse: { error: analyzeError.message, isRateLimited }
@@ -479,9 +496,9 @@ export async function retryCallAnalysis(callId: string): Promise<{ success: bool
     return { success: false, error: updateError.message };
   }
 
-  // Invoke analyze-call edge function
+  // Invoke analyze-call edge function with force flag to bypass deduplication
   const { data: analyzeData, error: analyzeError } = await supabase.functions.invoke('analyze-call', {
-    body: { call_id: callId }
+    body: { call_id: callId, force_reanalyze: true }
   });
 
   if (analyzeError) {
