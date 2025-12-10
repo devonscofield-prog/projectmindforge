@@ -775,18 +775,27 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
             }
           }
           
-          // For non-auth errors, use retry logic
+          // For non-auth errors, use retry logic with exponential backoff
           nerRetryCountRef.current++;
           log.error('NER batch failed', { error: err, retryCount: nerRetryCountRef.current });
           
-          if (nerRetryCountRef.current >= MAX_NER_RETRIES) {
-            toast.error(`NER extraction stopped after ${MAX_NER_RETRIES} consecutive failures`);
+          const errMsg = err instanceof Error ? err.message : '';
+          const isNetworkError = errMsg.includes('Failed to fetch') || 
+                                 errMsg.includes('timed out') ||
+                                 errMsg.includes('NetworkError');
+          
+          // More lenient retry for network errors (they're transient)
+          const effectiveMaxRetries = isNetworkError ? MAX_NER_RETRIES * 2 : MAX_NER_RETRIES;
+          
+          if (nerRetryCountRef.current >= effectiveMaxRetries) {
+            toast.error(`NER extraction stopped after ${nerRetryCountRef.current} consecutive failures. Click "Backfill Entities" to resume.`);
             break;
           }
           
-          toast.warning(`NER batch failed, retrying... (${nerRetryCountRef.current}/${MAX_NER_RETRIES})`);
-          // Wait longer before retry
-          await new Promise(r => setTimeout(r, 2000));
+          // Exponential backoff: 2s, 4s, 8s, 16s, capped at 30s
+          const backoffDelay = Math.min(2000 * Math.pow(2, nerRetryCountRef.current - 1), 30000);
+          toast.warning(`NER batch failed, retrying in ${backoffDelay / 1000}s... (${nerRetryCountRef.current}/${effectiveMaxRetries})`);
+          await new Promise(r => setTimeout(r, backoffDelay));
         }
       }
       
