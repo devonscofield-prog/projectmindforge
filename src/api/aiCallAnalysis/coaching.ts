@@ -312,18 +312,21 @@ export async function generateCoachingTrends(
     throw new Error('No analyzed calls found in the selected period');
   }
 
-  // 4. Format calls for AI - support both MEDDPICC and legacy BANT
+  // 4. Format calls for AI - include Analysis 2.0 fields and legacy fallbacks
   const formattedCalls: FormattedCall[] = analyses.map(a => ({
     date: a.created_at.split('T')[0],
+    // Analysis 2.0 fields (primary)
+    analysis_behavior: a.analysis_behavior ?? null,
+    analysis_strategy: a.analysis_strategy ?? null,
+    // Legacy fields (fallback for backward compatibility)
     framework_scores: a.coach_output?.framework_scores ?? null,
     meddpicc_improvements: a.coach_output?.meddpicc_improvements ?? [],
     gap_selling_improvements: a.coach_output?.gap_selling_improvements ?? [],
     active_listening_improvements: a.coach_output?.active_listening_improvements ?? [],
-    // Legacy BANT improvements for backward compatibility
     bant_improvements: a.coach_output?.bant_improvements ?? [],
     critical_info_missing: a.coach_output?.critical_info_missing ?? [],
     follow_up_questions: a.coach_output?.recommended_follow_up_questions ?? [],
-    heat_score: a.coach_output?.heat_signature?.score ?? null,
+    heat_score: a.deal_heat_analysis?.heat_score ?? a.coach_output?.heat_signature?.score ?? null,
   }));
 
   let trendData: CoachingTrendAnalysis;

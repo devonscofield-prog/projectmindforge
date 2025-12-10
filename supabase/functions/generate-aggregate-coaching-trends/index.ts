@@ -212,14 +212,19 @@ Deno.serve(async (req) => {
 
     console.log(`[generate-aggregate-coaching-trends] Analysis tier: ${tier}, callCount: ${callCount}`);
 
-    // 6. Format calls for AI
+    // 6. Format calls for AI - include Analysis 2.0 fields and legacy fallbacks
     const formattedCalls = analyses.map((a: Record<string, unknown>) => {
       const coachOutput = a.coach_output as Record<string, unknown> | null;
       const frameworkScores = coachOutput?.framework_scores as Record<string, unknown> | null;
       const heatSignature = coachOutput?.heat_signature as Record<string, unknown> | null;
+      const dealHeat = a.deal_heat_analysis as Record<string, unknown> | null;
       
       return {
         date: (a.created_at as string).split('T')[0],
+        // Analysis 2.0 fields (primary)
+        analysis_behavior: a.analysis_behavior ?? null,
+        analysis_strategy: a.analysis_strategy ?? null,
+        // Legacy fields (fallback for backward compatibility)
         framework_scores: frameworkScores ?? null,
         meddpicc_improvements: (coachOutput?.meddpicc_improvements as string[]) ?? [],
         gap_selling_improvements: (coachOutput?.gap_selling_improvements as string[]) ?? [],
@@ -227,7 +232,7 @@ Deno.serve(async (req) => {
         bant_improvements: (coachOutput?.bant_improvements as string[]) ?? [],
         critical_info_missing: (coachOutput?.critical_info_missing as unknown[]) ?? [],
         follow_up_questions: (coachOutput?.recommended_follow_up_questions as unknown[]) ?? [],
-        heat_score: (heatSignature?.score as number) ?? null,
+        heat_score: (dealHeat?.heat_score as number) ?? (heatSignature?.score as number) ?? null,
       };
     });
 
@@ -324,7 +329,7 @@ Deno.serve(async (req) => {
   }
 });
 
-// Helper: Calculate rep contributions
+// Helper: Calculate rep contributions with Analysis 2.0 metrics
 function calculateRepContributions(
   analyses: Record<string, unknown>[],
   repProfiles: { id: string; name: string; team_id: string | null }[],
@@ -352,14 +357,23 @@ function calculateRepContributions(
       activeListening: number | null;
       bant?: number | null;
     };
+    // Analysis 2.0 metrics
+    analysis2_0_metrics?: {
+      avgPatienceScore: number | null;
+      avgStrategicThreadingScore: number | null;
+      totalMonologueViolations: number;
+    };
   }> = [];
 
   repProfiles.forEach(rep => {
     const repCalls = repAnalyses.get(rep.id) || [];
     if (repCalls.length === 0) return;
 
+    // Get heat scores - prefer deal_heat_analysis, fallback to legacy
     const heatScores = repCalls
       .map(a => {
+        const dealHeat = a.deal_heat_analysis as Record<string, unknown> | null;
+        if (dealHeat?.heat_score !== undefined) return dealHeat.heat_score as number;
         const coachOutput = a.coach_output as Record<string, unknown> | null;
         const heatSignature = coachOutput?.heat_signature as Record<string, unknown> | null;
         return heatSignature?.score as number | undefined;
@@ -370,20 +384,58 @@ function calculateRepContributions(
       ? heatScores.reduce((sum, s) => sum + s, 0) / heatScores.length 
       : null;
 
+    // Legacy framework scores
     const meddpiccScores: number[] = [];
     const bantScores: number[] = [];
     const gapScores: number[] = [];
     const listenScores: number[] = [];
 
+    // Analysis 2.0 metrics
+    const patienceScores: number[] = [];
+    const strategicThreadingScores: number[] = [];
+    let totalMonologueViolations = 0;
+
     repCalls.forEach(a => {
+      // Extract Analysis 2.0 metrics
+      const behavior = a.analysis_behavior as Record<string, unknown> | null;
+      const strategy = a.analysis_strategy as Record<string, unknown> | null;
+      
+      if (behavior) {
+        const metrics = behavior.metrics as Record<string, unknown> | null;
+        if (metrics) {
+          const patience = metrics.patience as Record<string, unknown> | null;
+          if (patience?.score !== undefined) patienceScores.push(patience.score as number);
+          
+          const monologue = metrics.monologue as Record<string, unknown> | null;
+          if (monologue?.violation_count !== undefined) {
+            totalMonologueViolations += monologue.violation_count as number;
+          }
+        }
+      }
+      
+      if (strategy) {
+        const threading = strategy.strategic_threading as Record<string, unknown> | null;
+        if (threading?.score !== undefined) strategicThreadingScores.push(threading.score as number);
+        
+        // Also get MEDDPICC from Strategy analysis
+        const meddpicc = strategy.meddpicc as Record<string, unknown> | null;
+        if (meddpicc?.overall_score !== undefined) meddpiccScores.push(meddpicc.overall_score as number);
+      }
+      
+      // Legacy fallback for framework scores
       const coachOutput = a.coach_output as Record<string, unknown> | null;
       const fs = coachOutput?.framework_scores as Record<string, unknown> | null;
-      const meddpicc = fs?.meddpicc as Record<string, unknown> | null;
+      
+      // Only use legacy MEDDPICC if no Analysis 2.0 data
+      if (!strategy) {
+        const legacyMeddpicc = fs?.meddpicc as Record<string, unknown> | null;
+        if (legacyMeddpicc?.overall_score !== undefined) meddpiccScores.push(legacyMeddpicc.overall_score as number);
+      }
+      
       const bant = fs?.bant as Record<string, unknown> | null;
       const gapSelling = fs?.gap_selling as Record<string, unknown> | null;
       const activeListening = fs?.active_listening as Record<string, unknown> | null;
       
-      if (meddpicc?.overall_score !== undefined) meddpiccScores.push(meddpicc.overall_score as number);
       if (bant?.score !== undefined) bantScores.push(bant.score as number);
       if (gapSelling?.score !== undefined) gapScores.push(gapSelling.score as number);
       if (activeListening?.score !== undefined) listenScores.push(activeListening.score as number);
@@ -404,6 +456,12 @@ function calculateRepContributions(
         activeListening: avg(listenScores),
         bant: avg(bantScores),
       },
+      // Include Analysis 2.0 metrics if available
+      analysis2_0_metrics: patienceScores.length > 0 || strategicThreadingScores.length > 0 ? {
+        avgPatienceScore: avg(patienceScores),
+        avgStrategicThreadingScore: avg(strategicThreadingScores),
+        totalMonologueViolations,
+      } : undefined,
     });
   });
 
