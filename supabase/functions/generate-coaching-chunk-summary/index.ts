@@ -52,6 +52,20 @@ const frameworkScoresSchema = z.object({
   active_listening: z.object({ score: z.number().min(0).max(100), summary: z.string() })
 }).nullable();
 
+// Analysis 2.0 behavior schema
+const analysisBehaviorSchema = z.object({
+  metrics: z.object({
+    patience: z.object({ score: z.number() }).optional(),
+    strategic_threading: z.object({ score: z.number() }).optional(),
+    monologue: z.object({ violation_count: z.number() }).optional(),
+  }).optional(),
+}).nullable().optional();
+
+// Analysis 2.0 strategy schema  
+const analysisStrategySchema = z.object({
+  strategic_threading: z.object({ score: z.number() }).optional(),
+}).nullable().optional();
+
 const callDataSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   framework_scores: frameworkScoresSchema,
@@ -61,7 +75,10 @@ const callDataSchema = z.object({
   active_listening_improvements: z.array(z.string()),
   critical_info_missing: z.array(z.union([z.string(), z.object({ info: z.string(), missed_opportunity: z.string() })])),
   follow_up_questions: z.array(z.union([z.string(), z.object({ question: z.string(), timing_example: z.string() })])),
-  heat_score: z.number().min(1).max(10).nullable()
+  heat_score: z.number().min(1).max(10).nullable(),
+  // Analysis 2.0 fields
+  analysis_behavior: analysisBehaviorSchema,
+  analysis_strategy: analysisStrategySchema,
 });
 
 const chunkSummaryRequestSchema = z.object({
@@ -161,6 +178,17 @@ Deno.serve(async (req) => {
     const activeScores = calls.filter(c => c.framework_scores?.active_listening?.score != null).map(c => c.framework_scores!.active_listening.score);
     const heatScores = calls.filter(c => c.heat_score != null).map(c => c.heat_score!);
 
+    // === Analysis 2.0 metrics extraction ===
+    const patienceScores = calls
+      .filter(c => c.analysis_behavior?.metrics?.patience?.score != null)
+      .map(c => c.analysis_behavior!.metrics!.patience!.score);
+    const strategicThreadingScores = calls
+      .filter(c => c.analysis_behavior?.metrics?.strategic_threading?.score != null || c.analysis_strategy?.strategic_threading?.score != null)
+      .map(c => c.analysis_behavior?.metrics?.strategic_threading?.score ?? c.analysis_strategy?.strategic_threading?.score ?? 0);
+    const monologueViolations = calls
+      .filter(c => c.analysis_behavior?.metrics?.monologue?.violation_count != null)
+      .map(c => c.analysis_behavior!.metrics!.monologue!.violation_count);
+
     // Use MEDDPICC if available, otherwise fall back to BANT
     const primaryScores = meddpiccScores.length > 0 ? meddpiccScores : bantScores;
     const primaryLabel = meddpiccScores.length > 0 ? 'MEDDPICC' : 'BANT';
@@ -168,6 +196,11 @@ Deno.serve(async (req) => {
     const avgGap = gapScores.length > 0 ? gapScores.reduce((a, b) => a + b, 0) / gapScores.length : null;
     const avgActive = activeScores.length > 0 ? activeScores.reduce((a, b) => a + b, 0) / activeScores.length : null;
     const avgHeat = heatScores.length > 0 ? heatScores.reduce((a, b) => a + b, 0) / heatScores.length : null;
+    
+    // Analysis 2.0 averages
+    const avgPatience = patienceScores.length > 0 ? patienceScores.reduce((a, b) => a + b, 0) / patienceScores.length : null;
+    const avgStrategicThreading = strategicThreadingScores.length > 0 ? strategicThreadingScores.reduce((a, b) => a + b, 0) / strategicThreadingScores.length : null;
+    const totalMonologueViolations = monologueViolations.length > 0 ? monologueViolations.reduce((a, b) => a + b, 0) : null;
 
     // Collect all improvement areas and missing info - MEDDPICC first, fall back to BANT
     const allMeddpiccImprovements = calls.flatMap(c => c.meddpicc_improvements || []);
@@ -186,6 +219,9 @@ Quick Stats:
 - Average Gap Selling Score: ${avgGap?.toFixed(1) ?? 'N/A'}
 - Average Active Listening Score: ${avgActive?.toFixed(1) ?? 'N/A'}
 - Average Heat Score: ${avgHeat?.toFixed(1) ?? 'N/A'}
+- Average Patience Score: ${avgPatience?.toFixed(1) ?? 'N/A'}
+- Average Strategic Threading Score: ${avgStrategicThreading?.toFixed(1) ?? 'N/A'}
+- Total Monologue Violations: ${totalMonologueViolations ?? 'N/A'}
 
 ${primaryLabel} Improvements Mentioned: ${allPrimaryImprovements.join('; ') || 'None'}
 Gap Selling Improvements Mentioned: ${allGapImprovements.join('; ') || 'None'}
@@ -221,9 +257,13 @@ Provide a condensed summary of this chunk's patterns and trends.`;
                       meddpicc: { type: 'number', nullable: true },
                       gapSelling: { type: 'number', nullable: true },
                       activeListening: { type: 'number', nullable: true },
-                      heat: { type: 'number', nullable: true }
+                      heat: { type: 'number', nullable: true },
+                      // Analysis 2.0 metrics
+                      patienceAvg: { type: 'number', nullable: true },
+                      strategicThreadingAvg: { type: 'number', nullable: true },
+                      monologueViolationsTotal: { type: 'number', nullable: true }
                     },
-                    required: ['meddpicc', 'gapSelling', 'activeListening', 'heat']
+                    required: ['meddpicc', 'gapSelling', 'activeListening', 'heat', 'patienceAvg', 'strategicThreadingAvg', 'monologueViolationsTotal']
                   },
                   dominantTrends: {
                     type: 'object',
