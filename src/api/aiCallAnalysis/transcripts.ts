@@ -167,31 +167,55 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
     }
   }
 
-  // Call the analyze_call edge function
+  // Call the analyze_call edge function with retry logic
   log.info('Invoking analyze-call edge function', { callId: transcript.id });
   
   let analyzeData: unknown;
   let analyzeError: Error | null = null;
   
-  try {
-    const result = await supabase.functions.invoke('analyze-call', {
-      body: { call_id: transcript.id }
-    });
-    analyzeData = result.data;
-    analyzeError = result.error;
-    
-    log.info('Analyze-call invoke completed', { 
-      callId: transcript.id, 
-      hasData: !!result.data, 
-      hasError: !!result.error,
-      errorMessage: result.error?.message 
-    });
-  } catch (invokeErr) {
-    log.error('Analyze-call invoke threw exception', { 
-      callId: transcript.id, 
-      error: invokeErr instanceof Error ? invokeErr.message : String(invokeErr)
-    });
-    analyzeError = invokeErr instanceof Error ? invokeErr : new Error(String(invokeErr));
+  const MAX_RETRIES = 2;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const result = await supabase.functions.invoke('analyze-call', {
+        body: { call_id: transcript.id }
+      });
+      analyzeData = result.data;
+      analyzeError = result.error;
+      
+      log.info('Analyze-call invoke completed', { 
+        callId: transcript.id, 
+        attempt: attempt + 1,
+        hasData: !!result.data, 
+        hasError: !!result.error,
+        errorMessage: result.error?.message 
+      });
+      
+      // If successful or rate limited, don't retry
+      if (!result.error || result.error.message?.toLowerCase().includes('rate limit')) {
+        break;
+      }
+      
+      // Retry on transient failures
+      if (attempt < MAX_RETRIES) {
+        const delay = 1000 * (attempt + 1); // 1s, 2s backoff
+        log.warn('Retrying analyze-call', { callId: transcript.id, attempt: attempt + 1, delay });
+        await new Promise(r => setTimeout(r, delay));
+      }
+    } catch (invokeErr) {
+      log.error('Analyze-call invoke threw exception', { 
+        callId: transcript.id, 
+        attempt: attempt + 1,
+        error: invokeErr instanceof Error ? invokeErr.message : String(invokeErr)
+      });
+      analyzeError = invokeErr instanceof Error ? invokeErr : new Error(String(invokeErr));
+      
+      // Retry on exceptions
+      if (attempt < MAX_RETRIES) {
+        const delay = 1000 * (attempt + 1);
+        log.warn('Retrying after exception', { callId: transcript.id, attempt: attempt + 1, delay });
+        await new Promise(r => setTimeout(r, delay));
+      }
+    }
   }
 
   if (analyzeError) {
