@@ -79,9 +79,9 @@ const BATCH_DELAY_MS = 300;
 // Reduced from 20s to 15s to leave more time for analysis agents
 const PHASE0_BUDGET_MS = 15000;
 
-// Maximum transcript length for speaker labeling (60k chars ~ 15k words)
-// Reduced from 80k to prevent slow labeling on long transcripts
-const MAX_TRANSCRIPT_LENGTH_FOR_LABELING = 60000;
+// Maximum transcript length for speaker labeling (40k chars ~ 10k words)
+// Reduced from 60k to prevent 20+ second Speaker Labeler runs
+const MAX_TRANSCRIPT_LENGTH_FOR_LABELING = 40000;
 
 // ============= CONTEXT-AWARE PROMPT BUILDERS =============
 

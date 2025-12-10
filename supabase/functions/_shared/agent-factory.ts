@@ -21,11 +21,19 @@ const AGENT_TIMEOUT_MS = {
 
 // Agent-specific timeout overrides (some agents need longer due to output size or complexity)
 const AGENT_TIMEOUT_OVERRIDES: Record<string, number> = {
-  'speaker_labeler': 25000,  // 25s - must output full labeled transcript
-  'skeptic': 20000,          // 20s - complex gap analysis, high variance observed
-  'negotiator': 20000,       // 20s - objection analysis, high variance observed
-  'coach': 25000,            // 25s - synthesis needs more time due to multi-agent input
+  'speaker_labeler': 20000,  // 20s - reduced from 25s, now uses 40k char limit
+  'skeptic': 15000,          // 15s - reduced from 20s for early termination
+  'negotiator': 15000,       // 15s - reduced from 20s for early termination
+  'coach': 20000,            // 20s - reduced from 25s, synthesis still needs time
+  'auditor': 12000,          // 12s - pricing analysis is straightforward
+  'profiler': 12000,         // 12s - psychology profile is bounded
+  'interrogator': 12000,     // 12s - question analysis is bounded
 } as const;
+
+// Non-critical agents that can fail gracefully without blocking analysis
+const NON_CRITICAL_AGENTS = new Set([
+  'profiler', 'spy', 'auditor', 'interrogator', 'negotiator'
+]);
 
 export function getAgentTimeout(model: 'google/gemini-2.5-flash' | 'google/gemini-2.5-pro', agentId?: string): number {
   // Check for agent-specific override first
@@ -33,6 +41,10 @@ export function getAgentTimeout(model: 'google/gemini-2.5-flash' | 'google/gemin
     return AGENT_TIMEOUT_OVERRIDES[agentId];
   }
   return AGENT_TIMEOUT_MS[model] || 15000;
+}
+
+export function isNonCriticalAgent(agentId: string): boolean {
+  return NON_CRITICAL_AGENTS.has(agentId);
 }
 
 // ============= TYPES =============
@@ -138,9 +150,14 @@ async function callLovableAI<T extends z.ZodTypeAny>(
     } catch (fetchError) {
       clearTimeout(timeoutId);
       if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-        lastError = new Error(`Agent ${config.id} timeout after ${agentTimeoutMs / 1000}s`);
-        console.warn(`[agent-factory] ${config.id} timed out after ${agentTimeoutMs}ms`);
-        continue; // Retry on timeout
+        const isNonCritical = isNonCriticalAgent(config.id);
+        lastError = new Error(`Agent ${config.id} ${isNonCritical ? 'early terminated' : 'timeout'} after ${agentTimeoutMs / 1000}s`);
+        console.warn(`[agent-factory] ${config.id} ${isNonCritical ? 'EARLY TERMINATED' : 'timed out'} after ${agentTimeoutMs}ms (non-critical: ${isNonCritical})`);
+        if (isNonCritical) {
+          // Don't retry non-critical agents - fail fast with defaults
+          throw lastError;
+        }
+        continue; // Only retry critical agents on timeout
       }
       throw fetchError;
     } finally {
