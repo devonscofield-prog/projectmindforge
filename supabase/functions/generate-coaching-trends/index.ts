@@ -1,6 +1,89 @@
 // Edge function for generating coaching trends analysis
+import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
 
-// CORS: Restrict to production domains
+// Zod schema for Analysis 2.0 Trend Analysis response validation
+const FrameworkTrendSchema = z.object({
+  trend: z.enum(['improving', 'stable', 'declining']),
+  startingAvg: z.number(),
+  endingAvg: z.number(),
+  keyInsight: z.string(),
+  evidence: z.array(z.string()),
+  recommendation: z.string(),
+});
+
+const PatienceTrendSchema = z.object({
+  trend: z.enum(['improving', 'stable', 'declining']),
+  startingAvg: z.number(),
+  endingAvg: z.number(),
+  avgInterruptions: z.number(),
+  keyInsight: z.string(),
+  evidence: z.array(z.string()),
+  recommendation: z.string(),
+});
+
+const StrategicThreadingTrendSchema = z.object({
+  trend: z.enum(['improving', 'stable', 'declining']),
+  startingAvg: z.number(),
+  endingAvg: z.number(),
+  avgRelevanceRatio: z.number(),
+  avgMissedOpportunities: z.number(),
+  keyInsight: z.string(),
+  evidence: z.array(z.string()),
+  recommendation: z.string(),
+});
+
+const MonologueTrendSchema = z.object({
+  trend: z.enum(['improving', 'stable', 'declining']),
+  totalViolations: z.number(),
+  avgPerCall: z.number(),
+  avgLongestTurn: z.number(),
+  keyInsight: z.string(),
+  evidence: z.array(z.string()),
+  recommendation: z.string(),
+});
+
+const PersistentGapSchema = z.object({
+  gap: z.string(),
+  frequency: z.string(),
+  trend: z.enum(['improving', 'stable', 'worse']),
+});
+
+const TrendAnalysisSchema = z.object({
+  summary: z.string(),
+  periodAnalysis: z.object({
+    totalCalls: z.number(),
+    averageHeatScore: z.number(),
+    heatScoreTrend: z.enum(['improving', 'stable', 'declining']),
+  }),
+  trendAnalysis: z.object({
+    patience: PatienceTrendSchema,
+    strategicThreading: StrategicThreadingTrendSchema,
+    monologueViolations: MonologueTrendSchema,
+    meddpicc: FrameworkTrendSchema,
+    gapSelling: FrameworkTrendSchema,
+    activeListening: FrameworkTrendSchema,
+  }),
+  patternAnalysis: z.object({
+    criticalInfoMissing: z.object({
+      persistentGaps: z.array(PersistentGapSchema),
+      newIssues: z.array(z.string()),
+      resolvedIssues: z.array(z.string()),
+      recommendation: z.string(),
+    }),
+    followUpQuestions: z.object({
+      recurringThemes: z.array(z.string()),
+      qualityTrend: z.enum(['improving', 'stable', 'declining']),
+      recommendation: z.string(),
+    }),
+  }),
+  topPriorities: z.array(z.object({
+    area: z.string(),
+    reason: z.string(),
+    actionItem: z.string(),
+  })),
+});
+
+
 function getCorsHeaders(origin?: string | null): Record<string, string> {
   const allowedOrigins = ['https://lovable.dev', 'https://www.lovable.dev'];
   const devPatterns = [/^https?:\/\/localhost(:\d+)?$/, /^https:\/\/[a-z0-9-]+\.lovableproject\.com$/, /^https:\/\/[a-z0-9-]+\.lovable\.app$/];
@@ -622,18 +705,69 @@ Provide a comprehensive trend analysis with specific evidence and actionable rec
 
     let trendAnalysis;
     try {
-      trendAnalysis = JSON.parse(toolCall.function.arguments);
+      const parsed = JSON.parse(toolCall.function.arguments);
+      
+      // Validate with Zod schema
+      const validationResult = TrendAnalysisSchema.safeParse(parsed);
+      
+      if (!validationResult.success) {
+        console.warn('[generate-coaching-trends] Schema validation failed:', validationResult.error.format());
+        // Use parsed data but log validation issues for debugging
+        trendAnalysis = parsed;
+      } else {
+        trendAnalysis = validationResult.data;
+        console.log('[generate-coaching-trends] Schema validation passed');
+      }
     } catch (parseError) {
       console.error('[generate-coaching-trends] Failed to parse AI response:', parseError);
       throw new Error('Failed to parse AI analysis');
     }
 
-    // Ensure required fields exist with defaults
+    // Ensure required fields exist with defaults for backward compatibility
     if (!trendAnalysis.periodAnalysis) {
       trendAnalysis.periodAnalysis = {
         totalCalls: totalCalls,
         averageHeatScore: 0,
         heatScoreTrend: 'stable'
+      };
+    }
+    
+    // Ensure Analysis 2.0 trend fields have defaults if missing
+    if (!trendAnalysis.trendAnalysis?.patience) {
+      trendAnalysis.trendAnalysis = trendAnalysis.trendAnalysis || {};
+      trendAnalysis.trendAnalysis.patience = {
+        trend: 'stable',
+        startingAvg: 0,
+        endingAvg: 0,
+        avgInterruptions: 0,
+        keyInsight: 'No patience data available',
+        evidence: [],
+        recommendation: 'Submit more calls with Analysis 2.0 data'
+      };
+    }
+    
+    if (!trendAnalysis.trendAnalysis?.strategicThreading) {
+      trendAnalysis.trendAnalysis.strategicThreading = {
+        trend: 'stable',
+        startingAvg: 0,
+        endingAvg: 0,
+        avgRelevanceRatio: 0,
+        avgMissedOpportunities: 0,
+        keyInsight: 'No strategic threading data available',
+        evidence: [],
+        recommendation: 'Submit more calls with Analysis 2.0 data'
+      };
+    }
+    
+    if (!trendAnalysis.trendAnalysis?.monologueViolations) {
+      trendAnalysis.trendAnalysis.monologueViolations = {
+        trend: 'stable',
+        totalViolations: 0,
+        avgPerCall: 0,
+        avgLongestTurn: 0,
+        keyInsight: 'No monologue data available',
+        evidence: [],
+        recommendation: 'Submit more calls with Analysis 2.0 data'
       };
     }
 
