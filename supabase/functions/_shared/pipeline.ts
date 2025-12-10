@@ -76,11 +76,12 @@ export interface PipelineResult {
 const BATCH_DELAY_MS = 300;
 
 // Phase 0 time budget - abort Speaker Labeler if it exceeds this
-const PHASE0_BUDGET_MS = 20000;
+// Reduced from 20s to 15s to leave more time for analysis agents
+const PHASE0_BUDGET_MS = 15000;
 
-// Maximum transcript length for speaker labeling (80k chars ~ 20k words)
-// Longer transcripts skip labeling to prevent timeout/overflow
-const MAX_TRANSCRIPT_LENGTH_FOR_LABELING = 80000;
+// Maximum transcript length for speaker labeling (60k chars ~ 15k words)
+// Reduced from 80k to prevent slow labeling on long transcripts
+const MAX_TRANSCRIPT_LENGTH_FOR_LABELING = 60000;
 
 // ============= CONTEXT-AWARE PROMPT BUILDERS =============
 
@@ -585,7 +586,7 @@ ${pricingSection}
 
 // ============= PIPELINE TIMEOUT =============
 
-const PIPELINE_TIMEOUT_MS = 50000; // 50 seconds - leave 10s buffer for Edge Function limit
+const PIPELINE_TIMEOUT_MS = 55000; // 55 seconds - leave 5s buffer for Edge Function limit
 
 class PipelineTimeoutError extends Error {
   constructor(elapsedMs: number) {
