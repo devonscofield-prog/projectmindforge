@@ -988,14 +988,18 @@ async function processFullReindexJob(
       }
       
       if (chunksToInsert.length > 0) {
-        const { error: insertError } = await supabase
+        const { error: insertError, count } = await supabase
           .from('transcript_chunks')
-          .insert(chunksToInsert);
+          .upsert(chunksToInsert, { 
+            onConflict: 'transcript_id,chunk_index', 
+            ignoreDuplicates: true 
+          });
         
         if (insertError) {
-          console.error(`[chunk-transcripts] Chunk insert error:`, insertError);
+          console.error(`[chunk-transcripts] Chunk upsert error:`, insertError);
         } else {
           totalChunks += chunksToInsert.length;
+          console.log(`[chunk-transcripts] Upserted ${chunksToInsert.length} chunks (duplicates skipped)`);
         }
       }
       
@@ -1705,10 +1709,13 @@ Deno.serve(async (req) => {
           const insertBatch = allChunks.slice(j, j + INSERT_BATCH_SIZE);
           const { error: insertError } = await supabase
             .from('transcript_chunks')
-            .insert(insertBatch);
+            .upsert(insertBatch, { 
+              onConflict: 'transcript_id,chunk_index', 
+              ignoreDuplicates: true 
+            });
 
           if (insertError) {
-            console.error('[chunk-transcripts] Error inserting chunks:', insertError);
+            console.error('[chunk-transcripts] Error upserting chunks:', insertError);
           } else {
             totalChunksCreated += insertBatch.length;
           }
@@ -1932,17 +1939,20 @@ Deno.serve(async (req) => {
 
     console.log(`[chunk-transcripts] Generated ${allChunks.length} chunks from ${transcriptsToChunk?.length || 0} transcripts`);
 
-    // Insert chunks
+    // Insert chunks (upsert to handle duplicates gracefully)
     let totalInserted = 0;
     const INSERT_BATCH_SIZE = 100;
     for (let i = 0; i < allChunks.length; i += INSERT_BATCH_SIZE) {
       const batch = allChunks.slice(i, i + INSERT_BATCH_SIZE);
       const { error: insertError } = await supabase
         .from('transcript_chunks')
-        .insert(batch);
+        .upsert(batch, { 
+          onConflict: 'transcript_id,chunk_index', 
+          ignoreDuplicates: true 
+        });
 
       if (insertError) {
-        console.error('[chunk-transcripts] Error inserting chunks:', insertError);
+        console.error('[chunk-transcripts] Error upserting chunks:', insertError);
       } else {
         totalInserted += batch.length;
       }
