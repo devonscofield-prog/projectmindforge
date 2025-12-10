@@ -252,10 +252,48 @@ export interface CoachingSummary {
 }
 
 // ============= COACHING TREND ANALYSIS TYPES =============
+
+// Legacy framework trend type (kept for backward compatibility)
 export interface FrameworkTrend {
   trend: 'improving' | 'stable' | 'declining';
   startingAvg: number;
   endingAvg: number;
+  keyInsight: string;
+  evidence: string[];
+  recommendation: string;
+}
+
+// ============= ANALYSIS 2.0 TREND TYPES =============
+
+/** Patience trend from Behavior analysis - tracks interruption patterns */
+export interface PatienceTrend {
+  trend: 'improving' | 'stable' | 'declining';
+  startingAvg: number; // Avg Patience Score (0-30) from first half
+  endingAvg: number;   // Avg Patience Score (0-30) from second half
+  avgInterruptions: number; // Average interruption count per call
+  keyInsight: string;
+  evidence: string[];
+  recommendation: string;
+}
+
+/** Strategic Threading trend from Strategy analysis - tracks pain-to-pitch alignment */
+export interface StrategicThreadingTrend {
+  trend: 'improving' | 'stable' | 'declining';
+  startingAvg: number; // Avg strategic threading score (0-100) from first half
+  endingAvg: number;   // Avg strategic threading score (0-100) from second half
+  avgRelevanceRatio: number; // Average % of pitches that were relevant to pains
+  avgMissedOpportunities: number; // Average missed opportunities per call
+  keyInsight: string;
+  evidence: string[];
+  recommendation: string;
+}
+
+/** Monologue Violations trend from Behavior analysis - tracks talk time discipline */
+export interface MonologueTrend {
+  trend: 'improving' | 'stable' | 'declining';
+  totalViolations: number; // Total monologue violations across all calls
+  avgPerCall: number; // Average violations per call
+  avgLongestTurn: number; // Average longest turn word count
   keyInsight: string;
   evidence: string[];
   recommendation: string;
@@ -275,10 +313,15 @@ export interface CoachingTrendAnalysis {
     heatScoreTrend: 'improving' | 'stable' | 'declining';
   };
   trendAnalysis: {
+    // Analysis 2.0 primary metrics
+    patience: PatienceTrend;
+    strategicThreading: StrategicThreadingTrend;
+    monologueViolations: MonologueTrend;
+    // MEDDPICC (from Strategy analysis)
     meddpicc: FrameworkTrend;
+    // Legacy metrics (fallback for backward compatibility)
     gapSelling: FrameworkTrend;
     activeListening: FrameworkTrend;
-    // Legacy BANT field - optional for new MEDDPICC-based analyses
     bant?: FrameworkTrend;
   };
   patternAnalysis: {
@@ -333,17 +376,19 @@ export interface ChunkSummary {
 
 export interface FormattedCall {
   date: string;
+  // Analysis 2.0 fields (primary)
+  analysis_behavior?: BehaviorScore | null;
+  analysis_strategy?: StrategyAudit | null;
+  // Legacy fields (fallback for backward compatibility)
   framework_scores: {
     meddpicc: MEDDPICCScores;
     gap_selling: { score: number; summary: string };
     active_listening: { score: number; summary: string };
-    // Legacy BANT field for backward compatibility
     bant?: { score: number; summary: string };
   } | null;
   meddpicc_improvements: string[];
   gap_selling_improvements: string[];
   active_listening_improvements: string[];
-  // Legacy BANT improvements for backward compatibility
   bant_improvements?: string[];
   critical_info_missing: Array<{ info: string; missed_opportunity: string }> | string[];
   follow_up_questions: Array<{ question: string; timing_example: string }> | string[];
