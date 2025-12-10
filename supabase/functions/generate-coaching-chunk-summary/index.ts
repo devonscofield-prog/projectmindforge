@@ -230,74 +230,97 @@ Critical Info Missing: ${allMissingInfo.join('; ') || 'None'}
 
 Provide a condensed summary of this chunk's patterns and trends.`;
 
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: CHUNK_SUMMARY_SYSTEM_PROMPT },
-          { role: 'user', content: userPrompt }
-        ],
-        tools: [
-          {
-            type: 'function',
-            function: {
-              name: 'provide_chunk_summary',
-              description: 'Provide condensed summary of this chunk of calls',
-              parameters: {
-                type: 'object',
-                properties: {
-                  avgScores: {
-                    type: 'object',
-                    properties: {
-                      meddpicc: { type: 'number', nullable: true },
-                      gapSelling: { type: 'number', nullable: true },
-                      activeListening: { type: 'number', nullable: true },
-                      heat: { type: 'number', nullable: true },
-                      // Analysis 2.0 metrics
-                      patienceAvg: { type: 'number', nullable: true },
-                      strategicThreadingAvg: { type: 'number', nullable: true },
-                      monologueViolationsTotal: { type: 'number', nullable: true }
+    // Timeout controller for AI request (55 seconds)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 55000);
+    
+    let aiResponse: Response;
+    try {
+      aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-flash',
+          temperature: 0.3, // Lower temperature for consistency
+          max_tokens: 4096, // Explicit token limit
+          messages: [
+            { role: 'system', content: CHUNK_SUMMARY_SYSTEM_PROMPT },
+            { role: 'user', content: userPrompt }
+          ],
+          tools: [
+            {
+              type: 'function',
+              function: {
+                name: 'provide_chunk_summary',
+                description: 'Provide condensed summary of this chunk of calls',
+                parameters: {
+                  type: 'object',
+                  properties: {
+                    avgScores: {
+                      type: 'object',
+                      properties: {
+                        meddpicc: { type: 'number', nullable: true },
+                        gapSelling: { type: 'number', nullable: true },
+                        activeListening: { type: 'number', nullable: true },
+                        heat: { type: 'number', nullable: true },
+                        // Analysis 2.0 metrics
+                        patienceAvg: { type: 'number', nullable: true },
+                        strategicThreadingAvg: { type: 'number', nullable: true },
+                        monologueViolationsTotal: { type: 'number', nullable: true }
+                      },
+                      required: ['meddpicc', 'gapSelling', 'activeListening', 'heat', 'patienceAvg', 'strategicThreadingAvg', 'monologueViolationsTotal']
                     },
-                    required: ['meddpicc', 'gapSelling', 'activeListening', 'heat', 'patienceAvg', 'strategicThreadingAvg', 'monologueViolationsTotal']
-                  },
-                  dominantTrends: {
-                    type: 'object',
-                    properties: {
-                      meddpicc: { type: 'string', enum: ['improving', 'stable', 'declining'] },
-                      gapSelling: { type: 'string', enum: ['improving', 'stable', 'declining'] },
-                      activeListening: { type: 'string', enum: ['improving', 'stable', 'declining'] }
+                    dominantTrends: {
+                      type: 'object',
+                      properties: {
+                        meddpicc: { type: 'string', enum: ['improving', 'stable', 'declining'] },
+                        gapSelling: { type: 'string', enum: ['improving', 'stable', 'declining'] },
+                        activeListening: { type: 'string', enum: ['improving', 'stable', 'declining'] },
+                        // Analysis 2.0 trends
+                        patience: { type: 'string', enum: ['improving', 'stable', 'declining'] },
+                        strategicThreading: { type: 'string', enum: ['improving', 'stable', 'declining'] },
+                        monologue: { type: 'string', enum: ['improving', 'stable', 'declining'] }
+                      },
+                      required: ['meddpicc', 'gapSelling', 'activeListening', 'patience', 'strategicThreading', 'monologue']
                     },
-                    required: ['meddpicc', 'gapSelling', 'activeListening']
+                    topMissingInfo: {
+                      type: 'array',
+                      items: { type: 'string' },
+                      description: 'Top 3-5 most frequently missing pieces of information'
+                    },
+                    topImprovementAreas: {
+                      type: 'array',
+                      items: { type: 'string' },
+                      description: 'Top 3-5 areas that need improvement across all frameworks'
+                    },
+                    keyObservations: {
+                      type: 'array',
+                      items: { type: 'string' },
+                      description: '2-3 key observations about this period that should inform the overall analysis'
+                    }
                   },
-                  topMissingInfo: {
-                    type: 'array',
-                    items: { type: 'string' },
-                    description: 'Top 3-5 most frequently missing pieces of information'
-                  },
-                  topImprovementAreas: {
-                    type: 'array',
-                    items: { type: 'string' },
-                    description: 'Top 3-5 areas that need improvement across all frameworks'
-                  },
-                  keyObservations: {
-                    type: 'array',
-                    items: { type: 'string' },
-                    description: '2-3 key observations about this period that should inform the overall analysis'
-                  }
-                },
-                required: ['avgScores', 'dominantTrends', 'topMissingInfo', 'topImprovementAreas', 'keyObservations']
+                  required: ['avgScores', 'dominantTrends', 'topMissingInfo', 'topImprovementAreas', 'keyObservations']
+                }
               }
             }
-          }
-        ],
-        tool_choice: { type: 'function', function: { name: 'provide_chunk_summary' } }
-      })
-    });
+          ],
+          tool_choice: { type: 'function', function: { name: 'provide_chunk_summary' } }
+        }),
+        signal: controller.signal
+      });
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+        console.error('[generate-coaching-chunk-summary] AI request timed out after 55 seconds');
+        throw new Error('AI analysis timed out. Try with fewer calls.');
+      }
+      throw fetchError;
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!aiResponse.ok) {
       if (aiResponse.status === 429) {

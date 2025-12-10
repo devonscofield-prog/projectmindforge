@@ -200,13 +200,17 @@ interface ChunkSummary {
     // Analysis 2.0 aggregate scores
     patienceAvg?: number | null;
     strategicThreadingAvg?: number | null;
-    monologueViolationsTotal?: number;
+    monologueViolationsTotal?: number | null;
   };
   dominantTrends: {
     meddpicc: 'improving' | 'stable' | 'declining';
     bant?: 'improving' | 'stable' | 'declining';
     gapSelling: 'improving' | 'stable' | 'declining';
     activeListening: 'improving' | 'stable' | 'declining';
+    // Analysis 2.0 trends
+    patience?: 'improving' | 'stable' | 'declining';
+    strategicThreading?: 'improving' | 'stable' | 'declining';
+    monologue?: 'improving' | 'stable' | 'declining';
   };
   topMissingInfo: string[];
   topImprovementAreas: string[];
@@ -524,7 +528,24 @@ function formatChunkSummariesForPrompt(chunks: ChunkSummary[]): string {
   return chunks.map((chunk, idx) => {
     let summary = `\n### Period ${idx + 1}: ${chunk.dateRange.from} to ${chunk.dateRange.to} (${chunk.callCount} calls)\n`;
     
-    summary += `Average Scores:\n`;
+    // === Analysis 2.0 Metrics (Primary) ===
+    const hasAnalysis2_0 = chunk.avgScores.patienceAvg != null || chunk.avgScores.strategicThreadingAvg != null;
+    if (hasAnalysis2_0) {
+      summary += `**Analysis 2.0 Metrics:**\n`;
+      summary += `- Patience Score: ${chunk.avgScores.patienceAvg?.toFixed(1) ?? 'N/A'}/30\n`;
+      summary += `- Strategic Threading Score: ${chunk.avgScores.strategicThreadingAvg?.toFixed(1) ?? 'N/A'}/100\n`;
+      summary += `- Total Monologue Violations: ${chunk.avgScores.monologueViolationsTotal ?? 'N/A'}\n`;
+      
+      if (chunk.dominantTrends.patience || chunk.dominantTrends.strategicThreading || chunk.dominantTrends.monologue) {
+        summary += `\nAnalysis 2.0 Trends:\n`;
+        if (chunk.dominantTrends.patience) summary += `- Patience: ${chunk.dominantTrends.patience}\n`;
+        if (chunk.dominantTrends.strategicThreading) summary += `- Strategic Threading: ${chunk.dominantTrends.strategicThreading}\n`;
+        if (chunk.dominantTrends.monologue) summary += `- Monologue Discipline: ${chunk.dominantTrends.monologue}\n`;
+      }
+    }
+    
+    // === Legacy Metrics ===
+    summary += `\n**Framework Scores:**\n`;
     // Prefer MEDDPICC, fall back to BANT for legacy data
     if (chunk.avgScores.meddpicc != null) {
       summary += `- MEDDPICC: ${chunk.avgScores.meddpicc.toFixed(1)}/100\n`;
@@ -535,7 +556,7 @@ function formatChunkSummariesForPrompt(chunks: ChunkSummary[]): string {
     summary += `- Active Listening: ${chunk.avgScores.activeListening?.toFixed(1) ?? 'N/A'}/100\n`;
     summary += `- Heat: ${chunk.avgScores.heat?.toFixed(1) ?? 'N/A'}/10\n`;
     
-    summary += `\nTrends in this period:\n`;
+    summary += `\nFramework Trends:\n`;
     // Prefer MEDDPICC trends, fall back to BANT for legacy
     if (chunk.dominantTrends.meddpicc) {
       summary += `- MEDDPICC: ${chunk.dominantTrends.meddpicc}\n`;
@@ -658,22 +679,41 @@ ${formattedCalls}
 Provide a comprehensive trend analysis with specific evidence and actionable recommendations.`;
     }
 
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        tools: [TREND_ANALYSIS_TOOL],
-        tool_choice: { type: 'function', function: { name: 'provide_trend_analysis' } }
-      })
-    });
+    // Timeout controller for AI request (55 seconds)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 55000);
+    
+    let aiResponse: Response;
+    try {
+      aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-flash',
+          temperature: 0.3, // Lower temperature for consistency
+          max_tokens: 8192, // Explicit token limit
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+          tools: [TREND_ANALYSIS_TOOL],
+          tool_choice: { type: 'function', function: { name: 'provide_trend_analysis' } }
+        }),
+        signal: controller.signal
+      });
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+        console.error('[generate-coaching-trends] AI request timed out after 55 seconds');
+        throw new Error('AI analysis timed out. Try with fewer calls.');
+      }
+      throw fetchError;
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!aiResponse.ok) {
       if (aiResponse.status === 429) {
