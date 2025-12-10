@@ -91,9 +91,16 @@ function SidebarNav() {
   return (
     <>
       <SidebarHeader className="border-b border-sidebar-border p-4">
-        <div>
-          <h1 className="text-xl font-bold text-sidebar-primary-foreground">StormWind</h1>
-          <p className="text-sm text-sidebar-foreground/70">Sales Hub</p>
+        <div className="flex items-center gap-3">
+          <img 
+            src="/mindforge-logo.png" 
+            alt="Mindforge Logo" 
+            className="h-10 w-10 object-contain"
+          />
+          <div>
+            <h1 className="text-xl font-bold text-sidebar-primary-foreground">StormWind</h1>
+            <p className="text-sm text-sidebar-foreground/70">Sales Hub</p>
+          </div>
         </div>
       </SidebarHeader>
 
