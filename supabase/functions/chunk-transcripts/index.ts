@@ -1958,6 +1958,104 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ========== AUTO NER + EMBEDDINGS FOR NEW CHUNKS ==========
+    // Process embeddings and NER for the newly created chunks
+    let embeddingsGenerated = 0;
+    let nerExtracted = 0;
+
+    // Get the chunks we just inserted
+    const { data: newChunks } = await supabase
+      .from('transcript_chunks')
+      .select('id, chunk_text, metadata')
+      .in('transcript_id', idsNeedingChunks)
+      .is('embedding', null);
+
+    if (newChunks && newChunks.length > 0) {
+      console.log(`[chunk-transcripts] Generating embeddings for ${newChunks.length} new chunks`);
+      
+      // Generate embeddings
+      for (const chunk of newChunks) {
+        try {
+          const embedding = await generateEmbedding(chunk.chunk_text, openaiApiKey);
+          await supabase
+            .from('transcript_chunks')
+            .update({ embedding })
+            .eq('id', chunk.id);
+          embeddingsGenerated++;
+        } catch (error) {
+          console.error(`[chunk-transcripts] Embedding failed for chunk ${chunk.id}:`, error);
+        }
+        // Small delay to avoid rate limits
+        await new Promise(r => setTimeout(r, 100));
+      }
+      
+      console.log(`[chunk-transcripts] Generated ${embeddingsGenerated} embeddings`);
+    }
+
+    // Process NER extraction for new chunks
+    const { data: chunksNeedingNER } = await supabase
+      .from('transcript_chunks')
+      .select('id, chunk_text, metadata')
+      .in('transcript_id', idsNeedingChunks)
+      .or('extraction_status.eq.pending,extraction_status.is.null');
+
+    if (chunksNeedingNER && chunksNeedingNER.length > 0) {
+      console.log(`[chunk-transcripts] Running NER extraction for ${chunksNeedingNER.length} chunks`);
+      
+      // Process in batches
+      for (let i = 0; i < chunksNeedingNER.length; i += NER_CHUNKS_PER_API_CALL) {
+        const batch = chunksNeedingNER.slice(i, i + NER_CHUNKS_PER_API_CALL);
+        
+        const firstMetadata = batch[0]?.metadata as { account_name?: string; rep_name?: string; call_type?: string } | undefined;
+        const context = {
+          accountName: firstMetadata?.account_name,
+          repName: firstMetadata?.rep_name,
+          callType: firstMetadata?.call_type
+        };
+
+        try {
+          const batchInput = batch.map(chunk => ({
+            id: chunk.id,
+            text: chunk.chunk_text
+          }));
+
+          const nerResults = await extractEntitiesBatch(batchInput, context, lovableApiKey);
+
+          for (const chunk of batch) {
+            const nerResult = nerResults.get(chunk.id);
+            if (nerResult) {
+              await supabase
+                .from('transcript_chunks')
+                .update({
+                  entities: nerResult.entities,
+                  topics: nerResult.topics,
+                  meddpicc_elements: nerResult.meddpicc_elements,
+                  extraction_status: 'completed'
+                })
+                .eq('id', chunk.id);
+              nerExtracted++;
+            }
+          }
+        } catch (error) {
+          console.error(`[chunk-transcripts] NER batch failed:`, error);
+          // Mark as failed so they can be retried later
+          for (const chunk of batch) {
+            await supabase
+              .from('transcript_chunks')
+              .update({ extraction_status: 'failed' })
+              .eq('id', chunk.id);
+          }
+        }
+
+        // Delay between batches
+        if (i + NER_CHUNKS_PER_API_CALL < chunksNeedingNER.length) {
+          await new Promise(r => setTimeout(r, NER_BATCH_DELAY_MS));
+        }
+      }
+      
+      console.log(`[chunk-transcripts] NER extraction complete: ${nerExtracted} chunks`);
+    }
+
     // Mark job as completed
     await updateJobStatus('completed');
 
@@ -1967,6 +2065,8 @@ Deno.serve(async (req) => {
         message: `Created ${totalInserted} chunks from ${transcriptsToChunk?.length || 0} transcripts`,
         chunked: (transcriptsToChunk?.length || 0) + chunkedIds.size,
         new_chunks: totalInserted,
+        embeddings_generated: embeddingsGenerated,
+        ner_extracted: nerExtracted,
         skipped: chunkedIds.size
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
