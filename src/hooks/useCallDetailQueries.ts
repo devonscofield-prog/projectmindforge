@@ -470,6 +470,79 @@ export function useReanalyzeCall(callId: string) {
 }
 
 /**
+ * Hook to fetch stuck calls (pending/processing for >5 min)
+ */
+export function useStuckCalls() {
+  return useQuery({
+    queryKey: ['admin', 'stuck-calls'],
+    queryFn: async () => {
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      
+      const { data, error } = await supabase
+        .from('call_transcripts')
+        .select('id, account_name, analysis_status, updated_at, rep_id, profiles!call_transcripts_rep_id_fkey(name)')
+        .in('analysis_status', ['pending', 'processing'])
+        .lt('updated_at', fiveMinutesAgo)
+        .is('deleted_at', null)
+        .order('updated_at', { ascending: true });
+      
+      if (error) {
+        log.error('Failed to fetch stuck calls', { error });
+        throw new Error(`Failed to fetch stuck calls: ${error.message}`);
+      }
+      
+      return data || [];
+    },
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
+}
+
+/**
+ * Hook to retry analysis for a stuck call (admin only)
+ */
+export function useAdminRetryCall() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (callId: string) => {
+      const { data, error } = await supabase.functions.invoke('reanalyze-call', {
+        body: { call_id: callId },
+      });
+
+      if (error) {
+        throw new Error(error.message || 'Failed to retry call analysis');
+      }
+
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+
+      return { callId, data };
+    },
+    onSuccess: async ({ callId }) => {
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'stuck-calls'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin-call-history'] });
+      await queryClient.invalidateQueries({ queryKey: callDetailKeys.call(callId) });
+      
+      toast({
+        title: 'Retry started',
+        description: 'Call analysis has been restarted.',
+      });
+    },
+    onError: (error) => {
+      log.error('Error retrying stuck call', { error });
+      const message = error instanceof Error ? error.message : 'Failed to retry call';
+      toast({
+        title: 'Retry Failed',
+        description: message,
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
+/**
  * Hook for admins to delete any call transcript
  */
 export function useAdminDeleteCall() {

@@ -5,12 +5,16 @@ import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
 import { getAdminPageBreadcrumb } from '@/lib/breadcrumbConfig';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { listCallTranscriptsForTeamWithFilters } from '@/api/aiCallAnalysis';
 import { useAdminUsers } from '@/hooks/useAdminUsersQueries';
 import { useAdminTeams } from '@/hooks/useAdminTeamsQueries';
-import { useAdminDeleteCall } from '@/hooks/useCallDetailQueries';
-import { Search, History, Users, Building2 } from 'lucide-react';
+import { useAdminDeleteCall, useStuckCalls, useAdminRetryCall } from '@/hooks/useCallDetailQueries';
+import { Search, History, Users, Building2, AlertTriangle, RefreshCw, Loader2 } from 'lucide-react';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
+import { formatDistanceToNow } from 'date-fns';
 import {
   CallHistoryFilters,
   CallHistoryTable,
@@ -21,13 +25,29 @@ function AdminCallHistory() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [selectedTeamId, setSelectedTeamId] = useState<string>('all');
   const [selectedRepId, setSelectedRepId] = useState<string>('all');
+  const [retryingCallId, setRetryingCallId] = useState<string | null>(null);
 
   // Fetch all users and teams
   const { data: users = [], isLoading: usersLoading } = useAdminUsers();
   const { data: teams = [], isLoading: teamsLoading } = useAdminTeams();
   
+  // Fetch stuck calls
+  const { data: stuckCalls = [], refetch: refetchStuckCalls } = useStuckCalls();
+  
   // Admin delete mutation
   const { mutate: deleteCall, isPending: isDeletingCall } = useAdminDeleteCall();
+  
+  // Admin retry mutation
+  const retryMutation = useAdminRetryCall();
+
+  const handleRetryCall = async (callId: string) => {
+    setRetryingCallId(callId);
+    try {
+      await retryMutation.mutateAsync(callId);
+    } finally {
+      setRetryingCallId(null);
+    }
+  };
 
   const {
     search,
@@ -138,6 +158,85 @@ function AdminCallHistory() {
             View and search through all call analyses across the organization
           </p>
         </div>
+
+        {/* Stuck Calls Alert */}
+        {stuckCalls.length > 0 && (
+          <Card className="border-destructive/50 bg-destructive/5">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                  <CardTitle className="text-lg">Stuck Calls Detected</CardTitle>
+                  <Badge variant="destructive">{stuckCalls.length}</Badge>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => refetchStuckCalls()}
+                >
+                  <RefreshCw className="h-4 w-4 mr-1" />
+                  Refresh
+                </Button>
+              </div>
+              <CardDescription>
+                These calls have been stuck for more than 5 minutes. Click retry to restart analysis.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {stuckCalls.map((call) => {
+                  const profile = call.profiles as { name: string } | null;
+                  const repName = profile?.name || 'Unknown Rep';
+                  const isRetrying = retryingCallId === call.id;
+                  
+                  return (
+                    <div
+                      key={call.id}
+                      className="flex items-center justify-between p-3 rounded-lg bg-background border"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium truncate">
+                            {call.account_name || 'No Account'}
+                          </span>
+                          <Badge variant="outline" className="text-xs">
+                            {call.analysis_status}
+                          </Badge>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {repName} • Stuck {formatDistanceToNow(new Date(call.updated_at), { addSuffix: true })}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 ml-4">
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => handleRetryCall(call.id)}
+                          disabled={isRetrying || retryMutation.isPending}
+                        >
+                          {isRetrying ? (
+                            <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                          ) : (
+                            <RefreshCw className="h-4 w-4 mr-1" />
+                          )}
+                          Retry
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => deleteCall(call.id)}
+                          disabled={isDeletingCall}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Search and Filter Row */}
         <div className="flex flex-col sm:flex-row gap-3">
