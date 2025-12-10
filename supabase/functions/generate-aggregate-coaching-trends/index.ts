@@ -359,9 +359,9 @@ function calculateRepContributions(
     };
     // Analysis 2.0 metrics
     analysis2_0_metrics?: {
-      avgPatienceScore: number | null;
-      avgStrategicThreadingScore: number | null;
-      totalMonologueViolations: number;
+      patienceAvg: number | null;
+      strategicThreadingAvg: number | null;
+      monologueViolationsAvg: number | null;
     };
   }> = [];
 
@@ -393,7 +393,7 @@ function calculateRepContributions(
     // Analysis 2.0 metrics
     const patienceScores: number[] = [];
     const strategicThreadingScores: number[] = [];
-    let totalMonologueViolations = 0;
+    const monologueViolationCounts: number[] = [];
 
     repCalls.forEach(a => {
       // Extract Analysis 2.0 metrics
@@ -408,7 +408,7 @@ function calculateRepContributions(
           
           const monologue = metrics.monologue as Record<string, unknown> | null;
           if (monologue?.violation_count !== undefined) {
-            totalMonologueViolations += monologue.violation_count as number;
+            monologueViolationCounts.push(monologue.violation_count as number);
           }
         }
       }
@@ -458,9 +458,9 @@ function calculateRepContributions(
       },
       // Include Analysis 2.0 metrics if available
       analysis2_0_metrics: patienceScores.length > 0 || strategicThreadingScores.length > 0 ? {
-        avgPatienceScore: avg(patienceScores),
-        avgStrategicThreadingScore: avg(strategicThreadingScores),
-        totalMonologueViolations,
+        patienceAvg: avg(patienceScores),
+        strategicThreadingAvg: avg(strategicThreadingScores),
+        monologueViolationsAvg: avg(monologueViolationCounts),
       } : undefined,
     });
   });
