@@ -1,6 +1,6 @@
 // Edge function for generating coaching trends analysis
 import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
-
+import { validateSignedRequest } from "../_shared/hmac.ts";
 // Zod schema for Analysis 2.0 Trend Analysis response validation
 const FrameworkTrendSchema = z.object({
   trend: z.enum(['improving', 'stable', 'declining']),
@@ -621,8 +621,8 @@ function formatChunkSummariesForPrompt(chunks: ChunkSummary[]): string {
 }
 
 Deno.serve(async (req) => {
-  const correlationId = crypto.randomUUID().slice(0, 8);
-  const log = createLogger(correlationId);
+  // Use correlation ID from request if provided (for inter-function tracing), else generate new
+  let correlationId = crypto.randomUUID().slice(0, 8);
   
   const origin = req.headers.get('Origin');
   const corsHeaders = getCorsHeaders(origin);
@@ -630,6 +630,39 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
+
+  // Read body once for both HMAC validation and processing
+  const bodyText = await req.text();
+  
+  // Validate HMAC signature if present (service-to-service call)
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (serviceRoleKey && req.headers.has('X-Request-Signature')) {
+    const validation = await validateSignedRequest(req.headers, bodyText, serviceRoleKey);
+    if (!validation.valid) {
+      console.warn('[generate-coaching-trends] Invalid HMAC signature:', validation.error);
+      return new Response(
+        JSON.stringify({ error: 'Invalid request signature', details: validation.error }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+  }
+
+  // Parse body
+  let requestBody: TrendAnalysisRequest & { correlationId?: string };
+  try {
+    requestBody = JSON.parse(bodyText);
+    // Use passed correlation ID if available (for log tracing across functions)
+    if (requestBody.correlationId) {
+      correlationId = requestBody.correlationId;
+    }
+  } catch {
+    return new Response(
+      JSON.stringify({ error: 'Invalid JSON in request body' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const log = createLogger(correlationId);
 
   // Extract user ID from JWT for rate limiting
   const authHeader = req.headers.get('Authorization');
@@ -664,7 +697,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const requestBody = await req.json() as TrendAnalysisRequest;
+    // requestBody already parsed above with HMAC validation
     
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {

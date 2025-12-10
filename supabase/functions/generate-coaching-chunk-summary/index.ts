@@ -1,4 +1,5 @@
 import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
+import { validateSignedRequest } from "../_shared/hmac.ts";
 
 // CORS: Restrict to production domains
 function getCorsHeaders(origin?: string | null): Record<string, string> {
@@ -107,6 +108,37 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Read body once for both HMAC validation and processing
+  const bodyText = await req.text();
+  
+  // Validate HMAC signature if present (service-to-service call)
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (serviceRoleKey && req.headers.has('X-Request-Signature')) {
+    const validation = await validateSignedRequest(req.headers, bodyText, serviceRoleKey);
+    if (!validation.valid) {
+      console.warn('[generate-coaching-chunk-summary] Invalid HMAC signature:', validation.error);
+      return new Response(
+        JSON.stringify({ error: 'Invalid request signature', details: validation.error }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+  }
+
+  // Parse body and extract correlation ID if present
+  let body: unknown;
+  let correlationId = 'unknown';
+  try {
+    body = JSON.parse(bodyText);
+    if (typeof body === 'object' && body !== null && 'correlationId' in body) {
+      correlationId = (body as { correlationId?: string }).correlationId || correlationId;
+    }
+  } catch {
+    return new Response(
+      JSON.stringify({ error: 'Invalid JSON in request body' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
   // Extract user ID from JWT for rate limiting
   const authHeader = req.headers.get('Authorization');
   let userId = 'anonymous';
@@ -123,7 +155,7 @@ Deno.serve(async (req) => {
   // Check rate limit
   const rateLimitResult = checkRateLimit(userId);
   if (!rateLimitResult.allowed) {
-    console.warn(`[generate-coaching-chunk-summary] Rate limit exceeded for user ${userId}`);
+    console.warn(`[generate-coaching-chunk-summary] [${correlationId}] Rate limit exceeded for user ${userId}`);
     return new Response(
       JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
       { 
@@ -138,17 +170,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Parse and validate request body
-    let body: unknown;
-    try {
-      body = await req.json();
-    } catch {
-      return new Response(
-        JSON.stringify({ error: 'Invalid JSON in request body' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
+    // body already parsed above with HMAC validation
     const validation = chunkSummaryRequestSchema.safeParse(body);
     if (!validation.success) {
       const errors = validation.error.errors.map(err => ({
