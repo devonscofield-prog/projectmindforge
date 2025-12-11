@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 
-export type ColorScheme = 'electric-blue' | 'deep-gold' | 'power-red';
+export type ColorScheme = 'electric-blue' | 'deep-gold' | 'power-red' | 'seattle-seahawks' | 'pink-rose' | 'uw-huskies';
 
 export interface ColorSchemeOption {
   id: ColorScheme;
@@ -42,6 +42,36 @@ export const colorSchemes: ColorSchemeOption[] = [
       primary: 'hsl(350, 78%, 50%)',
       accent: 'hsl(350, 70%, 60%)',
       sidebar: 'hsl(220, 15%, 15%)',
+    },
+  },
+  {
+    id: 'seattle-seahawks',
+    name: 'Seattle Seahawks',
+    description: 'Action green & navy blue theme',
+    preview: {
+      primary: 'hsl(91, 78%, 45%)',
+      accent: 'hsl(210, 100%, 30%)',
+      sidebar: 'hsl(210, 100%, 12%)',
+    },
+  },
+  {
+    id: 'pink-rose',
+    name: 'Pink Rose',
+    description: 'Vibrant rose & hot pink theme',
+    preview: {
+      primary: 'hsl(335, 77%, 60%)',
+      accent: 'hsl(330, 100%, 70%)',
+      sidebar: 'hsl(335, 50%, 12%)',
+    },
+  },
+  {
+    id: 'uw-huskies',
+    name: 'UW Huskies',
+    description: 'Rich gold & husky purple theme',
+    preview: {
+      primary: 'hsl(42, 100%, 40%)',
+      accent: 'hsl(266, 100%, 30%)',
+      sidebar: 'hsl(266, 100%, 15%)',
     },
   },
 ];
