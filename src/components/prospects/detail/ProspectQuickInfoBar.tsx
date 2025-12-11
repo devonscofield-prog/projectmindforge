@@ -58,9 +58,9 @@ export function ProspectQuickInfoBar({ prospect, onUpdateProspect }: ProspectQui
       const success = await onUpdateProspect({ website: editedWebsite || null });
       if (success) {
         setIsEditingWebsite(false);
-        toast({ title: 'Website updated' });
+        toast.success('Website updated');
       } else {
-        toast({ title: 'Failed to update website', variant: 'destructive' });
+        toast.error('Failed to update website');
       }
     } finally {
       setIsSavingWebsite(false);
@@ -73,9 +73,9 @@ export function ProspectQuickInfoBar({ prospect, onUpdateProspect }: ProspectQui
       const success = await onUpdateProspect({ salesforce_link: editedSalesforceLink || null });
       if (success) {
         setIsEditingSalesforceLink(false);
-        toast({ title: 'Salesforce link updated' });
+        toast.success('Salesforce link updated');
       } else {
-        toast({ title: 'Failed to update link', variant: 'destructive' });
+        toast.error('Failed to update link');
       }
     } finally {
       setIsSavingSalesforceLink(false);

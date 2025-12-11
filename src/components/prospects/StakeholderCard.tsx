@@ -78,7 +78,7 @@ export function StakeholderCard({ stakeholder, onClick, onPrimaryChanged, compac
       toast.success('Primary contact updated');
       onPrimaryChanged?.();
     } catch (error) {
-      toast({ title: 'Failed to set primary contact', variant: 'destructive' });
+      toast.error('Failed to set primary contact');
     } finally {
       setIsSettingPrimary(false);
     }

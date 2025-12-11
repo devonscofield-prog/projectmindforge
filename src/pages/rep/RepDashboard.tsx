@@ -213,17 +213,10 @@ function RepDashboard() {
         // Restore stakeholders and products
         setStakeholders(draft.stakeholders || []);
         setSelectedProducts(draft.selectedProducts || []);
-        toast({
-          title: 'Draft restored',
-          description: 'Your previous work has been restored.',
-        });
+        toast.success('Draft restored', { description: 'Your previous work has been restored.' });
       }
     } catch {
-      toast({
-        title: 'Error',
-        description: 'Could not restore draft',
-        variant: 'destructive',
-      });
+      toast.error('Error', { description: 'Could not restore draft' });
     }
     setShowDraftDialog(false);
     setHasDraft(false);
@@ -374,10 +367,7 @@ function RepDashboard() {
     setAdditionalSpeakersEnabled(false);
     setAdditionalSpeakersText('');
     clearDraft();
-    toast({
-      title: 'Form cleared',
-      description: 'All fields have been reset.',
-    });
+    toast.success('Form cleared', { description: 'All fields have been reset.' });
   };
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -410,81 +400,45 @@ function RepDashboard() {
 
     // Validation
     if (stakeholders.length === 0) {
-      toast({
-        title: 'Error',
-        description: 'At least one stakeholder is required',
-        variant: 'destructive'
-      });
+      toast.error('Error', { description: 'At least one stakeholder is required' });
       return;
     }
     const trimmedAccountName = accountName.trim();
     if (!trimmedAccountName) {
-      toast({
-        title: 'Error',
-        description: 'Account name is required',
-        variant: 'destructive'
-      });
+      toast.error('Error', { description: 'Account name is required' });
       return;
     }
     if (trimmedAccountName.length < 2) {
-      toast({
-        title: 'Error',
-        description: 'Account name must be at least 2 characters',
-        variant: 'destructive'
-      });
+      toast.error('Error', { description: 'Account name must be at least 2 characters' });
       return;
     }
     // Salesforce link is only required for new accounts or existing accounts without a link
     const salesforceLinkRequired = !selectedProspectId || !existingAccountHasSalesforceLink;
     if (salesforceLinkRequired && !salesforceAccountLink.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Salesforce Account Link is required for new accounts',
-        variant: 'destructive'
-      });
+      toast.error('Error', { description: 'Salesforce Account Link is required for new accounts' });
       return;
     }
     // Validate Salesforce URL format
     if (salesforceAccountLink.trim() && !SALESFORCE_URL_PATTERN.test(salesforceAccountLink)) {
-      toast({
-        title: 'Error',
-        description: 'Please enter a valid Salesforce URL (must contain "salesforce" or "force.com")',
-        variant: 'destructive'
-      });
+      toast.error('Error', { description: 'Please enter a valid Salesforce URL (must contain "salesforce" or "force.com")' });
       return;
     }
     // Validate transcript
     if (!normalizedTranscript) {
-      toast({
-        title: 'Error',
-        description: 'Transcript is required',
-        variant: 'destructive'
-      });
+      toast.error('Error', { description: 'Transcript is required' });
       return;
     }
     if (normalizedTranscript.length < MIN_TRANSCRIPT_LENGTH) {
-      toast({
-        title: 'Error',
-        description: `Transcript must be at least ${MIN_TRANSCRIPT_LENGTH} characters for meaningful analysis`,
-        variant: 'destructive'
-      });
+      toast.error('Error', { description: `Transcript must be at least ${MIN_TRANSCRIPT_LENGTH} characters for meaningful analysis` });
       return;
     }
     if (callType === 'other' && !callTypeOther.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Please specify the call type',
-        variant: 'destructive'
-      });
+      toast.error('Error', { description: 'Please specify the call type' });
       return;
     }
     // Validate additional speakers count
     if (additionalSpeakersEnabled && !isAdditionalSpeakersValid) {
-      toast({
-        title: 'Error',
-        description: `Maximum ${MAX_ADDITIONAL_SPEAKERS} additional speakers allowed`,
-        variant: 'destructive'
-      });
+      toast.error('Error', { description: `Maximum ${MAX_ADDITIONAL_SPEAKERS} additional speakers allowed` });
       return;
     }
 
@@ -523,20 +477,13 @@ function RepDashboard() {
 
       // Show success toast immediately - this confirms the call was saved
       // regardless of background analysis status
-      toast({
-        title: '✅ Call saved successfully!',
-        description: 'Redirecting to your call details. Analysis will complete shortly.'
-      });
+      toast.success('✅ Call saved successfully!', { description: 'Redirecting to your call details. Analysis will complete shortly.' });
 
       // Navigate to the call detail page
       navigate(`/calls/${result.transcript.id}`);
     } catch (error) {
       log.error('Error submitting call', { error });
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to submit call for analysis',
-        variant: 'destructive'
-      });
+      toast.error('Error', { description: error instanceof Error ? error.message : 'Failed to submit call for analysis' });
       setIsSubmitting(false);
     }
   };

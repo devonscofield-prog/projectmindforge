@@ -151,10 +151,7 @@ export default function RepDetail() {
       },
       {
         onSuccess: () => {
-          toast({
-            title: 'Session Created',
-            description: 'Coaching session has been recorded.',
-          });
+          toast.success('Session Created', { description: 'Coaching session has been recorded.' });
           setDialogOpen(false);
           setFormData({
             session_date: format(new Date(), 'yyyy-MM-dd'),
@@ -165,11 +162,7 @@ export default function RepDetail() {
           });
         },
         onError: () => {
-          toast({
-            title: 'Error',
-            description: 'Failed to create coaching session. Please try again.',
-            variant: 'destructive',
-          });
+          toast.error('Error', { description: 'Failed to create coaching session. Please try again.' });
         },
       }
     );

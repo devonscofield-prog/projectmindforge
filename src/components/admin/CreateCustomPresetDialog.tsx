@@ -136,11 +136,7 @@ export function CreateCustomPresetDialog({
 
   const handleSubmit = async () => {
     if (!name.trim() || selectedModes.length === 0 || !starterPrompt.trim()) {
-      toast({
-        title: 'Missing fields',
-        description: 'Please fill in all required fields.',
-        variant: 'destructive',
-      });
+      toast.error('Missing fields', { description: 'Please fill in all required fields.' });
       return;
     }
 
@@ -156,10 +152,7 @@ export function CreateCustomPresetDialog({
           icon_name: iconName,
           is_shared: isShared,
         });
-        toast({
-          title: 'Preset updated',
-          description: 'Your custom preset has been updated.',
-        });
+        toast.success('Preset updated', { description: 'Your custom preset has been updated.' });
       } else {
         if (!user) {
           throw new Error('You must be logged in to create presets');
@@ -172,19 +165,12 @@ export function CreateCustomPresetDialog({
           icon_name: iconName,
           is_shared: isShared,
         });
-        toast({
-          title: 'Preset created',
-          description: 'Your custom preset is now available.',
-        });
+        toast.success('Preset created', { description: 'Your custom preset is now available.' });
       }
       onSuccess();
       onOpenChange(false);
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to save preset',
-        variant: 'destructive',
-      });
+      toast.error('Error', { description: error instanceof Error ? error.message : 'Failed to save preset' });
     } finally {
       setIsSubmitting(false);
     }
