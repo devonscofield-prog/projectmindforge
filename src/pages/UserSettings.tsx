@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { format } from 'date-fns';
 import { getDeviceId } from '@/lib/deviceId';
+import { ColorSchemeSelector } from '@/components/settings/ColorSchemeSelector';
 
 const passwordSchema = z.object({
   newPassword: z.string()
@@ -170,6 +171,8 @@ export default function UserSettings() {
             </div>
           </CardContent>
         </Card>
+
+        <ColorSchemeSelector />
 
         <Card>
           <CardHeader>
