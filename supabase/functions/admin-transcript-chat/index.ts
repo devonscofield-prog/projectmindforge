@@ -1175,44 +1175,34 @@ async function chunkTranscriptsInline(
       return { success: true, chunksCreated: 0 };
     }
 
-    // Insert in batches with retry logic
+    // Upsert in batches (idempotent - safe to retry, skips duplicates)
     const BATCH_SIZE = 50;
-    let totalInserted = 0;
+    let totalProcessed = 0;
     
     for (let i = 0; i < allChunks.length; i += BATCH_SIZE) {
       const batch = allChunks.slice(i, i + BATCH_SIZE);
       
-      let insertError: any = null;
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const { error } = await supabase
-          .from('transcript_chunks')
-          .insert(batch);
-        
-        if (!error) {
-          totalInserted += batch.length;
-          insertError = null;
-          break;
-        }
-        
-        insertError = error;
-        console.warn(`[admin-transcript-chat] Chunk insert attempt ${attempt + 1} failed:`, error.message);
-        
-        if (attempt < 1) {
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-      }
+      const { error } = await supabase
+        .from('transcript_chunks')
+        .upsert(batch, { 
+          onConflict: 'transcript_id,chunk_index', 
+          ignoreDuplicates: true 
+        });
       
-      if (insertError) {
-        console.error('[admin-transcript-chat] Failed to insert chunks after retries:', insertError);
+      if (error) {
+        console.error('[admin-transcript-chat] Failed to upsert chunks:', error);
         return { 
           success: false, 
-          chunksCreated: totalInserted, 
-          error: `Database error: ${insertError.message}` 
+          chunksCreated: totalProcessed, 
+          error: `Database error: ${error.message}` 
         };
       }
+      
+      totalProcessed += batch.length;
+      console.log(`[admin-transcript-chat] Upserted batch of ${batch.length} chunks (duplicates skipped)`);
     }
 
-    return { success: true, chunksCreated: totalInserted };
+    return { success: true, chunksCreated: totalProcessed };
   } catch (error) {
     console.error('[admin-transcript-chat] Unexpected error in chunking:', error);
     return { 
