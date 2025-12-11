@@ -35,11 +35,11 @@ export function MobileBottomNav() {
 
   return (
     <nav 
-      className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden"
+      className="fixed bottom-0 left-0 right-0 z-50 border-t frosted-glass md:hidden"
       role="navigation"
       aria-label="Mobile navigation"
     >
-      <ul className="flex h-16 items-center justify-around px-2" role="menubar">
+      <ul className="flex h-[72px] items-center justify-around px-2 pb-safe" role="menubar">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.href);
@@ -52,14 +52,14 @@ export function MobileBottomNav() {
                 aria-label={`Navigate to ${item.label}`}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
-                  "flex flex-1 flex-col items-center justify-center gap-1 py-2 px-3 text-xs transition-all duration-200 rounded-lg",
+                  "flex flex-col items-center justify-center gap-1 min-h-[56px] min-w-[56px] px-3 text-xs transition-all duration-200 rounded-xl",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                   active 
                     ? "text-primary bg-primary/10" 
                     : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
                 )}
               >
-                <Icon className={cn("h-5 w-5", active && "text-primary")} aria-hidden="true" />
+                <Icon className={cn("h-6 w-6", active && "text-primary")} aria-hidden="true" />
                 <span className="font-medium">{item.label}</span>
               </Link>
             </li>

@@ -148,22 +148,22 @@ export function PageTransition({
   const getTransitionStyles = () => {
     switch (phase) {
       case 'exiting':
-        return 'opacity-0 translate-y-1 scale-[0.99]';
+        return 'opacity-0 translate-y-2';
       case 'loading':
-        return 'opacity-100 translate-y-0 scale-100';
+        return 'opacity-100 translate-y-0';
       case 'entering':
-        return 'opacity-100 translate-y-0 scale-100';
+        return 'animate-slide-up';
       case 'visible':
       default:
-        return 'opacity-100 translate-y-0 scale-100';
+        return 'opacity-100 translate-y-0';
     }
   };
 
   return (
     <div
       className={cn(
-        'transition-all ease-out',
-        phase === 'exiting' ? 'duration-100' : 'duration-200',
+        'transition-all',
+        phase === 'exiting' ? 'duration-150 ease-out' : 'duration-300 ease-out',
         getTransitionStyles(),
         className
       )}

@@ -117,7 +117,10 @@ function SidebarNav() {
                   asChild
                   isActive={isActive}
                   tooltip={item.label}
-                  className="h-11"
+                  className={cn(
+                    "h-11 transition-all duration-200",
+                    isActive && "sidebar-active-pill text-primary font-medium bg-primary/5"
+                  )}
                 >
                   <Link 
                     to={item.href} 
@@ -126,7 +129,7 @@ function SidebarNav() {
                     aria-label={`Navigate to ${item.label}`}
                     aria-current={isActive ? 'page' : undefined}
                   >
-                    <Icon className="h-5 w-5" aria-hidden="true" />
+                    <Icon className={cn("h-5 w-5", isActive && "text-primary")} aria-hidden="true" />
                     <span>{item.label}</span>
                   </Link>
                 </SidebarMenuButton>
@@ -137,20 +140,23 @@ function SidebarNav() {
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border p-4">
-        <div className="flex items-center gap-3 px-2 py-2 mb-2" role="status" aria-label="Current user information">
-          <div 
-            className="h-9 w-9 rounded-full bg-sidebar-accent flex items-center justify-center"
-            aria-hidden="true"
-          >
-            <span className="text-sm font-medium text-sidebar-accent-foreground">
-              {profile?.name?.charAt(0).toUpperCase() || 'U'}
-            </span>
+        {/* Profile floating card */}
+        <div className="bg-sidebar-accent/50 rounded-xl p-3 mb-3">
+          <div className="flex items-center gap-3" role="status" aria-label="Current user information">
+            <div 
+              className="h-10 w-10 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center"
+              aria-hidden="true"
+            >
+              <span className="text-sm font-semibold text-primary">
+                {profile?.name?.charAt(0).toUpperCase() || 'U'}
+              </span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{profile?.name || 'User'}</p>
+              <p className="text-xs text-sidebar-foreground/70 capitalize">{role}</p>
+            </div>
+            <ThemeToggle />
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{profile?.name || 'User'}</p>
-            <p className="text-xs text-sidebar-foreground/70 capitalize">{role}</p>
-          </div>
-          <ThemeToggle />
         </div>
         <div className="space-y-1">
           <Button 
