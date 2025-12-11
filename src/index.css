@@ -464,6 +464,455 @@
                        hsl(220 15% 10%);
   }
 
+  /* ==========================================
+     THEME: Seattle Seahawks - Action Green & Navy
+     ========================================== */
+  :root.theme-seattle-seahawks {
+    --background: 210 20% 98%;
+    --foreground: 210 40% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 210 40% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 40% 15%;
+
+    /* Primary: Action Green */
+    --primary: 91 78% 45%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary: Navy Blue */
+    --secondary: 210 100% 30%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 210 15% 94%;
+    --muted-foreground: 210 20% 40%;
+
+    --accent: 210 100% 30%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Status colors */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 210 20% 88%;
+    --input: 210 20% 88%;
+    --ring: 91 78% 45%;
+
+    /* Custom tokens */
+    --on-track: 142 76% 36%;
+    --at-risk: 38 92% 50%;
+    --off-track: 0 84% 60%;
+
+    /* Progress bar */
+    --progress-bg: 210 15% 90%;
+    --progress-fill: 91 78% 45%;
+
+    /* Sidebar - Deep Navy */
+    --sidebar-background: 210 100% 12%;
+    --sidebar-foreground: 210 30% 90%;
+    --sidebar-primary: 91 70% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 80% 18%;
+    --sidebar-accent-foreground: 210 30% 95%;
+    --sidebar-border: 210 80% 20%;
+    --sidebar-ring: 91 70% 55%;
+
+    /* Custom accent tokens */
+    --accent-theme: 91 78% 45%;
+    --accent-secondary: 210 100% 35%;
+
+    /* Gradients */
+    --background-gradient: linear-gradient(135deg, hsl(210 20% 98%), hsl(210 18% 96%), hsl(210 15% 97%));
+    --gradient-accent: linear-gradient(135deg, hsl(91 70% 55%), hsl(91 78% 45%));
+    --gradient-primary: linear-gradient(135deg, hsl(91 78% 50%), hsl(91 78% 38%));
+    --primary-dark: 91 78% 38%;
+
+    /* Background mesh with green accents */
+    --background-mesh: radial-gradient(at 40% 20%, hsla(91, 78%, 45%, 0.05) 0px, transparent 50%),
+                       radial-gradient(at 80% 0%, hsla(210, 100%, 30%, 0.04) 0px, transparent 50%),
+                       radial-gradient(at 0% 50%, hsla(210, 15%, 94%, 0.5) 0px, transparent 50%),
+                       hsl(210 20% 98%);
+
+    /* Shadows with green tint */
+    --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+    --shadow-card-hover: 0 10px 15px -3px rgba(105, 180, 50, 0.15), 0 4px 6px -2px rgba(105, 180, 50, 0.08);
+    --shadow-glow: 0 0 20px rgba(105, 180, 50, 0.15);
+    --shadow-glow-strong: 0 0 30px rgba(105, 180, 50, 0.3);
+  }
+
+  .dark.theme-seattle-seahawks {
+    --background: 210 10% 10%;
+    --foreground: 210 30% 95%;
+
+    --card: 210 15% 13%;
+    --card-foreground: 210 30% 95%;
+
+    --popover: 210 15% 13%;
+    --popover-foreground: 210 30% 95%;
+
+    --primary: 91 70% 60%;
+    --primary-foreground: 210 10% 10%;
+
+    --secondary: 210 70% 40%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 210 15% 18%;
+    --muted-foreground: 210 15% 55%;
+
+    --accent: 210 70% 40%;
+    --accent-foreground: 0 0% 100%;
+
+    --success: 142 76% 46%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 60%;
+    --warning-foreground: 0 0% 0%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 210 15% 20%;
+    --input: 210 15% 20%;
+    --ring: 91 70% 60%;
+
+    --on-track: 142 76% 46%;
+    --at-risk: 38 92% 60%;
+    --off-track: 0 62% 50%;
+
+    --progress-bg: 210 15% 18%;
+    --progress-fill: 91 70% 60%;
+
+    /* Sidebar - Deep Navy */
+    --sidebar-background: 210 100% 12%;
+    --sidebar-foreground: 210 30% 90%;
+    --sidebar-primary: 91 70% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 80% 16%;
+    --sidebar-accent-foreground: 210 30% 95%;
+    --sidebar-border: 210 80% 18%;
+    --sidebar-ring: 91 70% 60%;
+
+    /* Custom accent tokens */
+    --accent-theme: 91 70% 60%;
+    --accent-secondary: 210 70% 45%;
+
+    /* Gradients */
+    --background-gradient: linear-gradient(135deg, hsl(210 15% 12%), hsl(210 10% 10%), hsl(210 10% 8%));
+    --primary-dark: 91 70% 50%;
+
+    /* Background mesh */
+    --background-mesh: radial-gradient(at 40% 20%, hsla(91, 70%, 60%, 0.06) 0px, transparent 50%),
+                       radial-gradient(at 80% 0%, hsla(210, 70%, 40%, 0.05) 0px, transparent 50%),
+                       radial-gradient(at 0% 50%, hsla(210, 15%, 18%, 0.5) 0px, transparent 50%),
+                       hsl(210 10% 10%);
+  }
+
+  /* ==========================================
+     THEME: Pink Rose - Vibrant Rose & Hot Pink
+     ========================================== */
+  :root.theme-pink-rose {
+    --background: 335 5% 97%;
+    --foreground: 335 40% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 335 40% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 335 40% 15%;
+
+    /* Primary: Vibrant Rose */
+    --primary: 335 77% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary: Deep Plum */
+    --secondary: 335 40% 35%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 335 10% 94%;
+    --muted-foreground: 335 20% 40%;
+
+    --accent: 330 100% 70%;
+    --accent-foreground: 335 40% 15%;
+
+    /* Status colors */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 335 15% 88%;
+    --input: 335 15% 88%;
+    --ring: 335 77% 60%;
+
+    /* Custom tokens */
+    --on-track: 142 76% 36%;
+    --at-risk: 38 92% 50%;
+    --off-track: 0 84% 60%;
+
+    /* Progress bar */
+    --progress-bg: 335 10% 90%;
+    --progress-fill: 335 77% 60%;
+
+    /* Sidebar - Deep Plum */
+    --sidebar-background: 335 50% 12%;
+    --sidebar-foreground: 335 20% 90%;
+    --sidebar-primary: 335 70% 65%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 335 40% 18%;
+    --sidebar-accent-foreground: 335 20% 95%;
+    --sidebar-border: 335 40% 20%;
+    --sidebar-ring: 335 70% 65%;
+
+    /* Custom accent tokens */
+    --accent-theme: 335 77% 60%;
+    --accent-secondary: 330 100% 75%;
+
+    /* Gradients */
+    --background-gradient: linear-gradient(135deg, hsl(335 5% 97%), hsl(335 8% 95%), hsl(335 5% 96%));
+    --gradient-accent: linear-gradient(135deg, hsl(330 100% 70%), hsl(335 77% 60%));
+    --gradient-primary: linear-gradient(135deg, hsl(335 77% 65%), hsl(335 77% 50%));
+    --primary-dark: 335 77% 50%;
+
+    /* Background mesh with pink accents */
+    --background-mesh: radial-gradient(at 40% 20%, hsla(335, 77%, 60%, 0.05) 0px, transparent 50%),
+                       radial-gradient(at 80% 0%, hsla(330, 100%, 70%, 0.04) 0px, transparent 50%),
+                       radial-gradient(at 0% 50%, hsla(335, 10%, 94%, 0.5) 0px, transparent 50%),
+                       hsl(335 5% 97%);
+
+    /* Shadows with pink tint */
+    --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+    --shadow-card-hover: 0 10px 15px -3px rgba(220, 80, 140, 0.15), 0 4px 6px -2px rgba(220, 80, 140, 0.08);
+    --shadow-glow: 0 0 20px rgba(220, 80, 140, 0.15);
+    --shadow-glow-strong: 0 0 30px rgba(220, 80, 140, 0.3);
+  }
+
+  .dark.theme-pink-rose {
+    --background: 230 20% 10%;
+    --foreground: 335 20% 95%;
+
+    --card: 230 20% 13%;
+    --card-foreground: 335 20% 95%;
+
+    --popover: 230 20% 13%;
+    --popover-foreground: 335 20% 95%;
+
+    --primary: 335 70% 70%;
+    --primary-foreground: 230 20% 10%;
+
+    --secondary: 335 40% 25%;
+    --secondary-foreground: 335 20% 95%;
+
+    --muted: 230 20% 18%;
+    --muted-foreground: 335 15% 55%;
+
+    --accent: 330 100% 80%;
+    --accent-foreground: 230 20% 10%;
+
+    --success: 142 76% 46%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 60%;
+    --warning-foreground: 0 0% 0%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 230 20% 20%;
+    --input: 230 20% 20%;
+    --ring: 335 70% 70%;
+
+    --on-track: 142 76% 46%;
+    --at-risk: 38 92% 60%;
+    --off-track: 0 62% 50%;
+
+    --progress-bg: 230 20% 18%;
+    --progress-fill: 335 70% 70%;
+
+    /* Sidebar - Deep Plum */
+    --sidebar-background: 335 50% 12%;
+    --sidebar-foreground: 335 20% 90%;
+    --sidebar-primary: 335 70% 70%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 335 40% 16%;
+    --sidebar-accent-foreground: 335 20% 95%;
+    --sidebar-border: 335 40% 18%;
+    --sidebar-ring: 335 70% 70%;
+
+    /* Custom accent tokens */
+    --accent-theme: 335 70% 70%;
+    --accent-secondary: 330 100% 80%;
+
+    /* Gradients */
+    --background-gradient: linear-gradient(135deg, hsl(230 20% 12%), hsl(230 20% 10%), hsl(230 20% 8%));
+    --primary-dark: 335 70% 60%;
+
+    /* Background mesh */
+    --background-mesh: radial-gradient(at 40% 20%, hsla(335, 70%, 70%, 0.06) 0px, transparent 50%),
+                       radial-gradient(at 80% 0%, hsla(330, 100%, 80%, 0.05) 0px, transparent 50%),
+                       radial-gradient(at 0% 50%, hsla(230, 20%, 18%, 0.5) 0px, transparent 50%),
+                       hsl(230 20% 10%);
+  }
+
+  /* ==========================================
+     THEME: UW Huskies - Rich Gold & Husky Purple
+     ========================================== */
+  :root.theme-uw-huskies {
+    --background: 266 10% 98%;
+    --foreground: 266 40% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 266 40% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 266 40% 15%;
+
+    /* Primary: Rich Gold */
+    --primary: 42 100% 40%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary: Husky Purple */
+    --secondary: 266 100% 30%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 266 10% 94%;
+    --muted-foreground: 266 20% 40%;
+
+    --accent: 266 100% 30%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Status colors */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 266 15% 88%;
+    --input: 266 15% 88%;
+    --ring: 42 100% 40%;
+
+    /* Custom tokens */
+    --on-track: 142 76% 36%;
+    --at-risk: 38 92% 50%;
+    --off-track: 0 84% 60%;
+
+    /* Progress bar */
+    --progress-bg: 266 10% 90%;
+    --progress-fill: 42 100% 40%;
+
+    /* Sidebar - Deep Husky Purple */
+    --sidebar-background: 266 100% 15%;
+    --sidebar-foreground: 266 20% 90%;
+    --sidebar-primary: 42 90% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 266 80% 20%;
+    --sidebar-accent-foreground: 266 20% 95%;
+    --sidebar-border: 266 80% 22%;
+    --sidebar-ring: 42 90% 50%;
+
+    /* Custom accent tokens */
+    --accent-theme: 42 100% 40%;
+    --accent-secondary: 266 100% 35%;
+
+    /* Gradients */
+    --background-gradient: linear-gradient(135deg, hsl(266 10% 98%), hsl(266 8% 96%), hsl(266 10% 97%));
+    --gradient-accent: linear-gradient(135deg, hsl(42 90% 50%), hsl(42 100% 40%));
+    --gradient-primary: linear-gradient(135deg, hsl(42 100% 45%), hsl(42 100% 35%));
+    --primary-dark: 42 100% 35%;
+
+    /* Background mesh with gold accents */
+    --background-mesh: radial-gradient(at 40% 20%, hsla(42, 100%, 40%, 0.05) 0px, transparent 50%),
+                       radial-gradient(at 80% 0%, hsla(266, 100%, 30%, 0.04) 0px, transparent 50%),
+                       radial-gradient(at 0% 50%, hsla(266, 10%, 94%, 0.5) 0px, transparent 50%),
+                       hsl(266 10% 98%);
+
+    /* Shadows with gold tint */
+    --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+    --shadow-card-hover: 0 10px 15px -3px rgba(200, 150, 20, 0.15), 0 4px 6px -2px rgba(200, 150, 20, 0.08);
+    --shadow-glow: 0 0 20px rgba(200, 150, 20, 0.15);
+    --shadow-glow-strong: 0 0 30px rgba(200, 150, 20, 0.3);
+  }
+
+  .dark.theme-uw-huskies {
+    --background: 266 10% 10%;
+    --foreground: 266 20% 95%;
+
+    --card: 266 15% 13%;
+    --card-foreground: 266 20% 95%;
+
+    --popover: 266 15% 13%;
+    --popover-foreground: 266 20% 95%;
+
+    --primary: 42 90% 55%;
+    --primary-foreground: 266 10% 10%;
+
+    --secondary: 266 80% 40%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 266 15% 18%;
+    --muted-foreground: 266 15% 55%;
+
+    --accent: 266 80% 40%;
+    --accent-foreground: 0 0% 100%;
+
+    --success: 142 76% 46%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 60%;
+    --warning-foreground: 0 0% 0%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 266 15% 20%;
+    --input: 266 15% 20%;
+    --ring: 42 90% 55%;
+
+    --on-track: 142 76% 46%;
+    --at-risk: 38 92% 60%;
+    --off-track: 0 62% 50%;
+
+    --progress-bg: 266 15% 18%;
+    --progress-fill: 42 90% 55%;
+
+    /* Sidebar - Deep Husky Purple */
+    --sidebar-background: 266 100% 15%;
+    --sidebar-foreground: 266 20% 90%;
+    --sidebar-primary: 42 90% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 266 80% 18%;
+    --sidebar-accent-foreground: 266 20% 95%;
+    --sidebar-border: 266 80% 20%;
+    --sidebar-ring: 42 90% 55%;
+
+    /* Custom accent tokens */
+    --accent-theme: 42 90% 55%;
+    --accent-secondary: 266 80% 45%;
+
+    /* Gradients */
+    --background-gradient: linear-gradient(135deg, hsl(266 15% 12%), hsl(266 10% 10%), hsl(266 10% 8%));
+    --primary-dark: 42 90% 45%;
+
+    /* Background mesh */
+    --background-mesh: radial-gradient(at 40% 20%, hsla(42, 90%, 55%, 0.06) 0px, transparent 50%),
+                       radial-gradient(at 80% 0%, hsla(266, 80%, 40%, 0.05) 0px, transparent 50%),
+                       radial-gradient(at 0% 50%, hsla(266, 15%, 18%, 0.5) 0px, transparent 50%),
+                       hsl(266 10% 10%);
+  }
 @layer base {
   * {
     @apply border-border;
