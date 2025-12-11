@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Plus, Trash2, Edit2, X, Check } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import {
   fetchActivityTemplates,
   createActivityTemplate,
@@ -44,7 +44,6 @@ export function ManageActivityTemplatesDialog({
   open,
   onOpenChange,
 }: ManageActivityTemplatesDialogProps) {
-  const { toast } = useToast();
   const queryClient = useQueryClient();
   const [newTemplateType, setNewTemplateType] = useState<ProspectActivityType>('call');
   const [newTemplateText, setNewTemplateText] = useState('');
@@ -63,13 +62,11 @@ export function ManageActivityTemplatesDialog({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['activityTemplates'] });
       setNewTemplateText('');
-      toast({ title: 'Template created successfully' });
+      toast.success('Template created successfully');
     },
     onError: (error) => {
-      toast({
-        title: 'Failed to create template',
+      toast.error('Failed to create template', {
         description: error.message,
-        variant: 'destructive',
       });
     },
   });
@@ -81,13 +78,11 @@ export function ManageActivityTemplatesDialog({
       queryClient.invalidateQueries({ queryKey: ['activityTemplates'] });
       setEditingId(null);
       setEditingText('');
-      toast({ title: 'Template updated successfully' });
+      toast.success('Template updated successfully');
     },
     onError: (error) => {
-      toast({
-        title: 'Failed to update template',
+      toast.error('Failed to update template', {
         description: error.message,
-        variant: 'destructive',
       });
     },
   });
@@ -96,23 +91,18 @@ export function ManageActivityTemplatesDialog({
     mutationFn: (id: string) => deleteActivityTemplate(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['activityTemplates'] });
-      toast({ title: 'Template deleted successfully' });
+      toast.success('Template deleted successfully');
     },
     onError: (error) => {
-      toast({
-        title: 'Failed to delete template',
+      toast.error('Failed to delete template', {
         description: error.message,
-        variant: 'destructive',
       });
     },
   });
 
   const handleCreate = () => {
     if (!newTemplateText.trim()) {
-      toast({
-        title: 'Template text required',
-        variant: 'destructive',
-      });
+      toast.error('Template text required');
       return;
     }
     createMutation.mutate({ type: newTemplateType, text: newTemplateText });

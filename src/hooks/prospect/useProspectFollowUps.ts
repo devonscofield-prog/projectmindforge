@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { createLogger } from '@/lib/logger';
 import {
   listFollowUpsForProspect,
@@ -18,8 +18,6 @@ interface UseProspectFollowUpsOptions {
 }
 
 export function useProspectFollowUps({ prospectId }: UseProspectFollowUpsOptions) {
-  const { toast } = useToast();
-
   const [followUps, setFollowUps] = useState<AccountFollowUp[]>([]);
   const [completedFollowUps, setCompletedFollowUps] = useState<AccountFollowUp[]>([]);
   const [dismissedFollowUps, setDismissedFollowUps] = useState<AccountFollowUp[]>([]);
@@ -59,48 +57,48 @@ export function useProspectFollowUps({ prospectId }: UseProspectFollowUpsOptions
       const updated = await completeFollowUp(followUpId);
       setFollowUps(prev => prev.filter(f => f.id !== followUpId));
       setCompletedFollowUps(prev => [updated, ...prev]);
-      toast({ title: 'Follow-up completed' });
+      toast.success('Follow-up completed');
     } catch (error) {
       log.error('Failed to complete follow-up', { error });
-      toast({ title: 'Failed to complete follow-up', variant: 'destructive' });
+      toast.error('Failed to complete follow-up');
     }
-  }, [toast]);
+  }, []);
 
   const handleReopenFollowUp = useCallback(async (followUpId: string) => {
     try {
       const updated = await reopenFollowUp(followUpId);
       setCompletedFollowUps(prev => prev.filter(f => f.id !== followUpId));
       setFollowUps(prev => [updated, ...prev]);
-      toast({ title: 'Follow-up reopened' });
+      toast.success('Follow-up reopened');
     } catch (error) {
       log.error('Failed to reopen follow-up', { error });
-      toast({ title: 'Failed to reopen follow-up', variant: 'destructive' });
+      toast.error('Failed to reopen follow-up');
     }
-  }, [toast]);
+  }, []);
 
   const handleDismissFollowUp = useCallback(async (followUpId: string) => {
     try {
       const dismissed = await dismissFollowUp(followUpId);
       setFollowUps(prev => prev.filter(f => f.id !== followUpId));
       setDismissedFollowUps(prev => [dismissed, ...prev]);
-      toast({ title: 'Follow-up dismissed' });
+      toast.success('Follow-up dismissed');
     } catch (error) {
       log.error('Failed to dismiss follow-up', { error });
-      toast({ title: 'Failed to dismiss follow-up', variant: 'destructive' });
+      toast.error('Failed to dismiss follow-up');
     }
-  }, [toast]);
+  }, []);
 
   const handleRestoreFollowUp = useCallback(async (followUpId: string) => {
     try {
       const restored = await restoreFollowUp(followUpId);
       setDismissedFollowUps(prev => prev.filter(f => f.id !== followUpId));
       setFollowUps(prev => [restored, ...prev]);
-      toast({ title: 'Follow-up restored' });
+      toast.success('Follow-up restored');
     } catch (error) {
       log.error('Failed to restore follow-up', { error });
-      toast({ title: 'Failed to restore follow-up', variant: 'destructive' });
+      toast.error('Failed to restore follow-up');
     }
-  }, [toast]);
+  }, []);
 
   const handleRefreshFollowUps = useCallback(async () => {
     if (!prospectId) return;
@@ -109,23 +107,21 @@ export function useProspectFollowUps({ prospectId }: UseProspectFollowUpsOptions
       const result = await refreshFollowUps(prospectId);
       if (result.success) {
         await loadFollowUpsData();
-        toast({ title: `Generated ${result.count || 0} new follow-up steps` });
+        toast.success(`Generated ${result.count || 0} new follow-up steps`);
       } else if (result.isRateLimited) {
-        toast({ 
-          title: 'Too many requests', 
-          description: 'Please wait a moment before refreshing again.',
-          variant: 'destructive' 
+        toast.error('Too many requests', { 
+          description: 'Please wait a moment before refreshing again.' 
         });
       } else {
-        toast({ title: 'Failed to refresh follow-ups', variant: 'destructive' });
+        toast.error('Failed to refresh follow-ups');
       }
     } catch (error) {
       log.error('Failed to refresh follow-ups', { error });
-      toast({ title: 'Failed to refresh follow-ups', variant: 'destructive' });
+      toast.error('Failed to refresh follow-ups');
     } finally {
       setIsRefreshing(false);
     }
-  }, [prospectId, loadFollowUpsData, toast]);
+  }, [prospectId, loadFollowUpsData]);
 
   return {
     // State

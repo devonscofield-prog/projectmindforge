@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { TrendingUp, TrendingDown, Users, Phone, Pencil, Check, X, Flame, GraduationCap, Minus } from 'lucide-react';
 import { formatCurrency } from '@/lib/formatters';
 import { HeatScoreBadge } from '@/components/ui/heat-score-badge';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import type { Prospect, ProspectIntel } from '@/api/prospects';
 
 interface ProspectQuickStatsProps {
@@ -17,7 +17,6 @@ interface ProspectQuickStatsProps {
 }
 
 export function ProspectQuickStats({ prospect, stakeholderCount, callCount, onUpdateProspect }: ProspectQuickStatsProps) {
-  const { toast } = useToast();
   const [isEditingRevenue, setIsEditingRevenue] = useState(false);
   const [editedRevenue, setEditedRevenue] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -42,10 +41,8 @@ export function ProspectQuickStats({ prospect, stakeholderCount, callCount, onUp
     const newRevenue = parseFloat(editedRevenue) || 0;
     
     if (newRevenue < 0) {
-      toast({
-        title: 'Invalid amount',
+      toast.error('Invalid amount', {
         description: 'Revenue cannot be negative',
-        variant: 'destructive',
       });
       return;
     }
@@ -55,16 +52,13 @@ export function ProspectQuickStats({ prospect, stakeholderCount, callCount, onUp
       const success = await onUpdateProspect({ active_revenue: newRevenue });
       if (success) {
         setIsEditingRevenue(false);
-        toast({
-          title: 'Updated',
+        toast.success('Updated', {
           description: 'Current opportunity amount updated successfully',
         });
       }
     } catch (error) {
-      toast({
-        title: 'Failed to update',
+      toast.error('Failed to update', {
         description: error instanceof Error ? error.message : 'Unknown error',
-        variant: 'destructive',
       });
     } finally {
       setIsSaving(false);

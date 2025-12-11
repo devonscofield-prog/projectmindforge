@@ -14,7 +14,7 @@ import { User, Check, X, Quote, Mail, Copy, ChevronRight } from 'lucide-react';
 import type { PsychologyProfile } from '@/utils/analysis-schemas';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 interface ProspectPersonaCardProps {
   psychology: PsychologyProfile | null;
@@ -37,17 +37,16 @@ const DISC_COLORS: Record<string, string> = {
 
 export function ProspectPersonaCard({ psychology, isLoading = false }: ProspectPersonaCardProps) {
   const [copiedSubject, setCopiedSubject] = useState(false);
-  const { toast } = useToast();
 
   const handleCopySubject = async () => {
     if (!psychology?.suggested_email_subject) return;
     try {
       await navigator.clipboard.writeText(psychology.suggested_email_subject);
       setCopiedSubject(true);
-      toast({ description: 'Subject copied to clipboard' });
+      toast('Subject copied to clipboard');
       setTimeout(() => setCopiedSubject(false), 2000);
     } catch {
-      toast({ description: 'Failed to copy', variant: 'destructive' });
+      toast.error('Failed to copy');
     }
   };
 
