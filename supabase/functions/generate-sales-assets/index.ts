@@ -68,11 +68,11 @@ const generateSalesAssetsSchema = z.object({
     })).max(20).optional()
   }).optional(),
   psychology_context: z.object({
-    prospect_persona: z.string().max(200).optional(),
+    prospect_persona: z.string().max(500).optional(),
     disc_profile: z.string().max(100).optional(),
     communication_style: z.object({
-      tone: z.string().max(100).optional(),
-      preference: z.string().max(200).optional()
+      tone: z.string().max(500).optional(),
+      preference: z.string().max(1000).optional()
     }).optional(),
     dos_and_donts: z.object({
       do: z.array(z.string().max(200)).max(10).optional(),
