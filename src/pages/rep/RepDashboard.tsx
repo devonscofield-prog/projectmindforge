@@ -565,121 +565,134 @@ function RepDashboard() {
 
       <div className="space-y-6 md:space-y-8">
         {/* Header */}
-        <div className="text-center space-y-2">
-          <h1 className="text-2xl md:text-3xl font-bold">
-            Welcome back, {profile.name?.split(' ')[0] || 'Rep'}
-          </h1>
-          <p className="text-sm md:text-base text-muted-foreground">
-            Submit your call transcripts for AI-powered coaching and insights
-          </p>
-          <Button variant="outline" size="sm" asChild className="mt-2">
-            <Link to="/rep/coaching-summary">
-              <BarChart3 className="h-4 w-4 mr-2" />
-              View Coaching Summary
-            </Link>
-          </Button>
+        <div className="space-y-4 pb-8 border-b border-border mb-8">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-serif font-bold text-foreground tracking-tight">
+                Welcome back, {profile.name?.split(' ')[0] || 'Rep'}
+              </h1>
+              <p className="text-muted-foreground mt-2 text-lg font-light">
+                Ready to capture your next win?
+              </p>
+            </div>
+            <Button variant="outline" size="sm" asChild className="mt-2 shadow-sm border-primary/20 hover:bg-primary/5 hover:text-primary transition-all">
+              <Link to="/rep/coaching-summary" className="flex items-center">
+                <BarChart3 className="h-4 w-4 mr-2" />
+                View Coaching Summary
+              </Link>
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-6 lg:gap-8 lg:grid-cols-3">
           {/* Submit Call Card - Takes up 2 columns */}
           <div className="lg:col-span-2">
-            <Card className="border-2">
-              <CardHeader className="text-center pb-2">
-                <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                  <FileText className="h-6 w-6 text-primary" />
+            <Card className="border-none shadow-xl shadow-slate-200/50 dark:shadow-slate-900/50 bg-card/80 backdrop-blur-sm overflow-hidden">
+              <div className="h-1.5 w-full bg-gradient-to-r from-primary to-accent" />
+              <CardHeader className="text-center pb-8 pt-8 bg-muted/30 border-b border-border">
+                <div className="mx-auto w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
+                  <FileText className="h-8 w-8 text-primary" />
                 </div>
-                <CardTitle className="text-xl md:text-2xl">Analyze a Call</CardTitle>
-                <CardDescription className="text-sm md:text-base">
+                <CardTitle className="text-2xl font-serif">Call Analysis</CardTitle>
+                <CardDescription className="text-base max-w-lg mx-auto mt-2">
                   Paste your call transcript to get AI coaching, MEDDPICC scoring, and a recap email draft.
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <form ref={formRef} onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
-                  {/* Account and Primary Stakeholder Row */}
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="accountName">Account Name *</Label>
-                      <AccountCombobox 
-                        repId={user?.id || ''} 
-                        value={accountName} 
-                        selectedProspectId={selectedProspectId} 
-                        onChange={handleAccountChange} 
-                        placeholder="Select or type account..." 
-                        disabled={!user?.id || isSubmitting} 
-                      />
-                      {accountName.trim().length === 1 && (
-                        <p className="text-xs text-amber-500">
-                          Account name must be at least 2 characters
-                        </p>
-                      )}
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Stakeholders on this call *</Label>
-                      <MultiStakeholderSelector
-                        prospectId={selectedProspectId}
-                        stakeholders={stakeholders}
-                        onChange={setStakeholders}
-                        disabled={!user?.id || isSubmitting}
-                      />
-                    </div>
-                  </div>
+              <CardContent className="p-0">
+                <form ref={formRef} onSubmit={handleSubmit} className="space-y-8 p-6 md:p-8">
+                  {/* Call Context & Deal Setup Section */}
+                  <div className="bg-muted/30 p-6 rounded-xl border border-border space-y-6">
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground border-b border-border pb-3">
+                      Call Context & Deal Setup
+                    </h3>
+                    <div className="space-y-6">
+                      {/* Account and Primary Stakeholder Row */}
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="accountName">Account Name *</Label>
+                          <AccountCombobox 
+                            repId={user?.id || ''} 
+                            value={accountName} 
+                            selectedProspectId={selectedProspectId} 
+                            onChange={handleAccountChange} 
+                            placeholder="Select or type account..." 
+                            disabled={!user?.id || isSubmitting} 
+                          />
+                          {accountName.trim().length === 1 && (
+                            <p className="text-xs text-amber-500">
+                              Account name must be at least 2 characters
+                            </p>
+                          )}
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Stakeholders on this call *</Label>
+                          <MultiStakeholderSelector
+                            prospectId={selectedProspectId}
+                            stakeholders={stakeholders}
+                            onChange={setStakeholders}
+                            disabled={!user?.id || isSubmitting}
+                          />
+                        </div>
+                      </div>
 
-                  {/* Salesforce Link Row */}
-                  <div className="space-y-2">
-                    <Label htmlFor="salesforceAccountLink">
-                      Salesforce Account Link {(!selectedProspectId || !existingAccountHasSalesforceLink) && '*'}
-                    </Label>
-                    <div className="flex gap-2">
-                      <Input 
-                        id="salesforceAccountLink" 
-                        type="url" 
-                        placeholder="https://..." 
-                        value={salesforceAccountLink} 
-                        onChange={e => setSalesforceAccountLink(e.target.value)} 
-                        disabled={(existingAccountHasSalesforceLink && !isEditingSalesforceLink) || isSubmitting} 
-                        maxLength={500}
-                        className="flex-1" 
-                      />
-                      {existingAccountHasSalesforceLink && !isEditingSalesforceLink && <Button type="button" variant="outline" size="icon" onClick={() => setIsEditingSalesforceLink(true)} title="Edit Salesforce link" disabled={isSubmitting}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>}
-                    </div>
-                    {existingAccountHasSalesforceLink && <p className="text-xs text-muted-foreground">
-                        {isEditingSalesforceLink ? 'Editing account link' : 'Using existing account link'}
-                      </p>}
-                    {salesforceAccountLink.trim() && !isSalesforceUrlValid && (
-                      <p className="text-xs text-destructive">
-                        URL must contain "salesforce" or "force.com"
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Date and Call Type Row */}
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="callDate">Call Date *</Label>
-                      <Input 
-                        id="callDate" 
-                        type="date" 
-                        value={callDate} 
-                        onChange={e => setCallDate(e.target.value)} 
-                        max={format(new Date(), 'yyyy-MM-dd')}
-                        disabled={isSubmitting}
-                        required 
-                      />
-                    </div>
+                      {/* Salesforce Link Row */}
                       <div className="space-y-2">
-                      <Label htmlFor="callType">Call Type *</Label>
-                      <Select value={callType} onValueChange={v => setCallType(v as CallType)} disabled={isSubmitting}>
-                        <SelectTrigger id="callType">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {callTypeOptions.map(option => <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                        <Label htmlFor="salesforceAccountLink">
+                          Salesforce Account Link {(!selectedProspectId || !existingAccountHasSalesforceLink) && '*'}
+                        </Label>
+                        <div className="flex gap-2">
+                          <Input 
+                            id="salesforceAccountLink" 
+                            type="url" 
+                            placeholder="https://..." 
+                            value={salesforceAccountLink} 
+                            onChange={e => setSalesforceAccountLink(e.target.value)} 
+                            disabled={(existingAccountHasSalesforceLink && !isEditingSalesforceLink) || isSubmitting} 
+                            maxLength={500}
+                            className="flex-1" 
+                          />
+                          {existingAccountHasSalesforceLink && !isEditingSalesforceLink && <Button type="button" variant="outline" size="icon" onClick={() => setIsEditingSalesforceLink(true)} title="Edit Salesforce link" disabled={isSubmitting}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>}
+                        </div>
+                        {existingAccountHasSalesforceLink && <p className="text-xs text-muted-foreground">
+                            {isEditingSalesforceLink ? 'Editing account link' : 'Using existing account link'}
+                          </p>}
+                        {salesforceAccountLink.trim() && !isSalesforceUrlValid && (
+                          <p className="text-xs text-destructive">
+                            URL must contain "salesforce" or "force.com"
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Date and Call Type Row */}
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="callDate">Call Date *</Label>
+                          <Input 
+                            id="callDate" 
+                            type="date" 
+                            value={callDate} 
+                            onChange={e => setCallDate(e.target.value)} 
+                            max={format(new Date(), 'yyyy-MM-dd')}
+                            disabled={isSubmitting}
+                            required 
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="callType">Call Type *</Label>
+                          <Select value={callType} onValueChange={v => setCallType(v as CallType)} disabled={isSubmitting}>
+                            <SelectTrigger id="callType">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {callTypeOptions.map(option => <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -781,7 +794,10 @@ function RepDashboard() {
 
                   {/* Transcript */}
                   <div className="space-y-2">
-                    <Label htmlFor="transcript">Call Transcript *</Label>
+                    <div className="flex items-center justify-between border-b border-border pb-2 mb-2">
+                      <Label htmlFor="transcript" className="text-lg font-medium text-foreground">Transcript</Label>
+                      <span className="text-xs px-2 py-1 bg-primary/10 text-primary rounded-full font-medium">Required</span>
+                    </div>
                     <Textarea 
                       id="transcript" 
                       placeholder="Paste the full call transcript here. Include the entire conversation—speaker labels are helpful but not required. The more detail you include, the better the analysis." 
@@ -820,9 +836,9 @@ function RepDashboard() {
                   </div>
 
                   {/* Product Selection */}
-                  <div className="space-y-2">
-                    <Label htmlFor="products">Products Discussed (Optional)</Label>
-                    <p className="text-xs text-muted-foreground -mt-1">
+                  <div className="border-t border-border pt-8">
+                    <Label htmlFor="products" className="text-lg font-medium text-foreground">Products Discussed (Optional)</Label>
+                    <p className="text-sm text-muted-foreground mt-1 mb-4">
                       Track products and pricing discussed on this call to calculate active revenue.
                     </p>
                     <ProductSelector
