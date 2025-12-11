@@ -501,6 +501,69 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     return refreshData.session.access_token;
   };
 
+  // Helper function to invoke chunk-transcripts with timeout and retry
+  const invokeChunkTranscripts = async (
+    body: Record<string, unknown>,
+    options: { timeoutMs?: number; maxRetries?: number } = {}
+  ): Promise<{ data: unknown; error: Error | null }> => {
+    const { timeoutMs = 60000, maxRetries = 2 } = options;
+    let lastError: Error | null = null;
+    
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      
+      try {
+        log.info('Invoking chunk-transcripts', { attempt: attempt + 1, body: Object.keys(body) });
+        
+        const { data, error } = await supabase.functions.invoke('chunk-transcripts', {
+          body,
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (error) {
+          throw error;
+        }
+        
+        return { data, error: null };
+      } catch (err) {
+        clearTimeout(timeoutId);
+        lastError = err instanceof Error ? err : new Error(String(err));
+        
+        const isTimeout = lastError.name === 'AbortError' || lastError.message.includes('aborted');
+        const isNetworkError = lastError.message.includes('Failed to fetch') || 
+                              lastError.message.includes('NetworkError') ||
+                              lastError.message.includes('fetch');
+        const isRetryable = isTimeout || isNetworkError || 
+                           lastError.message.includes('500') || 
+                           lastError.message.includes('502') || 
+                           lastError.message.includes('503');
+        
+        log.warn('chunk-transcripts invoke failed', { 
+          attempt: attempt + 1, 
+          maxRetries, 
+          error: lastError.message,
+          isRetryable 
+        });
+        
+        if (!isRetryable || attempt === maxRetries) {
+          break;
+        }
+        
+        // Wait before retry with exponential backoff
+        const delay = Math.min(1000 * Math.pow(2, attempt), 5000);
+        log.info(`Retrying chunk-transcripts in ${delay}ms...`);
+        await new Promise(r => setTimeout(r, delay));
+        
+        // Refresh token before retry
+        await getFreshToken();
+      }
+    }
+    
+    return { data: null, error: lastError };
+  };
+
   // Pre-index handler (for selected transcripts on current page)
   const handlePreIndex = async () => {
     if (!transcripts?.length) return;
@@ -513,22 +576,20 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
         return;
       }
       
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chunk-transcripts`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ transcript_ids: transcripts.map(t => t.id) }),
-      });
+      const { data, error } = await invokeChunkTranscripts(
+        { transcript_ids: transcripts.map(t => t.id) },
+        { timeoutMs: 60000, maxRetries: 2 }
+      );
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || 'Failed to pre-index transcripts');
+      if (error) {
+        if (error.message.includes('Failed to fetch') || error.message.includes('fetch')) {
+          throw new Error('Network error: Unable to connect to the server. Please check your connection and try again.');
+        }
+        throw error;
       }
       
-      const result = await response.json();
-      toast.success(`Indexed ${result.new_chunks || 0} new chunks`);
+      const result = data as { new_chunks?: number } | null;
+      toast.success(`Indexed ${result?.new_chunks || 0} new chunks`);
       refetchChunkStatus();
       refetchGlobalChunkStatus();
     } catch (err) {
@@ -555,28 +616,29 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
         return;
       }
       
-      toast.info('Starting backfill of all unchunked transcripts...');
+      toast.info('Starting backfill of all unchunked transcripts... This may take a minute.');
       
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chunk-transcripts`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ backfill_all: true }),
-      });
+      const { data, error } = await invokeChunkTranscripts(
+        { backfill_all: true },
+        { timeoutMs: 120000, maxRetries: 2 } // 2 minute timeout for backfill
+      );
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || 'Failed to backfill transcripts');
+      if (error) {
+        if (error.message.includes('Failed to fetch') || error.message.includes('fetch')) {
+          throw new Error('Network error: Unable to connect to the server. Please check your connection and try again.');
+        }
+        if (error.name === 'AbortError' || error.message.includes('aborted')) {
+          throw new Error('Request timed out. The server may still be processing. Please check the RAG Health stats in a few minutes.');
+        }
+        throw error;
       }
       
-      const result = await response.json();
+      const result = data as { new_chunks?: number; indexed?: number } | null;
       
-      if (result.new_chunks === 0) {
+      if (result?.new_chunks === 0) {
         toast.success('All transcripts are already indexed');
       } else {
-        toast.success(`Backfill complete: ${result.new_chunks} chunks created from ${result.indexed - (globalChunkStatus?.indexed || 0)} transcripts`);
+        toast.success(`Backfill complete: ${result?.new_chunks || 0} chunks created from ${(result?.indexed || 0) - (globalChunkStatus?.indexed || 0)} transcripts`);
       }
       
       refetchChunkStatus();
