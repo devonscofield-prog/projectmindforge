@@ -164,6 +164,22 @@
   }
 }
 
+/* Editor focus ring for premium inputs */
+.editor-focus-ring {
+  @apply transition-all duration-300;
+}
+.editor-focus-ring:focus-within {
+  @apply ring-2 ring-primary/20 shadow-[0_0_20px_rgba(0,154,119,0.1)];
+}
+
+/* Progress bar glow effects */
+.progress-glow-amber {
+  box-shadow: 0 0 8px hsl(38 92% 50% / 0.5);
+}
+.progress-glow-teal {
+  box-shadow: 0 0 12px hsl(177 70% 38% / 0.6);
+}
+
 @layer utilities {
   .status-on-track {
     @apply text-success;
