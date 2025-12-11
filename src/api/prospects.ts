@@ -693,3 +693,27 @@ export async function getTeamRepsForManager(managerId: string): Promise<{ id: st
 
   return profiles || [];
 }
+
+/**
+ * Admin: Permanently deletes a prospect and all related data
+ * CASCADE handles: email_logs, account_follow_ups, stakeholder_relationships, stakeholders, prospect_activities
+ * call_transcripts.prospect_id will be SET NULL (calls preserved but unlinked)
+ */
+export async function adminDeleteProspect(
+  prospectId: string
+): Promise<{ success: boolean; error?: string }> {
+  log.info('Admin deleting prospect', { prospectId });
+
+  const { error: deleteError } = await supabase
+    .from('prospects')
+    .delete()
+    .eq('id', prospectId);
+
+  if (deleteError) {
+    log.error('Admin failed to delete prospect', { prospectId, error: deleteError });
+    return { success: false, error: deleteError.message };
+  }
+
+  log.info('Admin deleted prospect successfully', { prospectId });
+  return { success: true };
+}

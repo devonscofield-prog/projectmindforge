@@ -249,3 +249,30 @@ export function useCreateProspectActivity(prospectId: string): UseMutationResult
     },
   });
 }
+
+/**
+ * Hook for admin to permanently delete a prospect
+ */
+export function useAdminDeleteProspect(): UseMutationResult<{ success: boolean }, Error, string, unknown> {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (prospectId: string) => {
+      const { adminDeleteProspect } = await import('@/api/prospects');
+      const result = await adminDeleteProspect(prospectId);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete account');
+      }
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['prospects'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-prospect-stats'] });
+      toast.success('Account deleted successfully');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to delete account');
+      log.error('Admin delete prospect error', { error });
+    },
+  });
+}
