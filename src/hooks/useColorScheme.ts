@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 
-export type ColorScheme = 'electric-blue' | 'deep-gold';
+export type ColorScheme = 'electric-blue' | 'deep-gold' | 'power-red';
 
 export interface ColorSchemeOption {
   id: ColorScheme;
@@ -32,6 +32,16 @@ export const colorSchemes: ColorSchemeOption[] = [
       primary: 'hsl(40, 85%, 45%)',
       accent: 'hsl(40, 80%, 55%)',
       sidebar: 'hsl(40, 10%, 15%)',
+    },
+  },
+  {
+    id: 'power-red',
+    name: 'Power Red',
+    description: 'High-contrast, urgent red theme',
+    preview: {
+      primary: 'hsl(350, 78%, 50%)',
+      accent: 'hsl(350, 70%, 60%)',
+      sidebar: 'hsl(220, 15%, 15%)',
     },
   },
 ];

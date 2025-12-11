@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 
 const STORAGE_KEY = 'mindforge-color-scheme';
-const validSchemes = ['electric-blue', 'deep-gold'];
+const validSchemes = ['electric-blue', 'deep-gold', 'power-red'];
 
 /**
  * Initializes the color scheme from localStorage on app load.
