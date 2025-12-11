@@ -46,7 +46,7 @@ export function useColorScheme() {
         return stored as ColorScheme;
       }
     }
-    return 'electric-blue';
+    return 'deep-gold';
   });
 
   useEffect(() => {

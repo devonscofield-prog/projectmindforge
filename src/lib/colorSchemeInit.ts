@@ -14,7 +14,7 @@ export function initializeColorScheme() {
   if (stored && validSchemes.includes(stored)) {
     document.documentElement.classList.add(`theme-${stored}`);
   } else {
-    document.documentElement.classList.add('theme-electric-blue');
+    document.documentElement.classList.add('theme-deep-gold');
   }
 }
 
