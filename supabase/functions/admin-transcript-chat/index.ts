@@ -533,6 +533,10 @@ async function generateQueryEmbedding(text: string, openaiApiKey: string): Promi
 
 // Classify query intent using Lovable AI Gateway with tool calling
 async function classifyQueryIntent(query: string, apiKey: string): Promise<QueryIntent> {
+  const startTime = Date.now();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+  
   try {
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -563,12 +567,15 @@ Extract:
           }
         }],
         tool_choice: { type: 'function', function: { name: 'classify_query' } }
-      })
+      }),
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
+    console.log(`[admin-transcript-chat] Intent classification completed in ${Date.now() - startTime}ms`);
 
     if (!response.ok) {
       console.error('[admin-transcript-chat] Intent classification failed:', response.status);
-      // Return default intent on failure
       return {
         keywords: query.toLowerCase().split(/\s+/).filter(w => w.length > 3).slice(0, 5),
         entities: {},
@@ -598,7 +605,12 @@ Extract:
       meddpicc_elements: args.meddpicc_elements || []
     };
   } catch (error) {
-    console.error('[admin-transcript-chat] Error classifying query intent:', error);
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('[admin-transcript-chat] Intent classification timed out after 15s');
+    } else {
+      console.error('[admin-transcript-chat] Error classifying query intent:', error);
+    }
     return {
       keywords: query.toLowerCase().split(/\s+/).filter(w => w.length > 3).slice(0, 5),
       entities: {},
@@ -829,27 +841,48 @@ Deno.serve(async (req) => {
     const systemPrompt = ADMIN_TRANSCRIPT_ANALYSIS_PROMPT;
     const modePrompt = getModePrompt(validatedAnalysisMode);
 
-    console.log(`[admin-transcript-chat] Calling Lovable AI with ${validatedMessages.length} messages`);
+    console.log(`[admin-transcript-chat] Context built (${transcriptContext.length} chars). Calling Lovable AI with ${validatedMessages.length} messages`);
 
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-pro',
-        messages: [
-          { 
-            role: 'system', 
-            content: `${systemPrompt}${modePrompt ? '\n\n' + modePrompt : ''}\n\n## TRANSCRIPTS FOR ANALYSIS\n\n${transcriptContext}` 
-          },
-          ...validatedMessages
-        ],
-        stream: true,
-        temperature: 0.3,
-      })
-    });
+    // Main AI call with 60 second timeout
+    const aiController = new AbortController();
+    const aiTimeoutId = setTimeout(() => aiController.abort(), 60000);
+    
+    let aiResponse: Response;
+    try {
+      aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-pro',
+          messages: [
+            { 
+              role: 'system', 
+              content: `${systemPrompt}${modePrompt ? '\n\n' + modePrompt : ''}\n\n## TRANSCRIPTS FOR ANALYSIS\n\n${transcriptContext}` 
+            },
+            ...validatedMessages
+          ],
+          stream: true,
+          temperature: 0.3,
+        }),
+        signal: aiController.signal
+      });
+      
+      clearTimeout(aiTimeoutId);
+      console.log(`[admin-transcript-chat] AI Gateway responded with status ${aiResponse.status} in ${Date.now() - startTime}ms`);
+    } catch (fetchError) {
+      clearTimeout(aiTimeoutId);
+      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+        console.error(`[admin-transcript-chat] AI Gateway timed out after 60s (total time: ${Date.now() - startTime}ms)`);
+        return new Response(
+          JSON.stringify({ error: 'Analysis timed out. Try selecting fewer transcripts or using a simpler question.' }),
+          { status: 504, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      throw fetchError;
+    }
 
     if (!aiResponse.ok) {
       if (aiResponse.status === 429) {
@@ -869,6 +902,7 @@ Deno.serve(async (req) => {
       throw new Error(`AI Gateway error: ${aiResponse.status}`);
     }
 
+    console.log(`[admin-transcript-chat] Streaming response to client (total time: ${Date.now() - startTime}ms)`);
     return new Response(aiResponse.body, {
       headers: { ...corsHeaders, 'Content-Type': 'text/event-stream' },
     });
@@ -1007,9 +1041,12 @@ async function buildRagContext(
   }
 
   console.log(`[admin-transcript-chat] Calling find_best_chunks RPC with ${Object.keys(searchParams).length} parameters`);
+  const findChunksStart = Date.now();
 
   const { data: searchResults, error: searchError } = await supabase
     .rpc('find_best_chunks', searchParams);
+  
+  console.log(`[admin-transcript-chat] find_best_chunks completed in ${Date.now() - findChunksStart}ms`);
 
   if (searchError) {
     console.error('[admin-transcript-chat] Hybrid search error:', searchError);
