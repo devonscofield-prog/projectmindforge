@@ -649,7 +649,7 @@ function RepDashboard() {
                             onChange={e => setSalesforceAccountLink(e.target.value)} 
                             disabled={(existingAccountHasSalesforceLink && !isEditingSalesforceLink) || isSubmitting} 
                             maxLength={500}
-                            className="flex-1" 
+                            className="flex-1 h-11" 
                           />
                           {existingAccountHasSalesforceLink && !isEditingSalesforceLink && <Button type="button" variant="outline" size="icon" onClick={() => setIsEditingSalesforceLink(true)} title="Edit Salesforce link" disabled={isSubmitting}>
                               <Pencil className="h-4 w-4" />
@@ -676,13 +676,14 @@ function RepDashboard() {
                             onChange={e => setCallDate(e.target.value)} 
                             max={format(new Date(), 'yyyy-MM-dd')}
                             disabled={isSubmitting}
+                            className="h-11"
                             required 
                           />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="callType">Call Type *</Label>
                           <Select value={callType} onValueChange={v => setCallType(v as CallType)} disabled={isSubmitting}>
-                            <SelectTrigger id="callType">
+                            <SelectTrigger id="callType" className="h-11">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -788,27 +789,33 @@ function RepDashboard() {
                         onChange={e => setCallTypeOther(e.target.value)} 
                         maxLength={50}
                         disabled={isSubmitting}
+                        className="h-11"
                         required 
                       />
                     </div>}
 
                   {/* Transcript */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between border-b border-border pb-2 mb-2">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between border-b border-border pb-2">
                       <Label htmlFor="transcript" className="text-lg font-medium text-foreground">Transcript</Label>
                       <span className="text-xs px-2 py-1 bg-primary/10 text-primary rounded-full font-medium">Required</span>
                     </div>
-                    <Textarea 
-                      id="transcript" 
-                      placeholder="Paste the full call transcript here. Include the entire conversation—speaker labels are helpful but not required. The more detail you include, the better the analysis." 
-                      value={transcript} 
-                      onChange={e => setTranscript(e.target.value)} 
-                      className="min-h-[150px] md:min-h-[250px] font-mono text-sm" 
-                      maxLength={100000}
-                      disabled={isSubmitting}
-                      required 
-                      aria-describedby="transcript-hint"
-                    />
+                    <div className="relative group">
+                      <Textarea 
+                        id="transcript" 
+                        placeholder="Paste the full call transcript here. Include the entire conversation—speaker labels are helpful but not required. The more detail you include, the better the analysis." 
+                        value={transcript} 
+                        onChange={e => setTranscript(e.target.value)} 
+                        className="min-h-[300px] font-mono text-sm leading-relaxed p-6 bg-muted/30 border-2 border-border focus:border-primary/30 focus:bg-background transition-all resize-y rounded-xl" 
+                        maxLength={100000}
+                        disabled={isSubmitting}
+                        required 
+                        aria-describedby="transcript-hint"
+                      />
+                      <div className="absolute bottom-4 right-4 text-xs text-muted-foreground/50 pointer-events-none transition-opacity group-hover:opacity-100">
+                        {normalizedTranscript.length.toLocaleString()} chars
+                      </div>
+                    </div>
                     <div className="space-y-1">
                       <div className="flex justify-between text-xs text-muted-foreground">
                         <span>Min {MIN_TRANSCRIPT_LENGTH} characters for meaningful analysis</span>
@@ -848,11 +855,11 @@ function RepDashboard() {
                   </div>
 
                   {/* Submit Button */}
-                  <div className="space-y-3">
+                  <div className="space-y-3 pt-6 border-t border-border mt-8">
                     <Button 
                       type="submit" 
                       disabled={!canSubmit} 
-                      className="w-full h-12 text-lg" 
+                      className="w-full h-14 text-lg font-medium shadow-lg shadow-primary/30 hover:shadow-primary/40 transition-all rounded-xl" 
                       size="lg"
                     >
                       {isSubmitting ? <>
