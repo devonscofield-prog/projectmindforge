@@ -10,6 +10,7 @@ import { ThemeProvider } from "next-themes";
 import { DevTools } from "@/components/DevTools";
 import { ScrollToTop } from "@/components/ScrollToTop";
 import { createQueryClient, setupQueryLogging } from "@/lib/queryClientConfig";
+import { ColorSchemeInitializer } from "@/lib/colorSchemeInit";
 
 // Eager load - these are accessed immediately
 import Index from "./pages/Index";
@@ -81,6 +82,7 @@ const App = () => (
   <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+        <ColorSchemeInitializer />
         <TooltipProvider>
           <Toaster />
           <BrowserRouter>

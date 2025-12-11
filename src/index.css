@@ -5,7 +5,11 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
+  /* ==========================================
+     DEFAULT THEME: Electric Blue
+     ========================================== */
+  :root,
+  :root.theme-electric-blue {
     /* Electric Blue - High-tech trustworthy theme */
     --background: 210 20% 98%;
     --foreground: 230 40% 15%;
@@ -66,8 +70,8 @@
     --sidebar-ring: 230 90% 65%;
 
     /* Custom accent tokens */
-    --accent-electric: 230 90% 60%;
-    --accent-sky: 210 90% 70%;
+    --accent-theme: 230 90% 60%;
+    --accent-secondary: 210 90% 70%;
 
     /* Gradients */
     --background-gradient: linear-gradient(135deg, hsl(210 20% 98%), hsl(220 25% 96%), hsl(230 20% 97%));
@@ -75,13 +79,13 @@
     --gradient-primary: linear-gradient(135deg, hsl(230 90% 55%), hsl(230 90% 45%));
     --primary-dark: 230 90% 45%;
 
-    /* Background mesh with electric blue accents */
+    /* Background mesh */
     --background-mesh: radial-gradient(at 40% 20%, hsla(230, 90%, 60%, 0.04) 0px, transparent 50%),
                        radial-gradient(at 80% 0%, hsla(210, 90%, 70%, 0.04) 0px, transparent 50%),
                        radial-gradient(at 0% 50%, hsla(220, 20%, 95%, 0.5) 0px, transparent 50%),
                        hsl(210 20% 98%);
 
-    /* Shadows with blue tint */
+    /* Shadows */
     --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
     --shadow-card-hover: 0 10px 15px -3px rgba(59, 130, 246, 0.15), 0 4px 6px -2px rgba(59, 130, 246, 0.08);
     --shadow-glow: 0 0 20px rgba(59, 130, 246, 0.15);
@@ -91,7 +95,8 @@
     --font-serif: "Playfair Display", ui-serif, Georgia, Cambria, Times New Roman, Times, serif;
   }
 
-  .dark {
+  .dark,
+  .dark.theme-electric-blue {
     --background: 230 40% 10%;
     --foreground: 220 30% 95%;
 
@@ -133,7 +138,7 @@
     --progress-bg: 230 30% 18%;
     --progress-fill: 230 90% 70%;
 
-    /* Sidebar - Consistent deep navy */
+    /* Sidebar */
     --sidebar-background: 230 50% 12%;
     --sidebar-foreground: 220 30% 90%;
     --sidebar-primary: 230 90% 70%;
@@ -144,18 +149,168 @@
     --sidebar-ring: 230 90% 70%;
 
     /* Custom accent tokens */
-    --accent-electric: 230 90% 70%;
-    --accent-sky: 210 90% 75%;
+    --accent-theme: 230 90% 70%;
+    --accent-secondary: 210 90% 75%;
 
-    /* Gradients for dark mode */
+    /* Gradients */
     --background-gradient: linear-gradient(135deg, hsl(230 40% 12%), hsl(230 40% 10%), hsl(230 40% 8%));
     --primary-dark: 230 90% 55%;
 
-    /* Background mesh with electric blue accents */
+    /* Background mesh */
     --background-mesh: radial-gradient(at 40% 20%, hsla(230, 90%, 70%, 0.06) 0px, transparent 50%),
                        radial-gradient(at 80% 0%, hsla(210, 90%, 75%, 0.05) 0px, transparent 50%),
                        radial-gradient(at 0% 50%, hsla(230, 30%, 18%, 0.5) 0px, transparent 50%),
                        hsl(230 40% 10%);
+  }
+
+  /* ==========================================
+     THEME: Deep Gold - Luxurious Premium
+     ========================================== */
+  :root.theme-deep-gold {
+    --background: 40 20% 98%;
+    --foreground: 40 30% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 40 30% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 40 30% 15%;
+
+    /* Primary: Deep Gold */
+    --primary: 40 85% 45%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary: Warm brown */
+    --secondary: 35 20% 45%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 40 15% 94%;
+    --muted-foreground: 40 15% 40%;
+
+    --accent: 40 80% 55%;
+    --accent-foreground: 40 30% 15%;
+
+    /* Status colors */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 40 20% 88%;
+    --input: 40 20% 88%;
+    --ring: 40 85% 45%;
+
+    /* Custom tokens */
+    --on-track: 142 76% 36%;
+    --at-risk: 38 92% 50%;
+    --off-track: 0 84% 60%;
+
+    /* Progress bar */
+    --progress-bg: 40 15% 90%;
+    --progress-fill: 40 85% 45%;
+
+    /* Sidebar - Deep warm charcoal */
+    --sidebar-background: 40 10% 15%;
+    --sidebar-foreground: 40 20% 90%;
+    --sidebar-primary: 40 85% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 40 15% 20%;
+    --sidebar-accent-foreground: 40 20% 95%;
+    --sidebar-border: 40 15% 22%;
+    --sidebar-ring: 40 85% 50%;
+
+    /* Custom accent tokens */
+    --accent-theme: 40 85% 45%;
+    --accent-secondary: 35 80% 60%;
+
+    /* Gradients */
+    --background-gradient: linear-gradient(135deg, hsl(40 20% 98%), hsl(38 22% 96%), hsl(35 18% 97%));
+    --gradient-accent: linear-gradient(135deg, hsl(40 80% 55%), hsl(40 85% 45%));
+    --gradient-primary: linear-gradient(135deg, hsl(40 85% 50%), hsl(40 85% 38%));
+    --primary-dark: 40 85% 38%;
+
+    /* Background mesh with gold accents */
+    --background-mesh: radial-gradient(at 40% 20%, hsla(40, 85%, 45%, 0.05) 0px, transparent 50%),
+                       radial-gradient(at 80% 0%, hsla(35, 80%, 60%, 0.04) 0px, transparent 50%),
+                       radial-gradient(at 0% 50%, hsla(40, 15%, 94%, 0.5) 0px, transparent 50%),
+                       hsl(40 20% 98%);
+
+    /* Shadows with gold tint */
+    --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+    --shadow-card-hover: 0 10px 15px -3px rgba(180, 130, 20, 0.15), 0 4px 6px -2px rgba(180, 130, 20, 0.08);
+    --shadow-glow: 0 0 20px rgba(180, 130, 20, 0.15);
+    --shadow-glow-strong: 0 0 30px rgba(180, 130, 20, 0.3);
+  }
+
+  .dark.theme-deep-gold {
+    --background: 40 10% 10%;
+    --foreground: 40 20% 95%;
+
+    --card: 40 12% 13%;
+    --card-foreground: 40 20% 95%;
+
+    --popover: 40 12% 13%;
+    --popover-foreground: 40 20% 95%;
+
+    --primary: 40 85% 55%;
+    --primary-foreground: 40 10% 10%;
+
+    --secondary: 40 15% 20%;
+    --secondary-foreground: 40 20% 95%;
+
+    --muted: 40 15% 18%;
+    --muted-foreground: 40 15% 55%;
+
+    --accent: 40 80% 60%;
+    --accent-foreground: 40 10% 10%;
+
+    --success: 142 76% 46%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 60%;
+    --warning-foreground: 0 0% 0%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 40 15% 20%;
+    --input: 40 15% 20%;
+    --ring: 40 85% 55%;
+
+    --on-track: 142 76% 46%;
+    --at-risk: 38 92% 60%;
+    --off-track: 0 62% 50%;
+
+    --progress-bg: 40 15% 18%;
+    --progress-fill: 40 85% 55%;
+
+    /* Sidebar */
+    --sidebar-background: 40 10% 15%;
+    --sidebar-foreground: 40 20% 90%;
+    --sidebar-primary: 40 85% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 40 15% 18%;
+    --sidebar-accent-foreground: 40 20% 95%;
+    --sidebar-border: 40 15% 20%;
+    --sidebar-ring: 40 85% 55%;
+
+    /* Custom accent tokens */
+    --accent-theme: 40 85% 55%;
+    --accent-secondary: 35 80% 65%;
+
+    /* Gradients */
+    --background-gradient: linear-gradient(135deg, hsl(40 12% 12%), hsl(40 10% 10%), hsl(40 10% 8%));
+    --primary-dark: 40 85% 45%;
+
+    /* Background mesh */
+    --background-mesh: radial-gradient(at 40% 20%, hsla(40, 85%, 55%, 0.06) 0px, transparent 50%),
+                       radial-gradient(at 80% 0%, hsla(35, 80%, 65%, 0.05) 0px, transparent 50%),
+                       radial-gradient(at 0% 50%, hsla(40, 15%, 18%, 0.5) 0px, transparent 50%),
+                       hsl(40 10% 10%);
   }
 }
 
@@ -184,7 +339,8 @@
   @apply transition-all duration-300;
 }
 .editor-focus-ring:focus-within {
-  @apply ring-2 ring-primary/20 shadow-[0_0_20px_rgba(59,130,246,0.1)];
+  @apply ring-2 ring-primary/20;
+  box-shadow: 0 0 20px hsl(var(--primary) / 0.1);
 }
 
 /* Progress bar glow effects */
@@ -192,7 +348,7 @@
   box-shadow: 0 0 8px hsl(38 92% 50% / 0.5);
 }
 .progress-glow-primary {
-  box-shadow: 0 0 12px hsl(230 90% 60% / 0.6);
+  box-shadow: 0 0 12px hsl(var(--primary) / 0.6);
 }
 
 @layer utilities {
