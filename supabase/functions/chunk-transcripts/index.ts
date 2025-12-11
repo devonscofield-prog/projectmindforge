@@ -21,8 +21,21 @@ function getCorsHeaders(origin?: string | null): Record<string, string> {
     allowedOrigins.push(`https://www.${customDomain}`);
   }
   
+  // Allow Stormwind domain from environment variable
+  const stormwindDomain = Deno.env.get('STORMWIND_DOMAIN');
+  if (stormwindDomain) {
+    allowedOrigins.push(`https://${stormwindDomain}`);
+    allowedOrigins.push(`https://www.${stormwindDomain}`);
+  }
+  
   const requestOrigin = origin || '';
   const isAllowed = allowedOrigins.includes(requestOrigin) || devPatterns.some(pattern => pattern.test(requestOrigin));
+  
+  // Log origin for debugging CORS issues
+  if (!isAllowed && requestOrigin) {
+    console.log(`[chunk-transcripts] CORS: Origin '${requestOrigin}' not in allowed list`);
+  }
+  
   return {
     'Access-Control-Allow-Origin': isAllowed ? requestOrigin : allowedOrigins[0],
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
