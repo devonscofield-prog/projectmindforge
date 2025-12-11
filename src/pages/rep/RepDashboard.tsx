@@ -27,7 +27,7 @@ import { PendingFollowUpsWidget } from '@/components/dashboard/PendingFollowUpsW
 import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Progress } from '@/components/ui/progress';
+// Progress component no longer needed - using custom attached progress bar
 import {
   Tooltip,
   TooltipContent,
@@ -371,6 +371,9 @@ function RepDashboard() {
   };
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  
+  // Shake validation state
+  const [shakeFields, setShakeFields] = useState<string[]>([]);
 
   // Keyboard shortcut: Cmd/Ctrl + Enter to submit
   useEffect(() => {
@@ -398,47 +401,21 @@ function RepDashboard() {
     }
     setLastSubmitTime(now);
 
-    // Validation
-    if (stakeholders.length === 0) {
-      toast.error('Error', { description: 'At least one stakeholder is required' });
-      return;
-    }
-    const trimmedAccountName = accountName.trim();
-    if (!trimmedAccountName) {
-      toast.error('Error', { description: 'Account name is required' });
-      return;
-    }
-    if (trimmedAccountName.length < 2) {
-      toast.error('Error', { description: 'Account name must be at least 2 characters' });
-      return;
-    }
-    // Salesforce link is only required for new accounts or existing accounts without a link
-    const salesforceLinkRequired = !selectedProspectId || !existingAccountHasSalesforceLink;
-    if (salesforceLinkRequired && !salesforceAccountLink.trim()) {
-      toast.error('Error', { description: 'Salesforce Account Link is required for new accounts' });
-      return;
-    }
-    // Validate Salesforce URL format
-    if (salesforceAccountLink.trim() && !SALESFORCE_URL_PATTERN.test(salesforceAccountLink)) {
-      toast.error('Error', { description: 'Please enter a valid Salesforce URL (must contain "salesforce" or "force.com")' });
-      return;
-    }
-    // Validate transcript
-    if (!normalizedTranscript) {
-      toast.error('Error', { description: 'Transcript is required' });
-      return;
-    }
-    if (normalizedTranscript.length < MIN_TRANSCRIPT_LENGTH) {
-      toast.error('Error', { description: `Transcript must be at least ${MIN_TRANSCRIPT_LENGTH} characters for meaningful analysis` });
-      return;
-    }
-    if (callType === 'other' && !callTypeOther.trim()) {
-      toast.error('Error', { description: 'Please specify the call type' });
-      return;
-    }
-    // Validate additional speakers count
-    if (additionalSpeakersEnabled && !isAdditionalSpeakersValid) {
-      toast.error('Error', { description: `Maximum ${MAX_ADDITIONAL_SPEAKERS} additional speakers allowed` });
+    // Collect invalid fields for shake animation
+    const invalidFields: string[] = [];
+    if (!isAccountValid) invalidFields.push('account');
+    if (!isStakeholderValid) invalidFields.push('stakeholder');
+    if (!isSalesforceValid || !isSalesforceUrlValid) invalidFields.push('salesforce');
+    if (!isTranscriptValid || !isTranscriptLengthValid) invalidFields.push('transcript');
+    if (!isCallTypeOtherValid) invalidFields.push('callType');
+    if (!isAdditionalSpeakersValid) invalidFields.push('speakers');
+    if (hasInvalidProducts) invalidFields.push('products');
+
+    // If there are invalid fields, shake them and return
+    if (invalidFields.length > 0) {
+      setShakeFields(invalidFields);
+      setTimeout(() => setShakeFields([]), 500);
+      toast.error('Please complete all required fields');
       return;
     }
 
@@ -563,22 +540,22 @@ function RepDashboard() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <div className="space-y-6 md:space-y-8">
-        {/* Header */}
-        <div className="space-y-4 pb-8 border-b border-border mb-8">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-3xl md:text-4xl font-serif font-bold text-foreground tracking-tight">
-                Welcome back, {profile.name?.split(' ')[0] || 'Rep'}
+      <div className="space-y-6 md:space-y-8 pb-24 md:pb-0">
+        {/* Hero Header */}
+        <div className="space-y-4 pb-10 mb-8">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <div className="space-y-3">
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-serif font-bold text-foreground tracking-tight animate-fade-in">
+                Welcome back, <span className="text-primary">{profile.name?.split(' ')[0] || 'Rep'}</span>
               </h1>
-              <p className="text-muted-foreground mt-2 text-lg font-light">
-                Ready to capture your next win?
+              <p className="text-muted-foreground text-xl md:text-2xl font-light animate-fade-in" style={{ animationDelay: '100ms' }}>
+                ✨ Ready to capture your next win?
               </p>
             </div>
-            <Button variant="outline" size="sm" asChild className="mt-2 shadow-sm border-primary/20 hover:bg-primary/5 hover:text-primary transition-all">
+            <Button variant="outline" size="lg" asChild className="shadow-sm border-primary/20 hover:bg-primary/5 hover:text-primary transition-all animate-fade-in" style={{ animationDelay: '200ms' }}>
               <Link to="/rep/coaching-summary" className="flex items-center">
-                <BarChart3 className="h-4 w-4 mr-2" />
-                View Coaching Summary
+                <BarChart3 className="h-5 w-5 mr-2" />
+                Coaching Summary
               </Link>
             </Button>
           </div>
@@ -608,7 +585,7 @@ function RepDashboard() {
                     <div className="space-y-6">
                       {/* Account and Primary Stakeholder Row */}
                       <div className="space-y-4">
-                        <div className="space-y-2">
+                        <div className={`space-y-2 ${shakeFields.includes('account') ? 'animate-shake' : ''}`}>
                           <Label htmlFor="accountName">Account Name *</Label>
                           <AccountCombobox 
                             repId={user?.id || ''} 
@@ -624,7 +601,7 @@ function RepDashboard() {
                             </p>
                           )}
                         </div>
-                        <div className="space-y-2">
+                        <div className={`space-y-2 ${shakeFields.includes('stakeholder') ? 'animate-shake' : ''}`}>
                           <Label>Stakeholders on this call *</Label>
                           <MultiStakeholderSelector
                             prospectId={selectedProspectId}
@@ -636,7 +613,7 @@ function RepDashboard() {
                       </div>
 
                       {/* Salesforce Link Row */}
-                      <div className="space-y-2">
+                      <div className={`space-y-2 ${shakeFields.includes('salesforce') ? 'animate-shake' : ''}`}>
                         <Label htmlFor="salesforceAccountLink">
                           Salesforce Account Link {(!selectedProspectId || !existingAccountHasSalesforceLink) && '*'}
                         </Label>
@@ -794,56 +771,77 @@ function RepDashboard() {
                       />
                     </div>}
 
-                  {/* Transcript */}
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between border-b border-border pb-2">
-                      <Label htmlFor="transcript" className="text-lg font-medium text-foreground">Transcript</Label>
-                      <span className="text-xs px-2 py-1 bg-primary/10 text-primary rounded-full font-medium">Required</span>
+                  {/* Premium Transcript Editor */}
+                  <div className={`space-y-0 ${shakeFields.includes('transcript') ? 'animate-shake' : ''}`}>
+                    <div className="flex items-center justify-between mb-4">
+                      <Label htmlFor="transcript" className="text-lg font-medium text-foreground flex items-center gap-2">
+                        <FileText className="h-5 w-5 text-primary" />
+                        Transcript Editor
+                      </Label>
+                      <span className="text-xs px-3 py-1.5 bg-primary/10 text-primary rounded-full font-medium uppercase tracking-wider">
+                        Required
+                      </span>
                     </div>
-                    <div className="relative group">
+                    
+                    {/* Premium Editor Container */}
+                    <div className="relative rounded-2xl bg-gradient-to-b from-muted/20 via-muted/30 to-muted/40 dark:from-muted/10 dark:via-muted/20 dark:to-muted/30 editor-focus-ring overflow-hidden">
+                      {/* Floating character counter */}
+                      <div className="absolute top-4 right-4 z-10 text-xs font-mono px-2 py-1 rounded-md bg-background/80 backdrop-blur-sm text-muted-foreground border border-border/50">
+                        {normalizedTranscript.length.toLocaleString()} chars
+                      </div>
+                      
                       <Textarea 
                         id="transcript" 
-                        placeholder="Paste the full call transcript here. Include the entire conversation—speaker labels are helpful but not required. The more detail you include, the better the analysis." 
+                        placeholder="Paste the full call transcript here...
+
+Include the entire conversation—speaker labels are helpful but not required.
+
+The more detail you include, the better the AI analysis." 
                         value={transcript} 
                         onChange={e => setTranscript(e.target.value)} 
-                        className="min-h-[300px] font-mono text-sm leading-relaxed p-6 bg-muted/30 border-2 border-border focus:border-primary/30 focus:bg-background transition-all resize-y rounded-xl" 
+                        className="min-h-[450px] md:min-h-[550px] font-mono text-sm leading-7 p-6 md:p-8 bg-transparent border-0 shadow-none resize-none focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/50 placeholder:leading-relaxed" 
                         maxLength={100000}
                         disabled={isSubmitting}
                         required 
                         aria-describedby="transcript-hint"
                       />
-                      <div className="absolute bottom-4 right-4 text-xs text-muted-foreground/50 pointer-events-none transition-opacity group-hover:opacity-100">
-                        {normalizedTranscript.length.toLocaleString()} chars
+                      
+                      {/* Attached Progress Bar at bottom edge */}
+                      <div className="h-1 w-full relative">
+                        <div 
+                          className={`h-full transition-all duration-500 ease-out ${
+                            transcriptProgress >= 100 
+                              ? 'bg-primary progress-glow-teal' 
+                              : 'bg-amber-500 progress-glow-amber'
+                          }`}
+                          style={{ width: `${transcriptProgress}%` }}
+                        />
                       </div>
                     </div>
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-xs text-muted-foreground">
-                        <span>Min {MIN_TRANSCRIPT_LENGTH} characters for meaningful analysis</span>
-                        <span className={normalizedTranscript.length < MIN_TRANSCRIPT_LENGTH ? 'text-amber-500' : 'text-muted-foreground'}>
-                          {normalizedTranscript.length.toLocaleString()} / {MIN_TRANSCRIPT_LENGTH.toLocaleString()} min
+                    
+                    {/* Progress info below editor */}
+                    <div className="flex justify-between items-center pt-3 text-xs">
+                      <span className="text-muted-foreground">
+                        Min {MIN_TRANSCRIPT_LENGTH} characters for analysis
+                      </span>
+                      {normalizedTranscript.length > 0 && normalizedTranscript.length < MIN_TRANSCRIPT_LENGTH ? (
+                        <span id="transcript-hint" className="text-amber-500 font-medium">
+                          {(MIN_TRANSCRIPT_LENGTH - normalizedTranscript.length).toLocaleString()} more needed
                         </span>
-                      </div>
-                      <Progress 
-                        value={transcriptProgress} 
-                        className="h-1.5"
-                        aria-label="Transcript length progress"
-                      />
-                      {normalizedTranscript.length > 0 && normalizedTranscript.length < MIN_TRANSCRIPT_LENGTH && (
-                        <p id="transcript-hint" className="text-xs text-amber-500">
-                          Add {(MIN_TRANSCRIPT_LENGTH - normalizedTranscript.length).toLocaleString()} more characters for analysis
-                        </p>
-                      )}
-                      {isNearLimit && (
-                        <p className={`text-xs ${isAtLimit ? "text-destructive font-medium" : isApproachingLimit ? "text-amber-500" : "text-muted-foreground"}`}>
-                          {normalizedTranscript.length.toLocaleString()} / {MAX_TRANSCRIPT_LENGTH.toLocaleString()} characters
-                          {isAtLimit && " — approaching limit"}
-                        </p>
-                      )}
+                      ) : normalizedTranscript.length >= MIN_TRANSCRIPT_LENGTH ? (
+                        <span className="text-primary font-medium">✓ Ready for analysis</span>
+                      ) : null}
                     </div>
+                    {isNearLimit && (
+                      <p className={`text-xs mt-1 ${isAtLimit ? "text-destructive font-medium" : isApproachingLimit ? "text-amber-500" : "text-muted-foreground"}`}>
+                        {normalizedTranscript.length.toLocaleString()} / {MAX_TRANSCRIPT_LENGTH.toLocaleString()} characters
+                        {isAtLimit && " — approaching limit"}
+                      </p>
+                    )}
                   </div>
 
                   {/* Product Selection */}
-                  <div className="border-t border-border pt-8">
+                  <div className={`border-t border-border pt-8 ${shakeFields.includes('products') ? 'animate-shake' : ''}`}>
                     <Label htmlFor="products" className="text-lg font-medium text-foreground">Products Discussed (Optional)</Label>
                     <p className="text-sm text-muted-foreground mt-1 mb-4">
                       Track products and pricing discussed on this call to calculate active revenue.
@@ -854,31 +852,22 @@ function RepDashboard() {
                     />
                   </div>
 
-                  {/* Submit Button */}
-                  <div className="space-y-3 pt-6 border-t border-border mt-8">
+                  {/* Desktop Submit Button with Glow */}
+                  <div className="hidden md:block space-y-3 pt-6 border-t border-border mt-8">
                     <Button 
                       type="submit" 
                       disabled={!canSubmit} 
-                      className="w-full h-14 text-lg font-medium shadow-lg shadow-primary/30 hover:shadow-primary/40 transition-all rounded-xl" 
+                      className="w-full h-16 text-xl font-medium rounded-xl transition-all duration-300 shadow-[0_0_40px_rgba(0,154,119,0.3)] hover:shadow-[0_0_60px_rgba(0,154,119,0.5)] disabled:shadow-none" 
                       size="lg"
                     >
                       {isSubmitting ? <>
-                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                          <Loader2 className="mr-3 h-6 w-6 animate-spin" />
                           Analyzing Call...
                         </> : <>
-                          <Send className="mr-2 h-5 w-5" />
+                          <Send className="mr-3 h-6 w-6" />
                           Analyze Call
                         </>}
                     </Button>
-                    
-                    {/* Validation hints with aria-live for accessibility */}
-                    <div aria-live="polite" aria-atomic="true">
-                      {!canSubmit && validationHints.length > 0 && !isSubmitting && (
-                        <p className="text-xs text-muted-foreground text-center">
-                          Missing: {validationHints.join(', ')}
-                        </p>
-                      )}
-                    </div>
                     
                     {/* Clear Form button and draft age */}
                     <div className="flex items-center justify-between">
@@ -908,6 +897,9 @@ function RepDashboard() {
                       Press <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">⌘</kbd>+<kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">Enter</kbd> to submit
                     </p>
                   </div>
+                  
+                  {/* Mobile: Spacer for fixed button */}
+                  <div className="md:hidden h-4" />
                 </form>
               </CardContent>
             </Card>
@@ -920,6 +912,25 @@ function RepDashboard() {
             </QueryErrorBoundary>
           </div>
         </div>
+      </div>
+      
+      {/* Mobile Sticky Submit Button */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 p-4 bg-background/95 backdrop-blur-lg border-t border-border shadow-[0_-4px_20px_rgba(0,0,0,0.1)] z-50">
+        <Button 
+          type="button"
+          onClick={() => formRef.current?.requestSubmit()}
+          disabled={!canSubmit} 
+          className="w-full h-14 text-lg font-medium rounded-xl transition-all duration-300 shadow-[0_0_30px_rgba(0,154,119,0.3)]" 
+          size="lg"
+        >
+          {isSubmitting ? <>
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              Analyzing...
+            </> : <>
+              <Send className="mr-2 h-5 w-5" />
+              Analyze Call
+            </>}
+        </Button>
       </div>
     </AppLayout>
   );
