@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FormInput, SubmitButton } from '@/components/ui/form-fields';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { z } from 'zod';
 import { CheckCircle, AlertTriangle, Clock, KeyRound } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -68,7 +68,6 @@ export default function Auth() {
   
   const { user, role, signIn, signUp, resetPassword, updatePassword } = useAuth();
   const navigate = useNavigate();
-  const { toast } = useToast();
 
   // Clear URL hash/params after displaying error states
   useEffect(() => {

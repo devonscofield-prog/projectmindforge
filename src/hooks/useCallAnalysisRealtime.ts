@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { createLogger } from '@/lib/logger';
 import { callDetailKeys } from '@/hooks/useCallDetailQueries';
 
@@ -19,7 +19,6 @@ export function useCallAnalysisRealtime(
   enabled: boolean
 ) {
   const queryClient = useQueryClient();
-  const { toast } = useToast();
   const hasShownToastRef = useRef(false);
 
   useEffect(() => {
@@ -59,8 +58,7 @@ export function useCallAnalysisRealtime(
             hasShownToastRef.current = true;
             log.info('Analysis completed, invalidating queries', { callId });
 
-            toast({
-              title: '✅ Analysis complete!',
+            toast.success('✅ Analysis complete!', {
               description: 'Loading your coaching insights...',
             });
 
@@ -77,10 +75,8 @@ export function useCallAnalysisRealtime(
             hasShownToastRef.current = true;
             log.warn('Analysis failed', { callId });
 
-            toast({
-              title: 'Analysis encountered an issue',
+            toast.error('Analysis encountered an issue', {
               description: 'You can retry the analysis from this page.',
-              variant: 'destructive',
             });
 
             // Still invalidate to show error state
@@ -96,5 +92,5 @@ export function useCallAnalysisRealtime(
       log.info('Cleaning up real-time subscription', { callId });
       supabase.removeChannel(channel);
     };
-  }, [callId, enabled, queryClient, toast]);
+  }, [callId, enabled, queryClient]);
 }

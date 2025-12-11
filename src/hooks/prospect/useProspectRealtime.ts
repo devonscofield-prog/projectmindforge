@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { createLogger } from '@/lib/logger';
 import { getCallsForProspect } from '@/api/prospects';
 import type { CallRecord } from './types';
@@ -18,7 +18,6 @@ export function useProspectRealtime({
   onCallsUpdate,
   onAnalysisComplete,
 }: UseProspectRealtimeOptions) {
-  const { toast } = useToast();
   const onAnalysisCompleteRef = useRef(onAnalysisComplete);
 
   // Keep ref updated
@@ -48,7 +47,7 @@ export function useProspectRealtime({
             oldRecord.analysis_status !== 'completed'
           ) {
             log.info('Call analysis completed, refreshing AI data...');
-            toast({ title: 'New call analysis available, refreshing insights...' });
+            toast.success('New call analysis available, refreshing insights...');
             
             // Refresh calls
             getCallsForProspect(prospectId).then(onCallsUpdate);
@@ -65,5 +64,5 @@ export function useProspectRealtime({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [prospectId, toast, onCallsUpdate]);
+  }, [prospectId, onCallsUpdate]);
 }

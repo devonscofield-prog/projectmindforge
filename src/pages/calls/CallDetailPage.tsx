@@ -9,7 +9,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
 import { CallAnalysisPageSkeleton } from '@/components/ui/skeletons';
 import { CallAnalysis, CallTranscript } from '@/api/aiCallAnalysis';
@@ -67,7 +67,6 @@ function CallDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, role } = useAuth();
-  const { toast } = useToast();
   const queryClient = useQueryClient();
 
   // Fetch call with analysis

@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/select';
 import { ExternalLink, Pencil, Check, X, Loader2, Globe } from 'lucide-react';
 import { format } from 'date-fns';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { industryOptions } from './constants';
 import type { Prospect } from '@/api/prospects';
 
@@ -22,8 +22,6 @@ interface ProspectQuickInfoBarProps {
 }
 
 export function ProspectQuickInfoBar({ prospect, onUpdateProspect }: ProspectQuickInfoBarProps) {
-  const { toast } = useToast();
-  
   // Industry editing state
   const [isEditingIndustry, setIsEditingIndustry] = useState(false);
   const [editedIndustry, setEditedIndustry] = useState('');
@@ -45,9 +43,9 @@ export function ProspectQuickInfoBar({ prospect, onUpdateProspect }: ProspectQui
       const success = await onUpdateProspect({ industry: editedIndustry || null });
       if (success) {
         setIsEditingIndustry(false);
-        toast({ title: 'Industry updated' });
+        toast.success('Industry updated');
       } else {
-        toast({ title: 'Failed to update industry', variant: 'destructive' });
+        toast.error('Failed to update industry');
       }
     } finally {
       setIsSavingIndustry(false);

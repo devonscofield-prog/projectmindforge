@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { streamAdminTranscriptChat, ChatMessage } from '@/api/adminTranscriptChat';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { useRateLimitCountdown } from '@/hooks/useRateLimitCountdown';
 
 interface UseTranscriptChatOptions {
@@ -75,7 +75,6 @@ export function useTranscriptChat({ selectedTranscriptIds, useRag, selectedModeI
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  const { toast } = useToast();
   const { secondsRemaining, isRateLimited, startCountdown } = useRateLimitCountdown(60);
 
   const sendMessage = useCallback(async (content: string, modeOverride?: string) => {
@@ -123,10 +122,8 @@ export function useTranscriptChat({ selectedTranscriptIds, useRag, selectedModeI
             startCountdown(60);
           }
           
-          toast({
-            title: isRetryable ? 'Analysis failed' : 'Access denied',
+          toast.error(isRetryable ? 'Analysis failed' : 'Access denied', {
             description: message,
-            variant: 'destructive',
           });
         },
       });
@@ -137,13 +134,11 @@ export function useTranscriptChat({ selectedTranscriptIds, useRag, selectedModeI
       setIsLoading(false);
       setIsStreaming(false);
       
-      toast({
-        title: 'Analysis failed',
+      toast.error('Analysis failed', {
         description: message,
-        variant: 'destructive',
       });
     }
-  }, [messages, isLoading, isRateLimited, selectedTranscriptIds, useRag, selectedModeId, toast, startCountdown]);
+  }, [messages, isLoading, isRateLimited, selectedTranscriptIds, useRag, selectedModeId, startCountdown]);
 
   return {
     messages,

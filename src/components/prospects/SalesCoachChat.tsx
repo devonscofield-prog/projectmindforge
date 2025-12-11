@@ -13,7 +13,7 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Send, Loader2, Sparkles, User } from 'lucide-react';
 import { streamCoachResponse, type ChatMessage } from '@/api/salesCoach';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { useRateLimitCountdown } from '@/hooks/useRateLimitCountdown';
 import { RateLimitCountdown } from '@/components/ui/rate-limit-countdown';
 import ReactMarkdown from 'react-markdown';
@@ -39,7 +39,6 @@ export function SalesCoachChat({ prospectId, accountName }: SalesCoachChatProps)
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const { toast } = useToast();
   const { secondsRemaining, isRateLimited, startCountdown } = useRateLimitCountdown(60);
 
   // Auto-scroll to bottom on new messages
@@ -93,10 +92,8 @@ export function SalesCoachChat({ prospectId, accountName }: SalesCoachChatProps)
           // Start countdown for rate limit errors
           if (err.toLowerCase().includes('rate limit')) {
             startCountdown(60);
-            toast({
-              title: 'Too many requests',
+            toast.error('Too many requests', {
               description: 'Please wait before sending another message.',
-              variant: 'destructive',
             });
           }
         },

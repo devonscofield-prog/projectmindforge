@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { createCallTranscriptAndAnalyze } from '@/api/aiCallAnalysis';
 import type { ProductEntry, StakeholderEntry } from '@/api/aiCallAnalysis';
 import { updateProspect } from '@/api/prospects';
@@ -77,9 +77,6 @@ function RepDashboard() {
     user,
     profile
   } = useAuth();
-  const {
-    toast
-  } = useToast();
   const navigate = useNavigate();
   const callTypeOtherRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);

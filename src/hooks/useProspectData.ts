@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { createLogger } from '@/lib/logger';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import {
   useProspectCore,
   useProspectFollowUps,
@@ -58,8 +58,6 @@ export interface UseProspectDataReturn {
 }
 
 export function useProspectData(prospectId: string | undefined): UseProspectDataReturn {
-  const { toast } = useToast();
-
   // Compose smaller hooks
   const core = useProspectCore({ prospectId });
   const followUps = useProspectFollowUps({ prospectId });
@@ -108,7 +106,7 @@ export function useProspectData(prospectId: string | undefined): UseProspectData
       // Check if core data failed (critical - can't display page without it)
       if (results[0].status === 'rejected') {
         log.error('Failed to load core prospect data', { error: results[0].reason });
-        toast({ title: 'Failed to load account', variant: 'destructive' });
+        toast.error('Failed to load account');
         return;
       }
 
@@ -127,11 +125,11 @@ export function useProspectData(prospectId: string | undefined): UseProspectData
       }
     } catch (error) {
       log.error('Unexpected error loading prospect', { error });
-      toast({ title: 'Failed to load account', variant: 'destructive' });
+      toast.error('Failed to load account');
     } finally {
       setIsLoadingRef.current(false);
     }
-  }, [prospectId, toast]);
+  }, [prospectId]);
 
   // Initial load
   useEffect(() => {
@@ -150,9 +148,9 @@ export function useProspectData(prospectId: string | undefined): UseProspectData
     if (!prospectId) return;
     await activities.refreshEmailLogs();
     
-    toast({ title: 'Refreshing AI analysis with new email data...' });
+    toast.info('Refreshing AI analysis with new email data...');
     insights.handleRefreshAll();
-  }, [prospectId, activities, insights, toast]);
+  }, [prospectId, activities, insights]);
 
   return {
     // Data
