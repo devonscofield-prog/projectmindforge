@@ -13,6 +13,9 @@ export default {
   		}
   	},
   	extend: {
+  		letterSpacing: {
+  			'widest-plus': '0.15em',
+  		},
   		colors: {
   			border: 'hsl(var(--border))',
   			input: 'hsl(var(--input))',
