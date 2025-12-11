@@ -13,7 +13,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { 
   Flame, 
@@ -49,7 +49,6 @@ export function DealHeatCard({
   callId,
   onHeatCalculated,
 }: DealHeatCardProps) {
-  const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isCalculating, setIsCalculating] = useState(false);
   const [heatData, setHeatData] = useState<DealHeat | null>(existingHeatData || null);
@@ -64,10 +63,8 @@ export function DealHeatCard({
 
   const handleCalculateHeat = async () => {
     if (!strategyData || !behaviorData) {
-      toast({
-        title: 'Missing Analysis Data',
+      toast.error('Missing Analysis Data', {
         description: 'Strategy and behavior analysis must be completed first.',
-        variant: 'destructive',
       });
       return;
     }
@@ -96,19 +93,19 @@ export function DealHeatCard({
       // Invalidate query cache to reflect persisted data
       queryClient.invalidateQueries({ queryKey: ['call-with-analysis', callId] });
 
-      toast({
-        title: wasSaved ? 'Deal Heat Calculated & Saved' : 'Deal Heat Calculated',
-        description: wasSaved 
-          ? `Score: ${result.heat_score}/100 (${result.temperature})`
-          : `Score: ${result.heat_score}/100 - Note: Save failed, please recalculate`,
-        variant: wasSaved ? 'default' : 'destructive',
-      });
+      if (wasSaved) {
+        toast.success('Deal Heat Calculated & Saved', {
+          description: `Score: ${result.heat_score}/100 (${result.temperature})`,
+        });
+      } else {
+        toast.error('Deal Heat Calculated', {
+          description: `Score: ${result.heat_score}/100 - Note: Save failed, please recalculate`,
+        });
+      }
     } catch (err) {
       console.error('Error calculating deal heat:', err);
-      toast({
-        title: 'Calculation Failed',
+      toast.error('Calculation Failed', {
         description: err instanceof Error ? err.message : 'Failed to calculate deal heat',
-        variant: 'destructive',
       });
     } finally {
       setIsCalculating(false);
@@ -119,12 +116,6 @@ export function DealHeatCard({
     if (score >= 71) return 'text-green-500';
     if (score >= 41) return 'text-yellow-500';
     return 'text-red-500';
-  };
-
-  const getScoreBgColor = (score: number) => {
-    if (score >= 71) return 'bg-green-500';
-    if (score >= 41) return 'bg-yellow-500';
-    return 'bg-red-500';
   };
 
   const getTemperatureBadgeVariant = (temp: string): 'default' | 'secondary' | 'destructive' | 'outline' => {

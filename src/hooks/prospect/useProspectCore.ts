@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { createLogger } from '@/lib/logger';
 import {
   getProspectById,
@@ -21,7 +21,6 @@ interface UseProspectCoreOptions {
 
 export function useProspectCore({ prospectId }: UseProspectCoreOptions) {
   const navigate = useNavigate();
-  const { toast } = useToast();
 
   const [prospect, setProspect] = useState<Prospect | null>(null);
   const [stakeholders, setStakeholders] = useState<Stakeholder[]>([]);
@@ -56,7 +55,7 @@ export function useProspectCore({ prospectId }: UseProspectCoreOptions) {
       });
 
       if (!prospectData) {
-        toast({ title: 'Account not found', variant: 'destructive' });
+        toast.error('Account not found');
         // Check current path to navigate appropriately
         const currentPath = window.location.pathname;
         if (currentPath.startsWith('/admin')) {
@@ -79,7 +78,7 @@ export function useProspectCore({ prospectId }: UseProspectCoreOptions) {
       log.error('Unexpected error loading core data', { error });
       throw error;
     }
-  }, [prospectId, navigate, toast]);
+  }, [prospectId, navigate]);
 
   const handleStatusChange = useCallback(async (newStatus: ProspectStatus) => {
     if (!prospect) return;
@@ -87,12 +86,12 @@ export function useProspectCore({ prospectId }: UseProspectCoreOptions) {
     try {
       await updateProspect(prospect.id, { status: newStatus });
       setProspect({ ...prospect, status: newStatus });
-      toast({ title: 'Status updated' });
+      toast.success('Status updated');
     } catch (error) {
       log.error('Failed to update status', { error });
-      toast({ title: 'Failed to update status', variant: 'destructive' });
+      toast.error('Failed to update status');
     }
-  }, [prospect, toast]);
+  }, [prospect]);
 
   const handleUpdateProspect = useCallback(async (updates: Partial<Prospect>): Promise<boolean> => {
     if (!prospect) return false;

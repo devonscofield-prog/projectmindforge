@@ -9,10 +9,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-
-const log = createLogger('AddEmailLogDialog');
 import { Label } from '@/components/ui/label';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { ArrowUpRight, ArrowDownLeft, Loader2, Crown, User, Check, Link2, Link2Off } from 'lucide-react';
 import { createEmailLog, type EmailDirection } from '@/api/emailLogs';
 import { type Stakeholder, influenceLevelLabels } from '@/api/stakeholders';
@@ -31,6 +29,8 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 
+const log = createLogger('AddEmailLogDialog');
+
 interface AddEmailLogDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -48,7 +48,6 @@ export function AddEmailLogDialog({
   stakeholders,
   onEmailAdded,
 }: AddEmailLogDialogProps) {
-  const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [direction, setDirection] = useState<EmailDirection>('outgoing');
   const [subject, setSubject] = useState('');
@@ -97,7 +96,7 @@ export function AddEmailLogDialog({
     e.preventDefault();
     
     if (!body.trim()) {
-      toast({ title: 'Email body is required', variant: 'destructive' });
+      toast.error('Email body is required');
       return;
     }
 
@@ -116,13 +115,13 @@ export function AddEmailLogDialog({
         stakeholderId: selectedStakeholder?.id,
       });
       
-      toast({ title: 'Email logged successfully' });
+      toast.success('Email logged successfully');
       resetForm();
       onOpenChange(false);
       onEmailAdded();
     } catch (error) {
       log.error('Failed to log email', { error });
-      toast({ title: 'Failed to log email', variant: 'destructive' });
+      toast.error('Failed to log email');
     } finally {
       setIsSubmitting(false);
     }

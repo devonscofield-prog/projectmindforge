@@ -1,8 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { Search, Copy, Check, ChevronUp, ChevronDown } from 'lucide-react';
 
 interface TranscriptViewerProps {
@@ -34,7 +33,6 @@ export function TranscriptViewer({ transcriptText }: TranscriptViewerProps) {
   const [copied, setCopied] = useState(false);
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const { toast } = useToast();
 
   // Count search matches
   const matchCount = useMemo(() => {
@@ -87,10 +85,10 @@ export function TranscriptViewer({ transcriptText }: TranscriptViewerProps) {
     try {
       await navigator.clipboard.writeText(transcriptText);
       setCopied(true);
-      toast({ title: 'Copied to clipboard' });
+      toast.success('Copied to clipboard');
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast({ title: 'Failed to copy', variant: 'destructive' });
+      toast.error('Failed to copy');
     }
   };
 

@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { createLogger } from '@/lib/logger';
 import {
   listActivitiesForProspect,
@@ -22,7 +22,6 @@ interface UseProspectActivitiesOptions {
 
 export function useProspectActivities({ prospectId }: UseProspectActivitiesOptions) {
   const { user } = useAuth();
-  const { toast } = useToast();
 
   const [activities, setActivities] = useState<ProspectActivity[]>([]);
   const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
@@ -69,25 +68,25 @@ export function useProspectActivities({ prospectId }: UseProspectActivitiesOptio
       });
 
       setActivities(prev => [activity, ...prev]);
-      toast({ title: 'Activity logged' });
+      toast.success('Activity logged');
       return activity;
     } catch (error) {
       log.error('Failed to add activity', { error });
-      toast({ title: 'Failed to log activity', variant: 'destructive' });
+      toast.error('Failed to log activity');
       return undefined;
     }
-  }, [user?.id, toast]);
+  }, [user?.id]);
 
   const handleDeleteEmailLog = useCallback(async (emailId: string) => {
     try {
       await deleteEmailLog(emailId);
       setEmailLogs(prev => prev.filter(e => e.id !== emailId));
-      toast({ title: 'Email log deleted' });
+      toast.success('Email log deleted');
     } catch (error) {
       log.error('Failed to delete email log', { error });
-      toast({ title: 'Failed to delete email log', variant: 'destructive' });
+      toast.error('Failed to delete email log');
     }
-  }, [toast]);
+  }, []);
 
   const refreshEmailLogs = useCallback(async () => {
     if (!prospectId) return;
