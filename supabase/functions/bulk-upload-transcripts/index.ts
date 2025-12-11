@@ -17,6 +17,13 @@ function getCorsHeaders(origin?: string | null): Record<string, string> {
     allowedOrigins.push(`https://${customDomain}`);
     allowedOrigins.push(`https://www.${customDomain}`);
   }
+  
+  // Allow StormWind domain from environment variable
+  const stormwindDomain = Deno.env.get('STORMWIND_DOMAIN');
+  if (stormwindDomain) {
+    allowedOrigins.push(`https://${stormwindDomain}`);
+    allowedOrigins.push(`https://www.${stormwindDomain}`);
+  }
 
   const isAllowed = origin && (
     allowedOrigins.includes(origin) ||
