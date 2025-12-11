@@ -160,18 +160,11 @@ export function useUpdateCallProduct(prospectId: string | null) {
         await updateProspectActiveRevenue(prospectId);
       }
 
-      toast({
-        title: 'Product updated',
-        description: 'Product information has been updated successfully.',
-      });
+      toast.success('Product updated', { description: 'Product information has been updated successfully.' });
     },
     onError: (error) => {
       log.error('Error updating product', { error });
-      toast({
-        title: 'Error',
-        description: 'Failed to update product information.',
-        variant: 'destructive',
-      });
+      toast.error('Error', { description: 'Failed to update product information.' });
     },
   });
 }
@@ -181,7 +174,6 @@ export function useUpdateCallProduct(prospectId: string | null) {
  */
 export function useDeleteCallProduct(prospectId: string | null) {
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
   return useMutation({
     mutationFn: async (productId: string) => {
@@ -196,18 +188,11 @@ export function useDeleteCallProduct(prospectId: string | null) {
         await updateProspectActiveRevenue(prospectId);
       }
 
-      toast({
-        title: 'Product removed',
-        description: 'Product has been removed from this call.',
-      });
+      toast.success('Product removed', { description: 'Product has been removed from this call.' });
     },
     onError: (error) => {
       log.error('Error deleting product', { error });
-      toast({
-        title: 'Error',
-        description: 'Failed to remove product.',
-        variant: 'destructive',
-      });
+      toast.error('Error', { description: 'Failed to remove product.' });
     },
   });
 }
@@ -217,7 +202,6 @@ export function useDeleteCallProduct(prospectId: string | null) {
  */
 export function useAddCallProduct(callId: string, prospectId: string | null) {
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
   return useMutation({
     mutationFn: async ({
@@ -246,18 +230,11 @@ export function useAddCallProduct(callId: string, prospectId: string | null) {
         await updateProspectActiveRevenue(prospectId);
       }
 
-      toast({
-        title: 'Product added',
-        description: 'Product has been added to this call.',
-      });
+      toast.success('Product added', { description: 'Product has been added to this call.' });
     },
     onError: (error) => {
       log.error('Error adding product', { error });
-      toast({
-        title: 'Error',
-        description: 'Failed to add product.',
-        variant: 'destructive',
-      });
+      toast.error('Error', { description: 'Failed to add product.' });
     },
   });
 }
@@ -267,7 +244,6 @@ export function useAddCallProduct(callId: string, prospectId: string | null) {
  */
 export function useRetryAnalysis(callId: string) {
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
   return useMutation({
     mutationFn: async () => {
@@ -282,20 +258,15 @@ export function useRetryAnalysis(callId: string) {
       await queryClient.invalidateQueries({ queryKey: callDetailKeys.call(callId) });
       await queryClient.invalidateQueries({ queryKey: callDetailKeys.analysis(callId) });
 
-      toast({
-        title: 'Analysis restarted',
-        description: 'Your call is being re-analyzed. This usually takes 30-60 seconds.',
-      });
+      toast.success('Analysis restarted', { description: 'Your call is being re-analyzed. This usually takes 30-60 seconds.' });
     },
     onError: (error) => {
       log.error('Error retrying analysis', { callId, error });
       const isRateLimited = error.message?.toLowerCase().includes('rate limit');
-      toast({
-        title: isRateLimited ? 'Rate Limited' : 'Retry Failed',
+      toast.error(isRateLimited ? 'Rate Limited' : 'Retry Failed', {
         description: isRateLimited 
           ? 'Too many requests. Please wait a moment before trying again.'
           : error.message || 'Failed to retry analysis.',
-        variant: 'destructive',
       });
     },
   });
@@ -307,7 +278,6 @@ export function useRetryAnalysis(callId: string) {
 export function useDeleteFailedCall(callId: string, role: UserRole | null) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { toast } = useToast();
 
   return useMutation({
     mutationFn: async () => {
@@ -321,21 +291,14 @@ export function useDeleteFailedCall(callId: string, role: UserRole | null) {
       // Invalidate call history queries
       await queryClient.invalidateQueries({ queryKey: ['call-transcripts'] });
 
-      toast({
-        title: 'Call deleted',
-        description: 'The failed call has been deleted. You can now resubmit.',
-      });
+      toast.success('Call deleted', { description: 'The failed call has been deleted. You can now resubmit.' });
 
       // Navigate back to call history
       navigate(getCallHistoryUrl(role));
     },
     onError: (error) => {
       log.error('Error deleting failed call', { callId, error });
-      toast({
-        title: 'Delete Failed',
-        description: error.message || 'Failed to delete the call.',
-        variant: 'destructive',
-      });
+      toast.error('Delete Failed', { description: error.message || 'Failed to delete the call.' });
     },
   });
 }
@@ -345,7 +308,6 @@ export function useDeleteFailedCall(callId: string, role: UserRole | null) {
  */
 export function useUpdateCallTranscript(callId: string) {
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
   return useMutation({
     mutationFn: async (updates: UpdateCallTranscriptParams) => {
@@ -360,18 +322,11 @@ export function useUpdateCallTranscript(callId: string) {
       await queryClient.invalidateQueries({ queryKey: callDetailKeys.call(callId) });
       await queryClient.invalidateQueries({ queryKey: ['call-transcripts'] });
 
-      toast({
-        title: 'Call updated',
-        description: 'Call details have been updated successfully.',
-      });
+      toast.success('Call updated', { description: 'Call details have been updated successfully.' });
     },
     onError: (error) => {
       log.error('Error updating call', { callId, error });
-      toast({
-        title: 'Update Failed',
-        description: error.message || 'Failed to update call details.',
-        variant: 'destructive',
-      });
+      toast.error('Update Failed', { description: error.message || 'Failed to update call details.' });
     },
   });
 }
@@ -381,7 +336,6 @@ export function useUpdateCallTranscript(callId: string) {
  */
 export function useUpdateAnalysisUserCounts(callId: string, analysisId: string | undefined) {
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
   return useMutation({
     mutationFn: async ({ itUsers, endUsers }: { itUsers: number | null; endUsers: number | null }) => {
@@ -399,18 +353,11 @@ export function useUpdateAnalysisUserCounts(callId: string, analysisId: string |
       await queryClient.invalidateQueries({ queryKey: callDetailKeys.call(callId), refetchType: 'active' });
       await queryClient.refetchQueries({ queryKey: callDetailKeys.call(callId) });
 
-      toast({
-        title: 'User counts updated',
-        description: 'The user counts have been corrected successfully.',
-      });
+      toast.success('User counts updated', { description: 'The user counts have been corrected successfully.' });
     },
     onError: (error) => {
       log.error('Error updating user counts', { callId, analysisId, error });
-      toast({
-        title: 'Update Failed',
-        description: error.message || 'Failed to update user counts.',
-        variant: 'destructive',
-      });
+      toast.error('Update Failed', { description: error.message || 'Failed to update user counts.' });
     },
   });
 }
@@ -421,7 +368,6 @@ export function useUpdateAnalysisUserCounts(callId: string, analysisId: string |
  */
 export function useReanalyzeCall(callId: string) {
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
   return useMutation({
     mutationFn: async () => {
@@ -444,10 +390,7 @@ export function useReanalyzeCall(callId: string) {
       await queryClient.invalidateQueries({ queryKey: callDetailKeys.call(callId) });
       await queryClient.invalidateQueries({ queryKey: callDetailKeys.analysis(callId) });
 
-      toast({
-        title: 'Reanalysis started',
-        description: 'Your call is being re-analyzed. This usually takes 30-60 seconds.',
-      });
+      toast.success('Reanalysis started', { description: 'Your call is being re-analyzed. This usually takes 30-60 seconds.' });
     },
     onError: (error) => {
       log.error('Error starting reanalysis', { callId, error });
@@ -455,15 +398,16 @@ export function useReanalyzeCall(callId: string) {
       const isRateLimited = message.toLowerCase().includes('rate limit');
       const isInProgress = message.toLowerCase().includes('already in progress');
 
-      toast({
-        title: isRateLimited ? 'Rate Limited' : isInProgress ? 'Already Processing' : 'Reanalysis Failed',
-        description: isRateLimited 
-          ? 'Too many requests. Please wait a moment before trying again.'
-          : isInProgress
-            ? 'This call is already being analyzed.'
-            : message,
-        variant: 'destructive',
-      });
+      toast.error(
+        isRateLimited ? 'Rate Limited' : isInProgress ? 'Already Processing' : 'Reanalysis Failed',
+        {
+          description: isRateLimited 
+            ? 'Too many requests. Please wait a moment before trying again.'
+            : isInProgress
+              ? 'This call is already being analyzed.'
+              : message,
+        }
+      );
     },
   });
 }
@@ -501,7 +445,6 @@ export function useStuckCalls() {
  */
 export function useAdminRetryCall() {
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
   return useMutation({
     mutationFn: async (callId: string) => {
@@ -524,19 +467,12 @@ export function useAdminRetryCall() {
       await queryClient.invalidateQueries({ queryKey: ['admin-call-history'] });
       await queryClient.invalidateQueries({ queryKey: callDetailKeys.call(callId) });
       
-      toast({
-        title: 'Retry started',
-        description: 'Call analysis has been restarted.',
-      });
+      toast.success('Retry started', { description: 'Call analysis has been restarted.' });
     },
     onError: (error) => {
       log.error('Error retrying stuck call', { error });
       const message = error instanceof Error ? error.message : 'Failed to retry call';
-      toast({
-        title: 'Retry Failed',
-        description: message,
-        variant: 'destructive',
-      });
+      toast.error('Retry Failed', { description: message });
     },
   });
 }
@@ -546,7 +482,6 @@ export function useAdminRetryCall() {
  */
 export function useAdminDeleteCall() {
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
   return useMutation({
     mutationFn: async (callId: string) => {
@@ -563,18 +498,11 @@ export function useAdminDeleteCall() {
       queryClient.invalidateQueries({ queryKey: ['call-history'] });
       queryClient.invalidateQueries({ queryKey: callDetailKeys.all });
       
-      toast({
-        title: 'Call Deleted',
-        description: 'The call and all related data have been permanently deleted.',
-      });
+      toast.success('Call Deleted', { description: 'The call and all related data have been permanently deleted.' });
     },
     onError: (error: Error) => {
       log.error('Admin delete call failed', { error: error.message });
-      toast({
-        title: 'Delete Failed',
-        description: error.message || 'Failed to delete the call. Please try again.',
-        variant: 'destructive',
-      });
+      toast.error('Delete Failed', { description: error.message || 'Failed to delete the call. Please try again.' });
     },
   });
 }

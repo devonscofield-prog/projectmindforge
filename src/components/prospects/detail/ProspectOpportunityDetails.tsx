@@ -59,11 +59,7 @@ export function ProspectOpportunityDetails({ prospect, onUpdate }: ProspectOppor
         }
       });
       setValidationErrors(errors);
-      toast({
-        title: 'Validation failed',
-        description: 'Please fix the errors before saving',
-        variant: 'destructive',
-      });
+      toast.error('Validation failed', { description: 'Please fix the errors before saving' });
       return;
     }
 
@@ -75,17 +71,10 @@ export function ProspectOpportunityDetails({ prospect, onUpdate }: ProspectOppor
       });
       onUpdate(updated);
       setIsEditing(false);
-      toast({
-        title: 'Potential opportunity updated',
-        description: 'Changes saved successfully',
-      });
+      toast.success('Potential opportunity updated', { description: 'Changes saved successfully' });
     } catch (error) {
       logger.error('Failed to update opportunity details', { error, prospectId: prospect.id });
-      toast({
-        title: 'Failed to save',
-        description: error instanceof Error ? error.message : 'Unknown error',
-        variant: 'destructive',
-      });
+      toast.error('Failed to save', { description: error instanceof Error ? error.message : 'Unknown error' });
     } finally {
       setIsSaving(false);
     }

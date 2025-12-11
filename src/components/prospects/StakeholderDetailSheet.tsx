@@ -160,11 +160,11 @@ export function StakeholderDetailSheet({
         influence_level: editData.influence_level,
       });
       
-      toast({ title: 'Stakeholder updated' });
+      toast.success('Stakeholder updated');
       setIsEditing(false);
       onUpdated();
     } catch (error) {
-      toast({ title: 'Failed to update stakeholder', variant: 'destructive' });
+      toast.error('Failed to update stakeholder');
     } finally {
       setIsSaving(false);
     }
@@ -176,11 +176,11 @@ export function StakeholderDetailSheet({
     setIsDeleting(true);
     try {
       await deleteStakeholder(stakeholder.id);
-      toast({ title: 'Stakeholder deleted' });
+      toast.success('Stakeholder deleted');
       onOpenChange(false);
       onDeleted();
     } catch (error) {
-      toast({ title: 'Failed to delete stakeholder', variant: 'destructive' });
+      toast.error('Failed to delete stakeholder');
     } finally {
       setIsDeleting(false);
     }
@@ -192,10 +192,10 @@ export function StakeholderDetailSheet({
     setIsSettingPrimary(true);
     try {
       await setPrimaryStakeholder(stakeholder.prospect_id, stakeholder.id);
-      toast({ title: 'Primary contact updated' });
+      toast.success('Primary contact updated');
       onUpdated();
     } catch (error) {
-      toast({ title: 'Failed to set primary contact', variant: 'destructive' });
+      toast.error('Failed to set primary contact');
     } finally {
       setIsSettingPrimary(false);
     }

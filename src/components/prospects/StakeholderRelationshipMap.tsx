@@ -103,11 +103,11 @@ export function StakeholderRelationshipMap({
   const handleDeleteRelationship = async (relationshipId: string) => {
     try {
       await deleteRelationship(relationshipId);
-      toast({ title: 'Relationship deleted' });
+      toast.success('Relationship deleted');
       setSelectedRelationship(null);
       onRelationshipsChanged();
     } catch {
-      toast({ title: 'Failed to delete relationship', variant: 'destructive' });
+      toast.error('Failed to delete relationship');
     }
   };
 

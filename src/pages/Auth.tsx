@@ -110,11 +110,7 @@ export default function Auth() {
       setTimeRemaining(diff);
       
       if (diff === 0) {
-        toast({
-          title: 'Code Expired',
-          description: 'Your reset code has expired. Please request a new one.',
-          variant: 'destructive',
-        });
+        toast.error('Code Expired', { description: 'Your reset code has expired. Please request a new one.' });
         handleBackToSignIn();
       }
     };
@@ -143,11 +139,7 @@ export default function Auth() {
       authSchema.parse({ email, password });
     } catch (err) {
       if (err instanceof z.ZodError) {
-        toast({
-          title: 'Validation Error',
-          description: err.errors[0].message,
-          variant: 'destructive',
-        });
+        toast.error('Validation Error', { description: err.errors[0].message });
         return;
       }
     }
@@ -157,12 +149,10 @@ export default function Auth() {
     setIsLoading(false);
 
     if (error) {
-      toast({
-        title: 'Sign In Failed',
+      toast.error('Sign In Failed', {
         description: error.message === 'Invalid login credentials' 
           ? 'Invalid email or password. Please try again.'
           : error.message,
-        variant: 'destructive',
       });
     }
   };
@@ -174,11 +164,7 @@ export default function Auth() {
       authSchema.parse({ email, password, name });
     } catch (err) {
       if (err instanceof z.ZodError) {
-        toast({
-          title: 'Validation Error',
-          description: err.errors[0].message,
-          variant: 'destructive',
-        });
+        toast.error('Validation Error', { description: err.errors[0].message });
         return;
       }
     }
@@ -191,17 +177,9 @@ export default function Auth() {
       const errorMessage = error.message.includes('already registered')
         ? 'An account with this email already exists. Please sign in instead.'
         : error.message;
-      
-      toast({
-        title: 'Sign Up Failed',
-        description: errorMessage,
-        variant: 'destructive',
-      });
+      toast.error('Sign Up Failed', { description: errorMessage });
     } else {
-      toast({
-        title: 'Account Created',
-        description: 'Your account has been created successfully. You can now sign in.',
-      });
+      toast.success('Account Created', { description: 'Your account has been created successfully. You can now sign in.' });
     }
   };
 
@@ -209,11 +187,7 @@ export default function Auth() {
     e.preventDefault();
     
     if (!email) {
-      toast({
-        title: 'Email Required',
-        description: 'Please enter your email address',
-        variant: 'destructive',
-      });
+      toast.error('Email Required', { description: 'Please enter your email address' });
       return;
     }
 
@@ -222,16 +196,9 @@ export default function Auth() {
     setIsLoading(false);
     
     if (error) {
-      toast({
-        title: 'Password Reset Failed',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast.error('Password Reset Failed', { description: error.message });
     } else {
-      toast({
-        title: 'Check Your Email',
-        description: 'We sent you a password reset link. Please check your email.',
-      });
+      toast.success('Check Your Email', { description: 'We sent you a password reset link. Please check your email.' });
       setIsResettingPassword(false);
     }
   };
@@ -240,11 +207,7 @@ export default function Auth() {
     e.preventDefault();
     
     if (!otpEmail || otpCode.length !== 6) {
-      toast({
-        title: 'Invalid Input',
-        description: 'Please enter your email and the 6-digit code',
-        variant: 'destructive',
-      });
+      toast.error('Invalid Input', { description: 'Please enter your email and the 6-digit code' });
       return;
     }
 
@@ -265,16 +228,9 @@ export default function Auth() {
 
       setSessionToken(result.sessionToken);
       setOtpExpiresAt(new Date(result.expiresAt));
-      toast({
-        title: 'Code Verified',
-        description: 'Please set your new password',
-      });
+      toast.success('Code Verified', { description: 'Please set your new password' });
     } catch (error) {
-      toast({
-        title: 'Verification Failed',
-        description: error instanceof Error ? error.message : 'Invalid or expired code',
-        variant: 'destructive',
-      });
+      toast.error('Verification Failed', { description: error instanceof Error ? error.message : 'Invalid or expired code' });
     } finally {
       setIsLoading(false);
     }
@@ -287,21 +243,13 @@ export default function Auth() {
       newPasswordSchema.parse({ password: newPassword, confirmPassword });
     } catch (err) {
       if (err instanceof z.ZodError) {
-        toast({
-          title: 'Validation Error',
-          description: err.errors[0].message,
-          variant: 'destructive',
-        });
+        toast.error('Validation Error', { description: err.errors[0].message });
         return;
       }
     }
 
     if (!sessionToken) {
-      toast({
-        title: 'Session Expired',
-        description: 'Please start over',
-        variant: 'destructive',
-      });
+      toast.error('Session Expired', { description: 'Please start over' });
       handleBackToSignIn();
       return;
     }
@@ -323,11 +271,7 @@ export default function Auth() {
 
       setRecoveryComplete(true);
     } catch (error) {
-      toast({
-        title: 'Password Reset Failed',
-        description: error instanceof Error ? error.message : 'Failed to update password',
-        variant: 'destructive',
-      });
+      toast.error('Password Reset Failed', { description: error instanceof Error ? error.message : 'Failed to update password' });
     } finally {
       setIsLoading(false);
     }
@@ -340,11 +284,7 @@ export default function Auth() {
       newPasswordSchema.parse({ password: newPassword, confirmPassword });
     } catch (err) {
       if (err instanceof z.ZodError) {
-        toast({
-          title: 'Validation Error',
-          description: err.errors[0].message,
-          variant: 'destructive',
-        });
+        toast.error('Validation Error', { description: err.errors[0].message });
         return;
       }
     }
@@ -354,11 +294,7 @@ export default function Auth() {
     setIsLoading(false);
 
     if (error) {
-      toast({
-        title: 'Password Update Failed',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast.error('Password Update Failed', { description: error.message });
     } else {
       window.history.replaceState(null, '', window.location.pathname);
       setRecoveryComplete(true);
