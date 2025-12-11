@@ -811,7 +811,7 @@ The more detail you include, the better the AI analysis."
                         <div 
                           className={`h-full transition-all duration-500 ease-out ${
                             transcriptProgress >= 100 
-                              ? 'bg-primary progress-glow-teal' 
+                              ? 'bg-primary progress-glow-primary' 
                               : 'bg-amber-500 progress-glow-amber'
                           }`}
                           style={{ width: `${transcriptProgress}%` }}
