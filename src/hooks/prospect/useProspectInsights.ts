@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { createLogger } from '@/lib/logger';
 import { getProspectById, regenerateAccountInsights, type Prospect } from '@/api/prospects';
 import { refreshFollowUps } from '@/api/accountFollowUps';
@@ -17,8 +17,6 @@ export function useProspectInsights({
   onProspectUpdate,
   onFollowUpsRefresh,
 }: UseProspectInsightsOptions) {
-  const { toast } = useToast();
-  
   const [isRefreshingInsights, setIsRefreshingInsights] = useState(false);
   const [isRefreshingAll, setIsRefreshingAll] = useState(false);
 
@@ -31,23 +29,21 @@ export function useProspectInsights({
       if (result.success) {
         const prospectData = await getProspectById(prospectId);
         if (prospectData) onProspectUpdate(prospectData);
-        toast({ title: 'AI insights updated' });
+        toast.success('AI insights updated');
       } else if (result.isRateLimited) {
-        toast({ 
-          title: 'Too many requests', 
+        toast.error('Too many requests', { 
           description: 'Please wait a moment before refreshing again.',
-          variant: 'destructive' 
         });
       } else {
-        toast({ title: 'Failed to refresh insights', variant: 'destructive' });
+        toast.error('Failed to refresh insights');
       }
     } catch (error) {
       log.error('Failed to refresh insights', { error });
-      toast({ title: 'Failed to refresh insights', variant: 'destructive' });
+      toast.error('Failed to refresh insights');
     } finally {
       setIsRefreshingInsights(false);
     }
-  }, [prospectId, isRefreshingInsights, onProspectUpdate, toast]);
+  }, [prospectId, isRefreshingInsights, onProspectUpdate]);
 
   const handleRefreshAll = useCallback(async () => {
     if (!prospectId || isRefreshingAll || isRefreshingInsights) return;
@@ -71,24 +67,22 @@ export function useProspectInsights({
       const hasRateLimiting = followUpsResult.isRateLimited || insightsResult.isRateLimited;
       
       if (hasRateLimiting) {
-        toast({ 
-          title: 'Too many requests', 
+        toast.error('Too many requests', { 
           description: 'Please wait a moment before refreshing again.',
-          variant: 'destructive' 
         });
       } else if (followUpsResult.success && insightsResult.success) {
-        toast({ title: 'AI analysis updated successfully' });
+        toast.success('AI analysis updated successfully');
       } else {
-        toast({ title: 'AI analysis partially updated', variant: 'default' });
+        toast.info('AI analysis partially updated');
       }
     } catch (error) {
       log.error('Failed to refresh all', { error });
-      toast({ title: 'Failed to refresh AI analysis', variant: 'destructive' });
+      toast.error('Failed to refresh AI analysis');
     } finally {
       setIsRefreshingAll(false);
       setIsRefreshingInsights(false);
     }
-  }, [prospectId, isRefreshingAll, isRefreshingInsights, onProspectUpdate, onFollowUpsRefresh, toast]);
+  }, [prospectId, isRefreshingAll, isRefreshingInsights, onProspectUpdate, onFollowUpsRefresh]);
 
   return {
     // State

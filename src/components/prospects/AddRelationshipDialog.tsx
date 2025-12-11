@@ -20,7 +20,7 @@ import {
   FormSlider,
   SubmitButton,
 } from '@/components/ui/form-fields';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { Stakeholder } from '@/api/stakeholders';
 import {
   createRelationship,
@@ -55,7 +55,6 @@ export function AddRelationshipDialog({
   onRelationshipAdded,
   preselectedSourceId,
 }: AddRelationshipDialogProps) {
-  const { toast } = useToast();
   const [sourceId, setSourceId] = useState(preselectedSourceId || '');
   const [targetId, setTargetId] = useState('');
   const [relationshipType, setRelationshipType] = useState<RelationshipType>('collaborates_with');
@@ -65,12 +64,12 @@ export function AddRelationshipDialog({
 
   const handleSubmit = async () => {
     if (!sourceId || !targetId) {
-      toast({ title: 'Please select both stakeholders', variant: 'destructive' });
+      toast.error('Please select both stakeholders');
       return;
     }
 
     if (sourceId === targetId) {
-      toast({ title: 'Cannot create a relationship with the same person', variant: 'destructive' });
+      toast.error('Cannot create a relationship with the same person');
       return;
     }
 
@@ -86,16 +85,16 @@ export function AddRelationshipDialog({
         repId,
       });
 
-      toast({ title: 'Relationship added' });
+      toast.success('Relationship added');
       onRelationshipAdded();
       resetForm();
       onOpenChange(false);
     } catch (error: unknown) {
       const pgError = error as { code?: string };
       if (pgError.code === '23505') {
-        toast({ title: 'This relationship already exists', variant: 'destructive' });
+        toast.error('This relationship already exists');
       } else {
-        toast({ title: 'Failed to add relationship', variant: 'destructive' });
+        toast.error('Failed to add relationship');
       }
     } finally {
       setIsSubmitting(false);

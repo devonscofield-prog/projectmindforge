@@ -23,7 +23,7 @@ import { parseDateOnly } from '@/lib/formatters';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
 import { getDashboardUrl } from '@/lib/routes';
 import { getRepDetailBreadcrumbs } from '@/lib/breadcrumbConfig';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import {
   listCallTranscriptsForRep,
   CallTranscript,
@@ -63,7 +63,6 @@ export default function RepDetail() {
   const [searchParams] = useSearchParams();
   const { user, profile, role } = useAuth();
   const navigate = useNavigate();
-  const { toast } = useToast();
   const queryClient = useQueryClient();
   
   // Get default tab from URL query param

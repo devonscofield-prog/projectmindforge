@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { updateProspect } from '@/api/prospects';
 import type { Prospect, OpportunityDetails } from '@/api/prospects';
 import { Edit, Save, X, Bot, Users, TrendingUp, AlertCircle } from 'lucide-react';
@@ -31,7 +31,6 @@ interface ProspectOpportunityDetailsProps {
 const logger = createLogger('ProspectOpportunityDetails');
 
 export function ProspectOpportunityDetails({ prospect, onUpdate }: ProspectOpportunityDetailsProps) {
-  const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});

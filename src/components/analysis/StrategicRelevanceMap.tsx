@@ -26,7 +26,7 @@ import {
   Lightbulb,
   TrendingUp
 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import type { StrategyAudit } from '@/utils/analysis-schemas';
 import { cn } from '@/lib/utils';
 
@@ -178,13 +178,12 @@ interface MissedOpportunityCardProps {
 
 function MissedOpportunityCard({ pain, severity, suggestedPitch, talkTrack }: MissedOpportunityCardProps) {
   const [copied, setCopied] = useState(false);
-  const { toast } = useToast();
 
   const handleCopy = () => {
     navigator.clipboard.writeText(talkTrack);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-    toast({ description: 'Talk track copied to clipboard' });
+    toast.success('Talk track copied to clipboard');
   };
 
   return (
@@ -259,13 +258,12 @@ interface CriticalGapCardProps {
 
 function CriticalGapCard({ category, description, impact, suggestedQuestion }: CriticalGapCardProps) {
   const [copied, setCopied] = useState(false);
-  const { toast } = useToast();
 
   const handleCopy = () => {
     navigator.clipboard.writeText(suggestedQuestion);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-    toast({ description: 'Question copied to clipboard' });
+    toast.success('Question copied to clipboard');
   };
 
   return (

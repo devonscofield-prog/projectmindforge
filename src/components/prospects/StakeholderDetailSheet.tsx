@@ -49,7 +49,7 @@ import {
   type StakeholderInfluenceLevel,
   influenceLevelLabels,
 } from '@/api/stakeholders';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 interface StakeholderDetailSheetProps {
   stakeholder: Stakeholder | null;
@@ -111,7 +111,6 @@ export function StakeholderDetailSheet({
   onUpdated,
   onDeleted,
 }: StakeholderDetailSheetProps) {
-  const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);

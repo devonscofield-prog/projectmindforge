@@ -7,7 +7,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { Stakeholder, influenceLevelLabels, StakeholderInfluenceLevel } from '@/api/stakeholders';
 import {
   StakeholderRelationship,
@@ -56,7 +56,6 @@ export function StakeholderRelationshipMap({
   onRelationshipsChanged,
   onStakeholderClick,
 }: StakeholderRelationshipMapProps) {
-  const { toast } = useToast();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedRelationship, setSelectedRelationship] = useState<StakeholderRelationship | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);

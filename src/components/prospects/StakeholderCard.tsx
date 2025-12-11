@@ -17,7 +17,7 @@ import {
   influenceLevelLabels,
   setPrimaryStakeholder,
 } from '@/api/stakeholders';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import {
   Tooltip,
   TooltipContent,
@@ -64,7 +64,6 @@ function ChampionScoreGauge({ score }: { score: number | null }) {
 }
 
 export function StakeholderCard({ stakeholder, onClick, onPrimaryChanged, compact = false }: StakeholderCardProps) {
-  const { toast } = useToast();
   const [isSettingPrimary, setIsSettingPrimary] = useState(false);
   const style = influenceLevelStyles[stakeholder.influence_level];
   const InfluenceIcon = style.icon;
@@ -76,7 +75,7 @@ export function StakeholderCard({ stakeholder, onClick, onPrimaryChanged, compac
     setIsSettingPrimary(true);
     try {
       await setPrimaryStakeholder(stakeholder.prospect_id, stakeholder.id);
-      toast({ title: 'Primary contact updated' });
+      toast.success('Primary contact updated');
       onPrimaryChanged?.();
     } catch (error) {
       toast({ title: 'Failed to set primary contact', variant: 'destructive' });

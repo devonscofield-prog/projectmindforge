@@ -30,7 +30,7 @@ import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
 import { format } from 'date-fns';
 import { parseDateOnly } from '@/lib/formatters';
 import { Plus, ArrowUpDown, Pencil, Trash2, Calendar, User, Target, FileText, CheckSquare, CalendarClock, RefreshCw } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 type SortField = 'date' | 'follow-up';
 type SortOrder = 'asc' | 'desc';
@@ -39,7 +39,6 @@ const ITEMS_PER_PAGE = 10;
 
 export default function ManagerCoaching() {
   const { user } = useAuth();
-  const { toast } = useToast();
   const queryClient = useQueryClient();
   
   // Fetch data using React Query
@@ -125,7 +124,7 @@ export default function ManagerCoaching() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !formData.rep_id || !formData.focus_area) {
-      toast({ title: 'Error', description: 'Please fill in required fields', variant: 'destructive' });
+      toast.error('Error', { description: 'Please fill in required fields' });
       return;
     }
 
@@ -148,9 +147,9 @@ export default function ManagerCoaching() {
       setSubmitting(false);
 
       if (error) {
-        toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        toast.error('Error', { description: error.message });
       } else {
-        toast({ title: 'Success', description: 'Coaching session updated' });
+        toast.success('Success', { description: 'Coaching session updated' });
         handleDialogClose(false);
         queryClient.invalidateQueries({ queryKey: managerCoachingKeys.sessions(user.id) });
       }
@@ -169,9 +168,9 @@ export default function ManagerCoaching() {
       setSubmitting(false);
       
       if (error) {
-        toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        toast.error('Error', { description: error.message });
       } else {
-        toast({ title: 'Success', description: 'Coaching session created' });
+        toast.success('Success', { description: 'Coaching session created' });
         handleDialogClose(false);
         queryClient.invalidateQueries({ queryKey: managerCoachingKeys.sessions(user.id) });
       }
@@ -190,9 +189,9 @@ export default function ManagerCoaching() {
     setDeleting(false);
 
     if (error) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      toast.error('Error', { description: error.message });
     } else {
-      toast({ title: 'Success', description: 'Coaching session deleted' });
+      toast.success('Success', { description: 'Coaching session deleted' });
       setDeletingSession(null);
       if (user) {
         queryClient.invalidateQueries({ queryKey: managerCoachingKeys.sessions(user.id) });

@@ -27,7 +27,7 @@ import {
 } from '@/components/ui/form-fields';
 import { ANALYSIS_MODES, getAnalysisModeById } from '@/components/admin/transcript-analysis/analysisModesConfig';
 import { createCustomPreset, updateCustomPreset, type CustomPreset } from '@/api/customPresets';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   Layers,
@@ -89,7 +89,6 @@ export function CreateCustomPresetDialog({
   const [iconName, setIconName] = useState('layers');
   const [isShared, setIsShared] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { toast } = useToast();
   const { user } = useAuth();
 
   const isEditing = !!editingPreset;

@@ -2,7 +2,7 @@ import { HelpCircle, MessageCircle, Copy } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 interface FollowUpQuestion {
   question: string;
@@ -14,8 +14,6 @@ interface FollowUpQuestionsPanelProps {
 }
 
 export function FollowUpQuestionsPanel({ questions }: FollowUpQuestionsPanelProps) {
-  const { toast } = useToast();
-
   if (!questions || questions.length === 0) {
     return null;
   }
@@ -30,9 +28,9 @@ export function FollowUpQuestionsPanel({ questions }: FollowUpQuestionsPanelProp
     
     try {
       await navigator.clipboard.writeText(allQuestions);
-      toast({ title: 'Copied', description: 'All questions copied to clipboard.' });
+      toast.success('Copied', { description: 'All questions copied to clipboard.' });
     } catch {
-      toast({ title: 'Error', description: 'Failed to copy.', variant: 'destructive' });
+      toast.error('Error', { description: 'Failed to copy.' });
     }
   };
 

@@ -9,7 +9,7 @@ import {
   updateProspectActiveRevenue 
 } from '@/api/callProducts';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { createLogger } from '@/lib/logger';
 import { getCallHistoryUrl } from '@/lib/routes';
 import type { UserRole } from '@/types/database';
@@ -132,7 +132,6 @@ export function useCallProducts(callId: string | undefined) {
  */
 export function useUpdateCallProduct(prospectId: string | null) {
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
   return useMutation({
     mutationFn: async ({ 

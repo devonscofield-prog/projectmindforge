@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchCustomPresets, deleteCustomPreset, type CustomPreset } from '@/api/customPresets';
 import { getAnalysisModeById, getPresetById, type ModePreset } from '../transcript-analysis/analysisModesConfig';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 export function useModePresets() {
   const [selectedModeId, setSelectedModeId] = useState('general');
@@ -19,7 +19,6 @@ export function useModePresets() {
   } | null>(null);
   const [showModeChangeConfirm, setShowModeChangeConfirm] = useState(false);
 
-  const { toast } = useToast();
   const queryClient = useQueryClient();
 
   // Fetch custom presets
@@ -65,8 +64,7 @@ export function useModePresets() {
     if (pendingModeChange.type === 'mode') {
       setSelectedModeId(pendingModeChange.id);
       setActivePresetId(null);
-      toast({
-        title: 'Mode changed',
+      toast.success('Mode changed', {
         description: 'Chat history preserved. New questions will use the selected mode.',
       });
     } else if (pendingModeChange.type === 'preset') {
@@ -91,15 +89,12 @@ export function useModePresets() {
     try {
       await deleteCustomPreset(deletePresetId);
       queryClient.invalidateQueries({ queryKey: ['customPresets'] });
-      toast({
-        title: 'Preset deleted',
+      toast.success('Preset deleted', {
         description: 'The custom preset has been removed.',
       });
     } catch (error) {
-      toast({
-        title: 'Error',
+      toast.error('Error', {
         description: 'Failed to delete preset',
-        variant: 'destructive',
       });
     } finally {
       setDeletePresetId(null);
