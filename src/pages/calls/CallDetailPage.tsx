@@ -518,7 +518,18 @@ function CallDetailPage() {
             </CollapsibleTrigger>
             <CollapsibleContent>
               <CardContent>
-                <TranscriptViewer transcriptText={transcript.raw_text} />
+                <TranscriptViewer 
+                  transcriptText={transcript.raw_text} 
+                  canEdit={isOwner || isManager}
+                  onSave={(newText) => {
+                    updateMutation.mutate({ raw_text: newText }, {
+                      onSuccess: () => {
+                        toast.success('Transcript updated successfully');
+                      },
+                    });
+                  }}
+                  isSaving={updateMutation.isPending}
+                />
               </CardContent>
             </CollapsibleContent>
           </Card>
