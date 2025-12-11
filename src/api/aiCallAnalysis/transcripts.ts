@@ -628,6 +628,7 @@ export interface UpdateCallTranscriptParams {
   potential_revenue?: number | null;
   notes?: string | null;
   manager_id?: string | null;
+  raw_text?: string;
 }
 
 export async function updateCallTranscript(
