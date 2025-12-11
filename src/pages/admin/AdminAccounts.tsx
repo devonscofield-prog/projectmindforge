@@ -24,9 +24,19 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PaginationControls } from '@/components/ui/pagination-controls';
-import { Search, Users, Calendar, DollarSign, ChevronRight, Building2, Flame, RefreshCw } from 'lucide-react';
+import { Search, Users, Calendar, DollarSign, ChevronRight, Building2, Flame, RefreshCw, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import {
   useAdminProspects,
@@ -36,6 +46,7 @@ import {
   usePrimaryStakeholders,
   prospectKeys,
 } from '@/hooks/useProspectQueries';
+import { useAdminDeleteProspect } from '@/hooks/useProspectMutations';
 import { useTeams } from '@/hooks/useTeams';
 import { useReps } from '@/hooks/useReps';
 import { statusLabels, statusVariants, industryOptions } from '@/constants/prospects';
@@ -75,6 +86,11 @@ export default function AdminAccounts() {
   const [sortBy, setSortBy] = useState<string>('last_contact_date');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [prospectToDelete, setProspectToDelete] = useState<{ id: string; name: string } | null>(null);
+
+  // Delete mutation
+  const deleteProspect = useAdminDeleteProspect();
 
   // Fetch teams and reps
   const { data: teams = [] } = useTeams();
@@ -116,6 +132,20 @@ export default function AdminAccounts() {
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: prospectKeys.lists() });
     queryClient.invalidateQueries({ queryKey: prospectKeys.stats() });
+  };
+
+  // Delete handlers
+  const handleDeleteClick = (e: React.MouseEvent, prospect: { id: string; account_name: string | null; prospect_name: string }) => {
+    e.stopPropagation();
+    setProspectToDelete({ id: prospect.id, name: prospect.account_name || prospect.prospect_name });
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!prospectToDelete) return;
+    await deleteProspect.mutateAsync(prospectToDelete.id);
+    setDeleteDialogOpen(false);
+    setProspectToDelete(null);
   };
 
   const totalPages = Math.ceil(totalCount / pageSize);
@@ -372,7 +402,17 @@ export default function AdminAccounts() {
                           )}
                         </TableCell>
                         <TableCell>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={(e) => handleDeleteClick(e, prospect)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          </div>
                         </TableCell>
                       </TableRow>
                 ))}
@@ -396,6 +436,30 @@ export default function AdminAccounts() {
           </Card>
         </QueryErrorBoundary>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Account</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <span className="font-semibold">{prospectToDelete?.name}</span> and all related stakeholders, follow-ups, and activities. Linked calls will be preserved but unlinked from this account.
+              <br /><br />
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteProspect.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              disabled={deleteProspect.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteProspect.isPending ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }
