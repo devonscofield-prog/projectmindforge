@@ -164,7 +164,7 @@ interface BehaviorScore {
   grade?: 'Pass' | 'Fail';
   coaching_tip?: string;
   metrics?: {
-    patience?: { score: number; interruption_count: number };
+    patience?: { score: number; missed_acknowledgment_count: number };
     question_quality?: { 
       score: number; 
       explanation: string;

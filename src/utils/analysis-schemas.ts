@@ -31,14 +31,14 @@ export const BehaviorScoreSchema = z.object({
   metrics: z.object({
     patience: z.object({
       score: z.number().min(0).max(30),
-      interruption_count: z.number(),
+      missed_acknowledgment_count: z.number().describe("Number of times rep failed to acknowledge prospect's statement before responding"),
       status: z.enum(['Excellent', 'Good', 'Fair', 'Poor']),
-      interruptions: z.array(z.object({
-        interrupted_speaker: z.string().describe("Who was cut off"),
-        interrupter: z.string().describe("Who interrupted"),
-        context: z.string().describe("Brief description of what was being said"),
-        severity: z.enum(['Minor', 'Moderate', 'Severe']).describe("Minor = brief overlap, Moderate = cut off mid-thought, Severe = repeated pattern"),
-      })).optional().describe("List of interruption instances detected"),
+      acknowledgment_issues: z.array(z.object({
+        what_prospect_said: z.string().describe("The prospect statement that should have been acknowledged"),
+        how_rep_responded: z.string().describe("How the rep responded without acknowledging"),
+        severity: z.enum(['Minor', 'Moderate', 'Severe']).describe("Minor = low-stakes, Moderate = ignored concern, Severe = bulldozed objection"),
+        coaching_tip: z.string().describe("Specific suggestion for a better response"),
+      })).optional().describe("List of missed acknowledgment instances"),
     }),
     question_quality: z.object({
       score: z.number().min(0).max(20),
