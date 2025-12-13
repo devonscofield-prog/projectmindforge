@@ -63,21 +63,25 @@ const requestSchema = z.object({
   prospect_id: z.string().uuid({ message: "Invalid prospect_id UUID format" })
 });
 
-const SYSTEM_PROMPT = `You are a senior sales analyst extracting MUTUALLY AGREED next steps from sales call transcripts.
+const SYSTEM_PROMPT = `You are a senior sales analyst extracting MUTUALLY AGREED next steps from sales call transcripts and email communications.
 
 Your job is to identify what both the sales rep AND the prospect have explicitly agreed to as next steps. This must be a mutual commitment, not just something the rep suggested.
 
-Look for:
+Look for next steps in:
+1. **Call Transcripts** (primary source) - verbal commitments made during calls
+2. **Email Communications** - often confirms, schedules, or clarifies what was discussed on calls
+
+Types of next steps to identify:
 1. **Scheduled Meetings**: Specific dates/times agreed for follow-up calls, demos, or meetings
 2. **Pending Actions**: Clear commitments like "I'll discuss with my team and get back to you by Friday"
 3. **Awaiting Response**: When prospect said they'll respond/provide something by a certain time
 
 IMPORTANT:
 - Only include AGREED commitments - both parties must have acknowledged the next step
-- Prioritize the MOST RECENT call's next steps
-- If a meeting date/time is mentioned, extract it precisely
+- Prioritize the MOST RECENT communication's next steps
+- If a meeting date/time is mentioned in an email (like a calendar confirmation), use that
 - Include who owns the next action (rep must follow up, or prospect will respond)
-- Extract a direct quote from the transcript as evidence
+- Extract a direct quote from the transcript or email as evidence
 
 If no clear next steps were agreed, indicate that with type="none".`;
 
@@ -150,45 +154,82 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch recent calls (last 5) ordered by date descending
-    const { data: calls, error: callsError } = await supabase
-      .from('call_transcripts')
-      .select('id, call_date, call_type, raw_text, account_name')
-      .eq('prospect_id', prospect_id)
-      .is('deleted_at', null)
-      .order('call_date', { ascending: false })
-      .limit(5);
+    // Fetch recent calls and emails in parallel
+    const [callsResult, emailsResult] = await Promise.all([
+      supabase
+        .from('call_transcripts')
+        .select('id, call_date, call_type, raw_text, account_name')
+        .eq('prospect_id', prospect_id)
+        .is('deleted_at', null)
+        .order('call_date', { ascending: false })
+        .limit(5),
+      supabase
+        .from('email_logs')
+        .select('id, email_date, direction, subject, body, contact_name')
+        .eq('prospect_id', prospect_id)
+        .is('deleted_at', null)
+        .order('email_date', { ascending: false })
+        .limit(10)
+    ]);
+
+    const { data: calls, error: callsError } = callsResult;
+    const { data: emails, error: emailsError } = emailsResult;
 
     if (callsError) {
       console.error('[generate-agreed-next-steps] Failed to fetch calls:', callsError);
       throw new Error('Failed to fetch calls');
     }
 
-    if (!calls || calls.length === 0) {
-      console.log('[generate-agreed-next-steps] No calls found');
+    if (emailsError) {
+      console.warn('[generate-agreed-next-steps] Failed to fetch emails:', emailsError);
+      // Continue without emails - not critical
+    }
+
+    const hasData = (calls && calls.length > 0) || (emails && emails.length > 0);
+    if (!hasData) {
+      console.log('[generate-agreed-next-steps] No calls or emails found');
       const noDataResult: AgreedNextSteps = {
         type: 'none',
-        summary: 'No calls recorded yet',
+        summary: 'No calls or emails recorded yet',
         confidence: 'high',
         extracted_at: new Date().toISOString()
       };
       return new Response(JSON.stringify({ success: true, next_steps: noDataResult }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // Build context with transcripts (most recent first)
-    let contextPrompt = `# RECENT CALLS (most recent first)\n\n`;
-    for (const call of calls) {
-      contextPrompt += `## ${call.call_date} - ${call.call_type || 'Sales Call'}
+    // Build context with transcripts and emails (most recent first)
+    let contextPrompt = '';
+    
+    if (calls && calls.length > 0) {
+      contextPrompt += `# RECENT CALLS (most recent first)\n\n`;
+      for (const call of calls) {
+        contextPrompt += `## ${call.call_date} - ${call.call_type || 'Sales Call'}
 Account: ${call.account_name || 'Unknown'}
 --- TRANSCRIPT ---
 ${call.raw_text}
 --- END TRANSCRIPT ---
 
 `;
+      }
     }
-    contextPrompt += `\nBased on these transcripts (prioritizing the most recent call), extract the mutually agreed next steps.`;
 
-    console.log(`[generate-agreed-next-steps] Processing ${calls.length} calls, ~${contextPrompt.length} chars`);
+    if (emails && emails.length > 0) {
+      contextPrompt += `\n# RECENT EMAILS (most recent first)\n\n`;
+      for (const email of emails) {
+        const directionLabel = email.direction === 'sent' ? 'SENT to' : 'RECEIVED from';
+        contextPrompt += `## ${email.email_date} - ${directionLabel} ${email.contact_name || 'Unknown'}
+Subject: ${email.subject || '(no subject)'}
+--- EMAIL BODY ---
+${email.body}
+--- END EMAIL ---
+
+`;
+      }
+    }
+
+    contextPrompt += `\nBased on these communications (prioritizing the most recent), extract the mutually agreed next steps.`;
+
+    console.log(`[generate-agreed-next-steps] Processing ${calls?.length || 0} calls, ${emails?.length || 0} emails, ~${contextPrompt.length} chars`);
 
     // Call AI
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
