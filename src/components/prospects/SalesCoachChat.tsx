@@ -10,8 +10,13 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Send, Loader2, Sparkles, User } from 'lucide-react';
+import { Send, Loader2, Sparkles, User, ChevronDown } from 'lucide-react';
 import { streamCoachResponse, type ChatMessage } from '@/api/salesCoach';
 import { toast } from 'sonner';
 import { useRateLimitCountdown } from '@/hooks/useRateLimitCountdown';
@@ -24,11 +29,100 @@ interface SalesCoachChatProps {
   accountName: string;
 }
 
-const STARTER_QUESTIONS = [
-  "What should my next steps be?",
-  "How do I approach the decision-maker?",
-  "Help me draft a follow-up email",
-  "How should I handle pricing objections?",
+interface QuestionCategory {
+  id: string;
+  icon: string;
+  label: string;
+  questions: string[];
+}
+
+const QUESTION_CATEGORIES: QuestionCategory[] = [
+  {
+    id: 'strategy',
+    icon: '🎯',
+    label: 'Strategy & Next Steps',
+    questions: [
+      "What should my next steps be with this account?",
+      "How do I advance this deal to the next stage?",
+      "What's blocking this deal and how do I unblock it?",
+      "Should I be pursuing this opportunity more aggressively?",
+    ],
+  },
+  {
+    id: 'stakeholders',
+    icon: '👥',
+    label: 'Stakeholder Navigation',
+    questions: [
+      "How do I approach the decision-maker?",
+      "Who else should I be talking to at this account?",
+      "How do I navigate around a blocker or gatekeeper?",
+      "What's the best way to get an executive meeting?",
+    ],
+  },
+  {
+    id: 'communication',
+    icon: '📧',
+    label: 'Communication & Follow-up',
+    questions: [
+      "Help me draft a follow-up email",
+      "What should I include in my recap email?",
+      "How do I re-engage a ghosting prospect?",
+      "Draft a message to schedule our next call",
+    ],
+  },
+  {
+    id: 'pricing',
+    icon: '💰',
+    label: 'Pricing & Negotiation',
+    questions: [
+      "How should I handle pricing objections?",
+      "They're asking for a discount - what should I do?",
+      "How do I justify our pricing vs competitors?",
+      "When should I bring up pricing in this deal?",
+    ],
+  },
+  {
+    id: 'objections',
+    icon: '🛡️',
+    label: 'Objection Handling',
+    questions: [
+      "They said they need to think about it - now what?",
+      "How do I overcome 'we're happy with our current solution'?",
+      "They're concerned about implementation time",
+      "How do I handle 'we don't have budget right now'?",
+    ],
+  },
+  {
+    id: 'discovery',
+    icon: '🔍',
+    label: 'Discovery & Qualification',
+    questions: [
+      "What discovery questions should I ask next?",
+      "Is this deal worth pursuing?",
+      "What pain points should I dig deeper on?",
+      "How do I uncover their real buying timeline?",
+    ],
+  },
+  {
+    id: 'competitive',
+    icon: '🏆',
+    label: 'Competitive Situations',
+    questions: [
+      "How do I position against competitors?",
+      "They're also talking to our competitors - what do I do?",
+      "What are our key differentiators for this account?",
+    ],
+  },
+  {
+    id: 'preparation',
+    icon: '📞',
+    label: 'Call Preparation',
+    questions: [
+      "Help me prepare for my next call",
+      "What should my agenda be for the follow-up meeting?",
+      "What questions should I be ready to answer?",
+    ],
+  },
 ];
 
 export function SalesCoachChat({ prospectId, accountName }: SalesCoachChatProps) {
@@ -150,7 +244,7 @@ export function SalesCoachChat({ prospectId, accountName }: SalesCoachChatProps)
         <ScrollArea className="flex-1 p-4" ref={scrollRef}>
           <div className="space-y-4">
             {messages.length === 0 && (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div className="bg-muted rounded-lg p-4">
                   <p className="text-sm text-muted-foreground">
                     Hey! I'm your sales coach with 30 years of experience closing deals. 
@@ -159,22 +253,35 @@ export function SalesCoachChat({ prospectId, accountName }: SalesCoachChatProps)
                     handle specific situations.
                   </p>
                 </div>
-                <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground font-medium">Quick questions:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {STARTER_QUESTIONS.map((q) => (
-                      <Button
-                        key={q}
-                        variant="outline"
-                        size="sm"
-                        className="text-xs h-auto py-2 px-3"
-                        onClick={() => sendMessage(q)}
-                        disabled={isLoading || isRateLimited}
-                      >
-                        {q}
-                      </Button>
-                    ))}
-                  </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground font-medium mb-2">What can I help you with?</p>
+                  {QUESTION_CATEGORIES.map((category) => (
+                    <Collapsible key={category.id}>
+                      <CollapsibleTrigger className="flex items-center justify-between w-full px-3 py-2 text-sm font-medium rounded-md hover:bg-muted/50 transition-colors group">
+                        <span className="flex items-center gap-2">
+                          <span>{category.icon}</span>
+                          <span>{category.label}</span>
+                        </span>
+                        <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="pl-7 pr-2 pb-2">
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {category.questions.map((q) => (
+                            <Button
+                              key={q}
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs h-auto py-1.5 px-2.5 text-left justify-start font-normal text-muted-foreground hover:text-foreground hover:bg-primary/10"
+                              onClick={() => sendMessage(q)}
+                              disabled={isLoading || isRateLimited}
+                            >
+                              {q}
+                            </Button>
+                          ))}
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  ))}
                 </div>
               </div>
             )}
