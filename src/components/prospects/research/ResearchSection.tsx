@@ -8,6 +8,8 @@ interface ResearchSectionProps {
   title: string;
   children: ReactNode;
   defaultOpen?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   className?: string;
 }
 
@@ -15,17 +17,24 @@ export function ResearchSection({
   icon, 
   title, 
   children, 
-  defaultOpen = true,
+  defaultOpen = false,
+  open,
+  onOpenChange,
   className 
 }: ResearchSectionProps) {
+  // Use controlled mode if open prop is provided
+  const collapsibleProps = open !== undefined 
+    ? { open, onOpenChange } 
+    : { defaultOpen };
+
   return (
-    <Collapsible defaultOpen={defaultOpen} className={cn("border rounded-lg bg-card", className)}>
+    <Collapsible {...collapsibleProps} className={cn("border rounded-lg bg-card", className)}>
       <CollapsibleTrigger className="flex items-center justify-between w-full p-4 hover:bg-muted/50 transition-colors rounded-t-lg">
         <div className="flex items-center gap-2 font-semibold text-sm">
           {icon}
           {title}
         </div>
-        <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [&[data-state=open]]:rotate-180" />
+        <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [[data-state=open]>&]:rotate-180" />
       </CollapsibleTrigger>
       <CollapsibleContent className="px-4 pb-4">
         {children}

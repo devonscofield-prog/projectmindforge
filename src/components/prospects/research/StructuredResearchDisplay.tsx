@@ -8,7 +8,9 @@ import {
   AlertTriangle,
   Lightbulb,
   Copy,
-  Check
+  Check,
+  ChevronsDown,
+  ChevronsUp
 } from 'lucide-react';
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
@@ -39,6 +41,9 @@ const RISK_COLORS: Record<Risk['risk_type'], string> = {
   other: 'bg-muted text-muted-foreground border-border',
 };
 
+const ALL_SECTIONS = ['company', 'industry', 'stakeholders', 'hooks', 'questions', 'alignment', 'signals', 'risks'] as const;
+type SectionId = typeof ALL_SECTIONS[number];
+
 function CopyableHook({ hook, context }: { hook: string; context: string }) {
   const [copied, setCopied] = useState(false);
 
@@ -68,6 +73,8 @@ function CopyableHook({ hook, context }: { hook: string; context: string }) {
 }
 
 export function StructuredResearchDisplay({ research }: StructuredResearchDisplayProps) {
+  const [openSections, setOpenSections] = useState<Set<SectionId>>(new Set());
+
   const { 
     company_overview, 
     industry_analysis, 
@@ -79,12 +86,42 @@ export function StructuredResearchDisplay({ research }: StructuredResearchDispla
     risks_and_considerations
   } = research;
 
+  const expandAll = () => setOpenSections(new Set(ALL_SECTIONS));
+  const collapseAll = () => setOpenSections(new Set());
+
+  const isSectionOpen = (id: SectionId) => openSections.has(id);
+  const toggleSection = (id: SectionId) => (open: boolean) => {
+    setOpenSections(prev => {
+      const next = new Set(prev);
+      if (open) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
+    });
+  };
+
   return (
     <div className="space-y-3">
+      {/* Expand/Collapse All Buttons */}
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" size="sm" onClick={expandAll}>
+          <ChevronsDown className="h-4 w-4 mr-1" />
+          Expand All
+        </Button>
+        <Button variant="ghost" size="sm" onClick={collapseAll}>
+          <ChevronsUp className="h-4 w-4 mr-1" />
+          Collapse All
+        </Button>
+      </div>
+
       {/* Company Overview */}
       <ResearchSection
         icon={<Building2 className="h-4 w-4 text-primary" />}
         title="Company Overview"
+        open={isSectionOpen('company')}
+        onOpenChange={toggleSection('company')}
       >
         <div className="space-y-3">
           <p className="text-sm">{company_overview.description}</p>
@@ -119,6 +156,8 @@ export function StructuredResearchDisplay({ research }: StructuredResearchDispla
       <ResearchSection
         icon={<Target className="h-4 w-4 text-primary" />}
         title="Industry Analysis"
+        open={isSectionOpen('industry')}
+        onOpenChange={toggleSection('industry')}
       >
         <div className="space-y-3">
           <div>
@@ -161,6 +200,8 @@ export function StructuredResearchDisplay({ research }: StructuredResearchDispla
         <ResearchSection
           icon={<Users className="h-4 w-4 text-primary" />}
           title={`Stakeholder Insights (${stakeholder_insights.length})`}
+          open={isSectionOpen('stakeholders')}
+          onOpenChange={toggleSection('stakeholders')}
         >
           <div className="space-y-3">
             {stakeholder_insights.map((stakeholder, i) => (
@@ -193,6 +234,8 @@ export function StructuredResearchDisplay({ research }: StructuredResearchDispla
       <ResearchSection
         icon={<MessageSquare className="h-4 w-4 text-primary" />}
         title={`Conversation Hooks (${conversation_hooks.length})`}
+        open={isSectionOpen('hooks')}
+        onOpenChange={toggleSection('hooks')}
       >
         <div className="space-y-2">
           {conversation_hooks.map((hook, i) => (
@@ -205,6 +248,8 @@ export function StructuredResearchDisplay({ research }: StructuredResearchDispla
       <ResearchSection
         icon={<HelpCircle className="h-4 w-4 text-primary" />}
         title={`Discovery Questions (${discovery_questions.length})`}
+        open={isSectionOpen('questions')}
+        onOpenChange={toggleSection('questions')}
       >
         <ul className="space-y-2">
           {discovery_questions.map((question, i) => (
@@ -221,6 +266,8 @@ export function StructuredResearchDisplay({ research }: StructuredResearchDispla
         <ResearchSection
           icon={<Lightbulb className="h-4 w-4 text-primary" />}
           title="Solution Alignment"
+          open={isSectionOpen('alignment')}
+          onOpenChange={toggleSection('alignment')}
         >
           <div className="space-y-3">
             <p className="text-sm">{solution_alignment.needs_connection}</p>
@@ -256,6 +303,8 @@ export function StructuredResearchDisplay({ research }: StructuredResearchDispla
       <ResearchSection
         icon={<TrendingUp className="h-4 w-4 text-primary" />}
         title={`Signals to Watch (${signals_to_watch.length})`}
+        open={isSectionOpen('signals')}
+        onOpenChange={toggleSection('signals')}
       >
         <div className="space-y-2">
           {signals_to_watch.map((signal, i) => (
@@ -273,7 +322,8 @@ export function StructuredResearchDisplay({ research }: StructuredResearchDispla
       <ResearchSection
         icon={<AlertTriangle className="h-4 w-4 text-destructive" />}
         title={`Risks & Considerations (${risks_and_considerations.length})`}
-        defaultOpen={false}
+        open={isSectionOpen('risks')}
+        onOpenChange={toggleSection('risks')}
       >
         <div className="space-y-2">
           {risks_and_considerations.map((risk, i) => (
