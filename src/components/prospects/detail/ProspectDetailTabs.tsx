@@ -51,6 +51,7 @@ interface ProspectDetailTabsProps {
   onResearchAccount?: () => void;
   onAddEmail: () => void;
   onDeleteEmail: (id: string) => void;
+  onEmailUpdated: () => void;
   onAddActivity: (activity: { type: ProspectActivityType; description: string; date: string }) => Promise<unknown>;
 }
 
@@ -74,6 +75,7 @@ export function ProspectDetailTabs({
   onResearchAccount,
   onAddEmail,
   onDeleteEmail,
+  onEmailUpdated,
   onAddActivity,
 }: ProspectDetailTabsProps) {
   return (
@@ -146,6 +148,7 @@ export function ProspectDetailTabs({
             stakeholders={stakeholders}
             onAddEmail={onAddEmail}
             onDeleteEmail={onDeleteEmail}
+            onEmailUpdated={onEmailUpdated}
           />
           <ProspectActivityLog 
             activities={activities}

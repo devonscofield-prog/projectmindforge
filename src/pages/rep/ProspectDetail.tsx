@@ -174,6 +174,7 @@ function ProspectDetail() {
           onResearchAccount={() => setIsResearchOpen(true)}
           onAddEmail={() => setIsAddEmailOpen(true)}
           onDeleteEmail={handleDeleteEmailLog}
+          onEmailUpdated={handleEmailAdded}
           onAddActivity={handleAddActivity}
         />
       </div>

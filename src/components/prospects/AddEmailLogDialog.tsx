@@ -309,15 +309,23 @@ export function AddEmailLogDialog({
 
           {/* Email Body */}
           <div className="space-y-2">
-            <Label htmlFor="body">Email Body *</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="body">Email Body *</Label>
+              <span className="text-xs text-muted-foreground">
+                {body.length.toLocaleString()} characters
+              </span>
+            </div>
             <Textarea
               id="body"
               value={body}
               onChange={(e) => setBody(e.target.value)}
               placeholder="Paste the email content here..."
-              className="min-h-[200px] font-mono text-sm"
+              className="min-h-[200px] text-sm"
               required
             />
+            <p className="text-xs text-muted-foreground">
+              Tip: Paste the most recent email in the thread for best AI context
+            </p>
           </div>
 
           {/* Date and Contact Info */}
