@@ -10,6 +10,7 @@ interface AccountHeatAnalysis {
   temperature: "Hot" | "Warm" | "Lukewarm" | "Cold";
   trend: "Heating Up" | "Cooling Down" | "Stagnant";
   confidence: "High" | "Medium" | "Low";
+  momentum_narrative: string;
   factors: {
     engagement: { score: number; weight: number; signals: string[] };
     relationship: { score: number; weight: number; signals: string[] };
@@ -17,31 +18,168 @@ interface AccountHeatAnalysis {
     call_quality: { score: number; weight: number; signals: string[] };
     timing: { score: number; weight: number; signals: string[] };
   };
-  open_critical_gaps: { category: string; count: number }[];
+  open_critical_gaps: { category: string; evidence: string }[];
+  closed_gaps: { category: string; how_resolved: string }[];
   competitors_active: string[];
   recommended_actions: string[];
   risk_factors: string[];
   calculated_at: string;
 }
 
-function getTemperature(score: number): "Hot" | "Warm" | "Lukewarm" | "Cold" {
-  if (score >= 70) return "Hot";
-  if (score >= 50) return "Warm";
-  if (score >= 25) return "Lukewarm";
-  return "Cold";
-}
+const ACCOUNT_HEAT_TOOL = {
+  type: "function",
+  function: {
+    name: "calculate_account_heat",
+    description: "Calculate the account heat score based on comprehensive analysis of all calls and account data",
+    parameters: {
+      type: "object",
+      properties: {
+        heat_score: {
+          type: "number",
+          description: "Overall heat score 0-100. 70-100=Hot (clear path to close), 50-69=Warm (good engagement), 25-49=Lukewarm (needs attention), 0-24=Cold (stalled)"
+        },
+        temperature: {
+          type: "string",
+          enum: ["Hot", "Warm", "Lukewarm", "Cold"]
+        },
+        trend: {
+          type: "string",
+          enum: ["Heating Up", "Cooling Down", "Stagnant"],
+          description: "Based on progression across calls - is deal momentum increasing or decreasing?"
+        },
+        confidence: {
+          type: "string",
+          enum: ["High", "Medium", "Low"],
+          description: "How confident are you in this assessment based on available data?"
+        },
+        momentum_narrative: {
+          type: "string",
+          description: "2-3 sentence summary of deal progression across all calls. What's the story of this deal?"
+        },
+        engagement_analysis: {
+          type: "object",
+          properties: {
+            score: { type: "number", description: "0-100 engagement score" },
+            signals: { type: "array", items: { type: "string" }, description: "Key engagement signals observed" }
+          },
+          required: ["score", "signals"]
+        },
+        relationship_analysis: {
+          type: "object",
+          properties: {
+            score: { type: "number", description: "0-100 relationship strength score" },
+            signals: { type: "array", items: { type: "string" }, description: "Key relationship signals" }
+          },
+          required: ["score", "signals"]
+        },
+        deal_progress_analysis: {
+          type: "object",
+          properties: {
+            score: { type: "number", description: "0-100 deal progress score" },
+            signals: { type: "array", items: { type: "string" }, description: "Key deal progress indicators" }
+          },
+          required: ["score", "signals"]
+        },
+        call_quality_analysis: {
+          type: "object",
+          properties: {
+            score: { type: "number", description: "0-100 call quality score" },
+            signals: { type: "array", items: { type: "string" }, description: "Key call quality observations" }
+          },
+          required: ["score", "signals"]
+        },
+        timing_analysis: {
+          type: "object",
+          properties: {
+            score: { type: "number", description: "0-100 timing/urgency score" },
+            signals: { type: "array", items: { type: "string" }, description: "Key timing signals" }
+          },
+          required: ["score", "signals"]
+        },
+        open_critical_gaps: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              category: { type: "string", enum: ["Budget", "Authority", "Need", "Timeline", "Competition", "Technical"] },
+              evidence: { type: "string", description: "Specific evidence from transcripts showing this gap still exists" }
+            },
+            required: ["category", "evidence"]
+          },
+          description: "Critical gaps that are STILL OPEN based on most recent call. Only include if NOT resolved."
+        },
+        closed_gaps: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              category: { type: "string" },
+              how_resolved: { type: "string", description: "How/when this gap was addressed in the conversations" }
+            },
+            required: ["category", "how_resolved"]
+          },
+          description: "Gaps that were previously open but have been addressed in later calls"
+        },
+        competitors_active: {
+          type: "array",
+          items: { type: "string" },
+          description: "Competitors mentioned across all calls"
+        },
+        recommended_actions: {
+          type: "array",
+          items: { type: "string" },
+          description: "3 specific, actionable next steps based on the full conversation history"
+        },
+        risk_factors: {
+          type: "array",
+          items: { type: "string" },
+          description: "What could kill this deal? Be specific based on conversation content"
+        }
+      },
+      required: [
+        "heat_score", "temperature", "trend", "confidence", "momentum_narrative",
+        "engagement_analysis", "relationship_analysis", "deal_progress_analysis",
+        "call_quality_analysis", "timing_analysis", "open_critical_gaps",
+        "closed_gaps", "competitors_active", "recommended_actions", "risk_factors"
+      ]
+    }
+  }
+};
 
-function gradeToScore(grade: string | null): number {
-  if (!grade) return 50;
-  const gradeMap: Record<string, number> = {
-    'A+': 100, 'A': 95, 'A-': 90,
-    'B+': 85, 'B': 80, 'B-': 75,
-    'C+': 70, 'C': 65, 'C-': 60,
-    'D+': 55, 'D': 50, 'D-': 45,
-    'F': 30
-  };
-  return gradeMap[grade] ?? 50;
-}
+const SYSTEM_PROMPT = `You are an expert sales analyst evaluating the health of a B2B sales opportunity. You have access to:
+- All raw call transcripts (chronologically ordered, oldest first)
+- Account metadata (company info, revenue, status)
+- Stakeholder map (who's involved, their influence levels)
+- Recent activity history (emails, follow-ups)
+
+Your job is to read through ALL the transcripts and provide a comprehensive Account Heat Score that reflects the TRUE state of this deal.
+
+## Scoring Guidelines
+
+**70-100 (Hot)**: Clear path to close. Budget confirmed or actively discussed. Decision maker engaged. Timeline established. Momentum positive.
+
+**50-69 (Warm)**: Good engagement and interest. Gaps being actively addressed. Rep has access to key stakeholders. Some uncertainty but deal is moving.
+
+**25-49 (Lukewarm)**: Gaps unresolved after multiple touches. Momentum unclear. Missing key stakeholder access. Needs significant attention.
+
+**0-24 (Cold)**: Stalled or dead. No response to outreach. Critical blockers with no resolution path. Competitor has strong position.
+
+## Critical Gap Tracking
+
+IMPORTANT: Track gaps ACROSS calls. A gap mentioned in Call 1 but addressed in Call 3 should be in closed_gaps, NOT open_critical_gaps.
+- Only include gaps in open_critical_gaps if they are STILL unresolved after the most recent call
+- Include gaps in closed_gaps if they were raised earlier but subsequently addressed
+
+## Factor Scoring
+
+Score each factor 0-100:
+- **Engagement**: How responsive is the prospect? Inbound interest? Meeting attendance?
+- **Relationship**: Access to power? Champion identified? Multi-threaded?
+- **Deal Progress**: Are critical gaps closing? Is scope defined? Moving toward commitment?
+- **Call Quality**: Rep performance? Discovery depth? Handling objections well?
+- **Timing**: Compelling event? Timeline pressure? Budget cycle alignment?
+
+Be honest and critical. Don't inflate scores to be nice. A deal with unresolved Budget and Authority gaps cannot be "Hot".`;
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -60,11 +198,12 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY')!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
     console.log(`[AccountHeat] Calculating for prospect: ${prospect_id}`);
 
-    // Fetch all relevant data in parallel
+    // Fetch all relevant data in parallel - including raw_text
     const [
       prospectResult,
       callsResult,
@@ -75,10 +214,10 @@ Deno.serve(async (req) => {
     ] = await Promise.all([
       supabase.from('prospects').select('*').eq('id', prospect_id).single(),
       supabase.from('call_transcripts')
-        .select('id, call_date, analysis_status')
+        .select('id, call_date, call_type, account_name, primary_stakeholder_name, raw_text, analysis_status')
         .eq('prospect_id', prospect_id)
         .is('deleted_at', null)
-        .order('call_date', { ascending: false }),
+        .order('call_date', { ascending: true }), // Oldest first for chronological reading
       supabase.from('stakeholders')
         .select('*')
         .eq('prospect_id', prospect_id)
@@ -86,16 +225,17 @@ Deno.serve(async (req) => {
       supabase.from('prospect_activities')
         .select('*')
         .eq('prospect_id', prospect_id)
-        .gte('activity_date', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]),
+        .order('activity_date', { ascending: false })
+        .limit(20),
       supabase.from('email_logs')
         .select('*')
         .eq('prospect_id', prospect_id)
         .is('deleted_at', null)
-        .gte('email_date', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]),
+        .order('email_date', { ascending: false })
+        .limit(20),
       supabase.from('account_follow_ups')
         .select('*')
         .eq('prospect_id', prospect_id)
-        .eq('status', 'pending')
     ]);
 
     if (prospectResult.error || !prospectResult.data) {
@@ -111,361 +251,195 @@ Deno.serve(async (req) => {
     const stakeholders = stakeholdersResult.data || [];
     const activities = activitiesResult.data || [];
     const emails = emailsResult.data || [];
-    const pendingFollowUps = followUpsResult.data || [];
+    const followUps = followUpsResult.data || [];
 
-    // Fetch analyses for calls
-    const callIds = calls.filter(c => c.analysis_status === 'completed').map(c => c.id);
-    let analyses: any[] = [];
-    if (callIds.length > 0) {
-      const analysesResult = await supabase
-        .from('ai_call_analysis')
-        .select('call_id, analysis_coaching, analysis_strategy, deal_heat_analysis')
-        .in('call_id', callIds)
-        .is('deleted_at', null);
-      analyses = analysesResult.data || [];
+    console.log(`[AccountHeat] Found ${calls.length} calls, ${stakeholders.length} stakeholders`);
+
+    // Build comprehensive context for AI
+    const contextParts: string[] = [];
+
+    // Account Overview
+    contextParts.push(`## ACCOUNT OVERVIEW
+- **Company**: ${prospect.prospect_name || prospect.account_name || 'Unknown'}
+- **Industry**: ${prospect.industry || 'Not specified'}
+- **Status**: ${prospect.status}
+- **Active Revenue**: $${(prospect.active_revenue || 0).toLocaleString()}
+- **Potential Revenue**: $${(prospect.potential_revenue || 0).toLocaleString()}
+- **Last Contact**: ${prospect.last_contact_date || 'Unknown'}
+- **Website**: ${prospect.website || 'Not recorded'}`);
+
+    // Opportunity Details
+    const oppDetails = prospect.opportunity_details as Record<string, any> | null;
+    if (oppDetails) {
+      contextParts.push(`## OPPORTUNITY DETAILS
+${JSON.stringify(oppDetails, null, 2)}`);
     }
 
-    // Calculate each factor
-    const now = new Date();
-
-    // 1. ENGAGEMENT (15%)
-    const engagementSignals: string[] = [];
-    let engagementScore = 0;
-    
-    const lastContactDate = prospect.last_contact_date ? new Date(prospect.last_contact_date) : null;
-    if (lastContactDate) {
-      const daysSinceContact = Math.floor((now.getTime() - lastContactDate.getTime()) / (1000 * 60 * 60 * 24));
-      if (daysSinceContact <= 7) {
-        engagementScore += 30;
-        engagementSignals.push(`Contacted within ${daysSinceContact} days`);
-      } else if (daysSinceContact <= 14) {
-        engagementScore += 20;
-        engagementSignals.push(`Last contact ${daysSinceContact} days ago`);
-      } else if (daysSinceContact <= 30) {
-        engagementScore += 10;
-        engagementSignals.push(`Last contact ${daysSinceContact} days ago`);
-      } else {
-        engagementSignals.push(`No contact in ${daysSinceContact}+ days`);
-      }
+    // Stakeholder Map
+    if (stakeholders.length > 0) {
+      const stakeholderLines = stakeholders.map(s => {
+        const info = [];
+        if (s.job_title) info.push(s.job_title);
+        if (s.influence_level) info.push(`Influence: ${s.influence_level}`);
+        if (s.champion_score) info.push(`Champion Score: ${s.champion_score}/10`);
+        if (s.is_primary_contact) info.push('PRIMARY CONTACT');
+        return `- **${s.name}**: ${info.join(' | ')}`;
+      });
+      contextParts.push(`## STAKEHOLDERS (${stakeholders.length} mapped)
+${stakeholderLines.join('\n')}`);
     } else {
-      engagementSignals.push('No contact date recorded');
+      contextParts.push(`## STAKEHOLDERS
+No stakeholders mapped for this account.`);
     }
 
-    const inboundEmails = emails.filter(e => e.direction === 'inbound').length;
-    engagementScore += Math.min(inboundEmails * 20, 40);
-    if (inboundEmails > 0) {
-      engagementSignals.push(`${inboundEmails} inbound emails in 30 days`);
+    // Activity Summary
+    if (activities.length > 0 || emails.length > 0) {
+      const activityLines: string[] = [];
+      activities.slice(0, 10).forEach(a => {
+        activityLines.push(`- ${a.activity_date}: ${a.activity_type} - ${a.description || 'No description'}`);
+      });
+      emails.slice(0, 10).forEach(e => {
+        activityLines.push(`- ${e.email_date}: Email (${e.direction}) - ${e.subject || 'No subject'}`);
+      });
+      contextParts.push(`## RECENT ACTIVITY (Last 20 items)
+${activityLines.join('\n')}`);
     }
 
-    const activityCount = activities.length;
-    engagementScore += Math.min(activityCount * 10, 30);
-    if (activityCount > 0) {
-      engagementSignals.push(`${activityCount} activities logged`);
+    // Follow-ups
+    const pendingFollowUps = followUps.filter(f => f.status === 'pending');
+    const completedFollowUps = followUps.filter(f => f.status === 'completed');
+    if (followUps.length > 0) {
+      contextParts.push(`## FOLLOW-UPS
+- Pending: ${pendingFollowUps.length}
+- Completed: ${completedFollowUps.length}
+${pendingFollowUps.slice(0, 5).map(f => `- [PENDING] ${f.title}: ${f.description || ''}`).join('\n')}`);
     }
 
-    engagementScore = Math.min(engagementScore, 100);
-
-    // 2. RELATIONSHIP (20%)
-    const relationshipSignals: string[] = [];
-    let relationshipScore = 0;
-
-    const highInfluenceStakeholders = stakeholders.filter(s => s.influence_level === 'high');
-    const champions = stakeholders.filter(s => s.champion_score && s.champion_score >= 7);
-    const primaryContact = stakeholders.find(s => s.is_primary_contact);
-
-    if (primaryContact) {
-      relationshipScore += 20;
-      relationshipSignals.push(`Primary contact: ${primaryContact.name}`);
-    }
-
-    if (highInfluenceStakeholders.length > 0) {
-      relationshipScore += Math.min(highInfluenceStakeholders.length * 20, 40);
-      relationshipSignals.push(`${highInfluenceStakeholders.length} high-influence stakeholder(s)`);
-    }
-
-    if (champions.length > 0) {
-      relationshipScore += Math.min(champions.length * 15, 30);
-      relationshipSignals.push(`${champions.length} champion(s) identified`);
-    }
-
-    if (stakeholders.length === 0) {
-      relationshipSignals.push('No stakeholders mapped');
-    }
-
-    relationshipScore = Math.min(relationshipScore, 100);
-
-    // 3. DEAL PROGRESS (25%)
-    const dealProgressSignals: string[] = [];
-    let dealProgressScore = 0;
-
-    // Aggregate critical gaps from all analyses
-    const allGaps: Record<string, number> = {};
-    let competitorsActive: string[] = [];
-    
-    for (const analysis of analyses) {
-      const strategy = analysis.analysis_strategy;
-      if (strategy?.critical_gaps) {
-        for (const gap of strategy.critical_gaps) {
-          allGaps[gap.category] = (allGaps[gap.category] || 0) + 1;
-        }
-      }
-      if (strategy?.competitors_mentioned) {
-        competitorsActive = [...new Set([...competitorsActive, ...strategy.competitors_mentioned])];
-      }
-    }
-
-    const hasBudgetGap = allGaps['Budget'] > 0;
-    const hasAuthorityGap = allGaps['Authority'] > 0;
-
-    if (!hasBudgetGap && !hasAuthorityGap) {
-      dealProgressScore += 40;
-      dealProgressSignals.push('No Budget/Authority gaps');
-    } else {
-      if (hasBudgetGap) dealProgressSignals.push('Budget gap unresolved');
-      if (hasAuthorityGap) dealProgressSignals.push('Authority gap unresolved');
-    }
-
-    if (prospect.active_revenue && prospect.active_revenue > 0) {
-      dealProgressScore += 20;
-      dealProgressSignals.push(`Active revenue: $${prospect.active_revenue.toLocaleString()}`);
-    }
-
-    if (prospect.status === 'active') {
-      dealProgressScore += 20;
-      dealProgressSignals.push('Status: Active');
-    }
-
-    const totalGapCount = Object.values(allGaps).reduce((a, b) => a + b, 0);
-    if (totalGapCount > 3) {
-      dealProgressScore -= 20;
-      dealProgressSignals.push(`${totalGapCount} critical gaps across calls`);
-    }
-
-    dealProgressScore = Math.max(0, Math.min(dealProgressScore, 100));
-
-    // 4. CALL QUALITY (20%)
-    const callQualitySignals: string[] = [];
-    let callQualityScore = 0;
-
-    const grades: number[] = [];
-    const heatScores: number[] = [];
-
-    for (const analysis of analyses) {
-      const coaching = analysis.analysis_coaching;
-      if (coaching?.overall_grade) {
-        grades.push(gradeToScore(coaching.overall_grade));
-      }
-      const heat = analysis.deal_heat_analysis;
-      if (heat?.heat_score) {
-        heatScores.push(heat.heat_score);
-      }
-    }
-
-    if (grades.length > 0) {
-      const avgGrade = grades.reduce((a, b) => a + b, 0) / grades.length;
-      callQualityScore += avgGrade * 0.5;
-      callQualitySignals.push(`Avg coach grade: ${Math.round(avgGrade)}%`);
-    }
-
-    if (heatScores.length > 0) {
-      const avgHeat = heatScores.reduce((a, b) => a + b, 0) / heatScores.length;
-      callQualityScore += avgHeat * 0.5;
-      callQualitySignals.push(`Avg deal heat: ${Math.round(avgHeat)}`);
+    // Raw Transcripts - the main content
+    if (calls.length > 0) {
+      contextParts.push(`\n## CALL TRANSCRIPTS (${calls.length} calls, chronological order - oldest first)\n`);
       
-      // Check trend
-      if (heatScores.length >= 2) {
-        const recentHeat = heatScores.slice(0, Math.ceil(heatScores.length / 2));
-        const olderHeat = heatScores.slice(Math.ceil(heatScores.length / 2));
-        const recentAvg = recentHeat.reduce((a, b) => a + b, 0) / recentHeat.length;
-        const olderAvg = olderHeat.reduce((a, b) => a + b, 0) / olderHeat.length;
-        if (recentAvg > olderAvg + 5) {
-          callQualityScore += 10;
-          callQualitySignals.push('Deal heat trending up');
-        } else if (recentAvg < olderAvg - 5) {
-          callQualityScore -= 10;
-          callQualitySignals.push('Deal heat trending down');
-        }
-      }
-    }
+      for (let i = 0; i < calls.length; i++) {
+        const call = calls[i];
+        contextParts.push(`### CALL ${i + 1} of ${calls.length}
+- **Date**: ${call.call_date}
+- **Type**: ${call.call_type || 'Unknown'}
+- **Primary Contact**: ${call.primary_stakeholder_name || 'Unknown'}
+- **Analysis Status**: ${call.analysis_status}
 
-    if (calls.length === 0) {
-      callQualitySignals.push('No calls recorded');
+**TRANSCRIPT:**
+${call.raw_text}
+
+---END OF CALL ${i + 1}---
+`);
+      }
     } else {
-      callQualitySignals.push(`${calls.length} call(s) total`);
+      contextParts.push(`## CALL TRANSCRIPTS
+No calls recorded for this account.`);
     }
 
-    callQualityScore = Math.max(0, Math.min(callQualityScore, 100));
+    const fullContext = contextParts.join('\n\n');
+    console.log(`[AccountHeat] Context size: ${fullContext.length} chars (~${Math.round(fullContext.length / 4)} tokens)`);
 
-    // 5. TIMING (20%)
-    const timingSignals: string[] = [];
-    let timingScore = 0;
+    // Call AI with 60-second timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
 
-    const opportunityDetails = prospect.opportunity_details as any;
-    const aiExtractedInfo = prospect.ai_extracted_info as any;
+    let analysis: AccountHeatAnalysis;
 
-    // Check for timeline signals
-    if (opportunityDetails?.timeline || aiExtractedInfo?.timeline) {
-      timingScore += 40;
-      timingSignals.push('Timeline identified');
-    }
+    try {
+      const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${lovableApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-3-pro-preview',
+          messages: [
+            { role: 'system', content: SYSTEM_PROMPT },
+            { role: 'user', content: fullContext }
+          ],
+          tools: [ACCOUNT_HEAT_TOOL],
+          tool_choice: { type: 'function', function: { name: 'calculate_account_heat' } }
+        }),
+        signal: controller.signal
+      });
 
-    if (opportunityDetails?.budget_confirmed || aiExtractedInfo?.budget_range) {
-      timingScore += 30;
-      timingSignals.push('Budget information available');
-    }
+      clearTimeout(timeoutId);
 
-    if (aiExtractedInfo?.compelling_event) {
-      timingScore += 30;
-      timingSignals.push('Compelling event identified');
-    }
-
-    if (timingScore === 0) {
-      timingSignals.push('No timing signals detected');
-    }
-
-    timingScore = Math.min(timingScore, 100);
-
-    // Calculate weighted total
-    const weights = {
-      engagement: 15,
-      relationship: 20,
-      deal_progress: 25,
-      call_quality: 20,
-      timing: 20
-    };
-
-    const totalScore = Math.round(
-      (engagementScore * weights.engagement +
-       relationshipScore * weights.relationship +
-       dealProgressScore * weights.deal_progress +
-       callQualityScore * weights.call_quality +
-       timingScore * weights.timing) / 100
-    );
-
-    // Determine trend
-    let trend: "Heating Up" | "Cooling Down" | "Stagnant" = "Stagnant";
-    if (heatScores.length >= 2) {
-      const recent = heatScores[0];
-      const older = heatScores[heatScores.length - 1];
-      if (recent > older + 10) trend = "Heating Up";
-      else if (recent < older - 10) trend = "Cooling Down";
-    }
-
-    // Determine confidence
-    let confidence: "High" | "Medium" | "Low" = "Low";
-    if (calls.length >= 3 && stakeholders.length >= 2) {
-      confidence = "High";
-    } else if (calls.length >= 1 || stakeholders.length >= 1) {
-      confidence = "Medium";
-    }
-
-    // Format open critical gaps
-    const openCriticalGaps = Object.entries(allGaps).map(([category, count]) => ({
-      category,
-      count
-    }));
-
-    // Generate recommendations and risks using AI
-    let recommendedActions: string[] = [];
-    let riskFactors: string[] = [];
-
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
-    if (lovableApiKey) {
-      try {
-        const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${lovableApiKey}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model: 'google/gemini-2.5-flash',
-            messages: [{
-              role: 'system',
-              content: 'You are a sales strategy advisor. Provide concise, actionable recommendations.'
-            }, {
-              role: 'user',
-              content: `Based on this account analysis, provide 3 recommended actions and 2-3 risk factors.
-
-Account Score: ${totalScore}/100 (${getTemperature(totalScore)})
-Engagement: ${engagementScore}/100 - ${engagementSignals.join(', ')}
-Relationship: ${relationshipScore}/100 - ${relationshipSignals.join(', ')}
-Deal Progress: ${dealProgressScore}/100 - ${dealProgressSignals.join(', ')}
-Call Quality: ${callQualityScore}/100 - ${callQualitySignals.join(', ')}
-Timing: ${timingScore}/100 - ${timingSignals.join(', ')}
-Critical Gaps: ${openCriticalGaps.map(g => g.category).join(', ') || 'None'}
-Competitors: ${competitorsActive.join(', ') || 'None identified'}
-
-Respond in JSON format:
-{
-  "recommended_actions": ["action1", "action2", "action3"],
-  "risk_factors": ["risk1", "risk2"]
-}`
-            }],
-            max_tokens: 500
-          })
-        });
-
-        if (aiResponse.ok) {
-          const aiData = await aiResponse.json();
-          const content = aiData.choices?.[0]?.message?.content;
-          if (content) {
-            try {
-              const jsonMatch = content.match(/\{[\s\S]*\}/);
-              if (jsonMatch) {
-                const parsed = JSON.parse(jsonMatch[0]);
-                recommendedActions = parsed.recommended_actions || [];
-                riskFactors = parsed.risk_factors || [];
-              }
-            } catch (e) {
-              console.warn('[AccountHeat] Failed to parse AI response:', e);
-            }
-          }
-        }
-      } catch (e) {
-        console.warn('[AccountHeat] AI enhancement failed:', e);
+      if (!aiResponse.ok) {
+        const errorText = await aiResponse.text();
+        console.error('[AccountHeat] AI API error:', aiResponse.status, errorText);
+        throw new Error(`AI API error: ${aiResponse.status}`);
       }
-    }
 
-    // Fallback recommendations if AI failed
-    if (recommendedActions.length === 0) {
-      if (engagementScore < 50) recommendedActions.push('Schedule follow-up call to re-engage');
-      if (relationshipScore < 50) recommendedActions.push('Identify and map key decision makers');
-      if (hasBudgetGap) recommendedActions.push('Clarify budget availability and approval process');
-      if (hasAuthorityGap) recommendedActions.push('Identify economic buyer and get them involved');
-      if (timingScore < 50) recommendedActions.push('Establish clear timeline and compelling event');
-    }
+      const aiData = await aiResponse.json();
+      const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
+      
+      if (!toolCall?.function?.arguments) {
+        console.error('[AccountHeat] No tool call in response:', JSON.stringify(aiData));
+        throw new Error('No tool call in AI response');
+      }
 
-    if (riskFactors.length === 0) {
-      if (hasBudgetGap || hasAuthorityGap) riskFactors.push('Critical gaps in Budget/Authority');
-      if (engagementScore < 30) riskFactors.push('Low engagement - deal may be stalling');
-      if (competitorsActive.length > 0) riskFactors.push(`Active competition: ${competitorsActive.join(', ')}`);
-    }
+      const result = JSON.parse(toolCall.function.arguments);
+      console.log(`[AccountHeat] AI returned score: ${result.heat_score}, temp: ${result.temperature}`);
 
-    const analysis: AccountHeatAnalysis = {
-      score: totalScore,
-      temperature: getTemperature(totalScore),
-      trend,
-      confidence,
-      factors: {
-        engagement: { score: engagementScore, weight: weights.engagement, signals: engagementSignals },
-        relationship: { score: relationshipScore, weight: weights.relationship, signals: relationshipSignals },
-        deal_progress: { score: dealProgressScore, weight: weights.deal_progress, signals: dealProgressSignals },
-        call_quality: { score: callQualityScore, weight: weights.call_quality, signals: callQualitySignals },
-        timing: { score: timingScore, weight: weights.timing, signals: timingSignals }
-      },
-      open_critical_gaps: openCriticalGaps,
-      competitors_active: competitorsActive,
-      recommended_actions: recommendedActions.slice(0, 3),
-      risk_factors: riskFactors.slice(0, 3),
-      calculated_at: new Date().toISOString()
-    };
+      // Map AI result to our schema
+      analysis = {
+        score: Math.round(Math.max(0, Math.min(100, result.heat_score))),
+        temperature: result.temperature,
+        trend: result.trend,
+        confidence: result.confidence,
+        momentum_narrative: result.momentum_narrative,
+        factors: {
+          engagement: { 
+            score: result.engagement_analysis?.score || 0, 
+            weight: 15, 
+            signals: result.engagement_analysis?.signals || [] 
+          },
+          relationship: { 
+            score: result.relationship_analysis?.score || 0, 
+            weight: 20, 
+            signals: result.relationship_analysis?.signals || [] 
+          },
+          deal_progress: { 
+            score: result.deal_progress_analysis?.score || 0, 
+            weight: 25, 
+            signals: result.deal_progress_analysis?.signals || [] 
+          },
+          call_quality: { 
+            score: result.call_quality_analysis?.score || 0, 
+            weight: 20, 
+            signals: result.call_quality_analysis?.signals || [] 
+          },
+          timing: { 
+            score: result.timing_analysis?.score || 0, 
+            weight: 20, 
+            signals: result.timing_analysis?.signals || [] 
+          }
+        },
+        open_critical_gaps: result.open_critical_gaps || [],
+        closed_gaps: result.closed_gaps || [],
+        competitors_active: result.competitors_active || [],
+        recommended_actions: (result.recommended_actions || []).slice(0, 5),
+        risk_factors: (result.risk_factors || []).slice(0, 5),
+        calculated_at: new Date().toISOString()
+      };
+
+    } catch (aiError) {
+      clearTimeout(timeoutId);
+      console.error('[AccountHeat] AI analysis failed:', aiError);
+      
+      // Fallback to simple heuristic if AI fails
+      analysis = buildFallbackAnalysis(prospect, calls, stakeholders, activities, emails);
+    }
 
     // Save to database
     const { error: updateError } = await supabase
       .from('prospects')
       .update({
-        account_heat_score: totalScore,
+        account_heat_score: analysis.score,
         account_heat_analysis: analysis,
         account_heat_updated_at: new Date().toISOString()
       })
@@ -479,22 +453,88 @@ Respond in JSON format:
       });
     }
 
-    console.log(`[AccountHeat] Calculated score ${totalScore} (${analysis.temperature}) for prospect ${prospect_id}`);
+    console.log(`[AccountHeat] Saved score ${analysis.score} for ${prospect_id}`);
 
-    return new Response(JSON.stringify({ 
-      success: true, 
-      account_heat_score: totalScore,
-      account_heat_analysis: analysis 
-    }), {
+    return new Response(JSON.stringify(analysis), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
   } catch (error) {
     console.error('[AccountHeat] Error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    const message = error instanceof Error ? error.message : 'Internal error';
+    return new Response(JSON.stringify({ error: message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 });
+
+// Simple fallback if AI fails
+function buildFallbackAnalysis(
+  prospect: any,
+  calls: any[],
+  stakeholders: any[],
+  activities: any[],
+  emails: any[]
+): AccountHeatAnalysis {
+  console.log('[AccountHeat] Using fallback heuristic analysis');
+  
+  let score = 25; // Start lukewarm
+  const signals: string[] = [];
+  
+  // Boost for calls
+  if (calls.length >= 3) {
+    score += 20;
+    signals.push(`${calls.length} calls recorded`);
+  } else if (calls.length >= 1) {
+    score += 10;
+    signals.push(`${calls.length} call(s) recorded`);
+  }
+  
+  // Boost for stakeholders
+  if (stakeholders.length >= 2) {
+    score += 15;
+    signals.push(`${stakeholders.length} stakeholders mapped`);
+  }
+  
+  // Boost for activity
+  if (activities.length + emails.length >= 5) {
+    score += 10;
+    signals.push('Active engagement');
+  }
+  
+  // Boost for revenue
+  if (prospect.active_revenue && prospect.active_revenue > 0) {
+    score += 15;
+    signals.push('Active revenue opportunity');
+  }
+  
+  score = Math.min(score, 100);
+  
+  const temperature = score >= 70 ? "Hot" : score >= 50 ? "Warm" : score >= 25 ? "Lukewarm" : "Cold";
+  
+  return {
+    score,
+    temperature,
+    trend: "Stagnant",
+    confidence: "Low",
+    momentum_narrative: "Unable to perform AI analysis. This is a basic heuristic score based on data availability.",
+    factors: {
+      engagement: { score: Math.min((activities.length + emails.length) * 10, 100), weight: 15, signals: signals.slice(0, 2) },
+      relationship: { score: Math.min(stakeholders.length * 25, 100), weight: 20, signals: [] },
+      deal_progress: { score: prospect.active_revenue > 0 ? 50 : 20, weight: 25, signals: [] },
+      call_quality: { score: calls.length > 0 ? 50 : 0, weight: 20, signals: [] },
+      timing: { score: 25, weight: 20, signals: [] }
+    },
+    open_critical_gaps: [],
+    closed_gaps: [],
+    competitors_active: [],
+    recommended_actions: [
+      'Review call transcripts manually',
+      'Schedule follow-up with key stakeholder',
+      'Clarify budget and timeline'
+    ],
+    risk_factors: ['AI analysis unavailable - manual review recommended'],
+    calculated_at: new Date().toISOString()
+  };
+}
