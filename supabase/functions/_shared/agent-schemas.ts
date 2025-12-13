@@ -197,6 +197,14 @@ export const CoachSchema = z.object({
   coaching_drill: z.string().optional().describe("Detailed roleplay or practice exercise in markdown format."),
   immediate_action: z.string().optional().describe("The single most important action to take TODAY. Starts with a verb."),
   grade_reasoning: z.string(),
+  // Deal progression tracking (populated when account history is available)
+  deal_progression: z.object({
+    momentum: z.enum(['accelerating', 'steady', 'stalling', 'regressing']),
+    gaps_closed: z.array(z.string()).describe("Gaps from previous calls that were addressed in this call"),
+    new_gaps_opened: z.array(z.string()).describe("New gaps identified in this call"),
+    promised_followups_addressed: z.boolean().describe("Whether promised next steps from previous call were mentioned"),
+    heat_trend: z.enum(['up', 'flat', 'down']).describe("Direction of deal heat compared to previous call"),
+  }).optional().describe("Deal progression vs previous calls (only populated when account history available)"),
 });
 
 // The Speaker Labeler - pre-processing agent (compact output format for performance)

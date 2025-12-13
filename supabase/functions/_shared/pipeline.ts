@@ -47,6 +47,22 @@ export interface SpeakerContext {
   additionalSpeakers: string[];
 }
 
+// ============= ACCOUNT HISTORY CONTEXT TYPE =============
+
+export interface AccountHistoryContext {
+  previousCalls: Array<{
+    call_date: string;
+    call_type: string | null;
+    summary: string;
+    critical_gaps: Array<{ category: string; description: string; impact: string }>;
+    next_steps_secured?: boolean;
+    next_steps_details?: string;
+    deal_heat_score?: number;
+  }>;
+  totalPreviousCalls: number;
+  accountName: string;
+}
+
 // ============= CALL CLASSIFICATION TYPE =============
 
 export interface CallClassification {
@@ -82,6 +98,33 @@ const PHASE0_BUDGET_MS = 15000;
 // Maximum transcript length for speaker labeling (30k chars ~ 7.5k words)
 // Reduced from 40k to prevent 15+ second Speaker Labeler runs
 const MAX_TRANSCRIPT_LENGTH_FOR_LABELING = 30000;
+
+// ============= ACCOUNT HISTORY HELPERS =============
+
+function buildAccountHistorySection(history: AccountHistoryContext): string {
+  if (!history.previousCalls.length) return '';
+  
+  const sections = history.previousCalls.map((call, i) => {
+    const ordinal = i === 0 ? 'Most recent' : i === 1 ? 'Second most recent' : 'Third most recent';
+    return `
+**${ordinal} call (${call.call_date}${call.call_type ? `, ${call.call_type}` : ''}):**
+- Summary: ${call.summary}
+${call.critical_gaps?.length ? `- Unresolved gaps: ${call.critical_gaps.map(g => `${g.category}: ${g.description}`).join('; ')}` : ''}
+${call.next_steps_details ? `- Promised next steps: ${call.next_steps_details}` : ''}
+${call.deal_heat_score ? `- Deal heat at that time: ${call.deal_heat_score}/100` : ''}`;
+  }).join('\n');
+  
+  return `
+--- ACCOUNT HISTORY (${history.totalPreviousCalls} previous calls with ${history.accountName}) ---
+${sections}
+
+Use this context to:
+1. Check if previously identified gaps were addressed in this call
+2. Verify if promised next steps were mentioned/completed
+3. Score whether the deal is progressing or regressing
+4. Be lenient on discovery if pain points are already established from prior calls
+`;
+}
 
 // ============= CONTEXT-AWARE PROMPT BUILDERS =============
 
@@ -142,7 +185,8 @@ function buildStrategistPrompt(
   transcript: string, 
   callSummary?: string, 
   callType?: string,
-  scoringHints?: SentinelOutput['scoring_hints']
+  scoringHints?: SentinelOutput['scoring_hints'],
+  accountHistory?: AccountHistoryContext
 ): string {
   const basePrompt = `Analyze this sales call transcript for strategic alignment. Map every prospect pain to every rep pitch and score the relevance:\n\n${transcript}`;
   
@@ -150,6 +194,12 @@ function buildStrategistPrompt(
   
   if (callSummary) {
     contextParts.push(`Call Summary: ${callSummary}`);
+  }
+  
+  // Inject account history context for known pains
+  if (accountHistory?.previousCalls?.length) {
+    contextParts.push(buildAccountHistorySection(accountHistory));
+    contextParts.push(`IMPORTANT: This is a FOLLOW-UP call with this account. Pain points from previous conversations should be considered as already-established context. Be lenient on discovery scoring since pain was already uncovered previously.`);
   }
   
   if (callType) {
@@ -183,7 +233,8 @@ function buildBehaviorPrompt(
   transcript: string, 
   callSummary?: string, 
   scoringHints?: SentinelOutput['scoring_hints'],
-  callType?: string
+  callType?: string,
+  accountHistory?: AccountHistoryContext
 ): string {
   const basePrompt = `Analyze this sales call transcript for behavioral dynamics and score the rep's performance:\n\n${transcript}`;
   
@@ -191,6 +242,11 @@ function buildBehaviorPrompt(
   
   if (callSummary) {
     contextParts.push(`Call Summary: ${callSummary}`);
+  }
+  
+  // Inject account history context for leniency on discovery
+  if (accountHistory?.previousCalls?.length) {
+    contextParts.push(`IMPORTANT: This is a FOLLOW-UP call with ${accountHistory.accountName} (${accountHistory.totalPreviousCalls} previous calls on record). Discovery expectations should be REDUCED since context has already been established in prior conversations.`);
   }
   
   if (callType) {
@@ -228,7 +284,8 @@ function buildSkepticPrompt(
   transcript: string, 
   missedOpportunities?: Array<{ pain: string; severity: string; suggested_pitch: string }>,
   callType?: string,
-  scoringHints?: SentinelOutput['scoring_hints']
+  scoringHints?: SentinelOutput['scoring_hints'],
+  accountHistory?: AccountHistoryContext
 ): string {
   const basePrompt = `Analyze this sales call transcript. Find the 3-5 most dangerous UNKNOWNS or MISSING INFORMATION that could block this deal:\n\n${transcript}`;
   
@@ -237,6 +294,17 @@ function buildSkepticPrompt(
   if (missedOpportunities && missedOpportunities.length > 0) {
     const painsList = missedOpportunities.map(o => `- ${o.pain} (${o.severity})`).join('\n');
     contextParts.push(`The rep already missed these specific pains:\n${painsList}\n\nFocus your gap analysis on UNKNOWNS regarding Budget, Authority, and Timeline.`);
+  }
+  
+  // Inject account history - check if previous gaps were addressed
+  if (accountHistory?.previousCalls?.length) {
+    const previousGaps = accountHistory.previousCalls[0]?.critical_gaps || [];
+    if (previousGaps.length > 0) {
+      contextParts.push(`PREVIOUS CALL GAPS (check if addressed in THIS call):
+${previousGaps.map(g => `- [${g.impact}] ${g.category}: ${g.description}`).join('\n')}
+
+CRITICAL: Check if these gaps are STILL open or if they were addressed in this conversation. Prioritize identifying gaps that remain unresolved. Also note any NEW gaps that emerged.`);
+    }
   }
   
   if (callType) {
@@ -556,7 +624,8 @@ function buildCoachingInputReport(
   psychology: ProfilerOutput,
   competitors: SpyOutput,
   pricing: AuditorOutput,
-  callClassification?: CallClassification
+  callClassification?: CallClassification,
+  accountHistory?: AccountHistoryContext
 ): string {
   const callTypeSection = callClassification ? `
 ### 0. CALL CLASSIFICATION (The Sentinel)
@@ -571,6 +640,19 @@ function buildCoachingInputReport(
 **IMPORTANT**: Calibrate your coaching based on this call type. A "${callClassification.detected_call_type}" call has different success criteria than a standard discovery call.
 ` : '';
 
+  // Build account history section for Coach
+  const accountHistorySection = accountHistory?.previousCalls?.length ? `
+### 10. ACCOUNT HISTORY CONTEXT
+${buildAccountHistorySection(accountHistory)}
+
+**COACHING INSTRUCTION**: This is a FOLLOW-UP call. When coaching:
+1. Note if previous GAPS were addressed in this call
+2. Check if PROMISED NEXT STEPS from the last call were mentioned
+3. Assess deal MOMENTUM (is this deal progressing or stalling?)
+4. Be lenient on discovery - pain context may already be established
+5. Populate the 'deal_progression' object with your assessment
+` : '';
+
   const pricingSection = `
 ### 9. PRICING DISCIPLINE (The Auditor)
 - Score: ${pricing.pricing_score}/100 (${pricing.grade})
@@ -581,6 +663,7 @@ ${pricing.discounts_offered?.length > 0 ? pricing.discounts_offered.map(d => `- 
   return `
 ## AGENT REPORTS FOR THIS CALL
 ${callTypeSection}
+${accountHistorySection}
 
 ### 1. CALL METADATA (The Census & Historian)
 - Summary: ${metadata.summary}
@@ -664,7 +747,8 @@ export async function runAnalysisPipeline(
   transcript: string,
   supabase: SupabaseClient,
   callId: string,
-  speakerContext?: SpeakerContext
+  speakerContext?: SpeakerContext,
+  accountHistory?: AccountHistoryContext
 ): Promise<PipelineResult> {
   const pipelineStart = performance.now();
   const warnings: string[] = [];
@@ -873,13 +957,15 @@ export async function runAnalysisPipeline(
     processedTranscript, 
     callSummary, 
     callClassification?.detected_call_type,
-    callClassification?.scoring_hints
+    callClassification?.scoring_hints,
+    accountHistory
   );
   const behaviorPrompt = buildBehaviorPrompt(
     processedTranscript, 
     callSummary, 
     callClassification?.scoring_hints,
-    callClassification?.detected_call_type
+    callClassification?.detected_call_type,
+    accountHistory
   );
   const competitorNames = spyResult.success 
     ? spy.competitive_intel.map(c => c.competitor_name) 
@@ -890,7 +976,8 @@ export async function runAnalysisPipeline(
     processedTranscript, 
     undefined, // missed opportunities - populated after strategist runs
     callClassification?.detected_call_type,
-    callClassification?.scoring_hints
+    callClassification?.scoring_hints,
+    accountHistory
   );
   pendingSkepticResult = executeAgentWithPrompt(skepticConfig, skepticPrompt, supabase, callId);
   console.log('[Pipeline] Skeptic fired async (non-blocking)');
@@ -1008,7 +1095,8 @@ export async function runAnalysisPipeline(
     profiler,
     spy,
     auditor,
-    callClassification
+    callClassification,
+    accountHistory
   );
 
   const coachResult = await executeAgent(coachConfig, coachingReport, supabase, callId);
