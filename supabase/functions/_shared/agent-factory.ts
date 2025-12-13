@@ -18,7 +18,7 @@ const AI_GATEWAY_TIMEOUT_MS = 55000; // 55s to leave buffer before 60s edge func
 const AGENT_TIMEOUT_MS = {
   'google/gemini-2.5-flash': 15000,  // 15s for flash models
   'google/gemini-2.5-pro': 30000,    // 30s for pro models (reduced from 45s)
-  'openai/gpt-5.2-pro': 45000,       // 45s for OpenAI pro reasoning model
+  'openai/gpt-5.2': 35000,           // 35s for OpenAI GPT-5.2
 } as const;
 
 type ModelType = keyof typeof AGENT_TIMEOUT_MS;
