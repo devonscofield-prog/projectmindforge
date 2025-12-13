@@ -215,6 +215,18 @@ const QUESTION_CATEGORIES: QuestionCategory[] = [
       "What competitive questions might come up?",
     ],
   },
+  {
+    id: 'leadership',
+    icon: '📊',
+    label: 'Leadership & Executive Summaries',
+    questions: [
+      "Give me a 30-second executive summary of this deal for my leadership meeting",
+      "What are the key points I should share with my VP about this account?",
+      "Create a brief deal status update I can paste in Slack for my manager",
+      "Summarize the risks and opportunities in this deal for executive review",
+      "What's the one-liner I should use to describe this deal to senior leadership?",
+    ],
+  },
 ];
 
 const QUICK_ACTIONS: QuickAction[] = [
