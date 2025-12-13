@@ -177,8 +177,9 @@ Deno.serve(async (req) => {
       .map(b => b.toString(16).padStart(2, '0'))
       .join('');
 
-    // Trigger the analyze-call function with force flag to bypass idempotency check
-    const analyzeResponse = await fetch(`${supabaseUrl}/functions/v1/analyze-call`, {
+    // Trigger the analyze-call function with force flag - fire and forget
+    // Don't await the response since analyze-call takes 60-90 seconds and would timeout
+    fetch(`${supabaseUrl}/functions/v1/analyze-call`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${serviceRoleKey}`,
@@ -188,26 +189,10 @@ Deno.serve(async (req) => {
         'X-Request-Nonce': nonce,
       },
       body,
+    }).catch((err) => {
+      // Log but don't fail - the analysis will be picked up by trigger-pending-analyses if needed
+      console.error(`[reanalyze-call] Background analyze-call failed to start:`, err);
     });
-
-    if (!analyzeResponse.ok) {
-      const errorText = await analyzeResponse.text();
-      console.error(`[reanalyze-call] analyze-call failed:`, analyzeResponse.status, errorText);
-      
-      // Reset status back to error so user can retry
-      await adminClient
-        .from('call_transcripts')
-        .update({ 
-          analysis_status: 'error',
-          analysis_error: 'Failed to start reanalysis'
-        })
-        .eq('id', call_id);
-
-      return new Response(
-        JSON.stringify({ error: 'Failed to start reanalysis' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
 
     console.log(`[reanalyze-call] Successfully triggered reanalysis for call ${call_id}`);
 
