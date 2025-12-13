@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -7,6 +7,7 @@ import { createLogger } from '@/lib/logger';
 import { Json } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { downloadTranscripts } from '@/lib/transcriptDownload';
 import { useDateRangeSelector } from '@/hooks/useDateRangeSelector';
 import { 
   fetchBackgroundJob, 
@@ -1127,5 +1128,18 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     handleResetAndReindex,
     stopReindex,
     handleLoadSelection,
+    handleDownloadTranscripts: useCallback(async () => {
+      if (selectedTranscripts.length === 0) {
+        toast.error('No transcripts selected');
+        return;
+      }
+      try {
+        await downloadTranscripts(selectedTranscripts);
+        toast.success(`Downloaded ${selectedTranscripts.length} transcript${selectedTranscripts.length > 1 ? 's' : ''}`);
+      } catch (err) {
+        log.error('Failed to download transcripts', { error: err });
+        toast.error('Failed to download transcripts');
+      }
+    }, [selectedTranscripts]),
   };
 }

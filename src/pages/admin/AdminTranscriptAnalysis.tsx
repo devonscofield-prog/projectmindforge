@@ -108,6 +108,7 @@ function AdminTranscriptAnalysis() {
     handleResetAndReindex,
     stopReindex,
     handleLoadSelection,
+    handleDownloadTranscripts,
     isSelectingAll,
   } = useTranscriptAnalysis();
 
@@ -238,6 +239,7 @@ function AdminTranscriptAnalysis() {
             onSaveClick={() => setSaveSelectionOpen(true)}
             onLoadClick={() => setSavedSelectionsOpen(true)}
             onInsightsClick={() => setSavedInsightsOpen(true)}
+            onDownloadClick={handleDownloadTranscripts}
           />
         )}
 

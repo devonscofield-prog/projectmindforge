@@ -27,6 +27,7 @@ import {
   Zap,
   RotateCcw,
   Brain,
+  Download,
 } from 'lucide-react';
 import { Transcript } from './constants';
 
@@ -77,6 +78,8 @@ interface TranscriptSelectionBarProps {
   onSaveClick: () => void;
   onLoadClick: () => void;
   onInsightsClick: () => void;
+  onDownloadClick?: () => void;
+  isDownloading?: boolean;
 }
 
 export function TranscriptSelectionBar({
@@ -118,6 +121,8 @@ export function TranscriptSelectionBar({
   onSaveClick,
   onLoadClick,
   onInsightsClick,
+  onDownloadClick,
+  isDownloading,
 }: TranscriptSelectionBarProps) {
   const hasUnindexed = globalChunkStatus && globalChunkStatus.indexed < globalChunkStatus.total;
   const isAnyBackfillRunning = isIndexing || isBackfilling || isBackfillingEmbeddings || isBackfillingEntities || isResetting;
@@ -456,6 +461,23 @@ export function TranscriptSelectionBar({
             <Lightbulb className="h-4 w-4 mr-1" />
             Insights
           </Button>
+          {onDownloadClick && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onDownloadClick}
+              disabled={selectedTranscriptIds.size === 0 || isDownloading}
+              aria-label="Download selected transcripts"
+              title={selectedTranscriptIds.size > 1 ? 'Download as ZIP' : 'Download as TXT'}
+            >
+              {isDownloading ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-1" />
+              )}
+              Download
+            </Button>
+          )}
         </div>
         
         <div className="flex items-center gap-2">
