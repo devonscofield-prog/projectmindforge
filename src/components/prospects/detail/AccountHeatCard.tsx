@@ -1,7 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Flame, TrendingUp, TrendingDown, Minus, RefreshCw, AlertTriangle, Lightbulb, Target, Users, Calendar, Phone, Activity, CheckCircle2 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Flame, TrendingUp, TrendingDown, Minus, RefreshCw, AlertTriangle, Lightbulb, Target, Users, Calendar, Phone, Activity, CheckCircle2, ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -91,6 +92,7 @@ export function AccountHeatCard({
   onRefresh
 }: AccountHeatCardProps) {
   const [isCalculating, setIsCalculating] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
 
   const handleCalculate = async () => {
     setIsCalculating(true);
@@ -118,7 +120,7 @@ export function AccountHeatCard({
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <Flame className="h-5 w-5 text-orange-500" />
-            Account Heat Score
+            Account Pulse
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -130,12 +132,12 @@ export function AccountHeatCard({
               {isCalculating ? (
                 <>
                   <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  Analyzing Calls...
+                  Analyzing...
                 </>
               ) : (
                 <>
                   <Flame className="h-4 w-4 mr-2" />
-                  Calculate Account Heat
+                  Calculate Account Pulse
                 </>
               )}
             </Button>
@@ -155,27 +157,39 @@ export function AccountHeatCard({
       })
     : 'Unknown';
 
+  // Get top 3 open gaps and actions
+  const topGaps = analysis.open_critical_gaps.slice(0, 3);
+  const topActions = analysis.recommended_actions.slice(0, 3);
+  const hasMoreGaps = analysis.open_critical_gaps.length > 3;
+  const hasMoreActions = analysis.recommended_actions.length > 3;
+  const hasClosedGaps = (analysis.closed_gaps?.length || 0) > 0;
+  const hasRisks = analysis.risk_factors.length > 0;
+  const hasCompetitors = analysis.competitors_active.length > 0;
+
   return (
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-base">
             <Flame className="h-5 w-5 text-orange-500" />
-            Account Heat Score
+            Account Pulse
           </CardTitle>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={handleCalculate}
-            disabled={isCalculating}
-            title="Recalculate"
-          >
-            <RefreshCw className={`h-4 w-4 ${isCalculating ? 'animate-spin' : ''}`} />
-          </Button>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">{lastUpdated}</span>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={handleCalculate}
+              disabled={isCalculating}
+              title="Recalculate"
+            >
+              <RefreshCw className={`h-4 w-4 ${isCalculating ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Score display */}
+        {/* Hero: Score + Temperature + Trend */}
         <div className="flex items-center gap-4">
           <div className="text-center">
             <div className={`text-4xl font-bold ${getScoreColor(accountHeatScore)}`}>
@@ -197,129 +211,173 @@ export function AccountHeatCard({
           </div>
         </div>
 
-        {/* Momentum Narrative */}
+        {/* Momentum Narrative - Always visible */}
         {analysis.momentum_narrative && (
           <div className="bg-muted/50 rounded-lg p-3 text-sm text-muted-foreground italic">
             "{analysis.momentum_narrative}"
           </div>
         )}
 
-        {/* Factor breakdown */}
-        <div className="space-y-3">
-          <h4 className="text-sm font-medium">Factor Breakdown</h4>
-          {Object.entries(analysis.factors).map(([key, factor]) => (
-            <div key={key} className="space-y-1">
-              <div className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2">
-                  {factorIcons[key]}
-                  <span>{factorLabels[key]}</span>
-                  <span className="text-xs text-muted-foreground">({factor.weight}%)</span>
-                </div>
-                <span className={`font-medium ${getScoreColor(factor.score)}`}>
-                  {factor.score}
-                </span>
-              </div>
-              <div className="relative h-2 w-full overflow-hidden rounded-full bg-secondary">
-                <div
-                  className={`h-full transition-all ${getProgressColor(factor.score)}`}
-                  style={{ width: `${factor.score}%` }}
-                />
-              </div>
-              {factor.signals.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  {factor.signals.slice(0, 2).join(' • ')}
-                </p>
-              )}
-            </div>
-          ))}
-        </div>
-
-        {/* Closed gaps (show success) */}
-        {analysis.closed_gaps && analysis.closed_gaps.length > 0 && (
+        {/* Open Gaps - Top 3 always visible */}
+        {topGaps.length > 0 && (
           <div className="space-y-2">
-            <h4 className="text-sm font-medium flex items-center gap-2 text-green-600">
-              <CheckCircle2 className="h-4 w-4" />
-              Resolved Gaps
+            <h4 className="text-sm font-medium flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-yellow-600" />
+              Open Gaps
             </h4>
-            <div className="space-y-1">
-              {analysis.closed_gaps.map((gap, i) => (
-                <div key={i} className="text-sm">
-                  <span className="font-medium text-green-700">{gap.category}:</span>{' '}
-                  <span className="text-muted-foreground">{gap.how_resolved}</span>
-                </div>
+            <div className="flex flex-wrap gap-2">
+              {topGaps.map((gap, i) => (
+                <Badge key={i} variant="outline" className="text-yellow-600 border-yellow-300">
+                  {gap.category}
+                </Badge>
               ))}
+              {hasMoreGaps && (
+                <span className="text-xs text-muted-foreground self-center">
+                  +{analysis.open_critical_gaps.length - 3} more
+                </span>
+              )}
             </div>
           </div>
         )}
 
-        {/* Critical gaps */}
-        {analysis.open_critical_gaps.length > 0 && (
+        {/* Top Actions - Top 3 always visible */}
+        {topActions.length > 0 && (
           <div className="space-y-2">
-            <h4 className="text-sm font-medium flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-yellow-600" />
-              Open Critical Gaps
+            <h4 className="text-sm font-medium flex items-center gap-2 text-green-600">
+              <Lightbulb className="h-4 w-4" />
+              Do Next
             </h4>
-            <div className="space-y-2">
-              {analysis.open_critical_gaps.map((gap, i) => (
-                <div key={i} className="text-sm">
-                  <Badge variant="outline" className="text-yellow-600 border-yellow-300 mr-2">
-                    {gap.category}
-                  </Badge>
-                  {gap.evidence && (
-                    <span className="text-muted-foreground text-xs">{gap.evidence}</span>
+            <ul className="text-sm space-y-1">
+              {topActions.map((action, i) => (
+                <li key={i} className="text-muted-foreground">• {action}</li>
+              ))}
+              {hasMoreActions && (
+                <li className="text-xs text-muted-foreground italic">
+                  +{analysis.recommended_actions.length - 3} more actions...
+                </li>
+              )}
+            </ul>
+          </div>
+        )}
+
+        {/* Collapsible Details Section */}
+        <Collapsible open={showDetails} onOpenChange={setShowDetails}>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="sm" className="w-full justify-between text-muted-foreground hover:text-foreground">
+              <span className="text-xs">
+                {showDetails ? 'Hide' : 'Show'} factor breakdown, risks & competitors
+              </span>
+              {showDetails ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="space-y-4 pt-2">
+            {/* Factor breakdown */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium">Factor Breakdown</h4>
+              {Object.entries(analysis.factors).map(([key, factor]) => (
+                <div key={key} className="space-y-1">
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      {factorIcons[key]}
+                      <span>{factorLabels[key]}</span>
+                      <span className="text-xs text-muted-foreground">({factor.weight}%)</span>
+                    </div>
+                    <span className={`font-medium ${getScoreColor(factor.score)}`}>
+                      {factor.score}
+                    </span>
+                  </div>
+                  <div className="relative h-2 w-full overflow-hidden rounded-full bg-secondary">
+                    <div
+                      className={`h-full transition-all ${getProgressColor(factor.score)}`}
+                      style={{ width: `${factor.score}%` }}
+                    />
+                  </div>
+                  {factor.signals.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {factor.signals.slice(0, 2).join(' • ')}
+                    </p>
                   )}
                 </div>
               ))}
             </div>
-          </div>
-        )}
 
-        {/* Risk factors */}
-        {analysis.risk_factors.length > 0 && (
-          <div className="space-y-2">
-            <h4 className="text-sm font-medium flex items-center gap-2 text-red-600">
-              <AlertTriangle className="h-4 w-4" />
-              Risk Factors
-            </h4>
-            <ul className="text-sm space-y-1">
-              {analysis.risk_factors.map((risk, i) => (
-                <li key={i} className="text-muted-foreground">• {risk}</li>
-              ))}
-            </ul>
-          </div>
-        )}
+            {/* Closed gaps */}
+            {hasClosedGaps && (
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium flex items-center gap-2 text-green-600">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Resolved Gaps
+                </h4>
+                <div className="space-y-1">
+                  {analysis.closed_gaps!.map((gap, i) => (
+                    <div key={i} className="text-sm">
+                      <span className="font-medium text-green-700">{gap.category}:</span>{' '}
+                      <span className="text-muted-foreground">{gap.how_resolved}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-        {/* Recommended actions */}
-        {analysis.recommended_actions.length > 0 && (
-          <div className="space-y-2">
-            <h4 className="text-sm font-medium flex items-center gap-2 text-green-600">
-              <Lightbulb className="h-4 w-4" />
-              Recommended Actions
-            </h4>
-            <ul className="text-sm space-y-1">
-              {analysis.recommended_actions.map((action, i) => (
-                <li key={i} className="text-muted-foreground">• {action}</li>
-              ))}
-            </ul>
-          </div>
-        )}
+            {/* All open gaps with evidence */}
+            {analysis.open_critical_gaps.length > 3 && (
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium">All Open Gaps</h4>
+                <div className="space-y-2">
+                  {analysis.open_critical_gaps.map((gap, i) => (
+                    <div key={i} className="text-sm">
+                      <Badge variant="outline" className="text-yellow-600 border-yellow-300 mr-2">
+                        {gap.category}
+                      </Badge>
+                      {gap.evidence && (
+                        <span className="text-muted-foreground text-xs">{gap.evidence}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-        {/* Competitors */}
-        {analysis.competitors_active.length > 0 && (
-          <div className="space-y-2">
-            <h4 className="text-sm font-medium">Active Competitors</h4>
-            <div className="flex flex-wrap gap-2">
-              {analysis.competitors_active.map((comp) => (
-                <Badge key={comp} variant="secondary">{comp}</Badge>
-              ))}
-            </div>
-          </div>
-        )}
+            {/* Risk factors */}
+            {hasRisks && (
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium flex items-center gap-2 text-red-600">
+                  <AlertTriangle className="h-4 w-4" />
+                  Risk Factors
+                </h4>
+                <ul className="text-sm space-y-1">
+                  {analysis.risk_factors.map((risk, i) => (
+                    <li key={i} className="text-muted-foreground">• {risk}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
-        {/* Last updated */}
-        <p className="text-xs text-muted-foreground text-right">
-          Last calculated: {lastUpdated}
-        </p>
+            {/* Competitors */}
+            {hasCompetitors && (
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium">Active Competitors</h4>
+                <div className="flex flex-wrap gap-2">
+                  {analysis.competitors_active.map((comp) => (
+                    <Badge key={comp} variant="secondary">{comp}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* All actions */}
+            {analysis.recommended_actions.length > 3 && (
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium text-green-600">All Recommended Actions</h4>
+                <ul className="text-sm space-y-1">
+                  {analysis.recommended_actions.map((action, i) => (
+                    <li key={i} className="text-muted-foreground">• {action}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </CollapsibleContent>
+        </Collapsible>
       </CardContent>
     </Card>
   );
