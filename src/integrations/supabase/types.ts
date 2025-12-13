@@ -1485,6 +1485,41 @@ export type Database = {
         }
         Relationships: []
       }
+      sales_coach_sessions: {
+        Row: {
+          created_at: string
+          id: string
+          messages: Json
+          prospect_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          messages?: Json
+          prospect_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          messages?: Json
+          prospect_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_coach_sessions_prospect_id_fkey"
+            columns: ["prospect_id"]
+            isOneToOne: false
+            referencedRelation: "prospects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stakeholder_relationships: {
         Row: {
           created_at: string
