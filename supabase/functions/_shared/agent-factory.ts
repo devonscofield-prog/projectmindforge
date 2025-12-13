@@ -12,29 +12,29 @@ import { createToolFromSchema } from './zod-to-json-schema.ts';
 // AI Gateway configuration
 const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
-const AI_GATEWAY_TIMEOUT_MS = 55000; // 55s to leave buffer before 60s edge function timeout
+const AI_GATEWAY_TIMEOUT_MS = 60000; // 60s maximum timeout
 
-// Per-agent timeouts based on model (P1 optimization)
+// Per-agent timeouts based on model - all set to 60s for maximum reliability
 const AGENT_TIMEOUT_MS = {
-  'google/gemini-2.5-flash': 15000,  // 15s for flash models
-  'google/gemini-2.5-pro': 30000,    // 30s for pro models (reduced from 45s)
-  'google/gemini-3-pro-preview': 35000, // 35s for Gemini 3 Pro
-  'openai/gpt-5.2': 35000,           // 35s for OpenAI GPT-5.2
+  'google/gemini-2.5-flash': 60000,
+  'google/gemini-2.5-pro': 60000,
+  'google/gemini-3-pro-preview': 60000,
+  'openai/gpt-5.2': 60000,
 } as const;
 
 type ModelType = keyof typeof AGENT_TIMEOUT_MS;
 
-// Agent-specific timeout overrides (tuned based on P95 data)
+// Agent-specific timeout overrides - all set to 60s for maximum reliability
 const AGENT_TIMEOUT_OVERRIDES: Record<string, number> = {
-  'speaker_labeler': 30000,  // 30s - GPT-5.2 handles longer transcripts up to 45k chars
-  'skeptic': 20000,          // 20s - complex gap analysis with GPT-5.2
-  'negotiator': 15000,       // 15s - objection handling analysis
-  'coach': 35000,            // 35s - Gemini 3 Pro synthesis
-  'auditor': 15000,          // 15s - pricing analysis needs buffer for complex calls
-  'profiler': 30000,         // 30s - Gemini 3 Pro needs more time for complex profile analysis
-  'interrogator': 30000,     // 30s - OpenAI GPT-5.2 question analysis
-  'strategist': 30000,       // 30s - pain-to-pitch mapping with context (increased for longer transcripts)
-  'referee': 20000,          // 20s - behavioral scoring on longer transcripts
+  'speaker_labeler': 60000,
+  'skeptic': 60000,
+  'negotiator': 60000,
+  'coach': 60000,
+  'auditor': 60000,
+  'profiler': 60000,
+  'interrogator': 60000,
+  'strategist': 60000,
+  'referee': 60000,
 } as const;
 
 // Non-critical agents that can fail gracefully without blocking analysis
