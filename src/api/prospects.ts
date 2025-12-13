@@ -53,6 +53,7 @@ export interface Prospect {
   prospect_name: string;
   account_name: string | null;
   salesforce_link: string | null;
+  opportunity_link: string | null;
   potential_revenue: number | null;
   active_revenue: number | null;
   status: ProspectStatus;
@@ -367,6 +368,7 @@ export async function updateProspect(
     potential_revenue?: number;
     active_revenue?: number;
     salesforce_link?: string | null;
+    opportunity_link?: string | null;
     industry?: string | null;
     website?: string | null;
     ai_extracted_info?: ProspectIntel;

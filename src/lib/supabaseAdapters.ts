@@ -178,6 +178,7 @@ export function toProspect(row: ProspectRow): Prospect {
     prospect_name: row.prospect_name,
     account_name: row.account_name,
     salesforce_link: row.salesforce_link,
+    opportunity_link: row.opportunity_link,
     potential_revenue: row.potential_revenue,
     active_revenue: row.active_revenue ?? null,
     status: row.status as ProspectStatus,

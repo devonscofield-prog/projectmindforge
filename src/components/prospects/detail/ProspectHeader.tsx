@@ -66,6 +66,11 @@ export function ProspectHeader({
   const [editedSalesforce, setEditedSalesforce] = useState('');
   const [isSavingSalesforce, setIsSavingSalesforce] = useState(false);
 
+  // Opportunity link editing state
+  const [isEditingOpportunity, setIsEditingOpportunity] = useState(false);
+  const [editedOpportunity, setEditedOpportunity] = useState('');
+  const [isSavingOpportunity, setIsSavingOpportunity] = useState(false);
+
   const aiInfo = prospect.ai_extracted_info as ProspectIntel | null;
   const latestHeat = aiInfo?.latest_heat_analysis;
   const coachingTrend = aiInfo?.coaching_trend;
@@ -137,6 +142,21 @@ export function ProspectHeader({
       }
     } finally {
       setIsSavingSalesforce(false);
+    }
+  };
+
+  // Opportunity link handlers
+  const handleSaveOpportunity = async () => {
+    if (!onUpdateProspect) return;
+    setIsSavingOpportunity(true);
+    try {
+      const success = await onUpdateProspect({ opportunity_link: editedOpportunity || null });
+      if (success) {
+        setIsEditingOpportunity(false);
+        toast.success('Opportunity link updated');
+      }
+    } finally {
+      setIsSavingOpportunity(false);
     }
   };
 
@@ -449,6 +469,46 @@ export function ProspectHeader({
                 )}
                 {onUpdateProspect && (
                   <Button size="icon" variant="ghost" className="h-5 w-5 opacity-60 hover:opacity-100" onClick={() => { setEditedSalesforce(prospect.salesforce_link || ''); setIsEditingSalesforce(true); }}>
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+          <span className="hidden sm:block text-muted-foreground/40">|</span>
+
+          {/* Opportunity Link - Editable */}
+          <div className="flex items-center gap-1.5">
+            <span className="font-medium text-muted-foreground">Opp:</span>
+            {isEditingOpportunity ? (
+              <div className="flex items-center gap-1">
+                <Input
+                  type="url"
+                  placeholder="https://..."
+                  value={editedOpportunity}
+                  onChange={(e) => setEditedOpportunity(e.target.value)}
+                  className="h-7 w-[140px] text-xs"
+                  disabled={isSavingOpportunity}
+                />
+                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={handleSaveOpportunity} disabled={isSavingOpportunity}>
+                  {isSavingOpportunity ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                </Button>
+                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setIsEditingOpportunity(false)} disabled={isSavingOpportunity}>
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1">
+                {prospect.opportunity_link ? (
+                  <a href={prospect.opportunity_link} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1 text-xs">
+                    <ExternalLink className="h-3 w-3 shrink-0" />
+                    <span>View</span>
+                  </a>
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
+                {onUpdateProspect && (
+                  <Button size="icon" variant="ghost" className="h-5 w-5 opacity-60 hover:opacity-100" onClick={() => { setEditedOpportunity(prospect.opportunity_link || ''); setIsEditingOpportunity(true); }}>
                     <Pencil className="h-3 w-3" />
                   </Button>
                 )}
