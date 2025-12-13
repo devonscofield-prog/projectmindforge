@@ -95,9 +95,9 @@ const BATCH_DELAY_MS = 300;
 // Reduced from 20s to 15s to leave more time for analysis agents
 const PHASE0_BUDGET_MS = 15000;
 
-// Maximum transcript length for speaker labeling (30k chars ~ 7.5k words)
-// Reduced from 40k to prevent 15+ second Speaker Labeler runs
-const MAX_TRANSCRIPT_LENGTH_FOR_LABELING = 30000;
+// Maximum transcript length for speaker labeling (45k chars ~ 11k words)
+// Increased to support GPT-5.2 with 30s timeout for longer transcripts
+const MAX_TRANSCRIPT_LENGTH_FOR_LABELING = 45000;
 
 // ============= ACCOUNT HISTORY HELPERS =============
 

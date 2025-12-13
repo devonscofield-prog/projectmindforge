@@ -26,7 +26,7 @@ type ModelType = keyof typeof AGENT_TIMEOUT_MS;
 
 // Agent-specific timeout overrides (tuned based on P95 data)
 const AGENT_TIMEOUT_OVERRIDES: Record<string, number> = {
-  'speaker_labeler': 15000,  // 15s - reduced from 20s, now uses 30k char limit + smart skip
+  'speaker_labeler': 30000,  // 30s - GPT-5.2 handles longer transcripts up to 45k chars
   'skeptic': 15000,          // 15s - complex gap analysis
   'negotiator': 12000,       // 12s - reduced from 15s, avg 4.5s
   'coach': 35000,            // 35s - Gemini 3 Pro synthesis
