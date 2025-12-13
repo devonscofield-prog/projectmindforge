@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
 import {
   Sheet,
   SheetContent,
@@ -23,7 +24,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Send, Loader2, Sparkles, User, ChevronDown, Trash2, History, Plus, MoreVertical, MessageSquare, Check } from 'lucide-react';
+import { Send, Loader2, Sparkles, User, ChevronDown, Trash2, History, Plus, MoreVertical, MessageSquare, Phone, Mail, Target, TrendingUp, Calendar, Clock } from 'lucide-react';
 import { streamCoachResponse, type ChatMessage } from '@/api/salesCoach';
 import { 
   fetchCoachSession, 
@@ -47,6 +48,10 @@ import { formatDistanceToNow } from 'date-fns';
 interface SalesCoachChatProps {
   prospectId: string;
   accountName: string;
+  // Optional context data for Account Pulse card
+  heatScore?: number | null;
+  lastContactDate?: string | null;
+  pendingFollowUpsCount?: number;
 }
 
 interface QuestionCategory {
@@ -54,6 +59,13 @@ interface QuestionCategory {
   icon: string;
   label: string;
   questions: string[];
+}
+
+interface QuickAction {
+  id: string;
+  icon: React.ReactNode;
+  label: string;
+  prompt: string;
 }
 
 const QUESTION_CATEGORIES: QuestionCategory[] = [
@@ -141,11 +153,44 @@ const QUESTION_CATEGORIES: QuestionCategory[] = [
       "Help me prepare for my next call",
       "What should my agenda be for the follow-up meeting?",
       "What questions should I be ready to answer?",
+      "What objections should I anticipate in this call?",
+      "Create a pre-call checklist based on where we are in the deal",
+      "What's the best opening given our last conversation?",
+      "Help me practice my pitch for this specific account",
+      "Draft an agenda email I can send before the call",
+      "What competitive questions might come up?",
     ],
   },
 ];
 
-export function SalesCoachChat({ prospectId, accountName }: SalesCoachChatProps) {
+const QUICK_ACTIONS: QuickAction[] = [
+  {
+    id: 'prep',
+    icon: <Phone className="h-4 w-4" />,
+    label: 'Prep for Call',
+    prompt: 'Help me prepare for my next call with this account. What should I focus on and what questions should I be ready to answer?',
+  },
+  {
+    id: 'email',
+    icon: <Mail className="h-4 w-4" />,
+    label: 'Draft Email',
+    prompt: 'Help me draft a follow-up email for this account based on our recent conversations.',
+  },
+  {
+    id: 'next-steps',
+    icon: <Target className="h-4 w-4" />,
+    label: 'Next Steps',
+    prompt: 'What should my next steps be with this account to move the deal forward?',
+  },
+  {
+    id: 'status',
+    icon: <TrendingUp className="h-4 w-4" />,
+    label: 'Deal Status',
+    prompt: "Give me a quick assessment of where this deal stands and what's the probability of closing.",
+  },
+];
+
+export function SalesCoachChat({ prospectId, accountName, heatScore, lastContactDate, pendingFollowUpsCount = 0 }: SalesCoachChatProps) {
   const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -158,9 +203,40 @@ export function SalesCoachChat({ prospectId, accountName }: SalesCoachChatProps)
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [allSessions, setAllSessions] = useState<CoachSession[]>([]);
   const [showHistorySheet, setShowHistorySheet] = useState(false);
+  const [recentQuestions, setRecentQuestions] = useState<string[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const { secondsRemaining, isRateLimited, startCountdown } = useRateLimitCountdown(60);
+
+  // Load recent questions from localStorage
+  useEffect(() => {
+    const stored = localStorage.getItem(`sales-coach-recent-${prospectId}`);
+    if (stored) {
+      try {
+        setRecentQuestions(JSON.parse(stored));
+      } catch {
+        // Ignore parse errors
+      }
+    }
+  }, [prospectId]);
+
+  // Save recent questions to localStorage
+  const addToRecentQuestions = useCallback((question: string) => {
+    setRecentQuestions(prev => {
+      const filtered = prev.filter(q => q !== question);
+      const updated = [question, ...filtered].slice(0, 3);
+      localStorage.setItem(`sales-coach-recent-${prospectId}`, JSON.stringify(updated));
+      return updated;
+    });
+  }, [prospectId]);
+
+  // Get heat temperature label and color
+  const getHeatInfo = useMemo(() => {
+    if (!heatScore) return null;
+    if (heatScore >= 70) return { label: 'Hot', color: 'text-green-600 bg-green-100 dark:bg-green-900/30 dark:text-green-400' };
+    if (heatScore >= 40) return { label: 'Warm', color: 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-400' };
+    return { label: 'Cold', color: 'text-red-600 bg-red-100 dark:bg-red-900/30 dark:text-red-400' };
+  }, [heatScore]);
 
   // Load session when sheet opens
   useEffect(() => {
@@ -299,6 +375,9 @@ export function SalesCoachChat({ prospectId, accountName }: SalesCoachChatProps)
     const newMessages = [...messages, userMessage];
     setMessages(newMessages);
     setInput('');
+    
+    // Track recent questions
+    addToRecentQuestions(content.trim());
     setError(null);
     setIsLoading(true);
 
@@ -458,7 +537,76 @@ export function SalesCoachChat({ prospectId, accountName }: SalesCoachChatProps)
                 ) : (
                   <>
                     {messages.length === 0 && (
-                      <div className="space-y-3">
+                      <div className="space-y-4">
+                        {/* Account Pulse Card */}
+                        {(heatScore || lastContactDate || pendingFollowUpsCount > 0) && (
+                          <div className="bg-gradient-to-br from-primary/5 to-primary/10 rounded-lg p-3 border border-primary/10">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                {heatScore && (
+                                  <>
+                                    <span className="text-2xl font-bold">{heatScore}</span>
+                                    {getHeatInfo && (
+                                      <Badge variant="outline" className={cn("text-xs", getHeatInfo.color)}>
+                                        {getHeatInfo.label}
+                                      </Badge>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                              {lastContactDate && (
+                                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  Last call: {formatDistanceToNow(new Date(lastContactDate), { addSuffix: true })}
+                                </span>
+                              )}
+                            </div>
+                            {pendingFollowUpsCount > 0 && (
+                              <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {pendingFollowUpsCount} open follow-up{pendingFollowUpsCount > 1 ? 's' : ''}
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Quick Action Buttons */}
+                        <div className="grid grid-cols-2 gap-2">
+                          {QUICK_ACTIONS.map((action) => (
+                            <Button
+                              key={action.id}
+                              variant="outline"
+                              className="h-auto py-3 flex-col gap-1.5 text-muted-foreground hover:text-foreground hover:bg-primary/5 hover:border-primary/30"
+                              onClick={() => sendMessage(action.prompt)}
+                              disabled={isLoading || isRateLimited}
+                            >
+                              {action.icon}
+                              <span className="text-xs font-medium">{action.label}</span>
+                            </Button>
+                          ))}
+                        </div>
+
+                        {/* Recently Asked Questions */}
+                        {recentQuestions.length > 0 && (
+                          <div>
+                            <p className="text-xs text-muted-foreground font-medium mb-2">Recently Asked</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {recentQuestions.map((q, i) => (
+                                <Button
+                                  key={i}
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-xs h-auto py-1.5 px-2.5 text-left justify-start font-normal text-muted-foreground hover:text-foreground hover:bg-primary/10 max-w-full"
+                                  onClick={() => sendMessage(q)}
+                                  disabled={isLoading || isRateLimited}
+                                >
+                                  <span className="truncate">{q.length > 45 ? `${q.slice(0, 45)}...` : q}</span>
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
                         <div className="bg-muted rounded-lg p-4">
                           <p className="text-sm text-muted-foreground">
                             Hey! I'm your sales coach with 30 years of experience closing deals. 
@@ -467,6 +615,7 @@ export function SalesCoachChat({ prospectId, accountName }: SalesCoachChatProps)
                             handle specific situations.
                           </p>
                         </div>
+
                         <div className="space-y-1">
                           <p className="text-xs text-muted-foreground font-medium mb-2">What can I help you with?</p>
                           {QUESTION_CATEGORIES.map((category) => (
@@ -630,52 +779,61 @@ export function SalesCoachChat({ prospectId, accountName }: SalesCoachChatProps)
                     No saved conversations yet
                   </p>
                 ) : (
-                  allSessions.map((session) => (
-                    <div
-                      key={session.id}
-                      className={cn(
-                        "p-3 rounded-lg border transition-colors cursor-pointer hover:bg-muted/50",
-                        session.is_active && "border-primary bg-primary/5"
-                      )}
-                      onClick={() => {
-                        if (!session.is_active) {
-                          handleSwitchSession(session.id);
-                        } else {
-                          setShowHistorySheet(false);
-                        }
-                      }}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <MessageSquare className="h-4 w-4 text-muted-foreground shrink-0" />
-                            <p className="text-sm font-medium truncate">
-                              {session.title || 'Untitled conversation'}
+                  allSessions.map((session) => {
+                    // Get first assistant message as preview
+                    const firstAssistantMessage = session.messages.find(m => m.role === 'assistant');
+                    const preview = firstAssistantMessage?.content?.slice(0, 80) || 'No response yet';
+                    
+                    return (
+                      <div
+                        key={session.id}
+                        className={cn(
+                          "p-3 rounded-lg border transition-colors cursor-pointer hover:bg-muted/50",
+                          session.is_active && "border-primary bg-primary/5"
+                        )}
+                        onClick={() => {
+                          if (!session.is_active) {
+                            handleSwitchSession(session.id);
+                          } else {
+                            setShowHistorySheet(false);
+                          }
+                        }}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <MessageSquare className="h-4 w-4 text-muted-foreground shrink-0" />
+                              <p className="text-sm font-medium truncate">
+                                {session.title || 'Untitled conversation'}
+                              </p>
+                              {session.is_active && (
+                                <span className="text-xs bg-primary text-primary-foreground px-1.5 py-0.5 rounded shrink-0">
+                                  Active
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                              {preview}{preview.length >= 80 ? '...' : ''}
                             </p>
-                            {session.is_active && (
-                              <span className="text-xs bg-primary text-primary-foreground px-1.5 py-0.5 rounded shrink-0">
-                                Active
-                              </span>
-                            )}
+                            <p className="text-xs text-muted-foreground/70 mt-1">
+                              {formatDistanceToNow(new Date(session.updated_at), { addSuffix: true })} · {session.messages.length} messages
+                            </p>
                           </div>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {formatDistanceToNow(new Date(session.updated_at), { addSuffix: true })} · {session.messages.length} messages
-                          </p>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteSession(session.id);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteSession(session.id);
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </ScrollArea>

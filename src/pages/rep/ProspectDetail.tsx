@@ -214,7 +214,10 @@ function ProspectDetail() {
       {/* AI Sales Coach Chat */}
       <SalesCoachChat 
         prospectId={prospect.id} 
-        accountName={prospect.account_name || prospect.prospect_name} 
+        accountName={prospect.account_name || prospect.prospect_name}
+        heatScore={prospect.account_heat_score}
+        lastContactDate={prospect.last_contact_date}
+        pendingFollowUpsCount={followUps.length}
       />
 
       {/* Account Research Chat */}
