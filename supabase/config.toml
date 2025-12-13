@@ -92,3 +92,6 @@ verify_jwt = false
 
 [functions.set-user-password]
 verify_jwt = true
+
+[functions.generate-agreed-next-steps]
+verify_jwt = true

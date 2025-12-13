@@ -17,6 +17,7 @@ import {
   ProspectQuickActions,
 } from '@/components/prospects/detail';
 import { AccountHeatCard } from '@/components/prospects/detail/AccountHeatCard';
+import { AgreedNextStepsCard } from '@/components/prospects/detail/AgreedNextStepsCard';
 
 // Existing dialog/sheet components
 import { AddStakeholderDialog } from '@/components/prospects/AddStakeholderDialog';
@@ -110,6 +111,13 @@ function ProspectDetail() {
           onUpdateProspect={handleUpdateProspect}
           repName={repProfile?.name}
           showRepName={showRepName}
+        />
+
+        {/* Agreed Next Steps Card - prominent position */}
+        <AgreedNextStepsCard
+          prospectId={prospect.id}
+          aiExtractedInfo={prospect.ai_extracted_info as Record<string, unknown> | null}
+          onRefresh={loadProspectData}
         />
 
         {/* Account Heat/Pulse Card (redesigned with collapsed details) */}

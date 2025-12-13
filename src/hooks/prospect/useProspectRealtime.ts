@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { createLogger } from '@/lib/logger';
 import { getCallsForProspect } from '@/api/prospects';
+import { generateAgreedNextSteps } from '@/api/agreedNextSteps';
 import type { CallRecord } from './types';
 
 const log = createLogger('prospectRealtime');
@@ -51,6 +52,11 @@ export function useProspectRealtime({
             
             // Refresh calls
             getCallsForProspect(prospectId).then(onCallsUpdate);
+            
+            // Auto-regenerate agreed next steps when new call completes
+            generateAgreedNextSteps(prospectId).catch((err) => {
+              log.warn('Failed to auto-refresh next steps:', err);
+            });
             
             // Trigger full refresh after a delay
             setTimeout(() => {
