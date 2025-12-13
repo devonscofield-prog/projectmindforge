@@ -92,8 +92,8 @@ export interface PipelineResult {
 const BATCH_DELAY_MS = 300;
 
 // Phase 0 time budget - abort Speaker Labeler if it exceeds this
-// Reduced from 20s to 15s to leave more time for analysis agents
-const PHASE0_BUDGET_MS = 15000;
+// Reduced to 10s to leave more time for analysis agents (Sentinel typically completes in 2-3s)
+const PHASE0_BUDGET_MS = 10000;
 
 // Maximum transcript length for speaker labeling (45k chars ~ 11k words)
 // Increased to support GPT-5.2 with 30s timeout for longer transcripts
