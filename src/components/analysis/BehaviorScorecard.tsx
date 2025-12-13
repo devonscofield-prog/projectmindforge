@@ -279,8 +279,8 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
             <GaugeBar 
               value={metrics.patience.score}
               max={30}
-              label="Patience"
-              sublabel={`${metrics.patience.interruption_count} interruption${metrics.patience.interruption_count !== 1 ? 's' : ''} detected`}
+              label="Acknowledgment"
+              sublabel={`${metrics.patience.missed_acknowledgment_count} missed acknowledgment${metrics.patience.missed_acknowledgment_count !== 1 ? 's' : ''}`}
               icon={<Timer className="h-4 w-4" />}
             />
             <div className="mt-2 flex items-center justify-between">
@@ -602,12 +602,12 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
               <Timer className="h-5 w-5" />
-              Patience Breakdown
+              Acknowledgment Quality
             </SheetTitle>
             <SheetDescription>
-              {metrics.patience.interruption_count === 0 
-                ? 'No interruptions detected - excellent listening skills!'
-                : `${metrics.patience.interruption_count} interruption${metrics.patience.interruption_count !== 1 ? 's' : ''} detected during the call`}
+              {metrics.patience.missed_acknowledgment_count === 0 
+                ? 'Excellent acknowledgment skills - you validated prospect statements before responding!'
+                : `${metrics.patience.missed_acknowledgment_count} missed acknowledgment${metrics.patience.missed_acknowledgment_count !== 1 ? 's' : ''} detected during the call`}
             </SheetDescription>
           </SheetHeader>
           
@@ -635,69 +635,74 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
               </div>
             </div>
 
-            {/* Interruptions List */}
-            {metrics.patience.interruptions && metrics.patience.interruptions.length > 0 ? (
+            {/* Acknowledgment Issues List */}
+            {metrics.patience.acknowledgment_issues && metrics.patience.acknowledgment_issues.length > 0 ? (
               <div className="space-y-3">
-                <h4 className="font-medium text-sm text-muted-foreground">Interruption Details</h4>
+                <h4 className="font-medium text-sm text-muted-foreground">Missed Acknowledgments</h4>
                 <div className="space-y-3">
-                  {metrics.patience.interruptions.map((interruption, idx) => (
+                  {metrics.patience.acknowledgment_issues.map((issue, idx) => (
                     <div 
                       key={idx} 
                       className={cn(
                         "p-3 rounded-lg border",
-                        interruption.severity === 'Severe' ? "border-destructive/50 bg-destructive/5" :
-                        interruption.severity === 'Moderate' ? "border-orange-500/50 bg-orange-500/5" :
+                        issue.severity === 'Severe' ? "border-destructive/50 bg-destructive/5" :
+                        issue.severity === 'Moderate' ? "border-orange-500/50 bg-orange-500/5" :
                         "border-yellow-500/50 bg-yellow-500/5"
                       )}
                     >
                       <div className="flex items-start justify-between gap-2 mb-2">
-                        <div className="flex items-center gap-2 text-sm">
-                          <span className="font-medium">{interruption.interrupter}</span>
-                          <span className="text-muted-foreground">interrupted</span>
-                          <span className="font-medium">{interruption.interrupted_speaker}</span>
-                        </div>
+                        <span className="text-xs text-muted-foreground">Prospect said:</span>
                         <Badge 
                           variant="secondary"
                           className={cn(
                             "text-xs shrink-0",
-                            interruption.severity === 'Severe' ? "bg-destructive/20 text-destructive" :
-                            interruption.severity === 'Moderate' ? "bg-orange-500/20 text-orange-700" :
+                            issue.severity === 'Severe' ? "bg-destructive/20 text-destructive" :
+                            issue.severity === 'Moderate' ? "bg-orange-500/20 text-orange-700" :
                             "bg-yellow-500/20 text-yellow-700"
                           )}
                         >
-                          {interruption.severity}
+                          {issue.severity}
                         </Badge>
                       </div>
-                      <p className="text-sm text-muted-foreground">{interruption.context}</p>
+                      <p className="text-sm font-medium mb-2">"{issue.what_prospect_said}"</p>
+                      <p className="text-xs text-muted-foreground mb-2">
+                        <span className="font-medium">Rep responded:</span> {issue.how_rep_responded}
+                      </p>
+                      <div className="p-2 rounded bg-primary/5 border border-primary/20">
+                        <p className="text-xs text-primary flex items-start gap-1">
+                          <Sparkles className="h-3 w-3 mt-0.5 shrink-0" />
+                          {issue.coaching_tip}
+                        </p>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
-            ) : metrics.patience.interruption_count > 0 ? (
+            ) : metrics.patience.missed_acknowledgment_count > 0 ? (
               <p className="text-sm text-muted-foreground italic">
-                Interruption details not available for this analysis
+                Acknowledgment details not available for this analysis
               </p>
             ) : null}
 
-            {/* Tips for improvement if interruptions detected */}
-            {metrics.patience.interruption_count > 0 && (
+            {/* Tips for improvement if issues detected */}
+            {metrics.patience.missed_acknowledgment_count > 0 && (
               <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
                 <h4 className="font-medium text-primary mb-2 flex items-center gap-2">
                   <Sparkles className="h-4 w-4" />
-                  Improvement Tips
+                  Acknowledgment Techniques
                 </h4>
                 <ul className="space-y-2 text-sm text-foreground/80">
                   <li className="flex gap-2">
                     <span className="text-primary">•</span>
-                    Wait 2 full seconds after the prospect finishes before responding
+                    Start with phrases like "I hear you," "That makes sense," or "Thanks for sharing that"
                   </li>
                   <li className="flex gap-2">
                     <span className="text-primary">•</span>
-                    Take notes while they speak to stay engaged without interrupting
+                    Paraphrase what the prospect said before responding with your point
                   </li>
                   <li className="flex gap-2">
                     <span className="text-primary">•</span>
-                    If you must interject, acknowledge what they were saying first
+                    For objections, acknowledge the concern before addressing it: "I understand that concern, and..."
                   </li>
                 </ul>
               </div>

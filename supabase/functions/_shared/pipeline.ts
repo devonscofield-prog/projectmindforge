@@ -590,7 +590,7 @@ ${callTypeSection}
 
 ### 2. BEHAVIORAL SCORE (The Referee)
 - Overall Score: ${behavior.overall_score}/100 (${behavior.grade})
-- Patience: ${behavior.metrics.patience.score}/30 (${behavior.metrics.patience.interruption_count} interruptions, ${behavior.metrics.patience.status})
+- Acknowledgment: ${behavior.metrics.patience.score}/30 (${behavior.metrics.patience.missed_acknowledgment_count} missed acknowledgments, ${behavior.metrics.patience.status})
 - Monologue: ${behavior.metrics.monologue.score}/20 (${behavior.metrics.monologue.violation_count} violations, longest turn ${behavior.metrics.monologue.longest_turn_word_count} words)
 - Talk/Listen Ratio: ${behavior.metrics.talk_listen_ratio.score}/15 (Rep talked ${behavior.metrics.talk_listen_ratio.rep_talk_percentage}%)
 - Next Steps: ${behavior.metrics.next_steps.score}/15 (${behavior.metrics.next_steps.secured ? 'SECURED' : 'NOT SECURED'}: ${behavior.metrics.next_steps.details})

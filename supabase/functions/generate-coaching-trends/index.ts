@@ -178,7 +178,7 @@ interface BehaviorScore {
   grade: 'Pass' | 'Fail';
   coaching_tip: string;
   metrics: {
-    patience: { score: number; interruption_count: number; status: string };
+    patience: { score: number; missed_acknowledgment_count: number; status: string };
     question_quality: { 
       score: number; 
       explanation: string;
@@ -488,7 +488,7 @@ function formatCallsForPrompt(calls: CallData[]): string {
       summary += `- Overall Behavior Score: ${behavior.overall_score}/100 (${behavior.grade})\n`;
       
       if (behavior.metrics) {
-        summary += `- Patience Score: ${behavior.metrics.patience?.score ?? 'N/A'}/30 (${behavior.metrics.patience?.interruption_count ?? 0} interruptions)\n`;
+        summary += `- Acknowledgment Score: ${behavior.metrics.patience?.score ?? 'N/A'}/30 (${behavior.metrics.patience?.missed_acknowledgment_count ?? 0} missed acknowledgments)\n`;
         const qm = behavior.metrics.question_quality;
         const yieldRatio = qm?.average_question_length ? (qm.average_answer_length / qm.average_question_length).toFixed(1) : 'N/A';
         summary += `- Question Yield: ${qm?.average_answer_length ?? 0} words per answer vs ${qm?.average_question_length ?? 0} words per question (${yieldRatio}:1 ratio, ${qm?.high_leverage_count ?? 0} high leverage, ${qm?.low_leverage_count ?? 0} low leverage)\n`;

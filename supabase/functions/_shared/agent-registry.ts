@@ -75,7 +75,7 @@ const DEFAULT_REFEREE = {
   overall_score: 0,
   grade: 'Fail' as const,
   metrics: {
-    patience: { score: 0, interruption_count: 0, status: 'Poor' as const },
+    patience: { score: 0, missed_acknowledgment_count: 0, status: 'Poor' as const },
     monologue: { score: 0, longest_turn_word_count: 0, violation_count: 0 },
     talk_listen_ratio: { score: 0, rep_talk_percentage: 0 },
     next_steps: { score: 0, secured: false, details: 'Analysis failed' },

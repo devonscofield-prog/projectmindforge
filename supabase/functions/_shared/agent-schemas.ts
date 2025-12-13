@@ -43,13 +43,13 @@ export const RefereeSchema = z.object({
   metrics: z.object({
     patience: z.object({
       score: z.number(),
-      interruption_count: z.number(),
+      missed_acknowledgment_count: z.number(),
       status: z.enum(['Excellent', 'Good', 'Fair', 'Poor']),
-      interruptions: z.array(z.object({
-        interrupted_speaker: z.string(),
-        interrupter: z.string(),
-        context: z.string(),
+      acknowledgment_issues: z.array(z.object({
+        what_prospect_said: z.string(),
+        how_rep_responded: z.string(),
         severity: z.enum(['Minor', 'Moderate', 'Severe']),
+        coaching_tip: z.string(),
       })).optional(),
     }),
     monologue: z.object({
