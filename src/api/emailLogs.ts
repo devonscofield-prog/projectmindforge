@@ -18,6 +18,13 @@ export interface EmailLog {
   updated_at: string;
 }
 
+export interface EmailLogStakeholder {
+  id: string;
+  email_log_id: string;
+  stakeholder_id: string;
+  created_at: string;
+}
+
 export interface CreateEmailLogParams {
   prospectId: string;
   repId: string;
@@ -29,6 +36,7 @@ export interface CreateEmailLogParams {
   contactEmail?: string;
   notes?: string;
   stakeholderId?: string;
+  stakeholderIds?: string[]; // Multiple stakeholders
 }
 
 export interface UpdateEmailLogParams {
@@ -40,6 +48,7 @@ export interface UpdateEmailLogParams {
   contactEmail?: string | null;
   notes?: string | null;
   stakeholderId?: string | null;
+  stakeholderIds?: string[];
 }
 
 export async function createEmailLog(params: CreateEmailLogParams): Promise<EmailLog> {
@@ -61,7 +70,27 @@ export async function createEmailLog(params: CreateEmailLogParams): Promise<Emai
     .single();
 
   if (error) throw error;
-  return data as EmailLog;
+  
+  const emailLog = data as EmailLog;
+  
+  // Insert stakeholder associations if provided
+  const stakeholderIds = params.stakeholderIds || (params.stakeholderId ? [params.stakeholderId] : []);
+  if (stakeholderIds.length > 0) {
+    const { error: stakeholderError } = await supabase
+      .from('email_log_stakeholders')
+      .insert(
+        stakeholderIds.map(stakeholderId => ({
+          email_log_id: emailLog.id,
+          stakeholder_id: stakeholderId,
+        }))
+      );
+    
+    if (stakeholderError) {
+      console.error('Failed to insert email log stakeholders:', stakeholderError);
+    }
+  }
+  
+  return emailLog;
 }
 
 export async function listEmailLogsForProspect(prospectId: string): Promise<EmailLog[]> {
@@ -73,6 +102,16 @@ export async function listEmailLogsForProspect(prospectId: string): Promise<Emai
 
   if (error) throw error;
   return (data || []) as EmailLog[];
+}
+
+export async function getEmailLogStakeholders(emailLogId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('email_log_stakeholders')
+    .select('stakeholder_id')
+    .eq('email_log_id', emailLogId);
+  
+  if (error) throw error;
+  return (data || []).map(row => row.stakeholder_id);
 }
 
 interface EmailLogUpdateData {
@@ -106,6 +145,28 @@ export async function updateEmailLog(id: string, updates: UpdateEmailLogParams):
     .single();
 
   if (error) throw error;
+  
+  // Update stakeholder associations if provided
+  if (updates.stakeholderIds !== undefined) {
+    // Delete existing associations
+    await supabase
+      .from('email_log_stakeholders')
+      .delete()
+      .eq('email_log_id', id);
+    
+    // Insert new associations
+    if (updates.stakeholderIds.length > 0) {
+      await supabase
+        .from('email_log_stakeholders')
+        .insert(
+          updates.stakeholderIds.map(stakeholderId => ({
+            email_log_id: id,
+            stakeholder_id: stakeholderId,
+          }))
+        );
+    }
+  }
+  
   return data as EmailLog;
 }
 

@@ -951,6 +951,42 @@ export type Database = {
         }
         Relationships: []
       }
+      email_log_stakeholders: {
+        Row: {
+          created_at: string
+          email_log_id: string
+          id: string
+          stakeholder_id: string
+        }
+        Insert: {
+          created_at?: string
+          email_log_id: string
+          id?: string
+          stakeholder_id: string
+        }
+        Update: {
+          created_at?: string
+          email_log_id?: string
+          id?: string
+          stakeholder_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_log_stakeholders_email_log_id_fkey"
+            columns: ["email_log_id"]
+            isOneToOne: false
+            referencedRelation: "email_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_log_stakeholders_stakeholder_id_fkey"
+            columns: ["stakeholder_id"]
+            isOneToOne: false
+            referencedRelation: "stakeholders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_logs: {
         Row: {
           body: string
