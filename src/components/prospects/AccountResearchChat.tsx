@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,22 +8,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { RateLimitCountdown } from '@/components/ui/rate-limit-countdown';
-import { AnalysisMessageRenderer } from '@/components/admin/AnalysisMessageRenderer';
-import { Search, Loader2, Copy, Check, ChevronDown, Plus, X, Building2, Save, History, RefreshCw } from 'lucide-react';
+import { Search, Loader2, ChevronDown, Plus, X, Building2, Save, History, RefreshCw, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { streamAccountResearch, type AccountResearchRequest } from '@/api/accountResearch';
+import { fetchAccountResearch, type AccountResearchRequest } from '@/api/accountResearch';
 import { useRateLimitCountdown } from '@/hooks/useRateLimitCountdown';
 import { industryOptions } from '@/components/prospects/detail/constants';
+import { ResearchLoadingSkeleton, StructuredResearchDisplay } from '@/components/prospects/research';
+import { isStructuredAccountResearch, type StructuredAccountResearch } from '@/types/accountResearch';
 import type { Prospect } from '@/api/prospects';
 import type { Stakeholder } from '@/api/stakeholders';
-
-interface SavedResearchInfo {
-  account_research?: string;
-  account_research_generated_at?: string;
-  // Legacy field name support
-  account_research_date?: string;
-}
 
 const DEAL_STAGES = [
   'Prospecting',
@@ -40,7 +34,7 @@ interface AccountResearchChatProps {
   onOpenChange: (open: boolean) => void;
   prospect?: Prospect | null;
   stakeholders?: Stakeholder[];
-  onSaveResearch?: (research: string) => Promise<boolean>;
+  onSaveResearch?: (research: StructuredAccountResearch) => Promise<boolean>;
 }
 
 interface StakeholderInput {
@@ -68,27 +62,38 @@ export function AccountResearchChat({
 
   // UI state
   const [isResearching, setIsResearching] = useState(false);
-  const [researchResult, setResearchResult] = useState('');
-  const [copied, setCopied] = useState(false);
+  const [researchResult, setResearchResult] = useState<StructuredAccountResearch | null>(null);
   const [showForm, setShowForm] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [viewMode, setViewMode] = useState<'previous' | 'new' | 'result'>('previous');
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const researchResultRef = useRef('');
   
   // Rate limiting
   const { secondsRemaining, isRateLimited, startCountdown } = useRateLimitCountdown(60);
 
-  // Get saved research from prospect (support both field names)
+  // Get saved research from prospect - handle both structured and legacy string formats
   const savedResearch = useMemo(() => {
-    const aiInfo = prospect?.ai_extracted_info as SavedResearchInfo | null;
+    const aiInfo = prospect?.ai_extracted_info as {
+      account_research?: StructuredAccountResearch | string;
+      account_research_generated_at?: string;
+      account_research_date?: string;
+    } | null;
+    
     if (aiInfo?.account_research) {
       const dateStr = aiInfo.account_research_generated_at || aiInfo.account_research_date;
-      return {
-        content: aiInfo.account_research,
-        date: dateStr ? new Date(dateStr) : null,
-      };
+      const content = aiInfo.account_research;
+      
+      // Check if it's structured research
+      if (isStructuredAccountResearch(content)) {
+        return {
+          content,
+          isStructured: true,
+          date: dateStr ? new Date(dateStr) : null,
+        };
+      }
+      
+      // Legacy string format - return null to force new research
+      return null;
     }
     return null;
   }, [prospect?.ai_extracted_info]);
@@ -97,7 +102,7 @@ export function AccountResearchChat({
   useEffect(() => {
     if (open) {
       setCompanyName(prospect?.account_name || prospect?.prospect_name || '');
-      setWebsite((prospect as any)?.website || ''); // Use dedicated website field
+      setWebsite((prospect as any)?.website || '');
       setIndustry(prospect?.industry || '');
       
       // Auto-populate stakeholders
@@ -118,12 +123,11 @@ export function AccountResearchChat({
       }
 
       // Reset results and determine initial view
-      setResearchResult('');
-      setCopied(false);
+      setResearchResult(null);
       setSaved(false);
       
-      // If there's saved research, show it by default; otherwise show form
-      if (savedResearch) {
+      // If there's saved structured research, show it by default; otherwise show form
+      if (savedResearch?.isStructured) {
         setViewMode('previous');
         setShowForm(false);
       } else {
@@ -159,8 +163,7 @@ export function AccountResearchChat({
     }
 
     setIsResearching(true);
-    setResearchResult('');
-    researchResultRef.current = '';
+    setResearchResult(null);
     setShowForm(false);
     setSaved(false);
     setViewMode('result');
@@ -169,9 +172,7 @@ export function AccountResearchChat({
     const normalizeWebsite = (url: string): string | undefined => {
       const trimmed = url.trim();
       if (!trimmed) return undefined;
-      // If it already has a protocol, return as-is
       if (/^https?:\/\//i.test(trimmed)) return trimmed;
-      // Otherwise, add https://
       return `https://${trimmed}`;
     };
 
@@ -192,89 +193,56 @@ export function AccountResearchChat({
       additionalNotes: additionalNotes.trim() || undefined,
     };
 
-    await streamAccountResearch({
-      request,
-      onDelta: (text) => {
-        researchResultRef.current += text;
-        setResearchResult(prev => prev + text);
-        // Auto-scroll to bottom
-        if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
-        }
-      },
-      onDone: async () => {
-        setIsResearching(false);
-        
-        // Auto-save if callback exists and we have results
-        if (onSaveResearch && researchResultRef.current && prospect) {
-          try {
-            const success = await onSaveResearch(researchResultRef.current);
-            if (success) {
-              setSaved(true);
-              toast.success('Research complete and saved');
-            } else {
-              toast.success('Research complete');
-              toast.warning('Auto-save failed - click Save to retry');
-            }
-          } catch (err) {
+    try {
+      const research = await fetchAccountResearch(request);
+      setResearchResult(research);
+      setIsResearching(false);
+      
+      // Auto-save if callback exists
+      if (onSaveResearch && prospect) {
+        try {
+          const success = await onSaveResearch(research);
+          if (success) {
+            setSaved(true);
+            toast.success('Research complete and saved');
+          } else {
             toast.success('Research complete');
             toast.warning('Auto-save failed - click Save to retry');
           }
-        } else {
+        } catch {
           toast.success('Research complete');
+          toast.warning('Auto-save failed - click Save to retry');
         }
-      },
-      onError: (error) => {
-        setIsResearching(false);
-        researchResultRef.current = '';
-        if (error.message.includes('Rate limit') || error.message.includes('429')) {
-          startCountdown(60);
-          toast.error('Rate limited. Please wait before trying again.');
-        } else {
-          toast.error(error.message);
-        }
-        setShowForm(true);
-      },
-    });
-  };
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(researchResult);
-      setCopied(true);
-      toast.success('Copied to clipboard');
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      toast.error('Failed to copy to clipboard');
+      } else {
+        toast.success('Research complete');
+      }
+    } catch (error) {
+      setIsResearching(false);
+      const message = error instanceof Error ? error.message : 'Research failed';
+      
+      if (message.includes('Rate limit') || message.includes('429')) {
+        startCountdown(60);
+        toast.error('Rate limited. Please wait before trying again.');
+      } else {
+        toast.error(message);
+      }
+      setShowForm(true);
     }
   };
 
   const handleNewResearch = () => {
-    setResearchResult('');
-    researchResultRef.current = '';
+    setResearchResult(null);
     setShowForm(true);
     setSaved(false);
     setViewMode('new');
   };
 
   const handleViewPrevious = () => {
-    if (savedResearch) {
-      setResearchResult('');
+    if (savedResearch?.isStructured) {
+      setResearchResult(null);
       setShowForm(false);
       setViewMode('previous');
-      setSaved(true); // It's already saved
-    }
-  };
-
-  const handleCopyPrevious = async () => {
-    if (!savedResearch?.content) return;
-    try {
-      await navigator.clipboard.writeText(savedResearch.content);
-      setCopied(true);
-      toast.success('Copied to clipboard');
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      toast.error('Failed to copy to clipboard');
+      setSaved(true);
     }
   };
 
@@ -290,7 +258,7 @@ export function AccountResearchChat({
       } else {
         toast.error('Failed to save research');
       }
-    } catch (err) {
+    } catch {
       toast.error('Failed to save research');
     } finally {
       setIsSaving(false);
@@ -317,7 +285,7 @@ export function AccountResearchChat({
         )}
 
         <ScrollArea className="flex-1 px-6">
-          <div ref={scrollContainerRef} className="py-4 space-y-6">
+          <div className="py-4 space-y-6">
             {showForm ? (
               <>
                 {/* Company Information */}
@@ -467,7 +435,7 @@ export function AccountResearchChat({
                   />
                 </div>
               </>
-            ) : viewMode === 'previous' && savedResearch ? (
+            ) : viewMode === 'previous' && savedResearch?.isStructured ? (
               /* Previous Saved Research */
               <div className="space-y-4">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
@@ -478,28 +446,18 @@ export function AccountResearchChat({
                       : 'previously'}
                   </span>
                 </div>
-                <AnalysisMessageRenderer 
-                  content={savedResearch.content} 
-                  isStreaming={false}
-                />
+                <StructuredResearchDisplay research={savedResearch.content} />
               </div>
             ) : (
               /* New Research Results */
               <div>
-                {researchResult ? (
-                  <AnalysisMessageRenderer 
-                    content={researchResult} 
-                    isStreaming={isResearching}
-                  />
+                {isResearching ? (
+                  <ResearchLoadingSkeleton />
+                ) : researchResult ? (
+                  <StructuredResearchDisplay research={researchResult} />
                 ) : (
                   <div className="flex items-center justify-center py-12">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  </div>
-                )}
-                {isResearching && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground mt-4">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Researching...
                   </div>
                 )}
               </div>
@@ -511,7 +469,7 @@ export function AccountResearchChat({
         <div className="border-t px-6 py-4 flex gap-2">
           {showForm ? (
             <>
-              {savedResearch && (
+              {savedResearch?.isStructured && (
                 <Button
                   variant="outline"
                   onClick={handleViewPrevious}
@@ -539,31 +497,13 @@ export function AccountResearchChat({
               </Button>
             </>
           ) : viewMode === 'previous' ? (
-            <>
-              <Button
-                variant="outline"
-                onClick={handleNewResearch}
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Run New Research
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleCopyPrevious}
-              >
-                {copied ? (
-                  <>
-                    <Check className="h-4 w-4 mr-2" />
-                    Copied
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-4 w-4 mr-2" />
-                    Copy
-                  </>
-                )}
-              </Button>
-            </>
+            <Button
+              variant="outline"
+              onClick={handleNewResearch}
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Run New Research
+            </Button>
           ) : (
             <>
               <Button
@@ -573,27 +513,10 @@ export function AccountResearchChat({
               >
                 New Research
               </Button>
-              <Button
-                variant="outline"
-                onClick={handleCopy}
-                disabled={!researchResult || isResearching}
-              >
-                {copied ? (
-                  <>
-                    <Check className="h-4 w-4 mr-2" />
-                    Copied
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-4 w-4 mr-2" />
-                    Copy
-                  </>
-                )}
-              </Button>
-              {onSaveResearch && prospect && (
+              {onSaveResearch && prospect && researchResult && (
                 <Button
                   onClick={handleSaveToAccount}
-                  disabled={!researchResult || isResearching || isSaving || saved}
+                  disabled={isResearching || isSaving || saved}
                 >
                   {isSaving ? (
                     <>

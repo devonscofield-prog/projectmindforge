@@ -219,7 +219,7 @@ function ProspectDetail() {
           return handleUpdateProspect({
             ai_extracted_info: {
               ...currentInfo,
-              account_research: research,
+              account_research: research, // Now stores structured object
               account_research_generated_at: new Date().toISOString(),
             } as any,
           });

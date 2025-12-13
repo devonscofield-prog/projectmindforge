@@ -30,7 +30,7 @@ function getCorsHeaders(origin?: string | null): Record<string, string> {
   };
 }
 
-// Zod validation schema
+// Zod validation schema for request
 const researchRequestSchema = z.object({
   companyName: z.string().min(1, "Company name is required").max(200),
   website: z.string().url("Invalid website URL").optional(),
@@ -47,6 +47,117 @@ const researchRequestSchema = z.object({
   knownChallenges: z.string().max(2000).optional(),
   additionalNotes: z.string().max(2000).optional()
 });
+
+// Tool definition for structured output
+const RESEARCH_TOOL = {
+  type: 'function',
+  function: {
+    name: 'submit_account_research',
+    description: 'Submit structured account research findings',
+    parameters: {
+      type: 'object',
+      properties: {
+        company_overview: {
+          type: 'object',
+          properties: {
+            description: { type: 'string', description: 'Brief company description' },
+            size: { type: 'string', description: 'Company size (employees, revenue)' },
+            headquarters: { type: 'string', description: 'Headquarters location' },
+            recent_news: { type: 'array', items: { type: 'string' }, description: 'Recent news or announcements (2-4 items)' },
+            key_metrics: { type: 'array', items: { type: 'string' }, description: 'Key business metrics or facts (2-4 items)' }
+          },
+          required: ['description', 'size', 'headquarters', 'recent_news', 'key_metrics']
+        },
+        industry_analysis: {
+          type: 'object',
+          properties: {
+            top_challenges: { type: 'array', items: { type: 'string' }, description: 'Top 3-5 industry challenges' },
+            company_specific_challenges: { type: 'array', items: { type: 'string' }, description: 'How challenges apply to this company (2-4 items)' },
+            market_pressures: { type: 'array', items: { type: 'string' }, description: 'Market pressures or competitive dynamics (2-3 items)' }
+          },
+          required: ['top_challenges', 'company_specific_challenges', 'market_pressures']
+        },
+        stakeholder_insights: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              priorities: { type: 'array', items: { type: 'string' }, description: '2-3 likely priorities' },
+              messaging_approach: { type: 'string', description: 'How to tailor message to them' },
+              questions_to_ask: { type: 'array', items: { type: 'string' }, description: '2-3 specific questions' }
+            },
+            required: ['name', 'priorities', 'messaging_approach', 'questions_to_ask']
+          },
+          description: 'Insights for each stakeholder provided'
+        },
+        conversation_hooks: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              hook: { type: 'string', description: 'The conversation opener or talking point' },
+              context: { type: 'string', description: 'Why this hook works for this company' }
+            },
+            required: ['hook', 'context']
+          },
+          description: '3-5 personalized conversation hooks'
+        },
+        discovery_questions: {
+          type: 'array',
+          items: { type: 'string' },
+          description: '8-10 targeted discovery questions'
+        },
+        solution_alignment: {
+          type: 'object',
+          properties: {
+            needs_connection: { type: 'string', description: 'How the solution connects to their needs' },
+            benefits: { type: 'array', items: { type: 'string' }, description: '3-5 specific benefits to emphasize' },
+            objections_and_responses: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  objection: { type: 'string' },
+                  response: { type: 'string' }
+                },
+                required: ['objection', 'response']
+              },
+              description: '2-4 potential objections with responses'
+            }
+          },
+          required: ['needs_connection', 'benefits', 'objections_and_responses'],
+          description: 'Only include if product pitch was provided'
+        },
+        signals_to_watch: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              signal_type: { type: 'string', enum: ['hiring', 'technology', 'funding', 'expansion', 'leadership_change', 'other'] },
+              description: { type: 'string' }
+            },
+            required: ['signal_type', 'description']
+          },
+          description: '3-5 signals indicating buying intent'
+        },
+        risks_and_considerations: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              risk_type: { type: 'string', enum: ['competitive', 'timing', 'budget', 'decision_process', 'technical', 'other'] },
+              description: { type: 'string' }
+            },
+            required: ['risk_type', 'description']
+          },
+          description: '2-4 potential blockers or red flags'
+        }
+      },
+      required: ['company_overview', 'industry_analysis', 'conversation_hooks', 'discovery_questions', 'signals_to_watch', 'risks_and_considerations']
+    }
+  }
+};
 
 Deno.serve(async (req) => {
   const origin = req.headers.get('origin');
@@ -83,7 +194,7 @@ Deno.serve(async (req) => {
 
     const { companyName, website, industry, stakeholders, productPitch, dealStage, knownChallenges, additionalNotes } = validation.data;
 
-    console.log('[account-research] Processing research request for:', companyName);
+    console.log('[account-research] Processing structured research request for:', companyName);
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
@@ -94,109 +205,40 @@ Deno.serve(async (req) => {
       );
     }
 
-    
-
-    // Build context sections for the prompt
-    const contextSections: string[] = [];
-    
-    if (website) {
-      contextSections.push(`**Website**: ${website}`);
-    }
-    if (industry) {
-      contextSections.push(`**Industry**: ${industry}`);
-    }
+    // Build context for the prompt
+    const contextParts: string[] = [];
+    if (website) contextParts.push(`Website: ${website}`);
+    if (industry) contextParts.push(`Industry: ${industry}`);
     if (stakeholders && stakeholders.length > 0) {
       const stakeholderList = stakeholders
         .map(s => `- ${s.name}${s.title ? ` (${s.title})` : ''}${s.role ? ` - ${s.role}` : ''}`)
         .join('\n');
-      contextSections.push(`**Key People**:\n${stakeholderList}`);
+      contextParts.push(`Key Stakeholders:\n${stakeholderList}`);
     }
-    if (productPitch) {
-      contextSections.push(`**What We're Selling**: ${productPitch}`);
-    }
-    if (dealStage) {
-      contextSections.push(`**Deal Stage**: ${dealStage}`);
-    }
-    if (knownChallenges) {
-      contextSections.push(`**Known Challenges**: ${knownChallenges}`);
-    }
-    if (additionalNotes) {
-      contextSections.push(`**Additional Context**: ${additionalNotes}`);
-    }
+    if (productPitch) contextParts.push(`What We're Selling: ${productPitch}`);
+    if (dealStage) contextParts.push(`Deal Stage: ${dealStage}`);
+    if (knownChallenges) contextParts.push(`Known Challenges: ${knownChallenges}`);
+    if (additionalNotes) contextParts.push(`Additional Context: ${additionalNotes}`);
 
-    const contextBlock = contextSections.length > 0 
-      ? `\n\n## Context Provided by Sales Rep\n${contextSections.join('\n\n')}`
+    const contextBlock = contextParts.length > 0 
+      ? `\n\nContext provided:\n${contextParts.join('\n\n')}`
       : '';
 
-    const systemPrompt = `You are a seasoned marketing and sales intelligence expert with 25+ years of experience at Fortune 500 companies. You've led competitive intelligence teams, closed multi-million dollar enterprise deals, and know exactly what information moves deals forward.
+    const systemPrompt = `You are a seasoned sales intelligence expert with 25+ years of experience at Fortune 500 companies. You research companies to provide actionable intelligence that helps close deals.
 
-Your task is to research a company and provide actionable intelligence that helps close deals. Think like a VP of Sales who has seen thousands of deals—focus on what actually matters for winning business.
+Your task: Research "${companyName}" and provide comprehensive, structured intelligence.
 
-## Your Research Approach:
-1. Synthesize information about the company from your training data
-2. Identify specific pain points and challenges based on their industry and context
-3. Research key stakeholders if provided (think LinkedIn-style insights)
-4. Connect their likely challenges to potential solutions
-5. Provide specific, actionable conversation hooks
-
-## Your Response Style:
+Guidelines:
 - Be specific and actionable, not generic
-- Use bullet points for easy scanning
 - Include specific names, dates, and facts when available
-- If you're uncertain about something, say so rather than making things up
-- Focus on insights that help WIN DEALS, not just general company info`;
+- If uncertain, note it rather than inventing
+- Focus on insights that help WIN DEALS
+${stakeholders && stakeholders.length > 0 ? '- Provide insights for EACH stakeholder listed' : '- Skip stakeholder_insights section (none provided)'}
+${productPitch ? '- Include solution_alignment section connecting the product to their needs' : '- Set solution_alignment to null (no product pitch provided)'}
 
-    const userPrompt = `# Research Request: ${companyName}${contextBlock}
+Call the submit_account_research function with your findings.`;
 
----
-
-Please provide comprehensive sales intelligence in the following structure:
-
-## 📊 Company Overview
-- What they do, company size, headquarters, market position
-- Recent news, announcements, or notable changes (from your training data)
-- Key metrics or financial indicators if known
-
-## 🎯 Industry Analysis & Pain Points
-- Top 3-5 challenges companies in this industry typically face
-- How these challenges specifically apply to ${companyName}
-- Market pressures or competitive dynamics affecting them
-
-${stakeholders && stakeholders.length > 0 ? `## 👥 Stakeholder Insights
-For each key person provided, analyze:
-- Their likely priorities based on their role
-- What they probably care about most
-- How to tailor your message to them
-- Questions to ask them specifically
-` : ''}
-
-## 💡 Sales Conversation Hooks
-- 3-5 specific talking points tailored to this company
-- Opening lines that will resonate with their situation
-- Ways to personalize outreach that show you've done your homework
-
-## ❓ Discovery Questions
-- 8-10 targeted questions to ask in discovery calls
-- Questions that uncover budget, timeline, and decision process
-- Questions that reveal pain points and priorities
-
-${productPitch ? `## 🎯 Solution Alignment
-- How what you're selling connects to their likely needs
-- Specific benefits to emphasize for this company
-- Potential objections and how to handle them
-` : ''}
-
-## 📈 Signals to Watch
-- Hiring patterns that indicate buying intent
-- Tech investments or changes to watch for
-- Funding, M&A, or financial moves that matter
-
-## ⚠️ Risks & Considerations
-- Potential blockers or red flags for this deal
-- Competitive threats to watch out for
-- Timing considerations
-
-Be specific and actionable. I'm preparing for a sales conversation and need intelligence that helps me WIN this deal.`;
+    const userPrompt = `Research: ${companyName}${contextBlock}`;
 
     // Create abort controller with 60-second timeout
     const controller = new AbortController();
@@ -216,7 +258,8 @@ Be specific and actionable. I'm preparing for a sales conversation and need inte
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt }
           ],
-          stream: true,
+          tools: [RESEARCH_TOOL],
+          tool_choice: { type: 'function', function: { name: 'submit_account_research' } },
         }),
         signal: controller.signal,
       });
@@ -235,7 +278,7 @@ Be specific and actionable. I'm preparing for a sales conversation and need inte
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('AI gateway error:', response.status, errorText);
+      console.error('[account-research] AI gateway error:', response.status, errorText);
       
       if (response.status === 429) {
         return new Response(
@@ -256,14 +299,39 @@ Be specific and actionable. I'm preparing for a sales conversation and need inte
       );
     }
 
-    console.log('Streaming research response for:', companyName);
+    const data = await response.json();
+    console.log('[account-research] Got response for:', companyName);
 
-    return new Response(response.body, {
-      headers: { ...corsHeaders, 'Content-Type': 'text/event-stream' },
-    });
+    // Extract tool call arguments
+    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    if (!toolCall || toolCall.function?.name !== 'submit_account_research') {
+      console.error('[account-research] No tool call in response:', JSON.stringify(data));
+      return new Response(
+        JSON.stringify({ error: 'AI did not return structured research' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    let research: unknown;
+    try {
+      research = JSON.parse(toolCall.function.arguments);
+    } catch (err) {
+      console.error('[account-research] Failed to parse tool arguments:', err);
+      return new Response(
+        JSON.stringify({ error: 'Failed to parse research data' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('[account-research] Successfully extracted structured research for:', companyName);
+
+    return new Response(
+      JSON.stringify({ research }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
 
   } catch (error) {
-    console.error('Account research error:', error);
+    console.error('[account-research] Error:', error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
