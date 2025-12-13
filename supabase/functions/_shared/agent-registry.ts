@@ -49,7 +49,7 @@ export interface AgentConfig<T extends z.ZodTypeAny = z.ZodTypeAny> {
   toolName: string;                        // Tool function name
   toolDescription: string;                 // Tool description for AI
   options: {
-    model: 'google/gemini-2.5-flash' | 'google/gemini-2.5-pro' | 'openai/gpt-5.2-pro';
+    model: 'google/gemini-2.5-flash' | 'google/gemini-2.5-pro' | 'openai/gpt-5.2';
     temperature?: number;                  // Note: GPT-5.x models don't support temperature
     maxTokens?: number;
   };
@@ -356,7 +356,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (input) => `Based on the following analysis reports from 9 specialized agents, synthesize a coaching plan for the sales rep:\n\n${input}`,
     toolName: 'synthesize_coaching',
     toolDescription: 'Synthesize all analysis into a prioritized coaching plan',
-    options: { model: 'openai/gpt-5.2-pro', maxTokens: 2560 }, // OpenAI GPT-5.2-pro for superior reasoning
+    options: { model: 'openai/gpt-5.2', maxTokens: 2560 }, // OpenAI GPT-5.2-pro for superior reasoning
     isCritical: false,
     default: DEFAULT_COACH,
     phase: 2,
