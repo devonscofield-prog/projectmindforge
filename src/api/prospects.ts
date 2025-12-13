@@ -129,6 +129,13 @@ export interface ProspectIntel {
     trend: string; 
     recommended_action?: string;
   };
+  // AI-native V2 fields
+  deal_blockers?: string[];
+  champion_signals?: string[];
+  buying_signals?: string[];
+  stall_signals?: string[];
+  relationship_trajectory?: 'improving' | 'stable' | 'declining' | 'stalled';
+  next_best_action?: string;
 }
 
 export interface ProspectActivity {
