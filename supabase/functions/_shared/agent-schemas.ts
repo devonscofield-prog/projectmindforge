@@ -13,9 +13,9 @@ import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
 // The Census - structured data extraction
 export const CensusSchema = z.object({
   logistics: z.object({
-    platform: z.string().optional(),
-    duration_minutes: z.number(),
-    video_on: z.boolean(),
+    platform: z.string().optional().nullable(),
+    duration_minutes: z.number().optional().nullable(),
+    video_on: z.boolean().optional().nullable(),
   }),
   participants: z.array(z.object({
     name: z.string(),
