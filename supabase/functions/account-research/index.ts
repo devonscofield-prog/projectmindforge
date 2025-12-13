@@ -7,7 +7,6 @@ function getCorsHeaders(origin?: string | null): Record<string, string> {
   const allowedOrigins = [
     'http://localhost:8080',
     'http://localhost:5173',
-    'https://lovableproject.com',
   ];
   
   if (CUSTOM_DOMAIN) {
@@ -19,9 +18,13 @@ function getCorsHeaders(origin?: string | null): Record<string, string> {
     allowedOrigins.push(`https://www.${STORMWIND_DOMAIN}`);
   }
 
-  const effectiveOrigin = origin && allowedOrigins.some(allowed => origin.startsWith(allowed.replace(/\/$/, '')))
-    ? origin
-    : allowedOrigins[0];
+  // Check if origin matches any allowed origin OR is a lovableproject.com subdomain
+  const isAllowed = origin && (
+    allowedOrigins.some(allowed => origin === allowed) ||
+    /^https:\/\/[a-z0-9-]+\.lovableproject\.com$/.test(origin)
+  );
+
+  const effectiveOrigin = isAllowed ? origin : allowedOrigins[0];
 
   return {
     'Access-Control-Allow-Origin': effectiveOrigin,
