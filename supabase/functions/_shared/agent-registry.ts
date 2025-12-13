@@ -271,7 +271,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (t) => `Analyze this sales call transcript for strategic alignment. Map every prospect pain to every rep pitch and score the relevance:\n\n${t}`,
     toolName: 'audit_call_strategy',
     toolDescription: 'Audit the strategic alignment in a sales call - mapping pains to pitches',
-    options: { model: 'google/gemini-2.5-flash', temperature: 0.2, maxTokens: 4096 }, // Switched from gpt-5.2 for speed
+    options: { model: 'openai/gpt-5.2', temperature: 0.2, maxTokens: 4096 },
     isCritical: false,
     default: DEFAULT_STRATEGIST,
     phase: 1,
@@ -299,7 +299,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (t) => `Analyze this sales call transcript for objections and pushback. Identify how the rep handled each moment of friction:\n\n${t}`,
     toolName: 'analyze_objection_handling',
     toolDescription: 'Analyze how the rep handled objections and pushback during the sales call',
-    options: { model: 'google/gemini-2.5-flash', temperature: 0.1, maxTokens: 1536 }, // Switched from gpt-5.2 for speed
+    options: { model: 'openai/gpt-5.2', temperature: 0.1, maxTokens: 1536 },
     isCritical: false,
     default: DEFAULT_NEGOTIATOR,
     phase: 1,
@@ -327,7 +327,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (t) => `Analyze this sales call transcript for competitive intelligence. Find ALL mentions of other vendors, tools, or incumbents and build a battlecard:\n\n${t}`,
     toolName: 'analyze_competitors',
     toolDescription: 'Extract competitive intelligence from a sales call transcript',
-    options: { model: 'google/gemini-2.5-flash', temperature: 0.2, maxTokens: 2048 }, // Switched from gpt-5.2 for speed
+    options: { model: 'openai/gpt-5.2', temperature: 0.2, maxTokens: 2048 },
     isCritical: false,
     default: DEFAULT_SPY,
     phase: 1,
@@ -341,7 +341,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (t) => `Analyze this sales call transcript for pricing discipline. Find ALL discounts, concessions, or price reductions offered and assess whether the timing was appropriate:\n\n${t}`,
     toolName: 'analyze_pricing_discipline',
     toolDescription: 'Analyze pricing discipline and discount behavior in a sales call',
-    options: { model: 'google/gemini-2.5-flash', temperature: 0.1, maxTokens: 2048 }, // Switched from gpt-5.2 for speed
+    options: { model: 'openai/gpt-5.2', temperature: 0.1, maxTokens: 2048 },
     isCritical: false,
     default: DEFAULT_AUDITOR,
     phase: 1,
