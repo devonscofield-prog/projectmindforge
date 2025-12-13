@@ -713,7 +713,7 @@ ${pricingSection}
 
 // ============= PIPELINE TIMEOUT =============
 
-const PIPELINE_TIMEOUT_MS = 55000; // 55 seconds - leave 5s buffer for Edge Function limit
+const PIPELINE_TIMEOUT_MS = 115000; // 55 seconds - leave 5s buffer for Edge Function limit
 
 class PipelineTimeoutError extends Error {
   constructor(elapsedMs: number) {
