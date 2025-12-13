@@ -24,7 +24,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Send, Loader2, Sparkles, User, ChevronDown, Trash2, History, Plus, MoreVertical, MessageSquare, Phone, Mail, Target, TrendingUp, Calendar, Clock } from 'lucide-react';
+import { Send, Loader2, Sparkles, User, ChevronDown, Trash2, History, Plus, MoreVertical, MessageSquare, Phone, Mail, Target, TrendingUp, Calendar, Clock, Zap } from 'lucide-react';
 import { streamCoachResponse, type ChatMessage } from '@/api/salesCoach';
 import { 
   fetchCoachSession, 
@@ -44,6 +44,60 @@ import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatDistanceToNow } from 'date-fns';
+
+// Typing indicator component with animated dots
+const TypingIndicator = () => (
+  <div className="flex items-center gap-1 px-2">
+    <span className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+    <span className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+    <span className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+  </div>
+);
+
+// Heat score circular progress indicator
+const HeatScoreIndicator = ({ score, size = 56 }: { score: number; size?: number }) => {
+  const radius = (size - 8) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const progress = (score / 100) * circumference;
+  
+  const getColor = () => {
+    if (score >= 70) return 'stroke-success';
+    if (score >= 40) return 'stroke-warning';
+    return 'stroke-destructive';
+  };
+
+  return (
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg className="transform -rotate-90" width={size} height={size}>
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke="currentColor"
+          strokeWidth="4"
+          fill="none"
+          className="text-muted/30"
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          strokeWidth="4"
+          fill="none"
+          strokeLinecap="round"
+          className={cn("transition-all duration-500", getColor())}
+          style={{
+            strokeDasharray: circumference,
+            strokeDashoffset: circumference - progress,
+          }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span className="text-sm font-bold">{score}</span>
+      </div>
+    </div>
+  );
+};
 
 interface SalesCoachChatProps {
   prospectId: string;
@@ -460,32 +514,45 @@ export function SalesCoachChat({ prospectId, accountName, heatScore, lastContact
           <SheetTrigger asChild>
             <Button
               size="lg"
-              className="fixed bottom-20 right-4 md:bottom-6 md:right-6 h-12 md:h-14 px-4 md:px-5 shadow-lg gap-2 z-40"
+              className="fixed bottom-20 right-4 md:bottom-6 md:right-6 h-12 md:h-14 px-4 md:px-6 shadow-xl gap-2.5 z-40 bg-gradient-to-r from-primary via-primary to-accent hover:shadow-primary/25 hover:scale-105 transition-all duration-300 group"
             >
-              <Sparkles className="h-5 w-5" />
-              <span className="hidden sm:inline">Ask Sales Coach</span>
-              <span className="sm:hidden">Coach</span>
+              <Sparkles className="h-5 w-5 group-hover:animate-pulse" />
+              <span className="hidden sm:inline font-medium">Ask Sales Coach</span>
+              <span className="sm:hidden font-medium">Coach</span>
             </Button>
           </SheetTrigger>
-          <SheetContent className="w-full sm:max-w-lg flex flex-col p-0 h-full max-h-[100dvh]">
-            <SheetHeader className="px-4 py-3 border-b bg-primary text-primary-foreground">
-              <div className="flex items-center justify-between">
+          <SheetContent className="w-full sm:max-w-lg flex flex-col p-0 h-full max-h-[100dvh] overflow-hidden">
+            {/* Glassmorphism Header */}
+            <SheetHeader className="relative px-4 py-4 border-b border-primary-foreground/10 bg-gradient-to-r from-primary via-primary/95 to-accent text-primary-foreground overflow-hidden">
+              {/* Animated background glow */}
+              <div className="absolute inset-0 bg-gradient-to-br from-primary-foreground/5 via-transparent to-primary-foreground/5" />
+              <div className="absolute top-0 right-0 w-32 h-32 bg-primary-foreground/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+              
+              <div className="relative flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10 bg-primary-foreground/20">
-                    <AvatarFallback className="bg-transparent text-primary-foreground">
-                      <Sparkles className="h-5 w-5" />
-                    </AvatarFallback>
-                  </Avatar>
+                  <div className="relative">
+                    <Avatar className="h-11 w-11 ring-2 ring-primary-foreground/20 bg-primary-foreground/15 backdrop-blur-sm">
+                      <AvatarFallback className="bg-transparent text-primary-foreground">
+                        <Sparkles className="h-5 w-5 animate-pulse" />
+                      </AvatarFallback>
+                    </Avatar>
+                    {/* Online indicator */}
+                    <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-success rounded-full border-2 border-primary animate-pulse" />
+                  </div>
                   <div>
-                    <SheetTitle className="text-primary-foreground">Sales Coach</SheetTitle>
-                    <p className="text-xs text-primary-foreground/70">
-                      30-year veteran · {accountName}
+                    <SheetTitle className="text-primary-foreground flex items-center gap-2">
+                      Sales Coach
+                      <Zap className="h-3.5 w-3.5 text-primary-foreground/80" />
+                    </SheetTitle>
+                    <p className="text-xs text-primary-foreground/70 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 bg-success rounded-full" />
+                      Online · {accountName}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
                   {sessionCount > 1 && (
-                    <span className="text-xs bg-primary-foreground/20 px-2 py-0.5 rounded-full mr-1">
+                    <span className="text-xs bg-primary-foreground/15 backdrop-blur-sm px-2.5 py-1 rounded-full mr-1 border border-primary-foreground/10">
                       {sessionCount} chats
                     </span>
                   )}
@@ -494,12 +561,12 @@ export function SalesCoachChat({ prospectId, accountName, heatScore, lastContact
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary-foreground/10"
+                        className="text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary-foreground/15 backdrop-blur-sm transition-all duration-200"
                       >
                         <MoreVertical className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
+                    <DropdownMenuContent align="end" className="backdrop-blur-xl bg-popover/95">
                       <DropdownMenuItem onClick={handleNewChat}>
                         <Plus className="h-4 w-4 mr-2" />
                         New Chat
@@ -528,113 +595,153 @@ export function SalesCoachChat({ prospectId, accountName, heatScore, lastContact
               </div>
             </SheetHeader>
 
-            <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+            <ScrollArea className="flex-1 p-4 bg-gradient-to-b from-background to-muted/20" ref={scrollRef}>
               <div className="space-y-4">
                 {isLoadingHistory ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <div className="flex flex-col items-center justify-center py-12 gap-3">
+                    <div className="relative">
+                      <div className="w-12 h-12 rounded-full bg-primary/10 animate-pulse" />
+                      <Sparkles className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-6 w-6 text-primary animate-pulse" />
+                    </div>
+                    <p className="text-sm text-muted-foreground">Loading your conversations...</p>
                   </div>
                 ) : (
                   <>
                     {messages.length === 0 && (
-                      <div className="space-y-4">
-                        {/* Account Pulse Card */}
+                      <div className="space-y-5 animate-fade-in">
+                        {/* Enhanced Account Pulse Card */}
                         {(heatScore || lastContactDate || pendingFollowUpsCount > 0) && (
-                          <div className="bg-gradient-to-br from-primary/5 to-primary/10 rounded-lg p-3 border border-primary/10">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                {heatScore && (
-                                  <>
-                                    <span className="text-2xl font-bold">{heatScore}</span>
+                          <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-card via-card to-primary/5 border border-border/50 shadow-sm">
+                            {/* Shimmer effect overlay */}
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/5 to-transparent -translate-x-full animate-shimmer" style={{ animationDuration: '3s', animationIterationCount: 'infinite' }} />
+                            
+                            <div className="relative p-4">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                  {heatScore ? (
+                                    <HeatScoreIndicator score={heatScore} />
+                                  ) : null}
+                                  <div>
+                                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-0.5">Account Pulse</p>
                                     {getHeatInfo && (
-                                      <Badge variant="outline" className={cn("text-xs", getHeatInfo.color)}>
+                                      <Badge 
+                                        variant="secondary" 
+                                        className={cn(
+                                          "text-xs font-semibold",
+                                          heatScore && heatScore >= 70 && "bg-success/15 text-success border-success/30",
+                                          heatScore && heatScore >= 40 && heatScore < 70 && "bg-warning/15 text-warning border-warning/30",
+                                          heatScore && heatScore < 40 && "bg-destructive/15 text-destructive border-destructive/30"
+                                        )}
+                                      >
                                         {getHeatInfo.label}
                                       </Badge>
                                     )}
-                                  </>
-                                )}
+                                  </div>
+                                </div>
+                                <div className="text-right space-y-1">
+                                  {lastContactDate && (
+                                    <p className="text-xs text-muted-foreground flex items-center justify-end gap-1.5">
+                                      <Calendar className="h-3 w-3" />
+                                      {formatDistanceToNow(new Date(lastContactDate), { addSuffix: true })}
+                                    </p>
+                                  )}
+                                  {pendingFollowUpsCount > 0 && (
+                                    <p className="text-xs text-primary flex items-center justify-end gap-1.5 font-medium">
+                                      <Clock className="h-3 w-3" />
+                                      {pendingFollowUpsCount} pending
+                                    </p>
+                                  )}
+                                </div>
                               </div>
-                              {lastContactDate && (
-                                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                  <Calendar className="h-3 w-3" />
-                                  Last call: {formatDistanceToNow(new Date(lastContactDate), { addSuffix: true })}
-                                </span>
-                              )}
                             </div>
-                            {pendingFollowUpsCount > 0 && (
-                              <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
-                                {pendingFollowUpsCount} open follow-up{pendingFollowUpsCount > 1 ? 's' : ''}
-                              </p>
-                            )}
                           </div>
                         )}
 
-                        {/* Quick Action Buttons */}
-                        <div className="grid grid-cols-2 gap-2">
+                        {/* Redesigned Quick Action Buttons */}
+                        <div className="grid grid-cols-2 gap-2.5">
                           {QUICK_ACTIONS.map((action) => (
                             <Button
                               key={action.id}
                               variant="outline"
-                              className="h-auto py-3 flex-col gap-1.5 text-muted-foreground hover:text-foreground hover:bg-primary/5 hover:border-primary/30"
+                              className="h-auto py-4 flex-col gap-2 bg-card/50 backdrop-blur-sm border-border/50 hover:bg-gradient-to-br hover:from-primary/5 hover:to-primary/10 hover:border-primary/30 hover:scale-[1.02] hover:shadow-md transition-all duration-200 group"
                               onClick={() => sendMessage(action.prompt)}
                               disabled={isLoading || isRateLimited}
                             >
-                              {action.icon}
-                              <span className="text-xs font-medium">{action.label}</span>
+                              <div className="w-9 h-9 rounded-full bg-muted/80 flex items-center justify-center group-hover:bg-primary/15 group-hover:text-primary transition-all duration-200">
+                                {action.icon}
+                              </div>
+                              <span className="text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors">{action.label}</span>
                             </Button>
                           ))}
                         </div>
 
-                        {/* Recently Asked Questions */}
+                        {/* Enhanced Recently Asked Questions */}
                         {recentQuestions.length > 0 && (
-                          <div>
-                            <p className="text-xs text-muted-foreground font-medium mb-2">Recently Asked</p>
-                            <div className="flex flex-wrap gap-1.5">
+                          <div className="animate-fade-in">
+                            <p className="text-xs text-muted-foreground font-medium mb-2.5 flex items-center gap-1.5">
+                              <History className="h-3 w-3" />
+                              Recently Asked
+                            </p>
+                            <div className="flex flex-wrap gap-2">
                               {recentQuestions.map((q, i) => (
                                 <Button
                                   key={i}
-                                  variant="ghost"
+                                  variant="secondary"
                                   size="sm"
-                                  className="text-xs h-auto py-1.5 px-2.5 text-left justify-start font-normal text-muted-foreground hover:text-foreground hover:bg-primary/10 max-w-full"
+                                  className="text-xs h-auto py-2 px-3 text-left justify-start font-normal bg-muted/50 hover:bg-primary/10 hover:text-primary border border-transparent hover:border-primary/20 transition-all duration-200 max-w-full rounded-full"
                                   onClick={() => sendMessage(q)}
                                   disabled={isLoading || isRateLimited}
                                 >
-                                  <span className="truncate">{q.length > 45 ? `${q.slice(0, 45)}...` : q}</span>
+                                  <span className="truncate">{q.length > 40 ? `${q.slice(0, 40)}...` : q}</span>
                                 </Button>
                               ))}
                             </div>
                           </div>
                         )}
 
-                        <div className="bg-muted rounded-lg p-4">
-                          <p className="text-sm text-muted-foreground">
-                            Hey! I'm your sales coach with 30 years of experience closing deals. 
-                            I know everything about <strong>{accountName}</strong> – their stakeholders, 
-                            call history, and emails. Ask me anything about strategy, next steps, or how to 
-                            handle specific situations.
-                          </p>
+                        {/* Enhanced Welcome Message */}
+                        <div className="relative overflow-hidden bg-gradient-to-br from-muted/80 via-muted/60 to-primary/5 rounded-xl p-5 border border-border/30">
+                          <div className="flex gap-4">
+                            <div className="shrink-0">
+                              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/20">
+                                <Sparkles className="h-6 w-6 text-primary-foreground" />
+                              </div>
+                            </div>
+                            <div>
+                              <p className="text-sm leading-relaxed">
+                                <span className="font-semibold text-foreground">Hey there!</span>
+                                <span className="text-muted-foreground"> I'm your sales coach with 30 years of experience closing deals. 
+                                I know everything about </span>
+                                <strong className="text-primary">{accountName}</strong>
+                                <span className="text-muted-foreground"> – their stakeholders, call history, and emails. Ask me anything!</span>
+                              </p>
+                            </div>
+                          </div>
                         </div>
 
-                        <div className="space-y-1">
-                          <p className="text-xs text-muted-foreground font-medium mb-2">What can I help you with?</p>
+                        {/* Enhanced Category Questions */}
+                        <div className="space-y-1.5">
+                          <p className="text-xs text-muted-foreground font-medium mb-3 flex items-center gap-1.5">
+                            <Target className="h-3 w-3" />
+                            What can I help you with?
+                          </p>
                           {QUESTION_CATEGORIES.map((category) => (
                             <Collapsible key={category.id}>
-                              <CollapsibleTrigger className="flex items-center justify-between w-full px-3 py-2 text-sm font-medium rounded-md hover:bg-muted/50 transition-colors group">
-                                <span className="flex items-center gap-2">
-                                  <span>{category.icon}</span>
-                                  <span>{category.label}</span>
+                              <CollapsibleTrigger className="flex items-center justify-between w-full px-3.5 py-2.5 text-sm font-medium rounded-lg bg-card/50 hover:bg-muted/80 border border-transparent hover:border-border/50 transition-all duration-200 group">
+                                <span className="flex items-center gap-2.5">
+                                  <span className="text-base">{category.icon}</span>
+                                  <span className="text-foreground/90">{category.label}</span>
                                 </span>
-                                <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+                                <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
                               </CollapsibleTrigger>
-                              <CollapsibleContent className="pl-7 pr-2 pb-2">
-                                <div className="flex flex-wrap gap-1.5 pt-1">
+                              <CollapsibleContent className="pl-8 pr-2 pb-2 pt-1">
+                                <div className="flex flex-wrap gap-1.5">
                                   {category.questions.map((q) => (
                                     <Button
                                       key={q}
                                       variant="ghost"
                                       size="sm"
-                                      className="text-xs h-auto py-1.5 px-2.5 text-left justify-start font-normal text-muted-foreground hover:text-foreground hover:bg-primary/10"
+                                      className="text-xs h-auto py-1.5 px-3 text-left justify-start font-normal text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full transition-all duration-200"
                                       onClick={() => sendMessage(q)}
                                       disabled={isLoading || isRateLimited}
                                     >
@@ -650,9 +757,11 @@ export function SalesCoachChat({ prospectId, accountName, heatScore, lastContact
                     )}
 
                     {messages.length > 0 && lastUpdated && (
-                      <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
-                        <History className="h-3 w-3" />
-                        <span>Conversation from {formatDistanceToNow(new Date(lastUpdated), { addSuffix: true })}</span>
+                      <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground py-1">
+                        <div className="flex items-center gap-1.5 bg-muted/50 px-3 py-1.5 rounded-full">
+                          <History className="h-3 w-3" />
+                          <span>Conversation from {formatDistanceToNow(new Date(lastUpdated), { addSuffix: true })}</span>
+                        </div>
                       </div>
                     )}
 
@@ -660,46 +769,47 @@ export function SalesCoachChat({ prospectId, accountName, heatScore, lastContact
                       <div
                         key={i}
                         className={cn(
-                          "flex gap-3",
+                          "flex gap-3 animate-fade-in group",
                           msg.role === 'user' ? "justify-end" : "justify-start"
                         )}
+                        style={{ animationDelay: `${i * 50}ms` }}
                       >
                         {msg.role === 'assistant' && (
-                          <Avatar className="h-8 w-8 shrink-0">
-                            <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                          <Avatar className="h-8 w-8 shrink-0 ring-2 ring-primary/20 shadow-sm">
+                            <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-primary-foreground text-xs">
                               <Sparkles className="h-4 w-4" />
                             </AvatarFallback>
                           </Avatar>
                         )}
                         <div
                           className={cn(
-                            "rounded-lg px-4 py-2 max-w-[85%]",
+                            "rounded-2xl px-4 py-2.5 max-w-[85%] transition-all duration-200",
                             msg.role === 'user'
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted"
+                              ? "bg-gradient-to-br from-primary to-primary/90 text-primary-foreground shadow-md shadow-primary/20"
+                              : "bg-gradient-to-br from-muted via-muted to-muted/80 border-l-2 border-primary/30 shadow-sm"
                           )}
                         >
                           {msg.role === 'assistant' ? (
                             <div className="prose prose-sm dark:prose-invert max-w-none">
                               <ReactMarkdown
                                 components={{
-                                  p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                                  ul: ({ children }) => <ul className="my-2 ml-4 list-disc">{children}</ul>,
-                                  ol: ({ children }) => <ol className="my-2 ml-4 list-decimal">{children}</ol>,
+                                  p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
+                                  ul: ({ children }) => <ul className="my-2 ml-4 list-disc space-y-1">{children}</ul>,
+                                  ol: ({ children }) => <ol className="my-2 ml-4 list-decimal space-y-1">{children}</ol>,
                                   li: ({ children }) => <li className="mb-1">{children}</li>,
-                                  strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                                  strong: ({ children }) => <strong className="font-semibold text-primary">{children}</strong>,
                                 }}
                               >
                                 {msg.content}
                               </ReactMarkdown>
                             </div>
                           ) : (
-                            <p className="text-sm">{msg.content}</p>
+                            <p className="text-sm leading-relaxed">{msg.content}</p>
                           )}
                         </div>
                         {msg.role === 'user' && (
-                          <Avatar className="h-8 w-8 shrink-0">
-                            <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">
+                          <Avatar className="h-8 w-8 shrink-0 ring-2 ring-secondary/50 shadow-sm">
+                            <AvatarFallback className="bg-gradient-to-br from-secondary to-secondary/80 text-secondary-foreground text-xs">
                               <User className="h-4 w-4" />
                             </AvatarFallback>
                           </Avatar>
@@ -708,20 +818,20 @@ export function SalesCoachChat({ prospectId, accountName, heatScore, lastContact
                     ))}
 
                     {isLoading && messages[messages.length - 1]?.role !== 'assistant' && (
-                      <div className="flex gap-3">
-                        <Avatar className="h-8 w-8 shrink-0">
-                          <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                            <Sparkles className="h-4 w-4" />
+                      <div className="flex gap-3 animate-fade-in">
+                        <Avatar className="h-8 w-8 shrink-0 ring-2 ring-primary/20 shadow-sm">
+                          <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-primary-foreground text-xs">
+                            <Sparkles className="h-4 w-4 animate-pulse" />
                           </AvatarFallback>
                         </Avatar>
-                        <div className="bg-muted rounded-lg px-4 py-3">
-                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                        <div className="bg-gradient-to-br from-muted to-muted/80 rounded-2xl px-4 py-3 border-l-2 border-primary/30 shadow-sm">
+                          <TypingIndicator />
                         </div>
                       </div>
                     )}
 
                     {error && (
-                      <div className="bg-destructive/10 text-destructive text-sm rounded-lg px-4 py-2">
+                      <div className="bg-destructive/10 text-destructive text-sm rounded-xl px-4 py-3 border border-destructive/20 animate-fade-in">
                         {error}
                       </div>
                     )}
@@ -730,14 +840,15 @@ export function SalesCoachChat({ prospectId, accountName, heatScore, lastContact
               </div>
             </ScrollArea>
 
-            <div className="border-t bg-background">
+            {/* Premium Input Area */}
+            <div className="border-t bg-gradient-to-t from-background via-background to-muted/10">
               {isRateLimited && (
                 <div className="px-4 pt-3">
                   <RateLimitCountdown secondsRemaining={secondsRemaining} />
                 </div>
               )}
               <form onSubmit={handleSubmit} className="p-4">
-                <div className="flex gap-2">
+                <div className="flex gap-2.5 items-center bg-muted/30 rounded-xl p-1.5 ring-1 ring-border/50 focus-within:ring-2 focus-within:ring-primary/30 transition-all duration-200 shadow-sm">
                   <Input
                     ref={inputRef}
                     value={input}
@@ -745,9 +856,14 @@ export function SalesCoachChat({ prospectId, accountName, heatScore, lastContact
                     onKeyDown={handleKeyDown}
                     placeholder={isRateLimited ? "Please wait..." : "Ask your sales coach..."}
                     disabled={isLoading || isRateLimited || isLoadingHistory}
-                    className="flex-1"
+                    className="flex-1 border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/60"
                   />
-                  <Button type="submit" size="icon" disabled={isLoading || isRateLimited || !input.trim() || isLoadingHistory}>
+                  <Button 
+                    type="submit" 
+                    size="icon" 
+                    disabled={isLoading || isRateLimited || !input.trim() || isLoadingHistory}
+                    className="h-9 w-9 rounded-lg bg-gradient-to-br from-primary to-accent hover:from-primary/90 hover:to-accent/90 shadow-md hover:shadow-lg hover:scale-105 transition-all duration-200"
+                  >
                     {isLoading ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
@@ -755,6 +871,9 @@ export function SalesCoachChat({ prospectId, accountName, heatScore, lastContact
                     )}
                   </Button>
                 </div>
+                <p className="text-[10px] text-muted-foreground/50 text-center mt-2">
+                  Press Enter to send · ⌘K for shortcuts
+                </p>
               </form>
             </div>
           </SheetContent>
@@ -762,35 +881,44 @@ export function SalesCoachChat({ prospectId, accountName, heatScore, lastContact
         document.body
       )}
 
-      {/* History Sheet */}
+      {/* Polished History Sheet */}
       {createPortal(
         <Sheet open={showHistorySheet} onOpenChange={setShowHistorySheet}>
           <SheetContent side="right" className="w-full sm:max-w-md">
             <SheetHeader>
-              <SheetTitle className="flex items-center gap-2">
-                <History className="h-5 w-5" />
+              <SheetTitle className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <History className="h-4 w-4 text-primary" />
+                </div>
                 Chat History
               </SheetTitle>
             </SheetHeader>
             <ScrollArea className="h-[calc(100vh-120px)] mt-4">
-              <div className="space-y-2 pr-4">
+              <div className="space-y-2.5 pr-4">
                 {allSessions.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">
-                    No saved conversations yet
-                  </p>
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mb-4">
+                      <MessageSquare className="h-8 w-8 text-muted-foreground/50" />
+                    </div>
+                    <p className="text-sm text-muted-foreground">No saved conversations yet</p>
+                    <p className="text-xs text-muted-foreground/70 mt-1">Start chatting to create your first conversation</p>
+                  </div>
                 ) : (
-                  allSessions.map((session) => {
+                  allSessions.map((session, index) => {
                     // Get first assistant message as preview
                     const firstAssistantMessage = session.messages.find(m => m.role === 'assistant');
-                    const preview = firstAssistantMessage?.content?.slice(0, 80) || 'No response yet';
+                    const preview = firstAssistantMessage?.content?.slice(0, 100) || 'No response yet';
                     
                     return (
                       <div
                         key={session.id}
                         className={cn(
-                          "p-3 rounded-lg border transition-colors cursor-pointer hover:bg-muted/50",
-                          session.is_active && "border-primary bg-primary/5"
+                          "relative p-4 rounded-xl border transition-all duration-200 cursor-pointer hover:scale-[1.01] hover:shadow-md group",
+                          session.is_active 
+                            ? "border-primary/50 bg-gradient-to-br from-primary/5 via-primary/5 to-accent/5 shadow-sm ring-1 ring-primary/20" 
+                            : "bg-card/50 hover:bg-muted/50 border-border/50"
                         )}
+                        style={{ animationDelay: `${index * 50}ms` }}
                         onClick={() => {
                           if (!session.is_active) {
                             handleSwitchSession(session.id);
@@ -799,30 +927,45 @@ export function SalesCoachChat({ prospectId, accountName, heatScore, lastContact
                           }
                         }}
                       >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <MessageSquare className="h-4 w-4 text-muted-foreground shrink-0" />
+                        {/* Active indicator bar */}
+                        {session.is_active && (
+                          <div className="absolute left-0 top-3 bottom-3 w-1 bg-gradient-to-b from-primary to-accent rounded-full" />
+                        )}
+                        
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0 pl-1">
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <MessageSquare className={cn(
+                                "h-4 w-4 shrink-0 transition-colors",
+                                session.is_active ? "text-primary" : "text-muted-foreground"
+                              )} />
                               <p className="text-sm font-medium truncate">
                                 {session.title || 'Untitled conversation'}
                               </p>
                               {session.is_active && (
-                                <span className="text-xs bg-primary text-primary-foreground px-1.5 py-0.5 rounded shrink-0">
+                                <Badge variant="secondary" className="text-[10px] bg-primary/15 text-primary border-primary/30 px-1.5 py-0">
                                   Active
-                                </span>
+                                </Badge>
                               )}
                             </div>
-                            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                              {preview}{preview.length >= 80 ? '...' : ''}
+                            <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                              {preview}{preview.length >= 100 ? '...' : ''}
                             </p>
-                            <p className="text-xs text-muted-foreground/70 mt-1">
-                              {formatDistanceToNow(new Date(session.updated_at), { addSuffix: true })} · {session.messages.length} messages
-                            </p>
+                            <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground/70">
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {formatDistanceToNow(new Date(session.updated_at), { addSuffix: true })}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <MessageSquare className="h-3 w-3" />
+                                {session.messages.length} messages
+                              </span>
+                            </div>
                           </div>
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                            className="h-8 w-8 shrink-0 text-muted-foreground/50 hover:text-destructive opacity-0 group-hover:opacity-100 transition-all duration-200"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleDeleteSession(session.id);
