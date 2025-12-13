@@ -1,6 +1,5 @@
 export * from './constants';
 export { ProspectHeader } from './ProspectHeader';
-export { ProspectQuickStats } from './ProspectQuickStats';
 export { ProspectAIInsights } from './ProspectAIInsights';
 export { ProspectAccountResearch } from './ProspectAccountResearch';
 export { ProspectFollowUps } from './ProspectFollowUps';
@@ -8,7 +7,6 @@ export { ProspectCallHistory } from './ProspectCallHistory';
 export { ProspectEmailLogSection } from './ProspectEmailLogSection';
 export { ProspectActivityLog } from './ProspectActivityLog';
 export { ProspectQuickInfo } from './ProspectQuickInfo';
-export { ProspectQuickInfoBar } from './ProspectQuickInfoBar';
 export { ProspectStakeholdersSection } from './ProspectStakeholdersSection';
 export { ProspectProductsBreakdown } from './ProspectProductsBreakdown';
 export { ProspectOpportunityDetails } from './ProspectOpportunityDetails';

@@ -12,11 +12,9 @@ import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 // Detail section components
 import {
   ProspectHeader,
-  ProspectQuickStats,
   ProspectFollowUps,
   ProspectDetailTabs,
   ProspectQuickActions,
-  ProspectQuickInfoBar,
 } from '@/components/prospects/detail';
 import { AccountHeatCard } from '@/components/prospects/detail/AccountHeatCard';
 
@@ -102,30 +100,19 @@ function ProspectDetail() {
           items={getAccountDetailBreadcrumbs(role, prospect.account_name || prospect.prospect_name)} 
         />
 
-        {/* Header */}
+        {/* Consolidated Header (includes stats and metadata) */}
         <ProspectHeader
           prospect={prospect}
           primaryStakeholder={primaryStakeholder}
+          stakeholderCount={stakeholders.length}
+          callCount={calls.length}
           onStatusChange={handleStatusChange}
+          onUpdateProspect={handleUpdateProspect}
           repName={repProfile?.name}
           showRepName={showRepName}
         />
 
-        {/* Quick Stats Bar */}
-        <ProspectQuickStats
-          prospect={prospect}
-          stakeholderCount={stakeholders.length}
-          callCount={calls.length}
-          onUpdateProspect={handleUpdateProspect}
-        />
-
-        {/* Quick Info Bar */}
-        <ProspectQuickInfoBar
-          prospect={prospect}
-          onUpdateProspect={handleUpdateProspect}
-        />
-
-        {/* Account Heat Score Card */}
+        {/* Account Heat/Pulse Card (redesigned with collapsed details) */}
         <AccountHeatCard
           prospectId={prospect.id}
           accountHeatScore={prospect.account_heat_score ?? null}
