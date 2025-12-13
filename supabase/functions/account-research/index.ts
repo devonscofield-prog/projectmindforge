@@ -1,9 +1,34 @@
 import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+function getCorsHeaders(origin?: string | null): Record<string, string> {
+  const CUSTOM_DOMAIN = Deno.env.get('CUSTOM_DOMAIN');
+  const STORMWIND_DOMAIN = Deno.env.get('STORMWIND_DOMAIN');
+  
+  const allowedOrigins = [
+    'http://localhost:8080',
+    'http://localhost:5173',
+    'https://lovableproject.com',
+  ];
+  
+  if (CUSTOM_DOMAIN) {
+    allowedOrigins.push(`https://${CUSTOM_DOMAIN}`);
+    allowedOrigins.push(`https://www.${CUSTOM_DOMAIN}`);
+  }
+  if (STORMWIND_DOMAIN) {
+    allowedOrigins.push(`https://${STORMWIND_DOMAIN}`);
+    allowedOrigins.push(`https://www.${STORMWIND_DOMAIN}`);
+  }
+
+  const effectiveOrigin = origin && allowedOrigins.some(allowed => origin.startsWith(allowed.replace(/\/$/, '')))
+    ? origin
+    : allowedOrigins[0];
+
+  return {
+    'Access-Control-Allow-Origin': effectiveOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  };
+}
 
 // Zod validation schema
 const researchRequestSchema = z.object({
@@ -24,6 +49,9 @@ const researchRequestSchema = z.object({
 });
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get('origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -170,21 +198,40 @@ ${productPitch ? `## 🎯 Solution Alignment
 
 Be specific and actionable. I'm preparing for a sales conversation and need intelligence that helps me WIN this deal.`;
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-pro',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        stream: true,
-      }),
-    });
+    // Create abort controller with 60-second timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+    let response: Response;
+    try {
+      response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-3-pro-preview',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+          stream: true,
+        }),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      clearTimeout(timeoutId);
+      if (err instanceof Error && err.name === 'AbortError') {
+        console.error('[account-research] Request timed out after 60 seconds');
+        return new Response(
+          JSON.stringify({ error: 'Research timed out. Please try again.' }),
+          { status: 504, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      throw err;
+    }
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorText = await response.text();

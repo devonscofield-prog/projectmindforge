@@ -20,6 +20,8 @@ import type { Stakeholder } from '@/api/stakeholders';
 
 interface SavedResearchInfo {
   account_research?: string;
+  account_research_generated_at?: string;
+  // Legacy field name support
   account_research_date?: string;
 }
 
@@ -78,13 +80,14 @@ export function AccountResearchChat({
   // Rate limiting
   const { secondsRemaining, isRateLimited, startCountdown } = useRateLimitCountdown(60);
 
-  // Get saved research from prospect
+  // Get saved research from prospect (support both field names)
   const savedResearch = useMemo(() => {
     const aiInfo = prospect?.ai_extracted_info as SavedResearchInfo | null;
     if (aiInfo?.account_research) {
+      const dateStr = aiInfo.account_research_generated_at || aiInfo.account_research_date;
       return {
         content: aiInfo.account_research,
-        date: aiInfo.account_research_date ? new Date(aiInfo.account_research_date) : null,
+        date: dateStr ? new Date(dateStr) : null,
       };
     }
     return null;
