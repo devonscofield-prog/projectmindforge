@@ -43,8 +43,8 @@ export function CallAnalysisResultsView({
   isDeleting = false,
 }: CallAnalysisResultsViewProps) {
   
-  // Error state with recovery options
-  if (!analysis && call?.analysis_status === 'error') {
+  // Error state with recovery options - show regardless of partial analysis data
+  if (call?.analysis_status === 'error') {
     return (
       <Card className="border-destructive">
         <CardContent className="py-8">
