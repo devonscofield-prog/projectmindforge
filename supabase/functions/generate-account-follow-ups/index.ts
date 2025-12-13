@@ -309,13 +309,22 @@ Deno.serve(async (req) => {
 
       console.log(`[generate-account-follow-ups] AI generated ${followUps.length} follow-ups`);
 
-      // Filter duplicates
-      const existingTitles = new Set(existingFollowUps.map(f => f.title?.toLowerCase().trim()));
-      const uniqueFollowUps = followUps.filter(f => !existingTitles.has(f.title?.toLowerCase().trim()));
+      // Delete existing pending follow-ups (completed/dismissed ones are preserved)
+      const { error: deleteError } = await supabase
+        .from('account_follow_ups')
+        .delete()
+        .eq('prospect_id', prospect_id)
+        .eq('status', 'pending');
+      
+      if (deleteError) {
+        console.error('[generate-account-follow-ups] Error deleting old follow-ups:', deleteError);
+      } else {
+        console.log(`[generate-account-follow-ups] Cleared old pending follow-ups`);
+      }
 
-      // Save to database
+      // Save new follow-ups to database
       const callIds = calls.map(c => c.id);
-      for (const followUp of uniqueFollowUps) {
+      for (const followUp of followUps) {
         await supabase.from('account_follow_ups').insert({
           prospect_id,
           rep_id: prospect.rep_id,
@@ -336,8 +345,8 @@ Deno.serve(async (req) => {
 
       await updateJobStatus(supabase, job_id || null, 'completed');
 
-      console.log(`[generate-account-follow-ups] Saved ${uniqueFollowUps.length} new follow-ups`);
-      return new Response(JSON.stringify({ success: true, count: uniqueFollowUps.length }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      console.log(`[generate-account-follow-ups] Saved ${followUps.length} new follow-ups`);
+      return new Response(JSON.stringify({ success: true, count: followUps.length }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
     } catch (fetchError) {
       clearTimeout(timeoutId);
