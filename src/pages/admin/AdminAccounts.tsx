@@ -41,7 +41,6 @@ import { format } from 'date-fns';
 import {
   useAdminProspects,
   useAdminProspectStats,
-  useCallCounts,
   useStakeholderCounts,
   usePrimaryStakeholders,
   prospectKeys,
@@ -123,8 +122,10 @@ export default function AdminAccounts() {
   // Get prospect IDs for related data
   const prospectIds = useMemo(() => prospects.map(p => p.id), [prospects]);
 
-  // Fetch related data
-  const { data: callCounts = {} } = useCallCounts(prospectIds, prospectIds.length > 0);
+  // Use call counts from the RPC response (already includes call counts)
+  const callCountsFromRpc = prospectsData?.callCounts || {};
+  
+  // Fetch related data (stakeholder counts and primary stakeholders still fetched separately)
   const { data: stakeholderCounts = {} } = useStakeholderCounts(prospectIds, prospectIds.length > 0);
   const { data: primaryStakeholders = {} } = usePrimaryStakeholders(prospectIds, prospectIds.length > 0);
 
@@ -287,6 +288,7 @@ export default function AdminAccounts() {
                   <SelectItem value="account_name">Account Name</SelectItem>
                   <SelectItem value="heat_score">Heat Score</SelectItem>
                   <SelectItem value="potential_revenue">Revenue</SelectItem>
+                  <SelectItem value="call_count">Number of Calls</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -390,7 +392,7 @@ export default function AdminAccounts() {
                             <span>{stakeholderCounts[prospect.id] || 0}</span>
                           </div>
                         </TableCell>
-                        <TableCell>{callCounts[prospect.id] || 0}</TableCell>
+                        <TableCell>{callCountsFromRpc[prospect.id] || 0}</TableCell>
                         <TableCell>
                           {prospect.last_contact_date ? (
                             <div className="flex items-center gap-1 text-sm text-muted-foreground">

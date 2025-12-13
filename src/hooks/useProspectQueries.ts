@@ -62,7 +62,7 @@ export function useTeamProspects(
   });
 }
 
-// Hook for fetching all prospects (admin view) with pagination
+// Hook for fetching all prospects (admin view) with pagination and call count sorting
 export function useAdminProspects(
   filters: {
     statusFilter: string;
@@ -78,105 +78,54 @@ export function useAdminProspects(
   return useQuery({
     queryKey: prospectKeys.list(JSON.stringify(filters)),
     queryFn: async () => {
-      // Build filter for rep IDs if team is selected
-      let repIdsInTeam: string[] | null = null;
-      if (filters.teamFilter !== 'all') {
-        const { data: teamReps } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('team_id', filters.teamFilter);
-        repIdsInTeam = (teamReps || []).map(r => r.id);
-        
-        // If team selected but no reps, return empty result
-        if (repIdsInTeam.length === 0) {
-          return { prospects: [], totalCount: 0 };
-        }
-      }
+      const offset = (filters.currentPage - 1) * filters.pageSize;
 
-      // Build the query with server-side pagination
-      let query = supabase
-        .from('prospects')
-        .select(`
-          id,
-          prospect_name,
-          account_name,
-          status,
-          industry,
-          heat_score,
-          active_revenue,
-          last_contact_date,
-          rep_id,
-          ai_extracted_info
-        `, { count: 'exact' });
-
-      // Apply filters
-      if (filters.statusFilter !== 'all') {
-        query = query.eq('status', filters.statusFilter as ProspectStatus);
-      }
-
-      if (filters.repFilter !== 'all') {
-        query = query.eq('rep_id', filters.repFilter);
-      } else if (repIdsInTeam) {
-        query = query.in('rep_id', repIdsInTeam);
-      }
-
-      // Apply search filter
-      if (filters.search.trim()) {
-        query = query.or(`account_name.ilike.%${filters.search.trim()}%,prospect_name.ilike.%${filters.search.trim()}%`);
-      }
-
-      // Apply sorting
-      const ascending = filters.sortBy === 'account_name';
-      query = query.order(filters.sortBy === 'account_name' ? 'account_name' : filters.sortBy, { ascending });
-
-      // Apply pagination
-      const from = (filters.currentPage - 1) * filters.pageSize;
-      const to = from + filters.pageSize - 1;
-      query = query.range(from, to);
-
-      const { data: prospectsData, count, error } = await query;
+      // Use the RPC function for server-side sorting including call_count
+      const { data, error } = await supabase.rpc('get_admin_prospects_with_call_counts', {
+        p_status_filter: filters.statusFilter,
+        p_team_filter: filters.teamFilter !== 'all' ? filters.teamFilter : undefined,
+        p_rep_filter: filters.repFilter !== 'all' ? filters.repFilter : undefined,
+        p_search: filters.search.trim() || undefined,
+        p_sort_by: filters.sortBy,
+        p_limit: filters.pageSize,
+        p_offset: offset,
+      });
 
       if (error) {
         log.error('Failed to load prospects', { error });
         throw error;
       }
 
-      if (!prospectsData || prospectsData.length === 0) {
-        return { prospects: [], totalCount: count || 0 };
+      if (!data || data.length === 0) {
+        return { prospects: [], totalCount: 0, callCounts: {} };
       }
 
-      // Get unique rep IDs
-      const repIds = [...new Set(prospectsData.map(p => p.rep_id))];
-      
-      // Fetch rep profiles with teams
-      const { data: repProfiles } = await supabase
-        .from('profiles')
-        .select('id, name, team_id')
-        .in('id', repIds);
+      // Extract total count from first row (all rows have same total_count)
+      const totalCount = Number(data[0].total_count) || 0;
 
-      // Fetch teams for profiles
-      const teamIds = [...new Set(repProfiles?.map(r => r.team_id).filter(Boolean) || [])];
-      const { data: teamsData } = await supabase
-        .from('teams')
-        .select('id, name')
-        .in('id', teamIds as string[]);
+      // Build call counts map from the returned data
+      const callCounts: Record<string, number> = {};
 
-      // Build lookup maps
-      const repMap = new Map(repProfiles?.map(r => [r.id, r]) || []);
-      const teamMap = new Map(teamsData?.map(t => [t.id, t.name]) || []);
-
-      // Combine data
-      const prospects = prospectsData.map(p => {
-        const rep = repMap.get(p.rep_id);
+      // Transform data to match expected format
+      const prospects = data.map(p => {
+        callCounts[p.id] = Number(p.call_count) || 0;
         return {
-          ...p,
+          id: p.id,
+          prospect_name: p.prospect_name,
+          account_name: p.account_name,
           status: p.status as ProspectStatus,
-          rep_name: rep?.name || 'Unknown',
-          team_name: rep?.team_id ? teamMap.get(rep.team_id) || null : null,
+          industry: p.industry,
+          heat_score: p.heat_score,
+          active_revenue: p.active_revenue,
+          last_contact_date: p.last_contact_date,
+          rep_id: p.rep_id,
+          ai_extracted_info: p.ai_extracted_info,
+          rep_name: p.rep_name || 'Unknown',
+          team_name: p.team_name || null,
         };
       });
 
-      return { prospects, totalCount: count || 0 };
+      return { prospects, totalCount, callCounts };
     },
     enabled,
   });
