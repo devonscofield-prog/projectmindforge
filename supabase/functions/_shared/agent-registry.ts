@@ -285,7 +285,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (t) => `Analyze this sales call transcript. Find the 3-5 most dangerous UNKNOWNS or MISSING INFORMATION that could block this deal:\n\n${t}`,
     toolName: 'identify_deal_gaps',
     toolDescription: 'Identify critical information gaps blocking a sales deal',
-    options: { model: 'openai/gpt-5.2', temperature: 0.1, maxTokens: 1536 },
+    options: { model: 'openai/gpt-5.2', temperature: 0.1, maxTokens: 2048 },
     isCritical: false,
     default: DEFAULT_SKEPTIC,
     phase: 1,
@@ -356,7 +356,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (input) => `Based on the following analysis reports from 9 specialized agents, synthesize a coaching plan for the sales rep:\n\n${input}`,
     toolName: 'synthesize_coaching',
     toolDescription: 'Synthesize all analysis into a prioritized coaching plan',
-    options: { model: 'google/gemini-3-pro-preview', temperature: 0.3, maxTokens: 2560 }, // Gemini 3 Pro for superior reasoning
+    options: { model: 'google/gemini-3-pro-preview', temperature: 0.3, maxTokens: 4096 }, // Gemini 3 Pro for superior reasoning
     isCritical: false,
     default: DEFAULT_COACH,
     phase: 2,
