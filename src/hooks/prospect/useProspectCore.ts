@@ -99,8 +99,11 @@ export function useProspectCore({ prospectId }: UseProspectCoreOptions) {
       const sanitizedUpdates: Parameters<typeof updateProspect>[1] = {};
       if (updates.status !== undefined) sanitizedUpdates.status = updates.status;
       if (updates.potential_revenue !== undefined) sanitizedUpdates.potential_revenue = updates.potential_revenue ?? undefined;
+      if (updates.active_revenue !== undefined) sanitizedUpdates.active_revenue = updates.active_revenue ?? undefined;
       if (updates.salesforce_link !== undefined) sanitizedUpdates.salesforce_link = updates.salesforce_link;
+      if (updates.opportunity_link !== undefined) sanitizedUpdates.opportunity_link = updates.opportunity_link;
       if (updates.industry !== undefined) sanitizedUpdates.industry = updates.industry;
+      if (updates.website !== undefined) sanitizedUpdates.website = updates.website;
       if (updates.ai_extracted_info !== undefined) sanitizedUpdates.ai_extracted_info = updates.ai_extracted_info ?? undefined;
       if (updates.suggested_follow_ups !== undefined) sanitizedUpdates.suggested_follow_ups = updates.suggested_follow_ups ?? undefined;
       if (updates.heat_score !== undefined) sanitizedUpdates.heat_score = updates.heat_score ?? undefined;
