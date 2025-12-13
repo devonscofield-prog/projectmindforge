@@ -14,7 +14,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 import { UUID_REGEX } from './lib/constants.ts';
 import { getCorsHeaders, checkRateLimit } from './lib/cors.ts';
-import { runAnalysisPipeline, SpeakerContext } from '../_shared/pipeline.ts';
+import { runAnalysisPipeline, SpeakerContext, AccountHistoryContext } from '../_shared/pipeline.ts';
 
 // Minimum transcript length for meaningful analysis
 const MIN_TRANSCRIPT_LENGTH = 500;
@@ -144,10 +144,10 @@ Deno.serve(async (req) => {
 
     console.log(`[analyze-call] Starting Analysis 2.0 for call_id: ${targetCallId}, user: ${userId}`);
 
-    // Fetch transcript with speaker context
+    // Fetch transcript with speaker context and prospect_id for history lookup
     const { data: transcript, error: fetchError } = await supabaseAdmin
       .from('call_transcripts')
-      .select('id, raw_text, rep_id, account_name, primary_stakeholder_name, manager_id, additional_speakers, analysis_status')
+      .select('id, raw_text, rep_id, account_name, primary_stakeholder_name, manager_id, additional_speakers, analysis_status, prospect_id')
       .eq('id', targetCallId)
       .is('deleted_at', null)
       .maybeSingle();
@@ -222,8 +222,58 @@ Deno.serve(async (req) => {
       await supabaseAdmin.from('call_transcripts').update({ analysis_status: 'processing', analysis_error: null }).eq('id', targetCallId);
     }
 
-    // Run the pipeline with speaker context (uses Agent Registry pattern)
-    const result = await runAnalysisPipeline(transcript.raw_text, supabaseAdmin, targetCallId, speakerContext);
+    // Fetch account history for follow-up context
+    let accountHistory: AccountHistoryContext | undefined;
+    if (transcript.prospect_id) {
+      try {
+        const { data: previousCalls } = await supabaseAdmin
+          .from('call_transcripts')
+          .select(`
+            id, call_date, call_type,
+            ai_call_analysis (
+              call_summary,
+              analysis_strategy,
+              analysis_behavior,
+              deal_heat_analysis
+            )
+          `)
+          .eq('prospect_id', transcript.prospect_id)
+          .neq('id', targetCallId)
+          .eq('analysis_status', 'completed')
+          .is('deleted_at', null)
+          .order('call_date', { ascending: false })
+          .limit(3);
+
+        if (previousCalls && previousCalls.length > 0) {
+          accountHistory = {
+            previousCalls: previousCalls.map(call => {
+              const analysis = Array.isArray(call.ai_call_analysis) ? call.ai_call_analysis[0] : call.ai_call_analysis;
+              const strategy = analysis?.analysis_strategy as { critical_gaps?: Array<{ category: string; description: string; impact: string }> } | null;
+              const behavior = analysis?.analysis_behavior as { metrics?: { next_steps?: { secured: boolean; details: string } } } | null;
+              const dealHeat = analysis?.deal_heat_analysis as { heat_score?: number } | null;
+              
+              return {
+                call_date: call.call_date,
+                call_type: call.call_type,
+                summary: analysis?.call_summary || 'No summary available',
+                critical_gaps: strategy?.critical_gaps || [],
+                next_steps_secured: behavior?.metrics?.next_steps?.secured,
+                next_steps_details: behavior?.metrics?.next_steps?.details,
+                deal_heat_score: dealHeat?.heat_score,
+              };
+            }),
+            totalPreviousCalls: previousCalls.length,
+            accountName: transcript.account_name || 'Unknown',
+          };
+          console.log(`[analyze-call] Account history: ${accountHistory.totalPreviousCalls} previous calls for ${accountHistory.accountName}`);
+        }
+      } catch (historyError) {
+        console.warn('[analyze-call] Failed to fetch account history:', historyError);
+      }
+    }
+
+    // Run the pipeline with speaker context and account history
+    const result = await runAnalysisPipeline(transcript.raw_text, supabaseAdmin, targetCallId, speakerContext, accountHistory);
 
     // Save results
     const { data: existingAnalysis } = await supabaseAdmin.from('ai_call_analysis').select('id').eq('call_id', targetCallId).maybeSingle();
