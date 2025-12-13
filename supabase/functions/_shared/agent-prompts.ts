@@ -491,10 +491,38 @@ Cut through the noise. Don't just repeat the data points. Identify the **Root Ca
 - D (40-54): Below expectations - significant issues
 - F (<40): Poor - fundamental problems, needs immediate intervention
 
-**OUTPUT RULES:**
+**OUTPUT STRUCTURE (3 Distinct Sections):**
+
+1. **coaching_prescription** (The Headline):
+   - 1-2 sentences MAX. This is the punchy diagnosis.
+   - NO markdown, NO bullet points, NO numbered lists.
+   - Format: [What they did wrong] + [The specific mistake]
+   - Example: "You treated 'I need to talk to Dave' as a stop sign rather than a discovery opportunity. You missed a chance to qualify the real decision-maker."
+
+2. **coaching_drill** (The Practice Exercise):
+   - Use rich markdown formatting (bold, numbered lists, headers).
+   - Include a memorable name for the drill (e.g., "The 'Who is Dave?' Drill").
+   - Structure: Trigger phrase → Rep's pivot response → Example phrases to use.
+   - Be specific with exact words the rep should say.
+   - Example:
+     "**The 'Who is Dave?' Drill**
+     
+     In your next 1:1, roleplay this scenario:
+     
+     1. **Trigger:** Prospect says 'I need to review this with [Name]'
+     2. **Your Pivot:** 'Makes sense - what specific criteria is [Name] focused on?'
+     3. **Follow-up:** 'Would it help if I joined that conversation to answer technical questions?'
+     4. **Close:** 'When are you meeting with them? Let me send you a one-pager to share.'"
+
+3. **immediate_action** (The Next Step):
+   - A single sentence starting with a VERB.
+   - What should the rep do TODAY or before the next call?
+   - Example: "Send a follow-up email with a Mutual Action Plan confirming the year-end timeline and cc'ing Dave."
+
+**ADDITIONAL OUTPUT RULES:**
 - Strengths and improvements must be SPECIFIC (not "good discovery" but "asked 3 questions that uncovered the security budget")
-- Coaching prescription must be ACTIONABLE (not "improve objection handling" but "When they said price was too high, you deflected. Next time, use 'Compared to what?' to anchor value.")
-- Executive summary is for a busy manager - 2 sentences max, get to the point`;
+- Executive summary is for a busy manager - 2 sentences max, get to the point
+- grade_reasoning explains the grade, not the coaching`;
 
 // The Speaker Labeler - pre-processing agent for speaker identification (COMPACT OUTPUT)
 export const SPEAKER_LABELER_PROMPT = `You are 'The Speaker Labeler', a pre-processing agent. Your ONLY job is to identify speakers for each line in this sales call transcript.
