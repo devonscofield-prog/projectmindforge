@@ -33,7 +33,7 @@ const AGENT_TIMEOUT_OVERRIDES: Record<string, number> = {
   'auditor': 15000,          // 15s - pricing analysis needs buffer for complex calls
   'profiler': 30000,         // 30s - Gemini 3 Pro needs more time for complex profile analysis
   'interrogator': 30000,     // 30s - OpenAI GPT-5.2 question analysis
-  'strategist': 20000,       // 20s - pain-to-pitch mapping with context
+  'strategist': 30000,       // 30s - pain-to-pitch mapping with context (increased for longer transcripts)
   'referee': 20000,          // 20s - behavioral scoring on longer transcripts
 } as const;
 
