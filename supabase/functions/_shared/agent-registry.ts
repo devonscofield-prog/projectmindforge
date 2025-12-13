@@ -49,8 +49,8 @@ export interface AgentConfig<T extends z.ZodTypeAny = z.ZodTypeAny> {
   toolName: string;                        // Tool function name
   toolDescription: string;                 // Tool description for AI
   options: {
-    model: 'google/gemini-2.5-flash' | 'google/gemini-2.5-pro' | 'openai/gpt-5.2';
-    temperature?: number;                  // Note: GPT-5.x models don't support temperature
+    model: 'google/gemini-2.5-flash' | 'google/gemini-2.5-pro' | 'google/gemini-3-pro-preview' | 'openai/gpt-5.2';
+    temperature?: number;
     maxTokens?: number;
   };
   isCritical: boolean;                     // If true, failure stops pipeline
@@ -257,7 +257,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (t) => `Analyze this sales call transcript for Question/Answer dynamics. Identify the Rep's questions, filter out logistical questions, and calculate the leverage (Yield Ratio) of each valid sales question:\n\n${t}`,
     toolName: 'analyze_question_leverage',
     toolDescription: 'Analyze question/answer dynamics from a sales call transcript',
-    options: { model: 'google/gemini-2.5-flash', temperature: 0.2, maxTokens: 2048 },
+    options: { model: 'google/gemini-3-pro-preview', temperature: 0.2, maxTokens: 2048 },
     isCritical: false,
     default: DEFAULT_INTERROGATOR,
     phase: 1,
@@ -356,7 +356,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (input) => `Based on the following analysis reports from 9 specialized agents, synthesize a coaching plan for the sales rep:\n\n${input}`,
     toolName: 'synthesize_coaching',
     toolDescription: 'Synthesize all analysis into a prioritized coaching plan',
-    options: { model: 'openai/gpt-5.2', maxTokens: 2560 }, // OpenAI GPT-5.2-pro for superior reasoning
+    options: { model: 'google/gemini-3-pro-preview', temperature: 0.3, maxTokens: 2560 }, // Gemini 3 Pro for superior reasoning
     isCritical: false,
     default: DEFAULT_COACH,
     phase: 2,
