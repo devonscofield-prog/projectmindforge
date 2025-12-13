@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { CheckCircle2, AlertTriangle, ChevronDown, Lightbulb, GraduationCap } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, ChevronDown, Lightbulb, GraduationCap, Target, Dumbbell } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
+import ReactMarkdown from 'react-markdown';
 import type { CoachingSynthesis } from '@/utils/analysis-schemas';
 
 interface CoachingCardProps {
@@ -47,6 +48,7 @@ const getGradeStyles = (grade: string) => {
 
 export function CoachingCard({ data, className, isLoading = false }: CoachingCardProps) {
   const [isReasoningOpen, setIsReasoningOpen] = useState(false);
+  const [isDrillOpen, setIsDrillOpen] = useState(false);
   const [isCardOpen, setIsCardOpen] = useState(true);
 
   // Loading skeleton state
@@ -125,7 +127,7 @@ export function CoachingCard({ data, className, isLoading = false }: CoachingCar
 
         <CollapsibleContent>
           <CardContent className="p-6 space-y-6">
-        {/* The One Big Thing */}
+        {/* The One Big Thing - Punchy Headline */}
         <div className="rounded-lg bg-primary/10 border border-primary/20 p-4">
           <div className="flex items-center gap-2 mb-2">
             <Lightbulb className="h-5 w-5 text-primary" />
@@ -133,6 +135,49 @@ export function CoachingCard({ data, className, isLoading = false }: CoachingCar
           </div>
           <p className="text-foreground leading-relaxed">{data.coaching_prescription}</p>
         </div>
+
+        {/* Immediate Action - CTA Banner */}
+        {data.immediate_action && (
+          <div className="rounded-lg bg-amber-100 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 p-4">
+            <div className="flex items-start gap-3">
+              <Target className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+              <div>
+                <span className="font-semibold text-amber-700 dark:text-amber-300 text-sm">Immediate Action</span>
+                <p className="text-amber-800 dark:text-amber-200 mt-1">{data.immediate_action}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Practice Drill - Collapsible with Markdown */}
+        {data.coaching_drill && (
+          <Collapsible open={isDrillOpen} onOpenChange={setIsDrillOpen}>
+            <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium text-foreground hover:text-primary transition-colors w-full p-3 rounded-lg bg-muted/50 hover:bg-muted">
+              <Dumbbell className="h-4 w-4" />
+              <span>Practice Drill</span>
+              <ChevronDown
+                className={cn('h-4 w-4 ml-auto transition-transform', isDrillOpen && 'rotate-180')}
+              />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-3">
+              <div className="rounded-lg border border-border bg-muted/30 p-4 prose prose-sm dark:prose-invert max-w-none">
+                <ReactMarkdown
+                  components={{
+                    h1: ({ children }) => <h4 className="text-base font-semibold mb-2">{children}</h4>,
+                    h2: ({ children }) => <h5 className="text-sm font-semibold mb-2">{children}</h5>,
+                    p: ({ children }) => <p className="mb-2 text-foreground">{children}</p>,
+                    strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
+                    ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 mb-2">{children}</ol>,
+                    ul: ({ children }) => <ul className="list-disc list-inside space-y-1 mb-2">{children}</ul>,
+                    li: ({ children }) => <li className="text-foreground">{children}</li>,
+                  }}
+                >
+                  {data.coaching_drill}
+                </ReactMarkdown>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        )}
 
         {/* Executive Summary */}
         <div>
