@@ -19,10 +19,12 @@ import {
   ChevronDown,
   ChevronUp,
   Trash2,
+  Pencil,
   User,
   Crown,
   Link2,
   Link2Off,
+  Users,
 } from 'lucide-react';
 import { type EmailLog } from '@/api/emailLogs';
 import { type Stakeholder, influenceLevelLabels } from '@/api/stakeholders';
@@ -30,11 +32,12 @@ import { cn } from '@/lib/utils';
 
 interface EmailLogItemProps {
   email: EmailLog;
-  stakeholder?: Stakeholder | null;
+  linkedStakeholders: Stakeholder[];
+  onEdit: (email: EmailLog) => void;
   onDelete: (id: string) => void;
 }
 
-export function EmailLogItem({ email, stakeholder, onDelete }: EmailLogItemProps) {
+export function EmailLogItem({ email, linkedStakeholders, onEdit, onDelete }: EmailLogItemProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   
@@ -45,6 +48,8 @@ export function EmailLogItem({ email, stakeholder, onDelete }: EmailLogItemProps
   const bodyPreview = email.body.length > 150 
     ? email.body.substring(0, 150) + '...' 
     : email.body;
+
+  const hasLinkedStakeholders = linkedStakeholders.length > 0;
 
   return (
     <>
@@ -91,10 +96,19 @@ export function EmailLogItem({ email, stakeholder, onDelete }: EmailLogItemProps
                 <span className="text-xs text-muted-foreground">{displayDate}</span>
                 
                 {/* Stakeholder Link Indicator */}
-                {stakeholder ? (
+                {hasLinkedStakeholders ? (
                   <Badge variant="outline" className="text-xs gap-1 h-5">
-                    <Link2 className="h-3 w-3" />
-                    Linked
+                    {linkedStakeholders.length > 1 ? (
+                      <>
+                        <Users className="h-3 w-3" />
+                        {linkedStakeholders.length} linked
+                      </>
+                    ) : (
+                      <>
+                        <Link2 className="h-3 w-3" />
+                        Linked
+                      </>
+                    )}
                   </Badge>
                 ) : email.contact_name && (
                   <Badge variant="outline" className="text-xs gap-1 h-5 text-muted-foreground">
@@ -102,51 +116,56 @@ export function EmailLogItem({ email, stakeholder, onDelete }: EmailLogItemProps
                     Not linked
                   </Badge>
                 )}
+
+                {/* Notes indicator */}
+                {email.notes && !isExpanded && (
+                  <Badge variant="secondary" className="text-xs h-5">
+                    Has notes
+                  </Badge>
+                )}
               </div>
               
-              {/* Subject or Contact */}
+              {/* Subject */}
               {email.subject && (
                 <p className="font-medium mt-1 truncate">{email.subject}</p>
               )}
               
-              {/* Stakeholder Info (if linked) */}
-              {stakeholder ? (
-                <div className="flex items-center gap-2 mt-1.5 p-2 rounded-md bg-muted/50">
-                  {stakeholder.is_primary_contact ? (
-                    <Crown className="h-4 w-4 text-amber-500 flex-shrink-0" />
-                  ) : (
-                    <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-sm">
-                        {isOutgoing ? 'To: ' : 'From: '}{stakeholder.name}
-                      </span>
-                      {stakeholder.job_title && (
-                        <span className="text-xs text-muted-foreground">
-                          ({stakeholder.job_title})
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
-                      {stakeholder.email && (
-                        <span>{stakeholder.email}</span>
-                      )}
-                      {stakeholder.is_primary_contact && (
-                        <Badge variant="secondary" className="h-4 text-[10px]">Primary</Badge>
-                      )}
-                      {stakeholder.influence_level && (
-                        <Badge variant="outline" className="h-4 text-[10px]">
-                          {influenceLevelLabels[stakeholder.influence_level]}
-                        </Badge>
-                      )}
-                      {stakeholder.champion_score && (
-                        <span className="text-amber-600 dark:text-amber-400">
-                          Champion: {stakeholder.champion_score}/10
-                        </span>
-                      )}
-                    </div>
+              {/* Stakeholders Info (if linked) */}
+              {hasLinkedStakeholders ? (
+                <div className="mt-1.5 p-2 rounded-md bg-muted/50">
+                  <div className="flex flex-wrap gap-2">
+                    {linkedStakeholders.map((stakeholder) => (
+                      <div 
+                        key={stakeholder.id}
+                        className="flex items-center gap-1.5 text-sm"
+                      >
+                        {stakeholder.is_primary_contact ? (
+                          <Crown className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
+                        ) : (
+                          <User className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                        )}
+                        <span className="font-medium">{stakeholder.name}</span>
+                        {stakeholder.job_title && (
+                          <span className="text-xs text-muted-foreground">
+                            ({stakeholder.job_title})
+                          </span>
+                        )}
+                        {isExpanded && stakeholder.influence_level && (
+                          <Badge variant="outline" className="h-4 text-[10px]">
+                            {influenceLevelLabels[stakeholder.influence_level]}
+                          </Badge>
+                        )}
+                      </div>
+                    ))}
                   </div>
+                  {isExpanded && linkedStakeholders.some(s => s.email) && (
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {linkedStakeholders
+                        .filter(s => s.email)
+                        .map(s => s.email)
+                        .join(', ')}
+                    </div>
+                  )}
                 </div>
               ) : email.contact_name && (
                 <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
@@ -188,6 +207,7 @@ export function EmailLogItem({ email, stakeholder, onDelete }: EmailLogItemProps
               size="icon"
               className="h-8 w-8"
               onClick={() => setIsExpanded(!isExpanded)}
+              title={isExpanded ? 'Collapse' : 'Expand'}
             >
               {isExpanded ? (
                 <ChevronUp className="h-4 w-4" />
@@ -198,8 +218,18 @@ export function EmailLogItem({ email, stakeholder, onDelete }: EmailLogItemProps
             <Button
               variant="ghost"
               size="icon"
+              className="h-8 w-8"
+              onClick={() => onEdit(email)}
+              title="Edit email log"
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
               className="h-8 w-8 text-destructive hover:text-destructive"
               onClick={() => setShowDeleteConfirm(true)}
+              title="Delete email log"
             >
               <Trash2 className="h-4 w-4" />
             </Button>

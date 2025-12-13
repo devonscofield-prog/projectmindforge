@@ -114,6 +114,37 @@ export async function getEmailLogStakeholders(emailLogId: string): Promise<strin
   return (data || []).map(row => row.stakeholder_id);
 }
 
+/**
+ * Batch fetch stakeholder links for multiple email logs
+ * Returns a map of email_log_id -> stakeholder_ids[]
+ */
+export async function getEmailLogStakeholdersBatch(emailLogIds: string[]): Promise<Map<string, string[]>> {
+  if (emailLogIds.length === 0) {
+    return new Map();
+  }
+
+  const { data, error } = await supabase
+    .from('email_log_stakeholders')
+    .select('email_log_id, stakeholder_id')
+    .in('email_log_id', emailLogIds);
+  
+  if (error) throw error;
+
+  const result = new Map<string, string[]>();
+  
+  // Initialize all email log IDs with empty arrays
+  emailLogIds.forEach(id => result.set(id, []));
+  
+  // Populate with actual stakeholder links
+  (data || []).forEach(row => {
+    const existing = result.get(row.email_log_id) || [];
+    existing.push(row.stakeholder_id);
+    result.set(row.email_log_id, existing);
+  });
+
+  return result;
+}
+
 interface EmailLogUpdateData {
   direction?: EmailDirection;
   subject?: string | null;
