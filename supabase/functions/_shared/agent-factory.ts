@@ -31,7 +31,7 @@ const AGENT_TIMEOUT_OVERRIDES: Record<string, number> = {
   'negotiator': 12000,       // 12s - reduced from 15s, avg 4.5s
   'coach': 35000,            // 35s - Gemini 3 Pro synthesis
   'auditor': 8000,           // 8s - reduced from 12s, P95 is 13s so fail fast on outliers
-  'profiler': 10000,         // 10s - reduced from 12s
+  'profiler': 30000,         // 30s - Gemini 3 Pro needs more time for complex profile analysis
   'interrogator': 30000,     // 30s - OpenAI GPT-5.2 question analysis
   'strategist': 12000,       // 12s - P95 is 8s
   'referee': 10000,          // 10s - behavioral scoring is bounded
