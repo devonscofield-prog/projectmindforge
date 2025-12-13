@@ -121,7 +121,7 @@ export function useProspectStats(): UseQueryResult<ProspectStats, Error> {
       ] = await Promise.all([
         supabase.from('prospects').select('*', { count: 'exact', head: true }),
         supabase.from('prospects').select('*', { count: 'exact', head: true }).eq('status', 'active'),
-        supabase.from('prospects').select('heat_score').gte('heat_score', 8),
+        supabase.from('prospects').select('heat_score').gte('heat_score', 70),
         supabase.from('prospects').select('potential_revenue').eq('status', 'active'),
       ]);
 

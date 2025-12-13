@@ -113,7 +113,7 @@ export function LeadershipReportExport({
             <div style="color: #6b7280; font-size: 14px; margin-top: 4px;">Calls Analyzed</div>
           </div>
           <div style="background: #f8fafc; border-radius: 12px; padding: 20px; text-align: center; border: 1px solid #e2e8f0;">
-            <div style="font-size: 32px; font-weight: bold; color: #f97316;">${analysis.periodAnalysis.averageHeatScore?.toFixed(1) || 'N/A'}/10</div>
+            <div style="font-size: 32px; font-weight: bold; color: #f97316;">${analysis.periodAnalysis.averageHeatScore?.toFixed(0) || 'N/A'}</div>
             <div style="color: #6b7280; font-size: 14px; margin-top: 4px;">Avg Heat Score</div>
           </div>
           <div style="background: #f8fafc; border-radius: 12px; padding: 20px; text-align: center; border: 1px solid #e2e8f0;">
@@ -272,7 +272,7 @@ ${analysis.summary}
 
     text += `KEY METRICS
 • Calls Analyzed: ${analysis.periodAnalysis.totalCalls}
-• Avg Heat Score: ${analysis.periodAnalysis.averageHeatScore?.toFixed(1) || 'N/A'}/10
+• Avg Heat Score: ${analysis.periodAnalysis.averageHeatScore?.toFixed(0) || 'N/A'}
 • Trend: ${analysis.periodAnalysis.heatScoreTrend}
 
 `;

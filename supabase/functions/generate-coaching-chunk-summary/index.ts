@@ -76,7 +76,7 @@ const callDataSchema = z.object({
   active_listening_improvements: z.array(z.string()),
   critical_info_missing: z.array(z.union([z.string(), z.object({ info: z.string(), missed_opportunity: z.string() })])),
   follow_up_questions: z.array(z.union([z.string(), z.object({ question: z.string(), timing_example: z.string() })])),
-  heat_score: z.number().min(1).max(10).nullable(),
+  heat_score: z.number().min(0).max(100).nullable(),
   // Analysis 2.0 fields
   analysis_behavior: analysisBehaviorSchema,
   analysis_strategy: analysisStrategySchema,
