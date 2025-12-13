@@ -27,19 +27,20 @@ type ModelType = keyof typeof AGENT_TIMEOUT_MS;
 // Agent-specific timeout overrides (tuned based on P95 data)
 const AGENT_TIMEOUT_OVERRIDES: Record<string, number> = {
   'speaker_labeler': 30000,  // 30s - GPT-5.2 handles longer transcripts up to 45k chars
-  'skeptic': 15000,          // 15s - complex gap analysis
-  'negotiator': 12000,       // 12s - reduced from 15s, avg 4.5s
+  'skeptic': 20000,          // 20s - complex gap analysis with GPT-5.2
+  'negotiator': 15000,       // 15s - objection handling analysis
   'coach': 35000,            // 35s - Gemini 3 Pro synthesis
-  'auditor': 8000,           // 8s - reduced from 12s, P95 is 13s so fail fast on outliers
+  'auditor': 15000,          // 15s - pricing analysis needs buffer for complex calls
   'profiler': 30000,         // 30s - Gemini 3 Pro needs more time for complex profile analysis
   'interrogator': 30000,     // 30s - OpenAI GPT-5.2 question analysis
-  'strategist': 12000,       // 12s - P95 is 8s
-  'referee': 10000,          // 10s - behavioral scoring is bounded
+  'strategist': 20000,       // 20s - pain-to-pitch mapping with context
+  'referee': 20000,          // 20s - behavioral scoring on longer transcripts
 } as const;
 
 // Non-critical agents that can fail gracefully without blocking analysis
 const NON_CRITICAL_AGENTS = new Set([
-  'profiler', 'spy', 'auditor', 'interrogator', 'negotiator'
+  'profiler', 'spy', 'auditor', 'interrogator', 'negotiator',
+  'referee', 'strategist', 'skeptic'
 ]);
 
 export function getAgentTimeout(model: ModelType, agentId?: string): number {
