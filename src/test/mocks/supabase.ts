@@ -25,9 +25,9 @@ export const mockUserRoles = [
 ];
 
 export const mockProspects = [
-  { id: 'prospect-1', prospect_name: 'Acme Corp', status: 'active', heat_score: 9, potential_revenue: 50000 },
-  { id: 'prospect-2', prospect_name: 'Tech Inc', status: 'active', heat_score: 7, potential_revenue: 30000 },
-  { id: 'prospect-3', prospect_name: 'Old Co', status: 'dormant', heat_score: 3, potential_revenue: 10000 },
+  { id: 'prospect-1', prospect_name: 'Acme Corp', status: 'active', heat_score: 90, potential_revenue: 50000 },
+  { id: 'prospect-2', prospect_name: 'Tech Inc', status: 'active', heat_score: 70, potential_revenue: 30000 },
+  { id: 'prospect-3', prospect_name: 'Old Co', status: 'dormant', heat_score: 30, potential_revenue: 10000 },
 ];
 
 // Type for query result

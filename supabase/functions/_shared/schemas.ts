@@ -318,7 +318,7 @@ export const callDataSchema = z.object({
   active_listening_improvements: z.array(z.string()),
   critical_info_missing: z.array(criticalInfoItemSchema),
   follow_up_questions: z.array(followUpQuestionSchema),
-  heat_score: z.number().min(1).max(10).nullable()
+  heat_score: z.number().min(0).max(100).nullable()
 });
 
 export const chunkSummarySchema = z.object({

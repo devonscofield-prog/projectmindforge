@@ -69,15 +69,15 @@ export function RepContributionBreakdown({
 
   const getHeatColor = (score: number | null) => {
     if (score === null) return 'text-muted-foreground';
-    if (score >= 7) return 'text-green-600 dark:text-green-400';
-    if (score >= 4) return 'text-amber-600 dark:text-amber-400';
+    if (score >= 70) return 'text-green-600 dark:text-green-400';
+    if (score >= 40) return 'text-amber-600 dark:text-amber-400';
     return 'text-red-600 dark:text-red-400';
   };
 
   const getScoreColor = (score: number | null) => {
     if (score === null) return 'bg-muted';
-    if (score >= 7) return 'bg-green-500';
-    if (score >= 5) return 'bg-amber-500';
+    if (score >= 70) return 'bg-green-500';
+    if (score >= 50) return 'bg-amber-500';
     return 'bg-red-500';
   };
 

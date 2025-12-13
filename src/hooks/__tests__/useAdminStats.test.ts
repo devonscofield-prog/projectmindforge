@@ -30,7 +30,7 @@ vi.mock('@/integrations/supabase/client', () => ({
           return createCountMock(0);
         case 'prospects': {
           const activeProspects = mockProspects.filter(p => p.status === 'active');
-          const hotProspects = mockProspects.filter(p => p.heat_score >= 8);
+          const hotProspects = mockProspects.filter(p => p.heat_score >= 70);
           
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const createProspectChainable = (): any => ({
@@ -129,7 +129,7 @@ describe('useAdminStats', () => {
       expect(typeof result.current.data?.pipelineValue).toBe('number');
     });
 
-    it('should count hot prospects (heat_score >= 8)', async () => {
+    it('should count hot prospects (heat_score >= 70)', async () => {
       const { result } = renderHookWithClient(() => useProspectStats());
 
       await waitFor(() => {

@@ -375,7 +375,7 @@ const { mutate: update } = useUpdateProspect();
 
 update({
   id: prospectId,
-  heat_score: 8,
+  heat_score: 80,
   status: 'won',
 });
 ```
