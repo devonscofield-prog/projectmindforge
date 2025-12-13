@@ -220,7 +220,7 @@ function ProspectDetail() {
             ai_extracted_info: {
               ...currentInfo,
               account_research: research,
-              account_research_date: new Date().toISOString(),
+              account_research_generated_at: new Date().toISOString(),
             } as any,
           });
         }}
