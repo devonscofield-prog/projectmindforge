@@ -2,6 +2,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Search, Building2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { StructuredResearchDisplay } from '@/components/prospects/research';
+import { isStructuredAccountResearch, type StructuredAccountResearch } from '@/types/accountResearch';
 import { AnalysisMessageRenderer } from '@/components/admin/AnalysisMessageRenderer';
 import type { Prospect } from '@/api/prospects';
 
@@ -15,13 +17,15 @@ export function ProspectAccountResearch({
   onResearchAccount,
 }: ProspectAccountResearchProps) {
   const aiInfo = prospect.ai_extracted_info as {
-    account_research?: string;
+    account_research?: StructuredAccountResearch | string;
     account_research_generated_at?: string;
+    account_research_date?: string;
   } | null;
 
-  const hasResearch = aiInfo?.account_research;
-  const researchDate = aiInfo?.account_research_generated_at 
-    ? new Date(aiInfo.account_research_generated_at) 
+  const research = aiInfo?.account_research;
+  const isStructured = isStructuredAccountResearch(research);
+  const researchDate = aiInfo?.account_research_generated_at || aiInfo?.account_research_date
+    ? new Date(aiInfo.account_research_generated_at || aiInfo.account_research_date!)
     : null;
 
   return (
@@ -45,19 +49,19 @@ export function ProspectAccountResearch({
             onClick={onResearchAccount}
           >
             <Search className="h-4 w-4 mr-1" />
-            {hasResearch ? 'Re-Research' : 'Research'}
+            {research ? 'Re-Research' : 'Research'}
           </Button>
         )}
       </CardHeader>
       <CardContent>
-        {!hasResearch ? (
+        {!research ? (
           <div className="text-center py-8">
             <Building2 className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
             <p className="text-sm text-muted-foreground mb-3">
               No research available yet
             </p>
             <p className="text-xs text-muted-foreground max-w-md mx-auto mb-4">
-              Research this account to get AI-powered insights from web data including company overview, pain points, recent news, and conversation hooks.
+              Research this account to get AI-powered insights including company overview, pain points, stakeholder insights, and conversation hooks.
             </p>
             {onResearchAccount && (
               <Button
@@ -70,10 +74,11 @@ export function ProspectAccountResearch({
               </Button>
             )}
           </div>
+        ) : isStructured ? (
+          <StructuredResearchDisplay research={research as StructuredAccountResearch} />
         ) : (
-          <AnalysisMessageRenderer 
-            content={aiInfo.account_research || ''} 
-          />
+          // Legacy markdown research - still render with old renderer
+          <AnalysisMessageRenderer content={research as string} />
         )}
       </CardContent>
     </Card>
