@@ -1,8 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { Flame, TrendingUp, TrendingDown, Minus, RefreshCw, AlertTriangle, Lightbulb, Target, Users, Calendar, Phone, Activity } from "lucide-react";
+import { Flame, TrendingUp, TrendingDown, Minus, RefreshCw, AlertTriangle, Lightbulb, Target, Users, Calendar, Phone, Activity, CheckCircle2 } from "lucide-react";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -12,6 +11,7 @@ interface AccountHeatAnalysis {
   temperature: "Hot" | "Warm" | "Lukewarm" | "Cold";
   trend: "Heating Up" | "Cooling Down" | "Stagnant";
   confidence: "High" | "Medium" | "Low";
+  momentum_narrative?: string;
   factors: {
     engagement: { score: number; weight: number; signals: string[] };
     relationship: { score: number; weight: number; signals: string[] };
@@ -19,7 +19,8 @@ interface AccountHeatAnalysis {
     call_quality: { score: number; weight: number; signals: string[] };
     timing: { score: number; weight: number; signals: string[] };
   };
-  open_critical_gaps: { category: string; count: number }[];
+  open_critical_gaps: { category: string; count?: number; evidence?: string }[];
+  closed_gaps?: { category: string; how_resolved: string }[];
   competitors_active: string[];
   recommended_actions: string[];
   risk_factors: string[];
@@ -100,7 +101,7 @@ export function AccountHeatCard({
 
       if (error) throw error;
 
-      toast.success(`Account heat calculated: ${data.account_heat_score} (${data.account_heat_analysis.temperature})`);
+      toast.success(`Account heat calculated: ${data.score} (${data.temperature})`);
       onRefresh?.();
     } catch (error) {
       console.error('Failed to calculate account heat:', error);
@@ -123,13 +124,13 @@ export function AccountHeatCard({
         <CardContent>
           <div className="text-center py-4">
             <p className="text-muted-foreground text-sm mb-4">
-              Calculate the overall health of this account based on engagement, relationships, and deal progress.
+              AI-powered analysis of all calls and account data to determine deal health and momentum.
             </p>
             <Button onClick={handleCalculate} disabled={isCalculating}>
               {isCalculating ? (
                 <>
                   <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  Calculating...
+                  Analyzing Calls...
                 </>
               ) : (
                 <>
@@ -167,6 +168,7 @@ export function AccountHeatCard({
             size="sm" 
             onClick={handleCalculate}
             disabled={isCalculating}
+            title="Recalculate"
           >
             <RefreshCw className={`h-4 w-4 ${isCalculating ? 'animate-spin' : ''}`} />
           </Button>
@@ -195,6 +197,13 @@ export function AccountHeatCard({
           </div>
         </div>
 
+        {/* Momentum Narrative */}
+        {analysis.momentum_narrative && (
+          <div className="bg-muted/50 rounded-lg p-3 text-sm text-muted-foreground italic">
+            "{analysis.momentum_narrative}"
+          </div>
+        )}
+
         {/* Factor breakdown */}
         <div className="space-y-3">
           <h4 className="text-sm font-medium">Factor Breakdown</h4>
@@ -216,12 +225,32 @@ export function AccountHeatCard({
                   style={{ width: `${factor.score}%` }}
                 />
               </div>
-              <p className="text-xs text-muted-foreground">
-                {factor.signals.slice(0, 2).join(' • ')}
-              </p>
+              {factor.signals.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {factor.signals.slice(0, 2).join(' • ')}
+                </p>
+              )}
             </div>
           ))}
         </div>
+
+        {/* Closed gaps (show success) */}
+        {analysis.closed_gaps && analysis.closed_gaps.length > 0 && (
+          <div className="space-y-2">
+            <h4 className="text-sm font-medium flex items-center gap-2 text-green-600">
+              <CheckCircle2 className="h-4 w-4" />
+              Resolved Gaps
+            </h4>
+            <div className="space-y-1">
+              {analysis.closed_gaps.map((gap, i) => (
+                <div key={i} className="text-sm">
+                  <span className="font-medium text-green-700">{gap.category}:</span>{' '}
+                  <span className="text-muted-foreground">{gap.how_resolved}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Critical gaps */}
         {analysis.open_critical_gaps.length > 0 && (
@@ -230,11 +259,16 @@ export function AccountHeatCard({
               <AlertTriangle className="h-4 w-4 text-yellow-600" />
               Open Critical Gaps
             </h4>
-            <div className="flex flex-wrap gap-2">
-              {analysis.open_critical_gaps.map((gap) => (
-                <Badge key={gap.category} variant="outline" className="text-yellow-600 border-yellow-300">
-                  {gap.category} ({gap.count})
-                </Badge>
+            <div className="space-y-2">
+              {analysis.open_critical_gaps.map((gap, i) => (
+                <div key={i} className="text-sm">
+                  <Badge variant="outline" className="text-yellow-600 border-yellow-300 mr-2">
+                    {gap.category}
+                  </Badge>
+                  {gap.evidence && (
+                    <span className="text-muted-foreground text-xs">{gap.evidence}</span>
+                  )}
+                </div>
               ))}
             </div>
           </div>
