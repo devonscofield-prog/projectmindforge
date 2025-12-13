@@ -6,7 +6,7 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/component
 import { 
   Flame, RefreshCw, Loader2, AlertCircle, CheckCircle2, ChevronDown, 
   ChevronsDownUp, ChevronsUpDown, AlertTriangle, Target, User, Swords,
-  HelpCircle
+  HelpCircle, TrendingUp, TrendingDown, Minus, Zap, XCircle, Sparkles
 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { Prospect, ProspectIntel } from '@/api/prospects';
@@ -35,6 +35,13 @@ const DISC_COLORS: Record<string, string> = {
   'C': 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
 };
 
+const TRAJECTORY_CONFIG: Record<string, { icon: React.ElementType; color: string; label: string }> = {
+  improving: { icon: TrendingUp, color: 'text-green-500', label: 'Improving' },
+  stable: { icon: Minus, color: 'text-blue-500', label: 'Stable' },
+  declining: { icon: TrendingDown, color: 'text-red-500', label: 'Declining' },
+  stalled: { icon: XCircle, color: 'text-yellow-500', label: 'Stalled' },
+};
+
 export function ProspectAIInsights({
   prospect,
   calls,
@@ -59,8 +66,8 @@ export function ProspectAIInsights({
     setAllExpanded(!allExpanded);
   };
 
-  // Check if we have V2 data
-  const hasV2Data = aiInfo?.critical_gaps_summary || aiInfo?.prospect_persona || aiInfo?.competitors_summary;
+  // Check for V2 data (new AI-native fields)
+  const hasV2Data = aiInfo?.deal_blockers || aiInfo?.champion_signals || aiInfo?.next_best_action || aiInfo?.relationship_trajectory;
 
   return (
     <Card>
@@ -87,11 +94,7 @@ export function ProspectAIInsights({
         </div>
         <div className="flex items-center gap-2">
           {aiInfo && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={toggleAll}
-            >
+            <Button variant="ghost" size="sm" onClick={toggleAll}>
               {allExpanded ? (
                 <><ChevronsUpDown className="h-4 w-4 mr-1" /> Collapse</>
               ) : (
@@ -105,11 +108,7 @@ export function ProspectAIInsights({
             onClick={onRefreshInsights}
             disabled={isRefreshingInsights}
           >
-            {isRefreshingInsights ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
-            )}
+            {isRefreshingInsights ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           </Button>
         </div>
       </CardHeader>
@@ -118,28 +117,117 @@ export function ProspectAIInsights({
           <div className="text-center py-8">
             <Flame className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
             <p className="text-sm text-muted-foreground mb-3">No AI insights yet</p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onRefreshInsights}
-              disabled={isRefreshingInsights}
-            >
+            <Button variant="outline" size="sm" onClick={onRefreshInsights} disabled={isRefreshingInsights}>
               {isRefreshingInsights ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Analyzing...
-                </>
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Analyzing...</>
               ) : (
-                <>
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Generate Insights
-                </>
+                <><RefreshCw className="h-4 w-4 mr-2" />Generate Insights</>
               )}
             </Button>
           </div>
         ) : (
           <div className="space-y-3">
-            {/* V2: Critical Gaps Summary */}
+            {/* Next Best Action Banner - always visible if present */}
+            {aiInfo.next_best_action && (
+              <div className="bg-primary/10 border border-primary/30 rounded-lg p-3 flex items-start gap-2">
+                <Zap className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium text-sm">Next Best Action</p>
+                  <p className="text-sm text-muted-foreground">{aiInfo.next_best_action}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Relationship Trajectory */}
+            {aiInfo.relationship_trajectory && TRAJECTORY_CONFIG[aiInfo.relationship_trajectory] && (
+              <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
+                {(() => {
+                  const config = TRAJECTORY_CONFIG[aiInfo.relationship_trajectory!];
+                  const Icon = config.icon;
+                  return (
+                    <>
+                      <Icon className={`h-4 w-4 ${config.color}`} />
+                      <span className="text-sm font-medium">Relationship: {config.label}</span>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+
+            {/* Deal Blockers */}
+            {aiInfo.deal_blockers && aiInfo.deal_blockers.length > 0 && (
+              <CollapsibleInsightSection
+                title="Deal Blockers"
+                icon={<AlertTriangle className="h-4 w-4 text-red-500" />}
+                open={allExpanded}
+                priority
+              >
+                <ul className="space-y-1">
+                  {aiInfo.deal_blockers.map((blocker, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm">
+                      <XCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
+                      {blocker}
+                    </li>
+                  ))}
+                </ul>
+              </CollapsibleInsightSection>
+            )}
+
+            {/* Champion Signals */}
+            {aiInfo.champion_signals && aiInfo.champion_signals.length > 0 && (
+              <CollapsibleInsightSection
+                title="Champion Signals"
+                icon={<Sparkles className="h-4 w-4 text-green-500" />}
+                open={allExpanded}
+              >
+                <ul className="space-y-1">
+                  {aiInfo.champion_signals.map((signal, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm">
+                      <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+                      {signal}
+                    </li>
+                  ))}
+                </ul>
+              </CollapsibleInsightSection>
+            )}
+
+            {/* Buying Signals */}
+            {aiInfo.buying_signals && aiInfo.buying_signals.length > 0 && (
+              <CollapsibleInsightSection
+                title="Buying Signals"
+                icon={<TrendingUp className="h-4 w-4 text-green-500" />}
+                open={allExpanded}
+              >
+                <ul className="space-y-1">
+                  {aiInfo.buying_signals.map((signal, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm">
+                      <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+                      {signal}
+                    </li>
+                  ))}
+                </ul>
+              </CollapsibleInsightSection>
+            )}
+
+            {/* Stall Signals */}
+            {aiInfo.stall_signals && aiInfo.stall_signals.length > 0 && (
+              <CollapsibleInsightSection
+                title="Stall Signals"
+                icon={<TrendingDown className="h-4 w-4 text-amber-500" />}
+                open={allExpanded}
+              >
+                <ul className="space-y-1">
+                  {aiInfo.stall_signals.map((signal, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm">
+                      <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                      {signal}
+                    </li>
+                  ))}
+                </ul>
+              </CollapsibleInsightSection>
+            )}
+
+            {/* Legacy V2: Critical Gaps Summary */}
             {aiInfo.critical_gaps_summary && aiInfo.critical_gaps_summary.length > 0 && (
               <CollapsibleInsightSection
                 title="Critical Gaps"
@@ -166,7 +254,7 @@ export function ProspectAIInsights({
               </CollapsibleInsightSection>
             )}
 
-            {/* V2: Prospect Persona */}
+            {/* Prospect Persona */}
             {aiInfo.prospect_persona && (
               <CollapsibleInsightSection
                 title="Prospect Communication Style"
@@ -211,7 +299,7 @@ export function ProspectAIInsights({
               </CollapsibleInsightSection>
             )}
 
-            {/* V2: Competitors Summary */}
+            {/* Competitors Summary */}
             {aiInfo.competitors_summary && aiInfo.competitors_summary.length > 0 && (
               <CollapsibleInsightSection
                 title="Competitive Landscape"
@@ -231,23 +319,16 @@ export function ProspectAIInsights({
               </CollapsibleInsightSection>
             )}
 
-            {/* Original sections */}
+            {/* Business Context */}
             {aiInfo.business_context && (
-              <CollapsibleInsightSection
-                title="Business Context"
-                icon={<Target className="h-4 w-4 text-blue-500" />}
-                open={allExpanded}
-              >
+              <CollapsibleInsightSection title="Business Context" icon={<Target className="h-4 w-4 text-blue-500" />} open={allExpanded}>
                 <p className="text-sm text-muted-foreground">{aiInfo.business_context}</p>
               </CollapsibleInsightSection>
             )}
 
+            {/* Pain Points */}
             {aiInfo.pain_points && aiInfo.pain_points.length > 0 && (
-              <CollapsibleInsightSection
-                title="Pain Points"
-                icon={<AlertCircle className="h-4 w-4 text-orange-500" />}
-                open={allExpanded}
-              >
+              <CollapsibleInsightSection title="Pain Points" icon={<AlertCircle className="h-4 w-4 text-orange-500" />} open={allExpanded}>
                 <ul className="space-y-1">
                   {aiInfo.pain_points.map((point, i) => (
                     <li key={i} className="flex items-start gap-2 text-sm">
@@ -259,12 +340,9 @@ export function ProspectAIInsights({
               </CollapsibleInsightSection>
             )}
 
+            {/* Key Opportunities */}
             {aiInfo.key_opportunities && aiInfo.key_opportunities.length > 0 && (
-              <CollapsibleInsightSection
-                title="Key Opportunities"
-                icon={<CheckCircle2 className="h-4 w-4 text-green-500" />}
-                open={allExpanded}
-              >
+              <CollapsibleInsightSection title="Key Opportunities" icon={<CheckCircle2 className="h-4 w-4 text-green-500" />} open={allExpanded}>
                 <ul className="space-y-1">
                   {aiInfo.key_opportunities.map((opp, i) => (
                     <li key={i} className="flex items-start gap-2 text-sm">
@@ -276,20 +354,16 @@ export function ProspectAIInsights({
               </CollapsibleInsightSection>
             )}
 
+            {/* Communication Summary */}
             {aiInfo.communication_summary && (
-              <CollapsibleInsightSection
-                title="Communication Summary"
-                open={allExpanded}
-              >
+              <CollapsibleInsightSection title="Communication Summary" open={allExpanded}>
                 <p className="text-sm text-muted-foreground">{aiInfo.communication_summary}</p>
               </CollapsibleInsightSection>
             )}
 
+            {/* Decision Process */}
             {aiInfo.decision_process && (
-              <CollapsibleInsightSection
-                title="Decision Process"
-                open={allExpanded}
-              >
+              <CollapsibleInsightSection title="Decision Process" open={allExpanded}>
                 <div className="text-sm space-y-1">
                   {aiInfo.decision_process.timeline && (
                     <p><span className="text-muted-foreground">Timeline:</span> {aiInfo.decision_process.timeline}</p>
@@ -301,21 +375,16 @@ export function ProspectAIInsights({
               </CollapsibleInsightSection>
             )}
 
-            {aiInfo.relationship_health && (
-              <CollapsibleInsightSection
-                title="Relationship Health"
-                open={allExpanded}
-              >
+            {/* Relationship Health (legacy) */}
+            {aiInfo.relationship_health && !aiInfo.relationship_trajectory && (
+              <CollapsibleInsightSection title="Relationship Health" open={allExpanded}>
                 <p className="text-sm text-muted-foreground">{aiInfo.relationship_health}</p>
               </CollapsibleInsightSection>
             )}
 
-            {/* Legacy competitors (only show if no V2 competitors_summary) */}
+            {/* Legacy competitors (only if no V2 competitors_summary) */}
             {!aiInfo.competitors_summary && aiInfo.competitors_mentioned && aiInfo.competitors_mentioned.length > 0 && (
-              <CollapsibleInsightSection
-                title="Competitors Mentioned"
-                open={allExpanded}
-              >
+              <CollapsibleInsightSection title="Competitors Mentioned" open={allExpanded}>
                 <div className="flex flex-wrap gap-2">
                   {aiInfo.competitors_mentioned.map((comp, i) => (
                     <Badge key={i} variant="outline">{comp}</Badge>
@@ -345,7 +414,6 @@ function CollapsibleInsightSection({
 }) {
   const [isOpen, setIsOpen] = useState(open);
 
-  // Sync with parent's expand/collapse all
   useEffect(() => {
     setIsOpen(open);
   }, [open]);

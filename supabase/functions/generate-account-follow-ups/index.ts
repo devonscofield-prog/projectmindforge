@@ -1,12 +1,11 @@
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
 
-// Rate limiting: 10 requests per minute per user (this is a heavier operation)
+// Rate limiting: 10 requests per minute per user
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 10;
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 
-// Passive cleanup: clean old entries during rate limit checks
 function cleanupRateLimitEntries(): void {
   const now = Date.now();
   let cleaned = 0;
@@ -14,15 +13,13 @@ function cleanupRateLimitEntries(): void {
     if (now > value.resetTime) {
       rateLimitMap.delete(key);
       cleaned++;
-      if (cleaned >= 10) break; // Limit cleanup per call
+      if (cleaned >= 10) break;
     }
   }
 }
 
 function checkRateLimit(userId: string): { allowed: boolean; retryAfter?: number } {
-  // Passive cleanup on each check
   cleanupRateLimitEntries();
-  
   const now = Date.now();
   const userLimit = rateLimitMap.get(userId);
   
@@ -40,7 +37,6 @@ function checkRateLimit(userId: string): { allowed: boolean; retryAfter?: number
   return { allowed: true };
 }
 
-// Update background job status helper
 async function updateJobStatus(
   supabase: SupabaseClient,
   jobId: string | null,
@@ -49,43 +45,25 @@ async function updateJobStatus(
 ): Promise<void> {
   if (!jobId) return;
   
-  const updates: Record<string, unknown> = { 
-    status, 
-    updated_at: new Date().toISOString() 
-  };
-  
-  if (error) {
-    updates.error = error;
-  }
-  
-  if (status === 'processing') {
-    updates.started_at = new Date().toISOString();
-  }
-  
-  if (status === 'completed' || status === 'failed') {
-    updates.completed_at = new Date().toISOString();
-  }
+  const updates: Record<string, unknown> = { status, updated_at: new Date().toISOString() };
+  if (error) updates.error = error;
+  if (status === 'processing') updates.started_at = new Date().toISOString();
+  if (status === 'completed' || status === 'failed') updates.completed_at = new Date().toISOString();
   
   await supabase.from('background_jobs').update(updates).eq('id', jobId);
 }
 
-// CORS: Restrict to production domains
 function getCorsHeaders(origin?: string | null): Record<string, string> {
   const allowedOrigins = ['https://lovable.dev', 'https://www.lovable.dev'];
   const devPatterns = [/^https?:\/\/localhost(:\d+)?$/, /^https:\/\/[a-z0-9-]+\.lovableproject\.com$/, /^https:\/\/[a-z0-9-]+\.lovable\.app$/];
   
-  // Allow custom domain from environment variable
   const customDomain = Deno.env.get('CUSTOM_DOMAIN');
   if (customDomain) {
-    allowedOrigins.push(`https://${customDomain}`);
-    allowedOrigins.push(`https://www.${customDomain}`);
+    allowedOrigins.push(`https://${customDomain}`, `https://www.${customDomain}`);
   }
-  
-  // Allow StormWind domain from environment variable
   const stormwindDomain = Deno.env.get('STORMWIND_DOMAIN');
   if (stormwindDomain) {
-    allowedOrigins.push(`https://${stormwindDomain}`);
-    allowedOrigins.push(`https://www.${stormwindDomain}`);
+    allowedOrigins.push(`https://${stormwindDomain}`, `https://www.${stormwindDomain}`);
   }
   
   const requestOrigin = origin || '';
@@ -97,29 +75,23 @@ function getCorsHeaders(origin?: string | null): Record<string, string> {
   };
 }
 
-// Zod validation schema
 const generateFollowUpsSchema = z.object({
   prospect_id: z.string().uuid({ message: "Invalid prospect_id UUID format" }),
   job_id: z.string().uuid().optional()
 });
 
-// Sales veteran system prompt for generating follow-up steps - Updated for Analysis 2.0
-const FOLLOW_UP_SYSTEM_PROMPT = `You are a 20-year B2B/SaaS sales veteran and strategic account coach. You've closed hundreds of enterprise deals ranging from $50K to $5M ARR. You understand exactly what separates good follow-up from great follow-up that actually advances deals.
+// AI-native system prompt - reads ALL raw transcripts directly
+const FOLLOW_UP_SYSTEM_PROMPT = `You are a 20-year B2B/SaaS sales veteran analyzing raw call transcripts and emails to generate actionable follow-up steps. You've closed hundreds of enterprise deals from $50K to $5M ARR.
 
-Your task is to analyze ALL call data for an account and generate 3-7 specific, actionable follow-up STEPS (not questions). Each step should be something the rep can execute TODAY to move the deal forward measurably.
+You will receive the COMPLETE RAW TRANSCRIPTS of all calls with this account, plus full email bodies. Read them carefully to understand:
+- What pains were discussed and their severity
+- What solutions were pitched and how well they connected to pains
+- What objections were raised and whether they were resolved
+- What gaps exist in qualification (budget, authority, timeline, need)
+- What the relationship trajectory looks like
+- Any time-sensitive signals or urgency cues
 
-**CRITICAL: USE THE RELEVANCE MAP**
-You will receive a "Relevance Map" showing pain-to-solution connections from each call. Use this strategically:
-- If the rep pitched a solution that was marked 'Relevant' (matched a pain), the follow-up should be to send a PROPOSAL for that solution with specific ROI examples.
-- If there are 'Missed Opportunities' (pains the prospect mentioned but rep didn't address), the follow-up should be to CLARIFY that pain and pitch the appropriate solution.
-- For 'Irrelevant' pitches (spray and pray), suggest a follow-up to re-qualify the prospect's actual needs before continuing.
-
-GUIDELINES FOR GREAT FOLLOW-UP STEPS:
-1. Be SPECIFIC - not "follow up with stakeholder" but "Schedule 30-min call with IT Director John to address security concerns raised in last call"
-2. Be ACTIONABLE - concrete actions, not vague suggestions
-3. Address GAPS - use the MEDDPICC scores to identify qualification gaps (low scores = missing info)
-4. Consider TIMING - prioritize based on deal stage and urgency signals
-5. Think MULTI-THREADING - always look for ways to engage more stakeholders
+GENERATE 3-7 SPECIFIC, ACTIONABLE FOLLOW-UP STEPS. Each should be something the rep can execute TODAY.
 
 CATEGORIES:
 - discovery: Uncover more info about pain, budget, timeline, decision process
@@ -129,76 +101,16 @@ CATEGORIES:
 - relationship: Build champion strength, strengthen rapport, add value
 - competitive: Counter competitive threats, differentiate, establish unique value
 
-For each follow-up step, provide:
+For each follow-up, provide:
 - title: Action verb + specific outcome (max 60 chars)
 - description: 1-2 sentences with context on WHY this matters
 - priority: high/medium/low based on deal impact and urgency
 - category: one of the above
-- ai_reasoning: 2-3 sentences explaining your veteran thinking - why this specific action, what it addresses, and what outcome to expect
+- ai_reasoning: 2-3 sentences explaining your thinking
+- urgency_signal: If there's a time-sensitive cue from the conversations, describe it. Otherwise null.
+- related_evidence: Quote or paraphrase the specific conversation excerpt that drove this suggestion
 
 Be direct. Be specific. Think like someone whose commission depends on this deal closing.`;
-
-// Updated interfaces for Analysis 2.0
-interface RelevanceMapItem {
-  pain_identified: string;
-  feature_pitched: string;
-  is_relevant: boolean;
-  reasoning: string;
-}
-
-interface StrategyAudit {
-  strategic_threading?: {
-    score?: number;
-    grade?: 'Pass' | 'Fail';
-    relevance_map?: RelevanceMapItem[];
-    missed_opportunities?: string[];
-  };
-  meddpicc?: {
-    overall_score?: number;
-    breakdown?: Record<string, { score: number; evidence?: string | null; missing_info?: string | null }>;
-  };
-}
-
-interface BehaviorScore {
-  overall_score?: number;
-  grade?: 'Pass' | 'Fail';
-  coaching_tip?: string;
-  metrics?: {
-    patience?: { score: number; missed_acknowledgment_count: number };
-    question_quality?: { 
-      score: number; 
-      explanation: string;
-      average_question_length: number;
-      average_answer_length: number;
-      high_leverage_count: number;
-      low_leverage_count: number;
-    };
-    monologue?: { score: number; violation_count: number; longest_turn_word_count: number };
-    talk_listen_ratio?: { score: number; rep_talk_percentage: number };
-    next_steps?: { score: number; secured: boolean; details: string };
-  };
-}
-
-interface CallData {
-  id: string;
-  call_date: string;
-  call_type: string | null;
-  raw_text: string;
-  analysis?: {
-    call_summary?: string;
-    deal_gaps?: { critical_missing_info?: string[]; unresolved_objections?: string[] };
-    coach_output?: {
-      critical_info_missing?: string[];
-      recommended_follow_up_questions?: string[];
-      heat_signature?: { score: number; explanation: string };
-    };
-    strengths?: Array<{ area: string; example: string }>;
-    opportunities?: Array<{ area: string; example: string }>;
-    // Analysis 2.0 fields
-    analysis_strategy?: StrategyAudit;
-    analysis_behavior?: BehaviorScore;
-  };
-}
 
 interface FollowUpSuggestion {
   title: string;
@@ -206,24 +118,23 @@ interface FollowUpSuggestion {
   priority: 'high' | 'medium' | 'low';
   category: 'discovery' | 'stakeholder' | 'objection' | 'proposal' | 'relationship' | 'competitive';
   ai_reasoning: string;
+  urgency_signal?: string | null;
+  related_evidence?: string | null;
 }
 
 Deno.serve(async (req) => {
   const origin = req.headers.get('Origin');
   const corsHeaders = getCorsHeaders(origin);
   
-  // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Create Supabase client with service role for backend operations
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Parse and validate request body
     let body: unknown;
     try {
       body = await req.json();
@@ -236,10 +147,7 @@ Deno.serve(async (req) => {
 
     const validation = generateFollowUpsSchema.safeParse(body);
     if (!validation.success) {
-      const errors = validation.error.errors.map(err => ({
-        path: err.path.join('.'),
-        message: err.message
-      }));
+      const errors = validation.error.errors.map(err => ({ path: err.path.join('.'), message: err.message }));
       console.warn('[generate-account-follow-ups] Validation failed:', errors);
       return new Response(
         JSON.stringify({ error: 'Validation failed', issues: errors }),
@@ -248,151 +156,166 @@ Deno.serve(async (req) => {
     }
 
     const { prospect_id, job_id } = validation.data;
-
-    console.log(`[generate-account-follow-ups] Starting for prospect: ${prospect_id}${job_id ? ` (job: ${job_id})` : ''}`);
+    console.log(`[generate-account-follow-ups] Starting AI-native analysis for prospect: ${prospect_id}`);
     
-    // Mark job as processing
     await updateJobStatus(supabase, job_id || null, 'processing');
 
-    // Check for internal service call (from analyze-call or other edge functions)
+    // Auth check
     const authHeader = req.headers.get('Authorization');
     const token = authHeader?.replace('Bearer ', '');
     const isInternalServiceCall = token === supabaseServiceKey;
 
-    if (isInternalServiceCall) {
-      console.log('[generate-account-follow-ups] Internal service call detected, bypassing user auth');
-    } else {
-      // User call - verify JWT
+    if (!isInternalServiceCall) {
       if (!authHeader) {
-        return new Response(
-          JSON.stringify({ error: 'Authorization required' }),
-          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return new Response(JSON.stringify({ error: 'Authorization required' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
-
       const { data: { user }, error: authError } = await supabase.auth.getUser(token!);
-      
       if (authError || !user) {
-        return new Response(
-          JSON.stringify({ error: 'Invalid authentication' }),
-          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return new Response(JSON.stringify({ error: 'Invalid authentication' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
-
-      // Check rate limit for user calls only
       const rateLimit = checkRateLimit(user.id);
       if (!rateLimit.allowed) {
-        console.log(`[generate-account-follow-ups] Rate limit exceeded for user: ${user.id}`);
         return new Response(
           JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
-          { 
-            status: 429, 
-            headers: { 
-              ...corsHeaders, 
-              'Content-Type': 'application/json',
-              'Retry-After': String(rateLimit.retryAfter || 60)
-            } 
-          }
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': String(rateLimit.retryAfter || 60) } }
         );
       }
     }
 
-    // Update prospect status to processing
-    await supabase
-      .from('prospects')
-      .update({ follow_ups_generation_status: 'processing' })
-      .eq('id', prospect_id);
+    // Update status
+    await supabase.from('prospects').update({ follow_ups_generation_status: 'processing' }).eq('id', prospect_id);
 
-    // Fetch prospect details
-    const { data: prospect, error: prospectError } = await supabase
-      .from('prospects')
-      .select('*')
-      .eq('id', prospect_id)
-      .single();
+    // Fetch all data in parallel
+    const [prospectResult, callsResult, stakeholdersResult, emailsResult, existingFollowUpsResult] = await Promise.all([
+      supabase.from('prospects').select('*').eq('id', prospect_id).single(),
+      supabase.from('call_transcripts').select('id, call_date, call_type, raw_text, account_name').eq('prospect_id', prospect_id).is('deleted_at', null).order('call_date', { ascending: true }),
+      supabase.from('stakeholders').select('id, name, job_title, influence_level, champion_score, is_primary_contact, email').eq('prospect_id', prospect_id),
+      supabase.from('email_logs').select('direction, subject, body, email_date, contact_name, notes').eq('prospect_id', prospect_id).order('email_date', { ascending: true }),
+      supabase.from('account_follow_ups').select('title, description').eq('prospect_id', prospect_id).eq('status', 'pending')
+    ]);
 
-    if (prospectError || !prospect) {
-      console.error('[generate-account-follow-ups] Prospect not found:', prospectError);
-      return new Response(
-        JSON.stringify({ error: 'Prospect not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (prospectResult.error || !prospectResult.data) {
+      console.error('[generate-account-follow-ups] Prospect not found:', prospectResult.error);
+      return new Response(JSON.stringify({ error: 'Prospect not found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // Fetch all call transcripts for this prospect
-    const { data: calls, error: callsError } = await supabase
-      .from('call_transcripts')
-      .select('id, call_date, call_type, raw_text')
-      .eq('prospect_id', prospect_id)
-      .order('call_date', { ascending: false });
+    const prospect = prospectResult.data;
+    const calls = callsResult.data || [];
+    const stakeholders = stakeholdersResult.data || [];
+    const emailLogs = emailsResult.data || [];
+    const existingFollowUps = existingFollowUpsResult.data || [];
 
-    if (callsError) {
-      console.error('[generate-account-follow-ups] Error fetching calls:', callsError);
-      throw new Error('Failed to fetch call transcripts');
+    // If no data, generate basic follow-up
+    if (calls.length === 0 && emailLogs.length === 0) {
+      console.log('[generate-account-follow-ups] No data, generating basic follow-up');
+      
+      await supabase.from('account_follow_ups').insert({
+        prospect_id,
+        rep_id: prospect.rep_id,
+        title: 'Schedule initial discovery call',
+        description: 'No calls recorded yet. Reach out to establish first contact and understand their current situation.',
+        priority: 'high',
+        category: 'discovery',
+        ai_reasoning: 'Without any call data, the first priority is establishing contact. A discovery call will reveal pain points, timeline, and budget.',
+        generated_from_call_ids: [],
+        status: 'pending'
+      });
+
+      await supabase.from('prospects').update({ 
+        follow_ups_generation_status: 'completed',
+        follow_ups_last_generated_at: new Date().toISOString()
+      }).eq('id', prospect_id);
+
+      await updateJobStatus(supabase, job_id || null, 'completed');
+      return new Response(JSON.stringify({ success: true, count: 1 }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // Fetch analyses for all calls - include Analysis 2.0 fields
-    const callIds = (calls || []).map(c => c.id);
-    let analyses: Record<string, any> = {};
+    // Build comprehensive context with ALL raw transcripts
+    const contextPrompt = buildContextPrompt(prospect, calls, stakeholders, emailLogs, existingFollowUps);
     
-    if (callIds.length > 0) {
-      const { data: analysisData } = await supabase
-        .from('ai_call_analysis')
-        .select('call_id, call_summary, deal_gaps, coach_output, strengths, opportunities, analysis_strategy, analysis_behavior')
-        .in('call_id', callIds);
-      
-      if (analysisData) {
-        analyses = analysisData.reduce((acc, a) => {
-          acc[a.call_id] = a;
-          return acc;
-        }, {} as Record<string, any>);
+    console.log(`[generate-account-follow-ups] Context built: ${calls.length} calls, ${emailLogs.length} emails, ~${contextPrompt.length} chars`);
+
+    // Call AI with 60-second timeout
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY not configured');
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+    try {
+      const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          model: 'google/gemini-3-pro-preview',
+          messages: [
+            { role: 'system', content: FOLLOW_UP_SYSTEM_PROMPT },
+            { role: 'user', content: contextPrompt }
+          ],
+          tools: [{
+            type: 'function',
+            function: {
+              name: 'submit_follow_up_steps',
+              description: 'Submit the generated follow-up steps',
+              parameters: {
+                type: 'object',
+                properties: {
+                  follow_ups: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        title: { type: 'string' },
+                        description: { type: 'string' },
+                        priority: { type: 'string', enum: ['high', 'medium', 'low'] },
+                        category: { type: 'string', enum: ['discovery', 'stakeholder', 'objection', 'proposal', 'relationship', 'competitive'] },
+                        ai_reasoning: { type: 'string' },
+                        urgency_signal: { type: 'string', description: 'Time-sensitive cue from conversations, or null' },
+                        related_evidence: { type: 'string', description: 'Quote or paraphrase from conversation that drove this suggestion' }
+                      },
+                      required: ['title', 'description', 'priority', 'category', 'ai_reasoning']
+                    }
+                  }
+                },
+                required: ['follow_ups']
+              }
+            }
+          }],
+          tool_choice: { type: 'function', function: { name: 'submit_follow_up_steps' } }
+        })
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!aiResponse.ok) {
+        const errorText = await aiResponse.text();
+        console.error('[generate-account-follow-ups] AI Gateway error:', aiResponse.status, errorText);
+        throw new Error(`AI Gateway error: ${aiResponse.status}`);
       }
-    }
 
-    // Fetch stakeholders
-    const { data: stakeholders } = await supabase
-      .from('stakeholders')
-      .select('id, name, job_title, influence_level, champion_score, is_primary_contact')
-      .eq('prospect_id', prospect_id);
-
-    // Fetch existing pending follow-ups to avoid duplicates
-    const { data: existingFollowUps } = await supabase
-      .from('account_follow_ups')
-      .select('title, description')
-      .eq('prospect_id', prospect_id)
-      .eq('status', 'pending');
-
-    // Fetch email logs for this prospect with stakeholder details
-    const { data: emailLogs } = await supabase
-      .from('email_logs')
-      .select('direction, subject, body, email_date, contact_name, notes, stakeholder_id')
-      .eq('prospect_id', prospect_id)
-      .order('email_date', { ascending: false });
-
-    // Create a map of stakeholders for easy lookup
-    const stakeholderMap = new Map((stakeholders || []).map(s => [s.id, s]));
-
-    // Build context for AI
-    const callsWithAnalysis: CallData[] = (calls || []).map(call => ({
-      ...call,
-      analysis: analyses[call.id]
-    }));
-
-    // If no calls, generate basic follow-ups
-    if (callsWithAnalysis.length === 0) {
-      console.log('[generate-account-follow-ups] No calls found, generating basic follow-ups');
+      const aiData = await aiResponse.json();
+      const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
       
-      const basicFollowUps: FollowUpSuggestion[] = [
-        {
-          title: 'Schedule initial discovery call',
-          description: 'No calls recorded yet. Reach out to establish first contact and understand their current situation.',
-          priority: 'high',
-          category: 'discovery',
-          ai_reasoning: 'Without any call data, the first priority is establishing contact. A discovery call will reveal pain points, timeline, and budget - the foundation for any deal.'
+      let followUps: FollowUpSuggestion[] = [];
+      if (toolCall?.function?.arguments) {
+        try {
+          const parsed = JSON.parse(toolCall.function.arguments);
+          followUps = parsed.follow_ups || [];
+        } catch (e) {
+          console.error('[generate-account-follow-ups] Failed to parse AI response:', e);
         }
-      ];
+      }
 
-      // Save follow-ups
-      for (const followUp of basicFollowUps) {
+      console.log(`[generate-account-follow-ups] AI generated ${followUps.length} follow-ups`);
+
+      // Filter duplicates
+      const existingTitles = new Set(existingFollowUps.map(f => f.title?.toLowerCase().trim()));
+      const uniqueFollowUps = followUps.filter(f => !existingTitles.has(f.title?.toLowerCase().trim()));
+
+      // Save to database
+      const callIds = calls.map(c => c.id);
+      for (const followUp of uniqueFollowUps) {
         await supabase.from('account_follow_ups').insert({
           prospect_id,
           rep_id: prospect.rep_id,
@@ -400,376 +323,86 @@ Deno.serve(async (req) => {
           description: followUp.description,
           priority: followUp.priority,
           category: followUp.category,
-          ai_reasoning: followUp.ai_reasoning,
-          generated_from_call_ids: [],
+          ai_reasoning: followUp.ai_reasoning + (followUp.related_evidence ? `\n\n📝 Evidence: "${followUp.related_evidence}"` : '') + (followUp.urgency_signal ? `\n\n⏰ Urgency: ${followUp.urgency_signal}` : ''),
+          generated_from_call_ids: callIds,
           status: 'pending'
         });
       }
 
-      // Update prospect status
-      await supabase
-        .from('prospects')
-        .update({ 
-          follow_ups_generation_status: 'completed',
-          follow_ups_last_generated_at: new Date().toISOString()
-        })
-        .eq('id', prospect_id);
-
-      return new Response(
-        JSON.stringify({ success: true, count: basicFollowUps.length }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Build comprehensive context
-    const contextPrompt = buildContextPrompt(prospect, callsWithAnalysis, stakeholders || [], existingFollowUps || [], emailLogs || []);
-
-    // Call Lovable AI Gateway
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
-    }
-
-    console.log('[generate-account-follow-ups] Calling Lovable AI for analysis...');
-
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: FOLLOW_UP_SYSTEM_PROMPT },
-          { role: 'user', content: contextPrompt }
-        ],
-        tools: [{
-          type: 'function',
-          function: {
-            name: 'submit_follow_up_steps',
-            description: 'Submit the generated follow-up steps for this account',
-            parameters: {
-              type: 'object',
-              properties: {
-                follow_ups: {
-                  type: 'array',
-                  items: {
-                    type: 'object',
-                    properties: {
-                      title: { type: 'string', description: 'Short action title (max 60 chars)' },
-                      description: { type: 'string', description: '1-2 sentences with context' },
-                      priority: { type: 'string', enum: ['high', 'medium', 'low'] },
-                      category: { type: 'string', enum: ['discovery', 'stakeholder', 'objection', 'proposal', 'relationship', 'competitive'] },
-                      ai_reasoning: { type: 'string', description: '2-3 sentences explaining the reasoning' }
-                    },
-                    required: ['title', 'description', 'priority', 'category', 'ai_reasoning']
-                  },
-                  minItems: 3,
-                  maxItems: 7
-                }
-              },
-              required: ['follow_ups']
-            }
-          }
-        }],
-        tool_choice: { type: 'function', function: { name: 'submit_follow_up_steps' } }
-      })
-    });
-
-    if (!aiResponse.ok) {
-      const errorText = await aiResponse.text();
-      console.error('[generate-account-follow-ups] AI Gateway error:', aiResponse.status, errorText);
-      throw new Error(`AI Gateway error: ${aiResponse.status}`);
-    }
-
-    const aiData = await aiResponse.json();
-    console.log('[generate-account-follow-ups] AI response received');
-
-    // Extract follow-ups from tool call
-    let followUps: FollowUpSuggestion[] = [];
-    const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
-    
-    if (toolCall?.function?.arguments) {
-      try {
-        const args = JSON.parse(toolCall.function.arguments);
-        followUps = args.follow_ups || [];
-      } catch (e) {
-        console.error('[generate-account-follow-ups] Failed to parse tool arguments:', e);
-      }
-    }
-
-    if (followUps.length === 0) {
-      console.warn('[generate-account-follow-ups] No follow-ups generated');
-      await supabase
-        .from('prospects')
-        .update({ 
-          follow_ups_generation_status: 'completed',
-          follow_ups_last_generated_at: new Date().toISOString()
-        })
-        .eq('id', prospect_id);
-
-      return new Response(
-        JSON.stringify({ success: true, count: 0 }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Filter out duplicates (simple title similarity check)
-    const existingTitles = new Set((existingFollowUps || []).map(f => f.title.toLowerCase()));
-    const newFollowUps = followUps.filter(f => !existingTitles.has(f.title.toLowerCase()));
-
-    console.log(`[generate-account-follow-ups] Saving ${newFollowUps.length} new follow-ups (filtered ${followUps.length - newFollowUps.length} duplicates)`);
-
-    // Save new follow-ups
-    for (const followUp of newFollowUps) {
-      await supabase.from('account_follow_ups').insert({
-        prospect_id,
-        rep_id: prospect.rep_id,
-        title: followUp.title,
-        description: followUp.description,
-        priority: followUp.priority,
-        category: followUp.category,
-        ai_reasoning: followUp.ai_reasoning,
-        generated_from_call_ids: callIds,
-        status: 'pending'
-      });
-    }
-
-    // Update prospect status
-    await supabase
-      .from('prospects')
-      .update({ 
+      await supabase.from('prospects').update({ 
         follow_ups_generation_status: 'completed',
         follow_ups_last_generated_at: new Date().toISOString()
-      })
-      .eq('id', prospect_id);
+      }).eq('id', prospect_id);
 
-    // Mark job as completed
-    await updateJobStatus(supabase, job_id || null, 'completed');
+      await updateJobStatus(supabase, job_id || null, 'completed');
 
-    console.log(`[generate-account-follow-ups] Completed successfully for prospect: ${prospect_id}`);
+      console.log(`[generate-account-follow-ups] Saved ${uniqueFollowUps.length} new follow-ups`);
+      return new Response(JSON.stringify({ success: true, count: uniqueFollowUps.length }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
-    return new Response(
-      JSON.stringify({ success: true, count: newFollowUps.length }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      throw fetchError;
+    }
 
   } catch (error) {
     console.error('[generate-account-follow-ups] Error:', error);
-    
-    // Try to update status to error if we have prospect_id and job_id
-    try {
-      const parsedBody = await req.clone().json();
-      const { prospect_id, job_id } = parsedBody;
-      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-      const supabase = createClient(supabaseUrl, supabaseServiceKey);
-      
-      if (prospect_id) {
-        await supabase
-          .from('prospects')
-          .update({ follow_ups_generation_status: 'error' })
-          .eq('id', prospect_id);
-      }
-      
-      // Mark job as failed
-      await updateJobStatus(supabase, job_id || null, 'failed', error instanceof Error ? error.message : 'Unknown error');
-    } catch (e) {
-      // Ignore cleanup errors
-    }
-
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req.headers.get('Origin')), 'Content-Type': 'application/json' } }
     );
   }
 });
 
 function buildContextPrompt(
   prospect: any,
-  calls: CallData[],
+  calls: any[],
   stakeholders: any[],
-  existingFollowUps: any[],
-  emailLogs: any[]
+  emailLogs: any[],
+  existingFollowUps: any[]
 ): string {
-  let prompt = `## ACCOUNT OVERVIEW
-Account Name: ${prospect.account_name || prospect.prospect_name}
+  let prompt = `# ACCOUNT: ${prospect.account_name || prospect.prospect_name}
 Status: ${prospect.status}
-Heat Score: ${prospect.heat_score || 'Not rated'}/100
+Heat Score: ${prospect.account_heat_score || prospect.heat_score || 'Unknown'}/100
 Potential Revenue: ${prospect.potential_revenue ? `$${prospect.potential_revenue.toLocaleString()}` : 'Unknown'}
+Active Revenue: ${prospect.active_revenue ? `$${prospect.active_revenue.toLocaleString()}` : 'None'}
 
-## STAKEHOLDERS (${stakeholders.length} total)
+## STAKEHOLDERS (${stakeholders.length})
 `;
 
-  if (stakeholders.length > 0) {
-    for (const s of stakeholders) {
-      prompt += `- ${s.name}${s.job_title ? ` (${s.job_title})` : ''} - ${s.influence_level || 'unknown influence'}${s.champion_score ? `, Champion Score: ${s.champion_score}/10` : ''}${s.is_primary_contact ? ' [PRIMARY]' : ''}\n`;
-    }
-  } else {
-    prompt += `- No stakeholders mapped yet\n`;
+  for (const s of stakeholders) {
+    prompt += `- ${s.name}${s.job_title ? ` (${s.job_title})` : ''} - ${s.influence_level || 'unknown'}${s.champion_score ? `, Champion: ${s.champion_score}/10` : ''}${s.is_primary_contact ? ' [PRIMARY]' : ''}\n`;
   }
 
-  prompt += `\n## CALL HISTORY (${calls.length} calls, most recent first)\n`;
-
-  for (const call of calls.slice(0, 5)) { // Limit to last 5 calls for context
-    prompt += `\n### Call: ${call.call_date} (${call.call_type || 'Unknown type'})\n`;
-    
-    if (call.analysis) {
-      if (call.analysis.call_summary) {
-        prompt += `Summary: ${call.analysis.call_summary}\n`;
-      }
-      
-      // === ANALYSIS 2.0: Strategic Context ===
-      if (call.analysis.analysis_strategy) {
-        const strategy = call.analysis.analysis_strategy as StrategyAudit;
-        
-        // Strategic Threading Score
-        if (strategy.strategic_threading) {
-          prompt += `Strategic Threading Score: ${strategy.strategic_threading.score ?? 'N/A'}/100 (${strategy.strategic_threading.grade || 'N/A'})\n`;
-          
-          // Relevance Map - CRITICAL for follow-up generation
-          if (strategy.strategic_threading.relevance_map?.length) {
-            prompt += `\n**RELEVANCE MAP (Pain-to-Solution Connections):**\n`;
-            for (const mapping of strategy.strategic_threading.relevance_map) {
-              const status = mapping.is_relevant ? '✓ RELEVANT' : '✗ IRRELEVANT';
-              prompt += `- Pain: "${mapping.pain_identified}" → Solution: "${mapping.feature_pitched}" [${status}]\n`;
-              if (!mapping.is_relevant) {
-                prompt += `  Reason: ${mapping.reasoning}\n`;
-              }
-            }
-          }
-          
-          // Missed Opportunities - CRITICAL for follow-up generation
-          if (strategy.strategic_threading.missed_opportunities?.length) {
-            prompt += `\n**MISSED OPPORTUNITIES (Pains NOT addressed):**\n`;
-            for (const missed of strategy.strategic_threading.missed_opportunities) {
-              prompt += `- ${missed}\n`;
-            }
-          }
-        }
-        
-        // MEDDPICC Breakdown
-        if (strategy.meddpicc) {
-          prompt += `\nMEDDPICC Score: ${strategy.meddpicc.overall_score ?? 'N/A'}/100\n`;
-          
-          if (strategy.meddpicc.breakdown) {
-            const lowScoreElements: string[] = [];
-            for (const [element, data] of Object.entries(strategy.meddpicc.breakdown)) {
-              if (data.score < 5 && data.missing_info) {
-                lowScoreElements.push(`${element}: ${data.missing_info}`);
-              }
-            }
-            if (lowScoreElements.length > 0) {
-              prompt += `MEDDPICC Gaps (low scores): ${lowScoreElements.join('; ')}\n`;
-            }
-          }
-        }
-      }
-      
-      // === ANALYSIS 2.0: Behavioral Context ===
-      if (call.analysis.analysis_behavior) {
-        const behavior = call.analysis.analysis_behavior as BehaviorScore;
-        prompt += `Behavior Score: ${behavior.overall_score ?? 'N/A'}/100 (${behavior.grade || 'N/A'})\n`;
-        
-        if (behavior.metrics?.next_steps) {
-          const nextSteps = behavior.metrics.next_steps;
-          prompt += `Next Steps: ${nextSteps.secured ? '✓ SECURED' : '✗ NOT SECURED'} - ${nextSteps.details}\n`;
-        }
-        
-        if (behavior.coaching_tip) {
-          prompt += `Coaching Tip: ${behavior.coaching_tip}\n`;
-        }
-      }
-      
-      // === Legacy Fields (fallback) ===
-      if (!call.analysis.analysis_strategy) {
-        if (call.analysis.deal_gaps?.critical_missing_info?.length) {
-          prompt += `Missing Info: ${call.analysis.deal_gaps.critical_missing_info.join(', ')}\n`;
-        }
-        if (call.analysis.deal_gaps?.unresolved_objections?.length) {
-          prompt += `Unresolved Objections: ${call.analysis.deal_gaps.unresolved_objections.join(', ')}\n`;
-        }
-        if (call.analysis.coach_output?.heat_signature) {
-          prompt += `Heat: ${call.analysis.coach_output.heat_signature.score}/10 - ${call.analysis.coach_output.heat_signature.explanation}\n`;
-        }
-        if (call.analysis.opportunities?.length) {
-          prompt += `Improvement Areas: ${call.analysis.opportunities.map((o: any) => o.area).join(', ')}\n`;
-        }
-      }
-    }
-    
-    // Include abbreviated transcript for context
-    const transcriptPreview = call.raw_text.substring(0, 1500);
-    prompt += `Transcript excerpt: ${transcriptPreview}${call.raw_text.length > 1500 ? '...' : ''}\n`;
+  prompt += `\n## EXISTING PENDING FOLLOW-UPS (avoid duplicates)\n`;
+  for (const f of existingFollowUps) {
+    prompt += `- ${f.title}\n`;
   }
 
-  // Add email communication section
-  if (emailLogs && emailLogs.length > 0) {
-    prompt += `\n## EMAIL COMMUNICATION (${emailLogs.length} emails, most recent first)\n`;
-    
-    // Create a local stakeholder map for this function scope
-    const localStakeholderMap = new Map(stakeholders.map(s => [s.id, s]));
-    
-    for (const email of emailLogs.slice(0, 10)) { // Limit to last 10 emails
-      const direction = email.direction === 'outgoing' ? 'SENT' : 'RECEIVED';
-      
-      // Get stakeholder info if linked
-      const linkedStakeholder = email.stakeholder_id ? localStakeholderMap.get(email.stakeholder_id) : null;
-      
-      let contactInfo = '';
-      if (linkedStakeholder) {
-        contactInfo = ` ${email.direction === 'outgoing' ? 'to' : 'from'} ${linkedStakeholder.name}`;
-        if (linkedStakeholder.job_title) {
-          contactInfo += ` (${linkedStakeholder.job_title}`;
-          if (linkedStakeholder.influence_level) {
-            contactInfo += `, ${linkedStakeholder.influence_level.replace('_', ' ')}`;
-          }
-          contactInfo += ')';
-        }
-        if (linkedStakeholder.is_primary_contact) {
-          contactInfo += ' [PRIMARY CONTACT]';
-        }
-      } else if (email.contact_name) {
-        contactInfo = ` ${email.direction === 'outgoing' ? 'to' : 'from'} ${email.contact_name} (not linked to stakeholder)`;
-      }
-      
-      prompt += `\n### Email ${direction}${contactInfo} - ${email.email_date}\n`;
-      
-      if (email.subject) {
-        prompt += `Subject: ${email.subject}\n`;
-      }
-      
-      // Include abbreviated email body
-      const bodyPreview = email.body.substring(0, 800);
-      prompt += `Content: ${bodyPreview}${email.body.length > 800 ? '...' : ''}\n`;
-      
-      if (linkedStakeholder?.champion_score) {
-        prompt += `Stakeholder Champion Score: ${linkedStakeholder.champion_score}/10\n`;
-      }
-      
-      if (email.notes) {
-        prompt += `Rep Notes: ${email.notes}\n`;
-      }
-    }
+  prompt += `\n## RAW CALL TRANSCRIPTS (${calls.length} calls, oldest to newest)\n`;
+  prompt += `Read each transcript carefully to understand pains, solutions pitched, objections, and gaps.\n\n`;
+  
+  for (const call of calls) {
+    prompt += `### CALL: ${call.call_date} - ${call.call_type || 'Sales Call'}
+Account: ${call.account_name || 'Unknown'}
+--- TRANSCRIPT START ---
+${call.raw_text}
+--- TRANSCRIPT END ---
+
+`;
   }
 
-  if (existingFollowUps.length > 0) {
-    prompt += `\n## EXISTING PENDING FOLLOW-UPS (avoid duplicating these)\n`;
-    for (const f of existingFollowUps) {
-      prompt += `- ${f.title}\n`;
-    }
+  prompt += `## EMAIL COMMUNICATIONS (${emailLogs.length} emails, oldest to newest)\n`;
+  for (const email of emailLogs) {
+    const direction = email.direction === 'outbound' ? '→ SENT' : '← RECEIVED';
+    prompt += `### ${email.email_date} ${direction}${email.contact_name ? ` (${email.contact_name})` : ''}
+Subject: ${email.subject || '(no subject)'}
+${email.body}
+${email.notes ? `Rep Notes: ${email.notes}` : ''}
+
+`;
   }
 
-  prompt += `\n## YOUR TASK
-Based on ALL the above context, especially the RELEVANCE MAP and MISSED OPPORTUNITIES, generate 3-7 specific, actionable follow-up steps that will advance this deal. 
-
-REMEMBER:
-- For RELEVANT pain-solution matches: Suggest sending proposals with ROI examples
-- For MISSED OPPORTUNITIES: Suggest calls to clarify those pains
-- For low MEDDPICC scores: Suggest discovery to fill those gaps
-
-Think like your commission depends on it. Be specific, be strategic, prioritize what matters most RIGHT NOW.`;
-
+  prompt += `\n---\nBased on ALL the above data, generate 3-7 specific, actionable follow-up steps. Reference specific conversations when explaining your reasoning.`;
+  
   return prompt;
 }
