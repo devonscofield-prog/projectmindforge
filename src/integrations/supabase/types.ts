@@ -1972,6 +1972,33 @@ export type Database = {
           vector_score: number
         }[]
       }
+      get_admin_prospects_with_call_counts: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_rep_filter?: string
+          p_search?: string
+          p_sort_by?: string
+          p_status_filter?: string
+          p_team_filter?: string
+        }
+        Returns: {
+          account_name: string
+          active_revenue: number
+          ai_extracted_info: Json
+          call_count: number
+          heat_score: number
+          id: string
+          industry: string
+          last_contact_date: string
+          prospect_name: string
+          rep_id: string
+          rep_name: string
+          status: string
+          team_name: string
+          total_count: number
+        }[]
+      }
       get_admin_transcripts: {
         Args: {
           p_account_search?: string
