@@ -11,13 +11,17 @@ import { createToolFromSchema } from './zod-to-json-schema.ts';
 
 // AI Gateway configuration
 const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
 const AI_GATEWAY_TIMEOUT_MS = 55000; // 55s to leave buffer before 60s edge function timeout
 
 // Per-agent timeouts based on model (P1 optimization)
 const AGENT_TIMEOUT_MS = {
   'google/gemini-2.5-flash': 15000,  // 15s for flash models
   'google/gemini-2.5-pro': 30000,    // 30s for pro models (reduced from 45s)
+  'openai/gpt-5.2-pro': 45000,       // 45s for OpenAI pro reasoning model
 } as const;
+
+type ModelType = keyof typeof AGENT_TIMEOUT_MS;
 
 // Agent-specific timeout overrides (tuned based on P95 data)
 const AGENT_TIMEOUT_OVERRIDES: Record<string, number> = {
@@ -37,12 +41,16 @@ const NON_CRITICAL_AGENTS = new Set([
   'profiler', 'spy', 'auditor', 'interrogator', 'negotiator'
 ]);
 
-export function getAgentTimeout(model: 'google/gemini-2.5-flash' | 'google/gemini-2.5-pro', agentId?: string): number {
+export function getAgentTimeout(model: ModelType, agentId?: string): number {
   // Check for agent-specific override first
   if (agentId && AGENT_TIMEOUT_OVERRIDES[agentId]) {
     return AGENT_TIMEOUT_OVERRIDES[agentId];
   }
   return AGENT_TIMEOUT_MS[model] || 15000;
+}
+
+function isOpenAIModel(model: string): boolean {
+  return model.startsWith('openai/');
 }
 
 export function isNonCriticalAgent(agentId: string): boolean {
@@ -95,17 +103,114 @@ async function delay(ms: number): Promise<void> {
 
 // ============= AI CALLING =============
 
+/**
+ * Call OpenAI API directly for openai/* models
+ */
+async function callOpenAIAPI<T extends z.ZodTypeAny>(
+  config: AgentConfig<T>,
+  userPrompt: string,
+  tool: unknown,
+  agentTimeoutMs: number
+): Promise<z.infer<T>> {
+  const apiKey = Deno.env.get('OPENAI_API_KEY');
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY is not configured');
+  }
+
+  // Extract model name without prefix (e.g., "openai/gpt-5.2-pro" -> "gpt-5.2-pro")
+  const modelName = config.options.model.replace('openai/', '');
+
+  // GPT-5.x models use max_completion_tokens and don't support temperature
+  const requestBody: Record<string, unknown> = {
+    model: modelName,
+    messages: [
+      { role: 'system', content: config.systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+    tools: [tool],
+    tool_choice: { type: 'function', function: { name: config.toolName } },
+    max_completion_tokens: config.options.maxTokens || 4096,
+  };
+  // Note: GPT-5.x models don't support temperature parameter
+
+  console.log(`[agent-factory] Calling OpenAI API with model: ${modelName}`);
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), agentTimeoutMs);
+
+  try {
+    const response = await fetch(OPENAI_API_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[agent-factory] OpenAI API error ${response.status} for ${config.id}:`, errorText);
+      throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+
+    // Extract tool call arguments
+    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    if (!toolCall || toolCall.function.name !== config.toolName) {
+      console.error(`[agent-factory] Unexpected OpenAI response for ${config.id}:`, JSON.stringify(data).substring(0, 500));
+      throw new Error('Invalid OpenAI response structure');
+    }
+
+    let parsedResult: unknown;
+    try {
+      parsedResult = JSON.parse(toolCall.function.arguments);
+    } catch (e) {
+      console.error(`[agent-factory] Failed to parse OpenAI tool arguments for ${config.id}:`, toolCall.function.arguments.substring(0, 500));
+      throw new Error('Failed to parse OpenAI response');
+    }
+
+    // Validate against schema
+    const validationResult = config.schema.safeParse(parsedResult);
+    if (!validationResult.success) {
+      console.error(`[agent-factory] Schema validation failed for ${config.id}:`, validationResult.error.message);
+      throw new Error(`Schema validation failed: ${validationResult.error.message}`);
+    }
+
+    return validationResult.data;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error(`OpenAI API timeout after ${agentTimeoutMs / 1000}s`);
+    }
+    throw err;
+  }
+}
+
 async function callLovableAI<T extends z.ZodTypeAny>(
   config: AgentConfig<T>,
   userPrompt: string
 ): Promise<z.infer<T>> {
+  // Generate tool from Zod schema
+  const tool = createToolFromSchema(config.toolName, config.toolDescription, config.schema);
+  
+  // Use per-agent timeout with optional agent-specific override
+  const agentTimeoutMs = getAgentTimeout(config.options.model as ModelType, config.id);
+
+  // Route to OpenAI if model starts with "openai/"
+  if (isOpenAIModel(config.options.model)) {
+    return callOpenAIAPI(config, userPrompt, tool, agentTimeoutMs);
+  }
+
+  // Otherwise use Lovable AI Gateway
   const apiKey = Deno.env.get('LOVABLE_API_KEY');
   if (!apiKey) {
     throw new Error('LOVABLE_API_KEY is not configured');
   }
-
-  // Generate tool from Zod schema
-  const tool = createToolFromSchema(config.toolName, config.toolDescription, config.schema);
 
   const requestBody: Record<string, unknown> = {
     model: config.options.model,
@@ -123,9 +228,6 @@ async function callLovableAI<T extends z.ZodTypeAny>(
   }
 
   let lastError: Error | null = null;
-  
-  // Use per-agent timeout with optional agent-specific override (P1 optimization)
-  const agentTimeoutMs = getAgentTimeout(config.options.model, config.id);
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     if (attempt > 0) {
