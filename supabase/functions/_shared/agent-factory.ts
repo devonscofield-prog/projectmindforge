@@ -18,6 +18,7 @@ const AI_GATEWAY_TIMEOUT_MS = 55000; // 55s to leave buffer before 60s edge func
 const AGENT_TIMEOUT_MS = {
   'google/gemini-2.5-flash': 15000,  // 15s for flash models
   'google/gemini-2.5-pro': 30000,    // 30s for pro models (reduced from 45s)
+  'google/gemini-3-pro-preview': 35000, // 35s for Gemini 3 Pro
   'openai/gpt-5.2': 35000,           // 35s for OpenAI GPT-5.2
 } as const;
 
@@ -28,10 +29,10 @@ const AGENT_TIMEOUT_OVERRIDES: Record<string, number> = {
   'speaker_labeler': 15000,  // 15s - reduced from 20s, now uses 30k char limit + smart skip
   'skeptic': 15000,          // 15s - complex gap analysis
   'negotiator': 12000,       // 12s - reduced from 15s, avg 4.5s
-  'coach': 18000,            // 18s - reduced from 20s, synthesis
+  'coach': 35000,            // 35s - Gemini 3 Pro synthesis
   'auditor': 8000,           // 8s - reduced from 12s, P95 is 13s so fail fast on outliers
   'profiler': 10000,         // 10s - reduced from 12s
-  'interrogator': 10000,     // 10s - reduced from 12s
+  'interrogator': 25000,     // 25s - Gemini 3 Pro question analysis
   'strategist': 12000,       // 12s - P95 is 8s
   'referee': 10000,          // 10s - behavioral scoring is bounded
 } as const;
