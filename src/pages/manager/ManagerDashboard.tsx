@@ -24,6 +24,7 @@ import { parseDateOnly } from '@/lib/formatters';
 import { AiScoreStats } from '@/api/aiCallAnalysis';
 import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
+import { ManagerDashboardSkeleton } from '@/components/dashboard/ManagerDashboardSkeleton';
 
 interface RepWithData extends Profile {
   lastCoaching?: CoachingSession;
@@ -106,9 +107,7 @@ function ManagerDashboard() {
   if (repsLoading) {
     return (
       <AppLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-        </div>
+        <ManagerDashboardSkeleton />
       </AppLayout>
     );
   }
