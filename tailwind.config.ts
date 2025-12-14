@@ -12,8 +12,12 @@ export default {
   			'2xl': '1400px'
   		}
   	},
-  	extend: {
-  		letterSpacing: {
+	extend: {
+		backgroundImage: {
+			'gradient-primary': 'var(--gradient-primary)',
+			'gradient-accent': 'var(--gradient-accent)',
+		},
+		letterSpacing: {
   			'widest-plus': '0.15em',
   		},
   		colors: {
