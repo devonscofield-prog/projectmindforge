@@ -281,15 +281,10 @@ function SidebarNav() {
           {quickActions.map((action) => {
             const Icon = action.icon;
             return (
-              <button 
+              <Button 
                 key={action.href}
-                className="w-full flex items-center justify-center gap-2 h-10 px-4 
-                  bg-gradient-primary rounded-full 
-                  text-primary-foreground font-medium text-sm
-                  shadow-md hover:shadow-lg hover:shadow-primary/30 hover:scale-[1.02]
-                  active:scale-[0.98] active:shadow-sm
-                  transition-all duration-200 ease-out
-                  border border-white/10"
+                variant="gradient"
+                className="w-full rounded-full"
                 onClick={() => {
                   navigate(action.href);
                   if (isMobile) {
@@ -300,7 +295,7 @@ function SidebarNav() {
               >
                 <Icon className="h-4 w-4" aria-hidden="true" />
                 {action.label}
-              </button>
+              </Button>
             );
           })}
         </div>

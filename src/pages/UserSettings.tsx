@@ -250,7 +250,7 @@ export default function UserSettings() {
                 <Input id="confirmPassword" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} disabled={isLoading} />
                 {errors.confirmPassword && <p className="text-sm text-destructive">{errors.confirmPassword}</p>}
               </div>
-              <Button type="submit" disabled={isLoading}>{isLoading ? 'Updating...' : 'Update Password'}</Button>
+              <Button type="submit" variant="gradient" disabled={isLoading}>{isLoading ? 'Updating...' : 'Update Password'}</Button>
             </form>
           </CardContent>
         </Card>

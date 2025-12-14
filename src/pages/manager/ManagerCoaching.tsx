@@ -391,7 +391,7 @@ export default function ManagerCoaching() {
                   <Button type="button" variant="outline" onClick={() => handleDialogClose(false)}>
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={submitting}>
+                  <Button type="submit" variant="gradient" disabled={submitting}>
                     {submitting 
                       ? (isEditMode ? 'Saving...' : 'Creating...') 
                       : (isEditMode ? 'Save Changes' : 'Create Session')}
