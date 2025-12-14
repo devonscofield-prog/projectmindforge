@@ -11,6 +11,7 @@ import { DevTools } from "@/components/DevTools";
 import { ScrollToTop } from "@/components/ScrollToTop";
 import { createQueryClient, setupQueryLogging } from "@/lib/queryClientConfig";
 import { ColorSchemeInitializer } from "@/lib/colorSchemeInit";
+import { BrandedLoader } from "@/components/ui/branded-loader";
 
 // Eager load - these are accessed immediately
 import Index from "./pages/Index";
@@ -68,14 +69,7 @@ if (import.meta.env.DEV) {
 
 // Loading fallback component
 function PageLoader() {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="flex flex-col items-center gap-4">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
-        <p className="text-sm text-muted-foreground">Loading...</p>
-      </div>
-    </div>
-  );
+  return <BrandedLoader variant="full-page" />;
 }
 
 const App = () => (
