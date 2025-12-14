@@ -583,9 +583,9 @@ function RepDashboard() {
                   <FormProgressHeader
                     sections={[
                       { id: 'call-details', title: 'Call Details', isComplete: isAccountValid && isStakeholderValid && isSalesforceValid && isSalesforceUrlValid && isCallTypeOtherValid, isRequired: true },
-                      { id: 'participants', title: 'Participants', isComplete: true, isRequired: false },
+                      { id: 'participants', title: 'Participants', isComplete: managerOnCall || (additionalSpeakersEnabled && additionalSpeakersText.trim().length > 0), isRequired: false },
                       { id: 'transcript', title: 'Transcript', isComplete: isTranscriptLengthValid, isRequired: true },
-                      { id: 'products', title: 'Products', isComplete: true, isRequired: false },
+                      { id: 'products', title: 'Products', isComplete: selectedProducts.length > 0, isRequired: false },
                     ]}
                   />
 
@@ -720,7 +720,7 @@ function RepDashboard() {
                   <FormSection
                     title="Participants"
                     icon={<Users className="h-4 w-4" />}
-                    isComplete={true}
+                    isComplete={managerOnCall || (additionalSpeakersEnabled && additionalSpeakersText.trim().length > 0)}
                     completionCount={[managerOnCall, additionalSpeakersEnabled].filter(Boolean).length}
                     totalCount={2}
                     isRequired={false}
@@ -897,7 +897,7 @@ The more detail you include, the better the AI analysis."
                   <FormSection
                     title="Products"
                     icon={<Package className="h-4 w-4" />}
-                    isComplete={true}
+                    isComplete={selectedProducts.length > 0}
                     completionCount={selectedProducts.length}
                     totalCount={selectedProducts.length || undefined}
                     isRequired={false}
