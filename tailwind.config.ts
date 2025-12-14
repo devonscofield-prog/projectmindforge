@@ -69,11 +69,16 @@ export default {
   				ring: 'hsl(var(--sidebar-ring))'
   			}
   		},
-  		borderRadius: {
-  			lg: 'var(--radius)',
-  			md: 'calc(var(--radius) - 2px)',
-  			sm: 'calc(var(--radius) - 4px)'
-  		},
+		borderRadius: {
+			lg: 'var(--radius)',
+			md: 'calc(var(--radius) - 2px)',
+			sm: 'calc(var(--radius) - 4px)'
+		},
+		boxShadow: {
+			'card': 'var(--shadow-card)',
+			'card-hover': 'var(--shadow-card-hover)',
+			'card-active': 'var(--shadow-card-active)',
+		},
 		keyframes: {
 			'shake': {
 				'0%, 100%': { transform: 'translateX(0)' },
