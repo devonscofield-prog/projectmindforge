@@ -572,7 +572,7 @@ function RepDashboard() {
                 <div className="mx-auto w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
                   <FileText className="h-8 w-8 text-primary" />
                 </div>
-                <CardTitle className="text-2xl font-serif">Call Analysis</CardTitle>
+                <CardTitle className="text-2xl">Call Analysis</CardTitle>
                 <CardDescription className="text-base max-w-lg mx-auto mt-2">
                   Paste your call transcript to get AI coaching, MEDDPICC scoring, and a recap email draft.
                 </CardDescription>
