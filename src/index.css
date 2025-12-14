@@ -1008,11 +1008,35 @@
     position: absolute;
     left: 0;
     top: 50%;
-    transform: translateY(-50%);
+    transform: translateY(-50%) scaleY(1);
     width: 3px;
     height: 60%;
     background: hsl(var(--primary));
     border-radius: 0 2px 2px 0;
+    box-shadow: 0 0 8px 1px hsl(var(--primary) / 0.4);
+    animation: accent-bar-enter 0.2s ease-out;
+  }
+
+  @keyframes accent-bar-enter {
+    from {
+      transform: translateY(-50%) scaleY(0);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(-50%) scaleY(1);
+      opacity: 1;
+    }
+  }
+
+  /* Active nav icon settle animation */
+  .sidebar-active-pill svg {
+    animation: icon-settle 0.3s ease-out;
+  }
+
+  @keyframes icon-settle {
+    0% { transform: scale(1.15); }
+    50% { transform: scale(0.95); }
+    100% { transform: scale(1); }
   }
 
   /* Frosted glass effect */

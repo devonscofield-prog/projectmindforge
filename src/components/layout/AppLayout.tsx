@@ -224,7 +224,7 @@ function SidebarNav() {
                           "h-10 transition-all duration-200",
                           active 
                             ? "sidebar-active-pill text-primary font-medium bg-primary/5" 
-                            : "text-sidebar-foreground/60 hover:text-sidebar-foreground"
+                            : "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
                         )}
                       >
                         <Link 
@@ -233,8 +233,17 @@ function SidebarNav() {
                           role="menuitem"
                           aria-label={`Navigate to ${item.label}`}
                           aria-current={active ? 'page' : undefined}
+                          className="group"
                         >
-                          <Icon className={cn("h-5 w-5", active ? "text-primary" : "text-sidebar-foreground/50")} aria-hidden="true" />
+                          <Icon 
+                            className={cn(
+                              "h-5 w-5 transition-all duration-200 ease-out",
+                              active 
+                                ? "text-primary" 
+                                : "text-sidebar-foreground/50 group-hover:scale-110 group-hover:text-sidebar-foreground"
+                            )} 
+                            aria-hidden="true" 
+                          />
                           <span>{item.label}</span>
                         </Link>
                       </SidebarMenuButton>
