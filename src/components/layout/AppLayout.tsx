@@ -184,16 +184,16 @@ function SidebarNav() {
 
   return (
     <>
-      <SidebarHeader className="border-b border-sidebar-border p-4">
-        <div className="flex items-center gap-3">
+      <SidebarHeader className="border-b border-sidebar-border px-4 py-3">
+        <div className="flex items-center gap-2.5">
           <img 
             src="/mindforge-logo.png" 
             alt="Mindforge Logo" 
-            className="h-10 w-10 object-contain"
+            className="h-8 w-8 object-contain"
           />
           <div>
-            <h1 className="text-xl font-bold text-sidebar-primary-foreground">StormWind</h1>
-            <p className="text-sm text-sidebar-foreground/70 flex items-center gap-1.5">
+            <h1 className="text-lg font-bold text-sidebar-primary-foreground">StormWind</h1>
+            <p className="text-xs text-sidebar-foreground/70 flex items-center gap-1.5">
               <span className="capitalize font-medium text-sidebar-primary-foreground/80">{role || 'User'}</span>
               <span className="opacity-50">•</span>
               <span>Sales Hub</span>
@@ -205,7 +205,7 @@ function SidebarNav() {
       <SidebarContent className="px-2 py-1">
         {navGroups.map((group) => (
           <SidebarGroup key={group.label}>
-            <SidebarGroupLabel className="text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50 px-2 py-2">
+            <SidebarGroupLabel className="text-[11px] font-bold uppercase tracking-widest text-sidebar-foreground/80 px-3 py-1.5 mb-0.5">
               {group.label}
             </SidebarGroupLabel>
             <SidebarGroupContent>
@@ -222,7 +222,9 @@ function SidebarNav() {
                         tooltip={item.label}
                         className={cn(
                           "h-10 transition-all duration-200",
-                          active && "sidebar-active-pill text-primary font-medium bg-primary/5"
+                          active 
+                            ? "sidebar-active-pill text-primary font-medium bg-primary/5" 
+                            : "text-sidebar-foreground/60 hover:text-sidebar-foreground"
                         )}
                       >
                         <Link 
@@ -232,7 +234,7 @@ function SidebarNav() {
                           aria-label={`Navigate to ${item.label}`}
                           aria-current={active ? 'page' : undefined}
                         >
-                          <Icon className={cn("h-5 w-5", active && "text-primary")} aria-hidden="true" />
+                          <Icon className={cn("h-5 w-5", active ? "text-primary" : "text-sidebar-foreground/50")} aria-hidden="true" />
                           <span>{item.label}</span>
                         </Link>
                       </SidebarMenuButton>
