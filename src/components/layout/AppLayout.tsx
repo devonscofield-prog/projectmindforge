@@ -13,7 +13,6 @@ import {
   Mic,
   History,
   UserCheck,
-  Menu,
   FileText,
   TrendingUp,
   Activity,
@@ -43,7 +42,9 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { MobileBottomNav } from './MobileBottomNav';
+import { MobileHeader } from './MobileHeader';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { usePullToRefreshOnboarding } from '@/hooks/usePullToRefreshOnboarding';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -318,6 +319,9 @@ function SidebarNav() {
 function MainContent({ children }: { children: React.ReactNode }) {
   const isMobile = useIsMobile();
   const { refreshHandler, isEnabled } = usePullToRefreshContext();
+  
+  // Show one-time pull-to-refresh hint on mobile
+  usePullToRefreshOnboarding();
 
   const handleRefresh = async () => {
     if (refreshHandler) {
@@ -396,17 +400,8 @@ export function AppLayout({ children }: AppLayoutProps) {
             {/* Desktop sidebar toggle */}
             <DesktopSidebarToggle />
             
-            {/* Mobile header */}
-            <header 
-              className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b bg-background px-4 md:hidden"
-              role="banner"
-            >
-              <SidebarTrigger className="h-9 w-9" aria-label="Toggle navigation menu">
-                <Menu className="h-5 w-5" aria-hidden="true" />
-              </SidebarTrigger>
-              <h1 className="font-semibold flex-1">StormWind</h1>
-              <ThemeToggle />
-            </header>
+            {/* Mobile header with page title and primary action */}
+            <MobileHeader />
             
             {/* Main content */}
             <main id="main-content" className="flex flex-col flex-1" role="main">
