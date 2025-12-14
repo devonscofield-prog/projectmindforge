@@ -4,7 +4,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const cardVariants = cva(
-  "rounded-lg bg-card/80 backdrop-blur-sm text-card-foreground shadow-[var(--shadow-sm)] transition-all duration-200 border border-border/50 relative overflow-hidden before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent dark:before:via-white/10",
+  "rounded-lg bg-card/80 backdrop-blur-sm text-card-foreground shadow-[var(--shadow-sm)] transition-all duration-200 border border-border/50 relative overflow-hidden before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-white/10 before:to-transparent dark:before:via-white/5",
   {
     variants: {
       variant: {

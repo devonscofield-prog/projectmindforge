@@ -86,17 +86,17 @@
     --gradient-primary: linear-gradient(135deg, hsl(230 90% 55%), hsl(230 90% 45%));
     --primary-dark: 230 90% 45%;
 
-    /* Background mesh */
-    --background-mesh: radial-gradient(at 40% 20%, hsla(230, 90%, 60%, 0.04) 0px, transparent 50%),
-                       radial-gradient(at 80% 0%, hsla(210, 90%, 70%, 0.04) 0px, transparent 50%),
-                       radial-gradient(at 0% 50%, hsla(220, 20%, 95%, 0.5) 0px, transparent 50%),
+    /* Background mesh - softened opacities */
+    --background-mesh: radial-gradient(at 40% 20%, hsla(230, 90%, 60%, 0.02) 0px, transparent 50%),
+                       radial-gradient(at 80% 0%, hsla(210, 90%, 70%, 0.02) 0px, transparent 50%),
+                       radial-gradient(at 0% 50%, hsla(220, 20%, 95%, 0.25) 0px, transparent 50%),
                        hsl(210 20% 98%);
 
-    /* Shadows */
+    /* Shadows - toned down glows */
     --shadow-card: var(--shadow-md);
     --shadow-card-hover: var(--shadow-lg);
-    --shadow-glow: 0 0 20px rgba(59, 130, 246, 0.15);
-    --shadow-glow-strong: 0 0 30px rgba(59, 130, 246, 0.3);
+    --shadow-glow: 0 0 15px rgba(59, 130, 246, 0.08);
+    --shadow-glow-strong: 0 0 20px rgba(59, 130, 246, 0.15);
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     --font-sans: Inter, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji;
     --font-serif: "Playfair Display", ui-serif, Georgia, Cambria, Times New Roman, Times, serif;
@@ -163,10 +163,10 @@
     --background-gradient: linear-gradient(135deg, hsl(230 40% 12%), hsl(230 40% 10%), hsl(230 40% 8%));
     --primary-dark: 230 90% 55%;
 
-    /* Background mesh */
-    --background-mesh: radial-gradient(at 40% 20%, hsla(230, 90%, 70%, 0.06) 0px, transparent 50%),
-                       radial-gradient(at 80% 0%, hsla(210, 90%, 75%, 0.05) 0px, transparent 50%),
-                       radial-gradient(at 0% 50%, hsla(230, 30%, 18%, 0.5) 0px, transparent 50%),
+    /* Background mesh - softened opacities */
+    --background-mesh: radial-gradient(at 40% 20%, hsla(230, 90%, 70%, 0.03) 0px, transparent 50%),
+                       radial-gradient(at 80% 0%, hsla(210, 90%, 75%, 0.025) 0px, transparent 50%),
+                       radial-gradient(at 0% 50%, hsla(230, 30%, 18%, 0.25) 0px, transparent 50%),
                        hsl(230 40% 10%);
   }
 
@@ -240,17 +240,17 @@
     --gradient-primary: linear-gradient(135deg, hsl(40 85% 50%), hsl(40 85% 38%));
     --primary-dark: 40 85% 38%;
 
-    /* Background mesh with gold accents */
-    --background-mesh: radial-gradient(at 40% 20%, hsla(40, 85%, 45%, 0.05) 0px, transparent 50%),
-                       radial-gradient(at 80% 0%, hsla(35, 80%, 60%, 0.04) 0px, transparent 50%),
-                       radial-gradient(at 0% 50%, hsla(40, 15%, 94%, 0.5) 0px, transparent 50%),
+    /* Background mesh with gold accents - softened */
+    --background-mesh: radial-gradient(at 40% 20%, hsla(40, 85%, 45%, 0.025) 0px, transparent 50%),
+                       radial-gradient(at 80% 0%, hsla(35, 80%, 60%, 0.02) 0px, transparent 50%),
+                       radial-gradient(at 0% 50%, hsla(40, 15%, 94%, 0.25) 0px, transparent 50%),
                        hsl(40 20% 98%);
 
-    /* Shadows with gold tint */
-    --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
-    --shadow-card-hover: 0 10px 15px -3px rgba(180, 130, 20, 0.15), 0 4px 6px -2px rgba(180, 130, 20, 0.08);
-    --shadow-glow: 0 0 20px rgba(180, 130, 20, 0.15);
-    --shadow-glow-strong: 0 0 30px rgba(180, 130, 20, 0.3);
+    /* Shadows with gold tint - toned down */
+    --shadow-card: var(--shadow-md);
+    --shadow-card-hover: var(--shadow-lg);
+    --shadow-glow: 0 0 15px rgba(180, 130, 20, 0.08);
+    --shadow-glow-strong: 0 0 20px rgba(180, 130, 20, 0.15);
   }
 
   .dark.theme-deep-gold {
@@ -313,10 +313,10 @@
     --background-gradient: linear-gradient(135deg, hsl(40 12% 12%), hsl(40 10% 10%), hsl(40 10% 8%));
     --primary-dark: 40 85% 45%;
 
-    /* Background mesh */
-    --background-mesh: radial-gradient(at 40% 20%, hsla(40, 85%, 55%, 0.06) 0px, transparent 50%),
-                       radial-gradient(at 80% 0%, hsla(35, 80%, 65%, 0.05) 0px, transparent 50%),
-                       radial-gradient(at 0% 50%, hsla(40, 15%, 18%, 0.5) 0px, transparent 50%),
+    /* Background mesh - softened */
+    --background-mesh: radial-gradient(at 40% 20%, hsla(40, 85%, 55%, 0.03) 0px, transparent 50%),
+                       radial-gradient(at 80% 0%, hsla(35, 80%, 65%, 0.025) 0px, transparent 50%),
+                       radial-gradient(at 0% 50%, hsla(40, 15%, 18%, 0.25) 0px, transparent 50%),
                        hsl(40 10% 10%);
   }
   }
@@ -391,17 +391,17 @@
     --gradient-primary: linear-gradient(135deg, hsl(350 78% 55%), hsl(350 78% 42%));
     --primary-dark: 350 78% 42%;
 
-    /* Background mesh with red accents */
-    --background-mesh: radial-gradient(at 40% 20%, hsla(350, 78%, 50%, 0.04) 0px, transparent 50%),
-                       radial-gradient(at 80% 0%, hsla(350, 70%, 60%, 0.03) 0px, transparent 50%),
-                       radial-gradient(at 0% 50%, hsla(210, 15%, 94%, 0.5) 0px, transparent 50%),
+    /* Background mesh with red accents - softened */
+    --background-mesh: radial-gradient(at 40% 20%, hsla(350, 78%, 50%, 0.02) 0px, transparent 50%),
+                       radial-gradient(at 80% 0%, hsla(350, 70%, 60%, 0.015) 0px, transparent 50%),
+                       radial-gradient(at 0% 50%, hsla(210, 15%, 94%, 0.25) 0px, transparent 50%),
                        hsl(210 20% 99%);
 
-    /* Shadows with red tint */
-    --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
-    --shadow-card-hover: 0 10px 15px -3px rgba(200, 50, 80, 0.15), 0 4px 6px -2px rgba(200, 50, 80, 0.08);
-    --shadow-glow: 0 0 20px rgba(200, 50, 80, 0.15);
-    --shadow-glow-strong: 0 0 30px rgba(200, 50, 80, 0.3);
+    /* Shadows with red tint - toned down */
+    --shadow-card: var(--shadow-md);
+    --shadow-card-hover: var(--shadow-lg);
+    --shadow-glow: 0 0 15px rgba(200, 50, 80, 0.08);
+    --shadow-glow-strong: 0 0 20px rgba(200, 50, 80, 0.15);
   }
 
   .dark.theme-power-red {
@@ -464,10 +464,10 @@
     --background-gradient: linear-gradient(135deg, hsl(220 15% 12%), hsl(220 15% 10%), hsl(220 15% 8%));
     --primary-dark: 350 78% 55%;
 
-    /* Background mesh */
-    --background-mesh: radial-gradient(at 40% 20%, hsla(350, 78%, 65%, 0.06) 0px, transparent 50%),
-                       radial-gradient(at 80% 0%, hsla(350, 70%, 70%, 0.05) 0px, transparent 50%),
-                       radial-gradient(at 0% 50%, hsla(220, 15%, 18%, 0.5) 0px, transparent 50%),
+    /* Background mesh - softened */
+    --background-mesh: radial-gradient(at 40% 20%, hsla(350, 78%, 65%, 0.03) 0px, transparent 50%),
+                       radial-gradient(at 80% 0%, hsla(350, 70%, 70%, 0.025) 0px, transparent 50%),
+                       radial-gradient(at 0% 50%, hsla(220, 15%, 18%, 0.25) 0px, transparent 50%),
                        hsl(220 15% 10%);
   }
 
@@ -541,17 +541,17 @@
     --gradient-primary: linear-gradient(135deg, hsl(91 78% 50%), hsl(91 78% 38%));
     --primary-dark: 91 78% 38%;
 
-    /* Background mesh with green accents */
-    --background-mesh: radial-gradient(at 40% 20%, hsla(91, 78%, 45%, 0.05) 0px, transparent 50%),
-                       radial-gradient(at 80% 0%, hsla(210, 100%, 30%, 0.04) 0px, transparent 50%),
-                       radial-gradient(at 0% 50%, hsla(210, 15%, 94%, 0.5) 0px, transparent 50%),
+    /* Background mesh with green accents - softened */
+    --background-mesh: radial-gradient(at 40% 20%, hsla(91, 78%, 45%, 0.025) 0px, transparent 50%),
+                       radial-gradient(at 80% 0%, hsla(210, 100%, 30%, 0.02) 0px, transparent 50%),
+                       radial-gradient(at 0% 50%, hsla(210, 15%, 94%, 0.25) 0px, transparent 50%),
                        hsl(210 20% 98%);
 
-    /* Shadows with green tint */
-    --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
-    --shadow-card-hover: 0 10px 15px -3px rgba(105, 180, 50, 0.15), 0 4px 6px -2px rgba(105, 180, 50, 0.08);
-    --shadow-glow: 0 0 20px rgba(105, 180, 50, 0.15);
-    --shadow-glow-strong: 0 0 30px rgba(105, 180, 50, 0.3);
+    /* Shadows with green tint - toned down */
+    --shadow-card: var(--shadow-md);
+    --shadow-card-hover: var(--shadow-lg);
+    --shadow-glow: 0 0 15px rgba(105, 180, 50, 0.08);
+    --shadow-glow-strong: 0 0 20px rgba(105, 180, 50, 0.15);
   }
 
   .dark.theme-seattle-seahawks {
@@ -614,10 +614,10 @@
     --background-gradient: linear-gradient(135deg, hsl(210 15% 12%), hsl(210 10% 10%), hsl(210 10% 8%));
     --primary-dark: 91 70% 50%;
 
-    /* Background mesh */
-    --background-mesh: radial-gradient(at 40% 20%, hsla(91, 70%, 60%, 0.06) 0px, transparent 50%),
-                       radial-gradient(at 80% 0%, hsla(210, 70%, 40%, 0.05) 0px, transparent 50%),
-                       radial-gradient(at 0% 50%, hsla(210, 15%, 18%, 0.5) 0px, transparent 50%),
+    /* Background mesh - softened */
+    --background-mesh: radial-gradient(at 40% 20%, hsla(91, 70%, 60%, 0.03) 0px, transparent 50%),
+                       radial-gradient(at 80% 0%, hsla(210, 70%, 40%, 0.025) 0px, transparent 50%),
+                       radial-gradient(at 0% 50%, hsla(210, 15%, 18%, 0.25) 0px, transparent 50%),
                        hsl(210 10% 10%);
   }
 
@@ -691,17 +691,17 @@
     --gradient-primary: linear-gradient(135deg, hsl(335 77% 65%), hsl(335 77% 50%));
     --primary-dark: 335 77% 50%;
 
-    /* Background mesh with pink accents */
-    --background-mesh: radial-gradient(at 40% 20%, hsla(335, 77%, 60%, 0.05) 0px, transparent 50%),
-                       radial-gradient(at 80% 0%, hsla(330, 100%, 70%, 0.04) 0px, transparent 50%),
-                       radial-gradient(at 0% 50%, hsla(335, 10%, 94%, 0.5) 0px, transparent 50%),
+    /* Background mesh with pink accents - softened */
+    --background-mesh: radial-gradient(at 40% 20%, hsla(335, 77%, 60%, 0.025) 0px, transparent 50%),
+                       radial-gradient(at 80% 0%, hsla(330, 100%, 70%, 0.02) 0px, transparent 50%),
+                       radial-gradient(at 0% 50%, hsla(335, 10%, 94%, 0.25) 0px, transparent 50%),
                        hsl(335 5% 97%);
 
-    /* Shadows with pink tint */
-    --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
-    --shadow-card-hover: 0 10px 15px -3px rgba(220, 80, 140, 0.15), 0 4px 6px -2px rgba(220, 80, 140, 0.08);
-    --shadow-glow: 0 0 20px rgba(220, 80, 140, 0.15);
-    --shadow-glow-strong: 0 0 30px rgba(220, 80, 140, 0.3);
+    /* Shadows with pink tint - toned down */
+    --shadow-card: var(--shadow-md);
+    --shadow-card-hover: var(--shadow-lg);
+    --shadow-glow: 0 0 15px rgba(220, 80, 140, 0.08);
+    --shadow-glow-strong: 0 0 20px rgba(220, 80, 140, 0.15);
   }
 
   .dark.theme-pink-rose {
@@ -764,10 +764,10 @@
     --background-gradient: linear-gradient(135deg, hsl(230 20% 12%), hsl(230 20% 10%), hsl(230 20% 8%));
     --primary-dark: 335 70% 60%;
 
-    /* Background mesh */
-    --background-mesh: radial-gradient(at 40% 20%, hsla(335, 70%, 70%, 0.06) 0px, transparent 50%),
-                       radial-gradient(at 80% 0%, hsla(330, 100%, 80%, 0.05) 0px, transparent 50%),
-                       radial-gradient(at 0% 50%, hsla(230, 20%, 18%, 0.5) 0px, transparent 50%),
+    /* Background mesh - softened */
+    --background-mesh: radial-gradient(at 40% 20%, hsla(335, 70%, 70%, 0.03) 0px, transparent 50%),
+                       radial-gradient(at 80% 0%, hsla(330, 100%, 80%, 0.025) 0px, transparent 50%),
+                       radial-gradient(at 0% 50%, hsla(230, 20%, 18%, 0.25) 0px, transparent 50%),
                        hsl(230 20% 10%);
   }
 
@@ -841,17 +841,17 @@
     --gradient-primary: linear-gradient(135deg, hsl(42 100% 45%), hsl(42 100% 35%));
     --primary-dark: 42 100% 35%;
 
-    /* Background mesh with gold accents */
-    --background-mesh: radial-gradient(at 40% 20%, hsla(42, 100%, 40%, 0.05) 0px, transparent 50%),
-                       radial-gradient(at 80% 0%, hsla(266, 100%, 30%, 0.04) 0px, transparent 50%),
-                       radial-gradient(at 0% 50%, hsla(266, 10%, 94%, 0.5) 0px, transparent 50%),
+    /* Background mesh with gold accents - softened */
+    --background-mesh: radial-gradient(at 40% 20%, hsla(42, 100%, 40%, 0.025) 0px, transparent 50%),
+                       radial-gradient(at 80% 0%, hsla(266, 100%, 30%, 0.02) 0px, transparent 50%),
+                       radial-gradient(at 0% 50%, hsla(266, 10%, 94%, 0.25) 0px, transparent 50%),
                        hsl(266 10% 98%);
 
-    /* Shadows with gold tint */
-    --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
-    --shadow-card-hover: 0 10px 15px -3px rgba(200, 150, 20, 0.15), 0 4px 6px -2px rgba(200, 150, 20, 0.08);
-    --shadow-glow: 0 0 20px rgba(200, 150, 20, 0.15);
-    --shadow-glow-strong: 0 0 30px rgba(200, 150, 20, 0.3);
+    /* Shadows with gold tint - toned down */
+    --shadow-card: var(--shadow-md);
+    --shadow-card-hover: var(--shadow-lg);
+    --shadow-glow: 0 0 15px rgba(200, 150, 20, 0.08);
+    --shadow-glow-strong: 0 0 20px rgba(200, 150, 20, 0.15);
   }
 
   .dark.theme-uw-huskies {
@@ -914,10 +914,10 @@
     --background-gradient: linear-gradient(135deg, hsl(266 15% 12%), hsl(266 10% 10%), hsl(266 10% 8%));
     --primary-dark: 42 90% 45%;
 
-    /* Background mesh */
-    --background-mesh: radial-gradient(at 40% 20%, hsla(42, 90%, 55%, 0.06) 0px, transparent 50%),
-                       radial-gradient(at 80% 0%, hsla(266, 80%, 40%, 0.05) 0px, transparent 50%),
-                       radial-gradient(at 0% 50%, hsla(266, 15%, 18%, 0.5) 0px, transparent 50%),
+    /* Background mesh - softened */
+    --background-mesh: radial-gradient(at 40% 20%, hsla(42, 90%, 55%, 0.03) 0px, transparent 50%),
+                       radial-gradient(at 80% 0%, hsla(266, 80%, 40%, 0.025) 0px, transparent 50%),
+                       radial-gradient(at 0% 50%, hsla(266, 15%, 18%, 0.25) 0px, transparent 50%),
                        hsl(266 10% 10%);
   }
 @layer base {
