@@ -327,7 +327,7 @@ export default function Auth() {
         <Card className="w-full max-w-md" role="region" aria-labelledby="link-expired-title">
           <CardHeader className="text-center">
             <CardTitle id="link-expired-title" className="text-2xl font-bold text-primary">
-              StormWind Sales Hub
+              Mindforge
             </CardTitle>
             <CardDescription>Password reset link expired</CardDescription>
           </CardHeader>
@@ -378,9 +378,9 @@ export default function Auth() {
         <div className="flex min-h-screen items-center justify-center bg-background p-4">
           <Card className="w-full max-w-md" role="region" aria-labelledby="otp-password-title">
             <CardHeader className="text-center">
-              <CardTitle id="otp-password-title" className="text-2xl font-bold text-primary">
-                StormWind Sales Hub
-              </CardTitle>
+            <CardTitle id="otp-password-title" className="text-2xl font-bold text-primary">
+              Mindforge
+            </CardTitle>
               <CardDescription>
                 {recoveryComplete ? 'Password updated successfully' : 'Set your new password'}
               </CardDescription>
@@ -462,9 +462,9 @@ export default function Auth() {
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md" role="region" aria-labelledby="otp-entry-title">
           <CardHeader className="text-center">
-            <CardTitle id="otp-entry-title" className="text-2xl font-bold text-primary">
-              StormWind Sales Hub
-            </CardTitle>
+          <CardTitle id="otp-entry-title" className="text-2xl font-bold text-primary">
+            Mindforge
+          </CardTitle>
             <CardDescription>Enter your password reset code</CardDescription>
           </CardHeader>
           <CardContent>
@@ -541,7 +541,7 @@ export default function Auth() {
         <Card className="w-full max-w-md" role="region" aria-labelledby="recovery-title">
           <CardHeader className="text-center">
             <CardTitle id="recovery-title" className="text-2xl font-bold text-primary">
-              StormWind Sales Hub
+              Mindforge
             </CardTitle>
             <CardDescription>
               {recoveryComplete ? 'Password updated successfully' : 'Set your new password'}
@@ -622,7 +622,7 @@ export default function Auth() {
       <Card className="w-full max-w-md" role="region" aria-labelledby="auth-title">
         <CardHeader className="text-center">
           <CardTitle id="auth-title" className="text-2xl font-bold text-primary">
-            StormWind Sales Hub
+            Mindforge
           </CardTitle>
           <CardDescription>Sign in to access your sales dashboard</CardDescription>
         </CardHeader>

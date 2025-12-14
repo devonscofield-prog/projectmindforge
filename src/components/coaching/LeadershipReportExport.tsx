@@ -213,7 +213,7 @@ export function LeadershipReportExport({
 
         <div style="margin-top: 40px; padding-top: 20px; border-top: 2px solid #e5e7eb; text-align: center; color: #9ca3af; font-size: 12px;">
           <p style="margin: 0;">Leadership Coaching Report • Generated on ${format(new Date(), 'MMMM d, yyyy')}</p>
-          <p style="margin: 4px 0 0 0;">StormWind Sales Hub</p>
+          <p style="margin: 4px 0 0 0;">Mindforge</p>
         </div>
       </div>
     `;
