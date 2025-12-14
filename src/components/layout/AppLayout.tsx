@@ -193,7 +193,11 @@ function SidebarNav() {
           />
           <div>
             <h1 className="text-xl font-bold text-sidebar-primary-foreground">StormWind</h1>
-            <p className="text-sm text-sidebar-foreground/70">Sales Hub</p>
+            <p className="text-sm text-sidebar-foreground/70 flex items-center gap-1.5">
+              <span className="capitalize font-medium text-sidebar-primary-foreground/80">{role || 'User'}</span>
+              <span className="opacity-50">•</span>
+              <span>Sales Hub</span>
+            </p>
           </div>
         </div>
       </SidebarHeader>
