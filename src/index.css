@@ -1039,6 +1039,25 @@
     100% { transform: scale(1); }
   }
 
+  /* Progress sweep animation for branded loader */
+  @keyframes progress-sweep {
+    0% {
+      transform: translateX(-100%);
+      opacity: 0.5;
+    }
+    50% {
+      opacity: 1;
+    }
+    100% {
+      transform: translateX(100%);
+      opacity: 0.5;
+    }
+  }
+
+  .progress-sweep {
+    animation: progress-sweep 1.5s ease-in-out infinite;
+  }
+
   /* Frosted glass effect */
   .frosted-glass {
     background: hsl(var(--background) / 0.8);
