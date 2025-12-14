@@ -116,7 +116,7 @@ export function ExportShareDialog({
         `).join('')}
 
         <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center; color: #9ca3af; font-size: 12px;">
-          Generated on ${format(new Date(), 'MMMM d, yyyy')} | StormWind Sales Hub
+          Generated on ${format(new Date(), 'MMMM d, yyyy')} | Mindforge
         </div>
       </div>
     `;

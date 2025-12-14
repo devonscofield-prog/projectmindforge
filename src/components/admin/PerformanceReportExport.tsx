@@ -247,7 +247,7 @@ export function PerformanceReportExport({ className }: PerformanceReportExportPr
 
         <!-- Footer -->
         <div style="text-align: center; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 12px;">
-          <p style="margin: 0;">StormWind Sales Hub • Performance Monitoring Report</p>
+          <p style="margin: 0;">Mindforge • Performance Monitoring Report</p>
           <p style="margin: 4px 0 0;">This report was automatically generated. For real-time data, visit the Performance Monitor dashboard.</p>
         </div>
       </div>
