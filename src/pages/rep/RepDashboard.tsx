@@ -635,10 +635,10 @@ function RepDashboard() {
                           Salesforce Account Link {(!selectedProspectId || !existingAccountHasSalesforceLink) && '*'}
                         </Label>
                         <div className="flex gap-2">
-                          <Input 
+                        <Input 
                             id="salesforceAccountLink" 
                             type="url" 
-                            placeholder="https://..." 
+                            placeholder="https://yourcompany.lightning.force.com/..." 
                             value={salesforceAccountLink} 
                             onChange={e => setSalesforceAccountLink(e.target.value)} 
                             disabled={(existingAccountHasSalesforceLink && !isEditingSalesforceLink) || isSubmitting} 
@@ -652,9 +652,14 @@ function RepDashboard() {
                         {existingAccountHasSalesforceLink && <p className="text-xs text-muted-foreground">
                             {isEditingSalesforceLink ? 'Editing account link' : 'Using existing account link'}
                           </p>}
-                        {salesforceAccountLink.trim() && !isSalesforceUrlValid && (
+                        {salesforceAccountLink.trim() && !isSalesforceUrlValid ? (
                           <p className="text-xs text-destructive">
                             URL must contain "salesforce" or "force.com"
+                          </p>
+                        ) : !existingAccountHasSalesforceLink && (
+                          <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                            <Info className="h-3.5 w-3.5 shrink-0" />
+                            Paste the account URL from Salesforce (e.g., acme.lightning.force.com/lightning/r/Account/001...)
                           </p>
                         )}
                       </div>
@@ -695,7 +700,7 @@ function RepDashboard() {
                           <Input 
                             ref={callTypeOtherRef}
                             id="callTypeOther" 
-                            placeholder="e.g., Technical Review" 
+                            placeholder="e.g., Executive Briefing, Technical Deep-Dive" 
                             value={callTypeOther} 
                             onChange={e => setCallTypeOther(e.target.value)} 
                             maxLength={50}
@@ -703,6 +708,10 @@ function RepDashboard() {
                             className="h-11"
                             required 
                           />
+                          <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                            <Info className="h-3.5 w-3.5 shrink-0" />
+                            Brief description for call categorization ({callTypeOther.length}/50)
+                          </p>
                         </div>}
                     </div>
                   </FormSection>
