@@ -272,9 +272,9 @@ function SidebarNav() {
             return (
               <Button 
                 key={action.href}
-                variant="outline" 
+                variant="default" 
                 size="sm"
-                className="w-full justify-start h-9 text-sm border-primary/20 text-primary hover:bg-primary/10 hover:text-primary"
+                className="w-full justify-start h-9 text-sm"
                 onClick={() => {
                   navigate(action.href);
                   if (isMobile) {
