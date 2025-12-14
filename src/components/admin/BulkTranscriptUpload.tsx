@@ -646,6 +646,7 @@ export function BulkTranscriptUpload() {
             <Button
               onClick={handleUploadClick}
               disabled={uploadMutation.isPending || validCount === 0}
+              variant="gradient"
               className="min-w-[200px]"
             >
               {uploadMutation.isPending ? (

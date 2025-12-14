@@ -919,7 +919,8 @@ The more detail you include, the better the AI analysis."
                     <Button 
                       type="submit" 
                       disabled={!canSubmit} 
-                      className="w-full h-16 text-xl font-medium rounded-xl transition-all duration-300 shadow-[0_0_40px_rgba(0,154,119,0.3)] hover:shadow-[0_0_60px_rgba(0,154,119,0.5)] disabled:shadow-none" 
+                      variant="gradient"
+                      className="w-full h-16 text-xl font-medium rounded-xl" 
                       size="lg"
                     >
                       {isSubmitting ? <>
@@ -982,7 +983,8 @@ The more detail you include, the better the AI analysis."
           type="button"
           onClick={() => formRef.current?.requestSubmit()}
           disabled={!canSubmit} 
-          className="w-full h-14 text-lg font-medium rounded-xl transition-all duration-300 shadow-[0_0_30px_rgba(0,154,119,0.3)]" 
+          variant="gradient"
+          className="w-full h-14 text-lg font-medium rounded-xl" 
           size="lg"
         >
           {isSubmitting ? <>

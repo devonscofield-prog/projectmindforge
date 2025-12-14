@@ -229,7 +229,7 @@ function AdminInviteUsers() {
                   )}
                 </div>
 
-                <Button type="submit" className="w-full" disabled={inviting}>
+                <Button type="submit" variant="gradient" className="w-full" disabled={inviting}>
                   <Mail className="h-4 w-4 mr-2" />
                   {inviting ? 'Sending Invitation...' : 'Send Invitation'}
                 </Button>
