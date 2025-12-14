@@ -17,7 +17,7 @@ import type { ProductEntry, StakeholderEntry } from '@/api/aiCallAnalysis';
 import { updateProspect } from '@/api/prospects';
 import { CallType, callTypeOptions } from '@/constants/callTypes';
 import { format, formatDistanceToNow } from 'date-fns';
-import { Send, Loader2, FileText, Pencil, BarChart3, Users, AlertTriangle, Info, Keyboard, RotateCcw, ClipboardList, Package } from 'lucide-react';
+import { Send, Loader2, FileText, Pencil, BarChart3, Users, AlertTriangle, Info, Keyboard, RotateCcw, ClipboardList, Package, CheckCircle2 } from 'lucide-react';
 import { FormSection } from '@/components/forms/FormSection';
 import { FormProgressHeader } from '@/components/forms/FormProgressHeader';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -814,9 +814,12 @@ function RepDashboard() {
                     <div className={`space-y-0 ${shakeFields.includes('transcript') ? 'animate-shake' : ''}`}>
                       {/* Premium Editor Container */}
                       <div className="relative rounded-2xl bg-gradient-to-b from-muted/20 via-muted/30 to-muted/40 dark:from-muted/10 dark:via-muted/20 dark:to-muted/30 editor-focus-ring overflow-hidden">
-                        {/* Floating character counter */}
-                        <div className="absolute top-4 right-4 z-10 text-xs font-mono px-2 py-1 rounded-md bg-background/80 backdrop-blur-sm text-muted-foreground border border-border/50">
-                          {normalizedTranscript.length.toLocaleString()} chars
+                        {/* Floating character counter with X/500 format */}
+                        <div className="absolute top-4 right-4 z-10 flex items-center gap-1.5 text-xs font-mono px-2.5 py-1.5 rounded-md bg-background/80 backdrop-blur-sm border border-border/50">
+                          <span className={isTranscriptLengthValid ? "text-primary font-medium" : "text-muted-foreground"}>
+                            {normalizedTranscript.length.toLocaleString()} / {MIN_TRANSCRIPT_LENGTH.toLocaleString()}
+                          </span>
+                          {isTranscriptLengthValid && <CheckCircle2 className="h-3.5 w-3.5 text-primary" />}
                         </div>
                         
                         <Textarea 
@@ -849,17 +852,28 @@ The more detail you include, the better the AI analysis."
                       </div>
                       
                       {/* Progress info below editor */}
-                      <div className="flex justify-between items-center pt-3 text-xs">
-                        <span className="text-muted-foreground">
-                          Min {MIN_TRANSCRIPT_LENGTH} characters for analysis
-                        </span>
-                        {normalizedTranscript.length > 0 && normalizedTranscript.length < MIN_TRANSCRIPT_LENGTH ? (
-                          <span id="transcript-hint" className="text-amber-500 font-medium">
-                            {(MIN_TRANSCRIPT_LENGTH - normalizedTranscript.length).toLocaleString()} more needed
+                      <div className="flex flex-col gap-1.5 pt-3 text-xs">
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground flex items-center gap-1.5">
+                            <Info className="h-3.5 w-3.5" />
+                            Minimum 500 characters ensures accurate AI analysis
                           </span>
-                        ) : normalizedTranscript.length >= MIN_TRANSCRIPT_LENGTH ? (
-                          <span className="text-primary font-medium">✓ Ready for analysis</span>
-                        ) : null}
+                          {normalizedTranscript.length > 0 && normalizedTranscript.length < MIN_TRANSCRIPT_LENGTH ? (
+                            <span id="transcript-hint" className="text-amber-500 font-medium">
+                              {(MIN_TRANSCRIPT_LENGTH - normalizedTranscript.length).toLocaleString()} more needed
+                            </span>
+                          ) : normalizedTranscript.length >= MIN_TRANSCRIPT_LENGTH ? (
+                            <span className="text-primary font-medium flex items-center gap-1">
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              Ready for analysis
+                            </span>
+                          ) : null}
+                        </div>
+                        {normalizedTranscript.length === 0 && (
+                          <p className="text-muted-foreground/70">
+                            💡 Tip: Longer transcripts provide richer coaching insights
+                          </p>
+                        )}
                       </div>
                       {isNearLimit && (
                         <p className={`text-xs mt-1 ${isAtLimit ? "text-destructive font-medium" : isApproachingLimit ? "text-amber-500" : "text-muted-foreground"}`}>
