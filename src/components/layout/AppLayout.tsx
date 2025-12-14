@@ -268,15 +268,19 @@ function SidebarNav() {
         </div>
 
         {/* Quick actions */}
-        <div className="space-y-1 mb-2">
+        <div className="space-y-2 mb-2">
           {quickActions.map((action) => {
             const Icon = action.icon;
             return (
-              <Button 
+              <button 
                 key={action.href}
-                variant="default" 
-                size="sm"
-                className="w-full justify-start h-9 text-sm"
+                className="w-full flex items-center justify-center gap-2 h-10 px-4 
+                  bg-gradient-primary rounded-full 
+                  text-primary-foreground font-medium text-sm
+                  shadow-md hover:shadow-lg hover:shadow-primary/30 hover:scale-[1.02]
+                  active:scale-[0.98] active:shadow-sm
+                  transition-all duration-200 ease-out
+                  border border-white/10"
                 onClick={() => {
                   navigate(action.href);
                   if (isMobile) {
@@ -285,9 +289,9 @@ function SidebarNav() {
                 }}
                 aria-label={action.label}
               >
-                <Icon className="h-4 w-4 mr-2" aria-hidden="true" />
+                <Icon className="h-4 w-4" aria-hidden="true" />
                 {action.label}
-              </Button>
+              </button>
             );
           })}
         </div>
