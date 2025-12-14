@@ -17,7 +17,9 @@ import type { ProductEntry, StakeholderEntry } from '@/api/aiCallAnalysis';
 import { updateProspect } from '@/api/prospects';
 import { CallType, callTypeOptions } from '@/constants/callTypes';
 import { format, formatDistanceToNow } from 'date-fns';
-import { Send, Loader2, FileText, Pencil, BarChart3, Users, AlertTriangle, Info, Keyboard, RotateCcw } from 'lucide-react';
+import { Send, Loader2, FileText, Pencil, BarChart3, Users, AlertTriangle, Info, Keyboard, RotateCcw, ClipboardList, Package } from 'lucide-react';
+import { FormSection } from '@/components/forms/FormSection';
+import { FormProgressHeader } from '@/components/forms/FormProgressHeader';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AccountCombobox } from '@/components/forms/AccountCombobox';
@@ -576,12 +578,27 @@ function RepDashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-0">
-                <form ref={formRef} onSubmit={handleSubmit} className="space-y-8 p-6 md:p-8">
-                  {/* Call Context & Deal Setup Section */}
-                  <div className="bg-muted/30 p-6 rounded-xl border border-border space-y-6">
-                    <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground border-b border-border pb-3">
-                      Call Context & Deal Setup
-                    </h3>
+                <form ref={formRef} onSubmit={handleSubmit} className="space-y-6 p-6 md:p-8">
+                  {/* Progress Header */}
+                  <FormProgressHeader
+                    sections={[
+                      { id: 'call-details', title: 'Call Details', isComplete: isAccountValid && isStakeholderValid && isSalesforceValid && isSalesforceUrlValid && isCallTypeOtherValid, isRequired: true },
+                      { id: 'participants', title: 'Participants', isComplete: true, isRequired: false },
+                      { id: 'transcript', title: 'Transcript', isComplete: isTranscriptLengthValid, isRequired: true },
+                      { id: 'products', title: 'Products', isComplete: true, isRequired: false },
+                    ]}
+                  />
+
+                  {/* Section 1: Call Details */}
+                  <FormSection
+                    title="Call Details"
+                    icon={<ClipboardList className="h-4 w-4" />}
+                    isComplete={isAccountValid && isStakeholderValid && isSalesforceValid && isSalesforceUrlValid && isCallTypeOtherValid}
+                    completionCount={[isAccountValid, isStakeholderValid, isSalesforceValid && isSalesforceUrlValid, true].filter(Boolean).length}
+                    totalCount={4}
+                    isRequired
+                    defaultOpen
+                  >
                     <div className="space-y-6">
                       {/* Account and Primary Stakeholder Row */}
                       <div className="space-y-4">
@@ -671,186 +688,208 @@ function RepDashboard() {
                           </Select>
                         </div>
                       </div>
-                    </div>
-                  </div>
 
-                  {/* Manager on Call Checkbox */}
-                  <TooltipProvider>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox 
-                        id="managerOnCall" 
-                        checked={managerOnCall} 
-                        onCheckedChange={(checked) => setManagerOnCall(checked === true)}
-                        disabled={isSubmitting}
-                      />
-                      <Label htmlFor="managerOnCall" className="text-sm font-normal flex items-center gap-1.5 cursor-pointer">
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                        Manager was on this call
-                      </Label>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p className="max-w-xs">Check this if your manager joined to help close the deal. Enables coaching differentiation.</p>
-                        </TooltipContent>
-                      </Tooltip>
+                      {/* Other Call Type Input (conditional) */}
+                      {callType === 'other' && <div className="space-y-2">
+                          <Label htmlFor="callTypeOther">Specify Call Type *</Label>
+                          <Input 
+                            ref={callTypeOtherRef}
+                            id="callTypeOther" 
+                            placeholder="e.g., Technical Review" 
+                            value={callTypeOther} 
+                            onChange={e => setCallTypeOther(e.target.value)} 
+                            maxLength={50}
+                            disabled={isSubmitting}
+                            className="h-11"
+                            required 
+                          />
+                        </div>}
                     </div>
-                  </TooltipProvider>
+                  </FormSection>
 
-                  {/* Additional Speakers Checkbox + Input */}
-                  <div className="space-y-2">
-                    <TooltipProvider>
-                      <div className="flex items-center space-x-2">
-                        <Checkbox 
-                          id="additionalSpeakers" 
-                          checked={additionalSpeakersEnabled} 
-                          onCheckedChange={(checked) => setAdditionalSpeakersEnabled(checked === true)}
-                          disabled={isSubmitting}
-                        />
-                        <Label htmlFor="additionalSpeakers" className="text-sm font-normal flex items-center gap-1.5 cursor-pointer">
-                          <Users className="h-4 w-4 text-muted-foreground" />
-                          Additional speakers on this call
-                        </Label>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p className="max-w-xs">Include names of other participants like sales engineers or technical specialists.</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
-                    </TooltipProvider>
-                    {additionalSpeakersEnabled && (
-                      <div className="space-y-1">
-                        <Input 
-                          placeholder="Enter names separated by commas (e.g., John Smith, Sarah Jones)"
-                          value={additionalSpeakersText}
-                          onChange={e => setAdditionalSpeakersText(e.target.value)}
-                          disabled={isSubmitting}
-                          maxLength={200}
-                          className="text-sm"
-                          aria-describedby="speakers-hint"
-                        />
-                        <div className="flex justify-between">
-                          <p id="speakers-hint" className="text-xs text-muted-foreground">
-                            Max {MAX_ADDITIONAL_SPEAKERS} additional speakers
-                          </p>
-                          {additionalSpeakers.length > 0 && (
-                            <p className={`text-xs ${isAdditionalSpeakersValid ? 'text-muted-foreground' : 'text-destructive'}`}>
-                              {additionalSpeakers.length}/{MAX_ADDITIONAL_SPEAKERS} speakers
-                            </p>
-                          )}
+                  {/* Section 2: Participants */}
+                  <FormSection
+                    title="Participants"
+                    icon={<Users className="h-4 w-4" />}
+                    isComplete={true}
+                    completionCount={[managerOnCall, additionalSpeakersEnabled].filter(Boolean).length}
+                    totalCount={2}
+                    isRequired={false}
+                    defaultOpen={false}
+                  >
+                    <div className="space-y-4">
+                      {/* Manager on Call Checkbox */}
+                      <TooltipProvider>
+                        <div className="flex items-center space-x-2">
+                          <Checkbox 
+                            id="managerOnCall" 
+                            checked={managerOnCall} 
+                            onCheckedChange={(checked) => setManagerOnCall(checked === true)}
+                            disabled={isSubmitting}
+                          />
+                          <Label htmlFor="managerOnCall" className="text-sm font-normal flex items-center gap-1.5 cursor-pointer">
+                            <Users className="h-4 w-4 text-muted-foreground" />
+                            Manager was on this call
+                          </Label>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="max-w-xs">Check this if your manager joined to help close the deal. Enables coaching differentiation.</p>
+                            </TooltipContent>
+                          </Tooltip>
                         </div>
-                        {!isAdditionalSpeakersValid && (
-                          <Alert variant="destructive" className="py-2">
-                            <AlertTriangle className="h-4 w-4" />
-                            <AlertDescription>
-                              Please reduce to {MAX_ADDITIONAL_SPEAKERS} speakers or fewer.
-                            </AlertDescription>
-                          </Alert>
+                      </TooltipProvider>
+
+                      {/* Additional Speakers Checkbox + Input */}
+                      <div className="space-y-2">
+                        <TooltipProvider>
+                          <div className="flex items-center space-x-2">
+                            <Checkbox 
+                              id="additionalSpeakers" 
+                              checked={additionalSpeakersEnabled} 
+                              onCheckedChange={(checked) => setAdditionalSpeakersEnabled(checked === true)}
+                              disabled={isSubmitting}
+                            />
+                            <Label htmlFor="additionalSpeakers" className="text-sm font-normal flex items-center gap-1.5 cursor-pointer">
+                              <Users className="h-4 w-4 text-muted-foreground" />
+                              Additional speakers on this call
+                            </Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="max-w-xs">Include names of other participants like sales engineers or technical specialists.</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                        </TooltipProvider>
+                        {additionalSpeakersEnabled && (
+                          <div className="space-y-1 ml-6">
+                            <Input 
+                              placeholder="Enter names separated by commas (e.g., John Smith, Sarah Jones)"
+                              value={additionalSpeakersText}
+                              onChange={e => setAdditionalSpeakersText(e.target.value)}
+                              disabled={isSubmitting}
+                              maxLength={200}
+                              className="text-sm"
+                              aria-describedby="speakers-hint"
+                            />
+                            <div className="flex justify-between">
+                              <p id="speakers-hint" className="text-xs text-muted-foreground">
+                                Max {MAX_ADDITIONAL_SPEAKERS} additional speakers
+                              </p>
+                              {additionalSpeakers.length > 0 && (
+                                <p className={`text-xs ${isAdditionalSpeakersValid ? 'text-muted-foreground' : 'text-destructive'}`}>
+                                  {additionalSpeakers.length}/{MAX_ADDITIONAL_SPEAKERS} speakers
+                                </p>
+                              )}
+                            </div>
+                            {!isAdditionalSpeakersValid && (
+                              <Alert variant="destructive" className="py-2">
+                                <AlertTriangle className="h-4 w-4" />
+                                <AlertDescription>
+                                  Please reduce to {MAX_ADDITIONAL_SPEAKERS} speakers or fewer.
+                                </AlertDescription>
+                              </Alert>
+                            )}
+                          </div>
                         )}
                       </div>
-                    )}
-                  </div>
-
-                  {/* Other Call Type Input (conditional) */}
-                  {callType === 'other' && <div className="space-y-2">
-                      <Label htmlFor="callTypeOther">Specify Call Type *</Label>
-                      <Input 
-                        ref={callTypeOtherRef}
-                        id="callTypeOther" 
-                        placeholder="e.g., Technical Review" 
-                        value={callTypeOther} 
-                        onChange={e => setCallTypeOther(e.target.value)} 
-                        maxLength={50}
-                        disabled={isSubmitting}
-                        className="h-11"
-                        required 
-                      />
-                    </div>}
-
-                  {/* Premium Transcript Editor */}
-                  <div className={`space-y-0 ${shakeFields.includes('transcript') ? 'animate-shake' : ''}`}>
-                    <div className="flex items-center justify-between mb-4">
-                      <Label htmlFor="transcript" className="text-lg font-medium text-foreground flex items-center gap-2">
-                        <FileText className="h-5 w-5 text-primary" />
-                        Transcript Editor
-                      </Label>
-                      <span className="text-xs px-3 py-1.5 bg-primary/10 text-primary rounded-full font-medium uppercase tracking-wider">
-                        Required
-                      </span>
                     </div>
-                    
-                    {/* Premium Editor Container */}
-                    <div className="relative rounded-2xl bg-gradient-to-b from-muted/20 via-muted/30 to-muted/40 dark:from-muted/10 dark:via-muted/20 dark:to-muted/30 editor-focus-ring overflow-hidden">
-                      {/* Floating character counter */}
-                      <div className="absolute top-4 right-4 z-10 text-xs font-mono px-2 py-1 rounded-md bg-background/80 backdrop-blur-sm text-muted-foreground border border-border/50">
-                        {normalizedTranscript.length.toLocaleString()} chars
-                      </div>
-                      
-                      <Textarea 
-                        id="transcript" 
-                        placeholder="Paste the full call transcript here...
+                  </FormSection>
+
+                  {/* Section 3: Transcript */}
+                  <FormSection
+                    title="Transcript"
+                    icon={<FileText className="h-4 w-4" />}
+                    isComplete={isTranscriptLengthValid}
+                    completionCount={isTranscriptLengthValid ? 1 : 0}
+                    totalCount={1}
+                    isRequired
+                    defaultOpen
+                  >
+                    <div className={`space-y-0 ${shakeFields.includes('transcript') ? 'animate-shake' : ''}`}>
+                      {/* Premium Editor Container */}
+                      <div className="relative rounded-2xl bg-gradient-to-b from-muted/20 via-muted/30 to-muted/40 dark:from-muted/10 dark:via-muted/20 dark:to-muted/30 editor-focus-ring overflow-hidden">
+                        {/* Floating character counter */}
+                        <div className="absolute top-4 right-4 z-10 text-xs font-mono px-2 py-1 rounded-md bg-background/80 backdrop-blur-sm text-muted-foreground border border-border/50">
+                          {normalizedTranscript.length.toLocaleString()} chars
+                        </div>
+                        
+                        <Textarea 
+                          id="transcript" 
+                          placeholder="Paste the full call transcript here...
 
 Include the entire conversation—speaker labels are helpful but not required.
 
 The more detail you include, the better the AI analysis." 
-                        value={transcript} 
-                        onChange={e => setTranscript(e.target.value)} 
-                        className="min-h-[450px] md:min-h-[550px] font-mono text-sm leading-7 p-6 md:p-8 bg-transparent border-0 shadow-none resize-none focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/50 placeholder:leading-relaxed" 
-                        maxLength={100000}
-                        disabled={isSubmitting}
-                        required 
-                        aria-describedby="transcript-hint"
-                      />
-                      
-                      {/* Attached Progress Bar at bottom edge */}
-                      <div className="h-1 w-full relative">
-                        <div 
-                          className={`h-full transition-all duration-500 ease-out ${
-                            transcriptProgress >= 100 
-                              ? 'bg-primary progress-glow-primary' 
-                              : 'bg-amber-500 progress-glow-amber'
-                          }`}
-                          style={{ width: `${transcriptProgress}%` }}
+                          value={transcript} 
+                          onChange={e => setTranscript(e.target.value)} 
+                          className="min-h-[350px] md:min-h-[400px] font-mono text-sm leading-7 p-6 md:p-8 bg-transparent border-0 shadow-none resize-none focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/50 placeholder:leading-relaxed" 
+                          maxLength={100000}
+                          disabled={isSubmitting}
+                          required 
+                          aria-describedby="transcript-hint"
                         />
+                        
+                        {/* Attached Progress Bar at bottom edge */}
+                        <div className="h-1 w-full relative">
+                          <div 
+                            className={`h-full transition-all duration-500 ease-out ${
+                              transcriptProgress >= 100 
+                                ? 'bg-primary progress-glow-primary' 
+                                : 'bg-amber-500 progress-glow-amber'
+                            }`}
+                            style={{ width: `${transcriptProgress}%` }}
+                          />
+                        </div>
                       </div>
-                    </div>
-                    
-                    {/* Progress info below editor */}
-                    <div className="flex justify-between items-center pt-3 text-xs">
-                      <span className="text-muted-foreground">
-                        Min {MIN_TRANSCRIPT_LENGTH} characters for analysis
-                      </span>
-                      {normalizedTranscript.length > 0 && normalizedTranscript.length < MIN_TRANSCRIPT_LENGTH ? (
-                        <span id="transcript-hint" className="text-amber-500 font-medium">
-                          {(MIN_TRANSCRIPT_LENGTH - normalizedTranscript.length).toLocaleString()} more needed
+                      
+                      {/* Progress info below editor */}
+                      <div className="flex justify-between items-center pt-3 text-xs">
+                        <span className="text-muted-foreground">
+                          Min {MIN_TRANSCRIPT_LENGTH} characters for analysis
                         </span>
-                      ) : normalizedTranscript.length >= MIN_TRANSCRIPT_LENGTH ? (
-                        <span className="text-primary font-medium">✓ Ready for analysis</span>
-                      ) : null}
+                        {normalizedTranscript.length > 0 && normalizedTranscript.length < MIN_TRANSCRIPT_LENGTH ? (
+                          <span id="transcript-hint" className="text-amber-500 font-medium">
+                            {(MIN_TRANSCRIPT_LENGTH - normalizedTranscript.length).toLocaleString()} more needed
+                          </span>
+                        ) : normalizedTranscript.length >= MIN_TRANSCRIPT_LENGTH ? (
+                          <span className="text-primary font-medium">✓ Ready for analysis</span>
+                        ) : null}
+                      </div>
+                      {isNearLimit && (
+                        <p className={`text-xs mt-1 ${isAtLimit ? "text-destructive font-medium" : isApproachingLimit ? "text-amber-500" : "text-muted-foreground"}`}>
+                          {normalizedTranscript.length.toLocaleString()} / {MAX_TRANSCRIPT_LENGTH.toLocaleString()} characters
+                          {isAtLimit && " — approaching limit"}
+                        </p>
+                      )}
                     </div>
-                    {isNearLimit && (
-                      <p className={`text-xs mt-1 ${isAtLimit ? "text-destructive font-medium" : isApproachingLimit ? "text-amber-500" : "text-muted-foreground"}`}>
-                        {normalizedTranscript.length.toLocaleString()} / {MAX_TRANSCRIPT_LENGTH.toLocaleString()} characters
-                        {isAtLimit && " — approaching limit"}
-                      </p>
-                    )}
-                  </div>
+                  </FormSection>
 
-                  {/* Product Selection */}
-                  <div className={`border-t border-border pt-8 ${shakeFields.includes('products') ? 'animate-shake' : ''}`}>
-                    <Label htmlFor="products" className="text-lg font-medium text-foreground">Products Discussed (Optional)</Label>
-                    <p className="text-sm text-muted-foreground mt-1 mb-4">
-                      Track products and pricing discussed on this call to calculate active revenue.
-                    </p>
-                    <ProductSelector
-                      value={selectedProducts}
-                      onChange={setSelectedProducts}
-                    />
-                  </div>
+                  {/* Section 4: Products */}
+                  <FormSection
+                    title="Products"
+                    icon={<Package className="h-4 w-4" />}
+                    isComplete={true}
+                    completionCount={selectedProducts.length}
+                    totalCount={selectedProducts.length || undefined}
+                    isRequired={false}
+                    defaultOpen={false}
+                  >
+                    <div className={`${shakeFields.includes('products') ? 'animate-shake' : ''}`}>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Track products and pricing discussed on this call to calculate active revenue.
+                      </p>
+                      <ProductSelector
+                        value={selectedProducts}
+                        onChange={setSelectedProducts}
+                      />
+                    </div>
+                  </FormSection>
 
                   {/* Desktop Submit Button with Glow */}
                   <div className="hidden md:block space-y-3 pt-6 border-t border-border mt-8">
