@@ -931,10 +931,6 @@
     background: var(--background-mesh);
   }
 
-  h1, h2 {
-    font-family: 'Playfair Display', ui-serif, Georgia, serif;
-  }
-
   .uppercase {
     letter-spacing: 0.1em;
   }
