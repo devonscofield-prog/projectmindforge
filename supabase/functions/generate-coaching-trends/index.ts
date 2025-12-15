@@ -213,6 +213,9 @@ interface StrategyAudit {
 
 interface CallData {
   date: string;
+  // Context fields for richer analysis
+  account_name?: string;
+  call_type?: string;
   // Analysis 2.0 fields
   analysis_behavior?: BehaviorScore | null;
   analysis_strategy?: StrategyAudit | null;
@@ -279,6 +282,10 @@ type TrendAnalysisRequest = DirectAnalysisRequest | HierarchicalAnalysisRequest;
 
 const TREND_ANALYSIS_SYSTEM_PROMPT = `You are an expert sales coaching analyst. Your job is to analyze a collection of call analyses from a sales rep and identify TRENDS in their performance over time.
 
+**CONTEXT FIELDS (Use for Pattern Detection):**
+- **Account Name**: Identify if rep struggles with specific types of accounts (e.g., enterprise vs SMB)
+- **Call Type**: Analyze performance differences by call type (e.g., discovery vs demo vs pricing)
+
 **ANALYSIS 2.0 METRICS (Primary - use when available):**
 1. **Patience Score** (from Behavior analysis) - Are they interrupting less? Lower interruption counts = better patience.
 2. **Strategic Threading Score** (from Strategy analysis) - Are they connecting prospect pains to relevant solutions? Higher = better alignment.
@@ -293,8 +300,9 @@ const TREND_ANALYSIS_SYSTEM_PROMPT = `You are an expert sales coaching analyst. 
 
 For each metric, you must:
 - Identify whether performance is IMPROVING, STABLE, or DECLINING
-- Provide specific evidence from the calls
+- Provide specific evidence from the calls (include account names and call types when relevant)
 - Give actionable recommendations
+- Note any patterns by account type or call type
 
 Be direct and specific. Don't use vague language. If something is declining, say so clearly.
 
@@ -479,7 +487,9 @@ const TREND_ANALYSIS_TOOL = {
 function formatCallsForPrompt(calls: CallData[]): string {
   return calls.map((call, idx) => {
     const callNum = idx + 1;
-    let summary = `\n### Call ${callNum} (${call.date})\n`;
+    const accountInfo = call.account_name ? ` | ${call.account_name}` : '';
+    const callTypeInfo = call.call_type ? ` | ${call.call_type}` : '';
+    let summary = `\n### Call ${callNum} (${call.date}${accountInfo}${callTypeInfo})\n`;
     
     // === ANALYSIS 2.0 METRICS (Primary) ===
     if (call.analysis_behavior) {

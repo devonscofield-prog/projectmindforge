@@ -287,10 +287,16 @@ export async function generateCoachingTrends(
     }
   }
 
-  // 2. Fetch all call analyses with count in single query (consolidated)
+  // 2. Fetch all call analyses with call transcript context in single query
   const { data, error, count } = await supabase
     .from('ai_call_analysis')
-    .select('*', { count: 'exact' })
+    .select(`
+      *,
+      call_transcripts!ai_call_analysis_call_id_fkey (
+        account_name,
+        call_type
+      )
+    `, { count: 'exact' })
     .eq('rep_id', repId)
     .gte('created_at', dateRange.from.toISOString())
     .lte('created_at', dateRange.to.toISOString())
@@ -312,22 +318,41 @@ export async function generateCoachingTrends(
     throw new Error('No analyzed calls found in the selected period');
   }
 
-  // 4. Format calls for AI - include Analysis 2.0 fields and legacy fallbacks
-  const formattedCalls: FormattedCall[] = analyses.map(a => ({
-    date: a.created_at.split('T')[0],
-    // Analysis 2.0 fields (primary)
-    analysis_behavior: a.analysis_behavior ?? null,
-    analysis_strategy: a.analysis_strategy ?? null,
-    // Legacy fields (fallback for backward compatibility)
-    framework_scores: a.coach_output?.framework_scores ?? null,
-    meddpicc_improvements: a.coach_output?.meddpicc_improvements ?? [],
-    gap_selling_improvements: a.coach_output?.gap_selling_improvements ?? [],
-    active_listening_improvements: a.coach_output?.active_listening_improvements ?? [],
-    bant_improvements: a.coach_output?.bant_improvements ?? [],
-    critical_info_missing: a.coach_output?.critical_info_missing ?? [],
-    follow_up_questions: a.coach_output?.recommended_follow_up_questions ?? [],
-    heat_score: a.deal_heat_analysis?.heat_score ?? a.coach_output?.heat_signature?.score ?? null,
-  }));
+  // Create a map for call transcript context - use 'as' for the joined data
+  type RowWithContext = typeof data extends (infer R)[] ? R : never;
+  const callContextMap = new Map<string, { account_name?: string; call_type?: string }>();
+  (data || []).forEach((row: RowWithContext) => {
+    const transcriptData = row.call_transcripts as { account_name?: string | null; call_type?: string | null } | null;
+    if (transcriptData) {
+      callContextMap.set(row.call_id, {
+        account_name: transcriptData.account_name ?? undefined,
+        call_type: transcriptData.call_type ?? undefined,
+      });
+    }
+  });
+
+  // 4. Format calls for AI - include Analysis 2.0 fields, context, and legacy fallbacks
+  const formattedCalls: FormattedCall[] = analyses.map(a => {
+    const context = callContextMap.get(a.call_id);
+    return {
+      date: a.created_at.split('T')[0],
+      // Context fields for richer analysis
+      account_name: context?.account_name,
+      call_type: context?.call_type,
+      // Analysis 2.0 fields (primary)
+      analysis_behavior: a.analysis_behavior ?? null,
+      analysis_strategy: a.analysis_strategy ?? null,
+      // Legacy fields (fallback for backward compatibility)
+      framework_scores: a.coach_output?.framework_scores ?? null,
+      meddpicc_improvements: a.coach_output?.meddpicc_improvements ?? [],
+      gap_selling_improvements: a.coach_output?.gap_selling_improvements ?? [],
+      active_listening_improvements: a.coach_output?.active_listening_improvements ?? [],
+      bant_improvements: a.coach_output?.bant_improvements ?? [],
+      critical_info_missing: a.coach_output?.critical_info_missing ?? [],
+      follow_up_questions: a.coach_output?.recommended_follow_up_questions ?? [],
+      heat_score: a.deal_heat_analysis?.heat_score ?? a.coach_output?.heat_signature?.score ?? null,
+    };
+  });
 
   let trendData: CoachingTrendAnalysis;
   let metadata: AnalysisMetadata;

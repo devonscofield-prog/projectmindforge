@@ -388,6 +388,9 @@ export interface ChunkSummary {
 
 export interface FormattedCall {
   date: string;
+  // Context fields for richer analysis
+  account_name?: string;
+  call_type?: string;
   // Analysis 2.0 fields (primary)
   analysis_behavior?: BehaviorScore | null;
   analysis_strategy?: StrategyAudit | null;
