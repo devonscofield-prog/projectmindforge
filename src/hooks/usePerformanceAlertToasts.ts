@@ -3,10 +3,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 
-// Thresholds for real-time alerts
+// Thresholds for real-time alerts (queries only - edge functions use error/timeout detection)
 const THRESHOLDS = {
   query: { warning: 1500, critical: 3000 },
-  edge_function: { warning: 5000, critical: 10000 },
 };
 
 interface PerformanceMetric {
@@ -54,28 +53,36 @@ export function usePerformanceAlertToasts() {
   function checkAndAlert(metric: PerformanceMetric) {
     const { metric_type, metric_name, duration_ms, status } = metric;
     
-    // Check for errors
+    // Alert on errors
     if (status === 'error') {
       showAlertToast('error', metric_name, 'Error occurred', duration_ms);
       return;
     }
 
-    // Check duration thresholds
-    const thresholds = THRESHOLDS[metric_type as keyof typeof THRESHOLDS];
-    if (!thresholds) return;
+    // Alert on timeouts
+    if (status === 'timeout') {
+      showAlertToast('critical', metric_name, 'Operation timed out', duration_ms);
+      return;
+    }
 
-    // Cooldown: don't spam the same alert
-    const alertKey = `${metric_type}-${metric_name}`;
-    const now = Date.now();
-    const lastAlert = lastAlertRef.current[alertKey] || 0;
-    if (now - lastAlert < 60000) return; // 1 minute cooldown
+    // For queries only, check duration thresholds
+    // Edge functions (AI agents) are expected to take 30-60s, so no duration alerts for them
+    if (metric_type === 'query') {
+      const thresholds = THRESHOLDS.query;
 
-    if (duration_ms >= thresholds.critical) {
-      lastAlertRef.current[alertKey] = now;
-      showAlertToast('critical', metric_name, 'Critical slowdown detected', duration_ms);
-    } else if (duration_ms >= thresholds.warning) {
-      lastAlertRef.current[alertKey] = now;
-      showAlertToast('warning', metric_name, 'Performance warning', duration_ms);
+      // Cooldown: don't spam the same alert
+      const alertKey = `${metric_type}-${metric_name}`;
+      const now = Date.now();
+      const lastAlert = lastAlertRef.current[alertKey] || 0;
+      if (now - lastAlert < 60000) return; // 1 minute cooldown
+
+      if (duration_ms >= thresholds.critical) {
+        lastAlertRef.current[alertKey] = now;
+        showAlertToast('critical', metric_name, 'Critical slowdown detected', duration_ms);
+      } else if (duration_ms >= thresholds.warning) {
+        lastAlertRef.current[alertKey] = now;
+        showAlertToast('warning', metric_name, 'Performance warning', duration_ms);
+      }
     }
   }
 
