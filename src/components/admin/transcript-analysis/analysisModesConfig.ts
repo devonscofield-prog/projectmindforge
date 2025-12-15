@@ -58,9 +58,19 @@ export const ANALYSIS_MODES: AnalysisMode[] = [
         prompt: 'Based on the actual conversations (not what reps reported), which deals are likely to slip from their expected close dates? What concrete evidence supports or contradicts the committed timelines? Flag any deals where the prospect hasn\'t confirmed next steps.',
       },
       {
+        icon: Layers,
+        label: 'Stakeholder Map',
+        prompt: 'Using the extracted entities from these transcripts, build a stakeholder map showing all people mentioned, their roles, and their relationships. Identify the key decision-makers vs. influencers vs. blockers based on how they\'re discussed across calls.',
+      },
+      {
+        icon: Crosshair,
+        label: 'Topic Hotspots',
+        prompt: 'Analyze the topic distribution across these calls. Which topics (pricing, objections, discovery, demo, next_steps, etc.) came up most frequently? What patterns do you see? Are there topics that should have been discussed but weren\'t?',
+      },
+      {
         icon: Swords,
         label: 'Competitive Intelligence',
-        prompt: 'Build me a competitive battle card from these calls: Which competitors were mentioned? What specific objections came up? Where are we winning vs losing and why? Include exact quotes I can use for sales training.',
+        prompt: 'Using the extracted competitor entities, build me a competitive battle card: For each competitor mentioned, show every mention with context, whether it was positive/negative for us, and how our rep responded. Include exact quotes.',
       },
       {
         icon: Zap,
@@ -111,6 +121,11 @@ In this mode, focus EXCLUSIVELY on deal qualification using MEDDPICC criteria. F
         prompt: 'Score every deal in these transcripts using MEDDPICC (1-5 each criterion). Create a ranked table showing overall scores, highlight the weakest criterion for each deal, and recommend specific qualification questions reps should ask next.',
       },
       {
+        icon: Layers,
+        label: 'MEDDPICC Element Coverage',
+        prompt: 'Using the MEDDPICC tags on each section, assess which qualification elements are well-covered vs. missing across these calls. Show me a gap analysis: which elements have strong evidence, and which are dangerously absent? Reference the specific tagged sections.',
+      },
+      {
         icon: AlertTriangle,
         label: 'Qualification Red Flags',
         prompt: 'Which deals have the most dangerous qualification gaps? Focus on: missing economic buyers, unclear decision criteria, no compelling event, weak champion signals, or unknown competition. Rank by revenue at risk.',
@@ -118,7 +133,7 @@ In this mode, focus EXCLUSIVELY on deal qualification using MEDDPICC criteria. F
       {
         icon: Target,
         label: 'Champion Health Check',
-        prompt: 'For each deal, assess champion strength: Are they selling internally? Do they have access to power? Are they sharing information about the buying process? Score each champion 1-5 with evidence.',
+        prompt: 'For each deal, assess champion strength: Are they selling internally? Do they have access to power? Are they sharing information about the buying process? Score each champion 1-5 with evidence from sections tagged with "champion".',
       },
       {
         icon: TrendingUp,
@@ -227,22 +242,22 @@ In this mode, focus EXCLUSIVELY on competitive intelligence gathering.
       {
         icon: Swords,
         label: 'Build Battle Cards',
-        prompt: 'Build comprehensive battle cards from these calls: For each competitor mentioned, list their perceived strengths, weaknesses, objections they trigger, and our best counter-responses. Include exact quotes.',
+        prompt: 'Build comprehensive battle cards from these calls: For each competitor mentioned (look for ⚔️ competitor annotations), list their perceived strengths, weaknesses, objections they trigger, and our best counter-responses. Include exact quotes.',
       },
       {
         icon: Target,
-        label: 'Win Themes',
-        prompt: 'When we\'re winning against competitors, what themes emerge? What language and positioning is working? Extract specific phrases and approaches that resonate with prospects.',
+        label: 'Competitor Mentions Deep Dive',
+        prompt: 'Using the extracted competitor entities, show me every mention of each competitor across these calls. For each mention, note: the exact context, whether it was positive/negative for us, the prospect\'s sentiment, and how our rep responded.',
       },
       {
         icon: AlertTriangle,
         label: 'Where We\'re Losing',
-        prompt: 'Where are we losing to competition and why? Identify specific gaps in our positioning, product concerns, or sales execution issues. What should we fix?',
+        prompt: 'Where are we losing to competition and why? Identify specific gaps in our positioning, product concerns, or sales execution issues. Cross-reference competitor mentions with objection topics to find patterns.',
       },
       {
         icon: FileQuestion,
         label: 'Objection Library',
-        prompt: 'Build an objection library: What competitive objections come up? How do our best reps handle them? Create a reference guide with proven responses.',
+        prompt: 'Build an objection library: What competitive objections come up in sections tagged with both "objections" and "competitor_discussion"? How do our best reps handle them? Create a reference guide with proven responses.',
       },
     ],
   },
