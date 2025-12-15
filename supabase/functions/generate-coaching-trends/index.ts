@@ -774,9 +774,9 @@ Provide a comprehensive trend analysis with specific evidence and actionable rec
 
     log.info('ai_request_started', 'Sending request to AI Gateway', { mode: analysisMode, totalCalls });
 
-    // Timeout controller for AI request (55 seconds)
+    // Timeout controller for AI request (60 seconds for gemini-3-pro-preview)
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 55000);
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
     
     let aiResponse: Response;
     try {
@@ -787,8 +787,8 @@ Provide a comprehensive trend analysis with specific evidence and actionable rec
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
-          temperature: 0.3,
+          model: 'google/gemini-3-pro-preview',
+          temperature: 0.2,
           max_tokens: 8192,
           messages: [
             { role: 'system', content: systemPrompt },
@@ -802,7 +802,7 @@ Provide a comprehensive trend analysis with specific evidence and actionable rec
     } catch (fetchError) {
       clearTimeout(timeoutId);
       if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-        log.error('ai_timeout', 'AI request timed out after 55 seconds', fetchError);
+        log.error('ai_timeout', 'AI request timed out after 60 seconds', fetchError);
         throw new Error('AI analysis timed out. Try with fewer calls.');
       }
       throw fetchError;

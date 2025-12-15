@@ -8,7 +8,7 @@ const corsHeaders = {
 };
 
 const CACHE_TTL_MINUTES = 15;
-const AI_TIMEOUT_MS = 55000; // 55 second timeout for AI calls
+const AI_TIMEOUT_MS = 60000; // 60 second timeout for AI calls (matches gemini-3-pro-preview)
 
 // Zod schema for validating generate-coaching-trends response
 const CoachingTrendAnalysisSchema = z.object({
