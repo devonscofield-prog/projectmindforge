@@ -130,7 +130,7 @@ const repNavGroups = [
 
 // Quick actions for footer by role
 const adminQuickActions = [
-  { href: '/admin/invite', label: 'Invite User', icon: UserPlus },
+  { href: '/admin/users/invite', label: 'Invite User', icon: UserPlus },
 ];
 
 const managerQuickActions = [
