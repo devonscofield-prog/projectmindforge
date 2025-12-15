@@ -66,20 +66,38 @@ export async function streamCoachResponse({
   onError,
 }: StreamCoachParams): Promise<void> {
   const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sales-coach-chat`;
+  console.log('[SalesCoach] Starting request to:', CHAT_URL);
 
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    console.log('[SalesCoach] Getting auth session...');
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError) {
+      console.error('[SalesCoach] Session error:', sessionError);
+      onError('Session error: ' + sessionError.message);
+      return;
+    }
+    
     if (!session) {
+      console.error('[SalesCoach] No session found');
       onError('You must be logged in to use the sales coach');
       return;
     }
+    console.log('[SalesCoach] Session obtained for user:', session.user?.email);
 
     // Window messages to prevent payload size issues
     const windowedMessages = prepareMessagesForApi(messages);
-    log.info('Sending messages to coach', { 
+    console.log('[SalesCoach] Prepared messages:', { 
       originalCount: messages.length, 
       windowedCount: windowedMessages.length 
     });
+
+    const requestBody = JSON.stringify({ 
+      prospect_id: prospectId, 
+      messages: windowedMessages 
+    });
+    console.log('[SalesCoach] Request body size:', requestBody.length, 'bytes');
+    console.log('[SalesCoach] Making fetch request...');
 
     const response = await fetch(CHAT_URL, {
       method: 'POST',
@@ -87,11 +105,9 @@ export async function streamCoachResponse({
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({ 
-        prospect_id: prospectId, 
-        messages: windowedMessages 
-      }),
+      body: requestBody,
     });
+    console.log('[SalesCoach] Response received, status:', response.status);
 
     if (!response.ok) {
       if (response.status === 429) {
@@ -169,6 +185,10 @@ export async function streamCoachResponse({
 
     onDone();
   } catch (error) {
+    console.error('[SalesCoach] Caught error:', error);
+    console.error('[SalesCoach] Error name:', error instanceof Error ? error.name : 'unknown');
+    console.error('[SalesCoach] Error message:', error instanceof Error ? error.message : String(error));
+    console.error('[SalesCoach] Error stack:', error instanceof Error ? error.stack : 'no stack');
     log.error('Stream error', { error });
     onError(error instanceof Error ? error.message : 'Connection error');
   }
