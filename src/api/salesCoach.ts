@@ -16,6 +16,48 @@ interface StreamCoachParams {
   onError: (error: string) => void;
 }
 
+// Message windowing constants
+const MESSAGE_WINDOW_SIZE = 10;
+const MAX_MESSAGE_LENGTH = 6000;
+
+/**
+ * Truncate individual messages that are too long to prevent payload bloat
+ */
+function truncateMessage(msg: ChatMessage): ChatMessage {
+  if (msg.content.length <= MAX_MESSAGE_LENGTH) {
+    return msg;
+  }
+  return {
+    ...msg,
+    content: msg.content.slice(0, MAX_MESSAGE_LENGTH) + '... [truncated for length]'
+  };
+}
+
+/**
+ * Prepare messages for API - window to recent messages only
+ * Keeps the most recent N messages in full, summarizes older ones
+ */
+function prepareMessagesForApi(messages: ChatMessage[], windowSize = MESSAGE_WINDOW_SIZE): ChatMessage[] {
+  // First, truncate all individual messages
+  const truncatedMessages = messages.map(truncateMessage);
+  
+  if (truncatedMessages.length <= windowSize) {
+    return truncatedMessages;
+  }
+  
+  // Keep last N messages in full
+  const recentMessages = truncatedMessages.slice(-windowSize);
+  
+  // Summarize earlier messages into a context note
+  const oldMessageCount = truncatedMessages.length - windowSize;
+  const contextSummary: ChatMessage = { 
+    role: 'user', 
+    content: `[Context: ${oldMessageCount} earlier messages were exchanged about this account. The conversation has been ongoing.]` 
+  };
+  
+  return [contextSummary, ...recentMessages];
+}
+
 export async function streamCoachResponse({
   prospectId,
   messages,
@@ -32,6 +74,13 @@ export async function streamCoachResponse({
       return;
     }
 
+    // Window messages to prevent payload size issues
+    const windowedMessages = prepareMessagesForApi(messages);
+    log.info('Sending messages to coach', { 
+      originalCount: messages.length, 
+      windowedCount: windowedMessages.length 
+    });
+
     const response = await fetch(CHAT_URL, {
       method: 'POST',
       headers: {
@@ -40,7 +89,7 @@ export async function streamCoachResponse({
       },
       body: JSON.stringify({ 
         prospect_id: prospectId, 
-        messages 
+        messages: windowedMessages 
       }),
     });
 

@@ -499,7 +499,22 @@ export function SalesCoachChat({ prospectId, accountName, heatScore, lastContact
         },
       });
     } catch (err) {
-      setError('Failed to connect to coach');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to connect to coach';
+      console.error('Sales Coach connection error:', errorMessage);
+      
+      // Check for network/payload errors
+      if (errorMessage.toLowerCase().includes('failed to fetch') || errorMessage.toLowerCase().includes('network')) {
+        setError('Connection failed. Try clearing chat history if the issue persists.');
+        toast.error('Connection failed', {
+          description: 'If this keeps happening, try starting a new chat.',
+          action: {
+            label: 'New Chat',
+            onClick: () => handleNewChat(),
+          },
+        });
+      } else {
+        setError(errorMessage);
+      }
       setIsLoading(false);
     }
   };
