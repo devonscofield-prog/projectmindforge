@@ -195,11 +195,11 @@ export default function AdminPerformanceMonitor() {
                 icon={Database}
               />
               <PerformanceHealthCard
-                title="Avg Edge Function"
+                title="Edge Fn Error Rate"
                 value={systemHealth.edgeFunctionHealth.value || 0}
-                unit="ms"
+                unit="%"
                 status={systemHealth.edgeFunctionHealth.level}
-                subtitle="Last hour average"
+                subtitle="AI agents: errors only"
                 icon={Zap}
               />
               <PerformanceHealthCard
@@ -264,21 +264,24 @@ export default function AdminPerformanceMonitor() {
                 </div>
               </div>
               <div className="space-y-2">
-                <h4 className="font-medium text-sm">Edge Functions</h4>
+                <h4 className="font-medium text-sm">Edge Functions (Error Rate)</h4>
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
                     <span className="text-emerald-500">● Healthy</span>
-                    <span className="text-muted-foreground">&lt; 3s</span>
+                    <span className="text-muted-foreground">&lt; 2%</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-amber-500">● Warning</span>
-                    <span className="text-muted-foreground">3-8s</span>
+                    <span className="text-muted-foreground">2-10%</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-destructive">● Critical</span>
-                    <span className="text-muted-foreground">&gt; 8s</span>
+                    <span className="text-muted-foreground">&gt; 10%</span>
                   </div>
                 </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  AI agents take 20-60s normally
+                </p>
               </div>
               <div className="space-y-2">
                 <h4 className="font-medium text-sm">Error Rate</h4>

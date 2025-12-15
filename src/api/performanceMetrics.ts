@@ -149,30 +149,33 @@ export async function getSystemHealth(): Promise<{
   const querySummary = summary.filter((s) => s.metric_type === 'query');
   const edgeSummary = summary.filter((s) => s.metric_type === 'edge_function');
 
-  // Calculate averages
+  // Calculate query average duration
   const avgQueryTime = querySummary.length > 0
     ? querySummary.reduce((sum, s) => sum + s.avg_duration_ms, 0) / querySummary.length
     : 0;
 
-  const avgEdgeTime = edgeSummary.length > 0
-    ? edgeSummary.reduce((sum, s) => sum + s.avg_duration_ms, 0) / edgeSummary.length
-    : 0;
+  // Calculate edge function error rate (not duration - AI agents take 20-60s normally)
+  const edgeTotalCount = edgeSummary.reduce((sum, s) => sum + s.total_count, 0);
+  const edgeTotalErrors = edgeSummary.reduce((sum, s) => sum + s.error_count, 0);
+  const edgeErrorRate = edgeTotalCount > 0 ? (edgeTotalErrors / edgeTotalCount) * 100 : 0;
 
   const totalCount = summary.reduce((sum, s) => sum + s.total_count, 0);
   const totalErrors = summary.reduce((sum, s) => sum + s.error_count, 0);
   const overallErrorRate = totalCount > 0 ? (totalErrors / totalCount) * 100 : 0;
 
-  // Determine health levels
+  // Query health based on duration (queries should be fast)
   const queryHealth: HealthStatus = {
     value: Math.round(avgQueryTime),
     label: `${Math.round(avgQueryTime)}ms avg`,
     level: avgQueryTime < 500 ? 'healthy' : avgQueryTime < 1500 ? 'warning' : 'critical',
   };
 
+  // Edge function health based on ERROR RATE, not duration
+  // AI agents (30-60s) are expected, so duration is not a good health indicator
   const edgeFunctionHealth: HealthStatus = {
-    value: Math.round(avgEdgeTime),
-    label: `${Math.round(avgEdgeTime)}ms avg`,
-    level: avgEdgeTime < 3000 ? 'healthy' : avgEdgeTime < 8000 ? 'warning' : 'critical',
+    value: Math.round(edgeErrorRate * 10) / 10,
+    label: `${(Math.round(edgeErrorRate * 10) / 10)}% error rate`,
+    level: edgeErrorRate < 2 ? 'healthy' : edgeErrorRate < 10 ? 'warning' : 'critical',
   };
 
   const errorRateHealth: HealthStatus = {
@@ -181,7 +184,7 @@ export async function getSystemHealth(): Promise<{
     level: overallErrorRate < 1 ? 'healthy' : overallErrorRate < 5 ? 'warning' : 'critical',
   };
 
-  // Determine overall health
+  // Determine overall health (only query and error rate affect overall - edge function uses error rate)
   const healthLevels = [queryHealth.level, edgeFunctionHealth.level, errorRateHealth.level];
   const criticalCount = healthLevels.filter((l) => l === 'critical').length;
   const warningCount = healthLevels.filter((l) => l === 'warning').length;
@@ -191,10 +194,10 @@ export async function getSystemHealth(): Promise<{
 
   if (criticalCount >= 2) {
     overallHealth = 'critical';
-    recommendation = 'Consider upgrading to a Large instance. Multiple metrics are in critical state.';
+    recommendation = 'Multiple metrics are in critical state. Check for errors and timeouts.';
   } else if (criticalCount >= 1 || warningCount >= 2) {
     overallHealth = 'warning';
-    recommendation = 'Monitor closely. Performance is degrading. Consider upgrading instance size if trend continues.';
+    recommendation = 'Some metrics need attention. Review error logs for issues.';
   }
 
   return {

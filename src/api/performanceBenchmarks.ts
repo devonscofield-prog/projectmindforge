@@ -1,6 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 
 // Industry standard benchmarks (based on common SaaS application standards)
+// Note: Edge functions use error-rate based health, not duration, since AI agents take 20-60s normally
 export const INDUSTRY_BENCHMARKS = {
   queryTime: {
     excellent: 100,
@@ -11,14 +12,15 @@ export const INDUSTRY_BENCHMARKS = {
     label: 'Database Query Time',
     unit: 'ms',
   },
-  edgeFunctionTime: {
-    excellent: 500,
-    good: 1500,
-    acceptable: 3000,
-    warning: 5000,
-    critical: 8000,
-    label: 'Edge Function Response',
-    unit: 'ms',
+  // Edge function error rate (duration is not useful for AI agents)
+  edgeFunctionErrorRate: {
+    excellent: 0.5,
+    good: 1,
+    acceptable: 2,
+    warning: 5,
+    critical: 10,
+    label: 'Edge Function Error Rate',
+    unit: '%',
   },
   errorRate: {
     excellent: 0.1,
@@ -26,16 +28,17 @@ export const INDUSTRY_BENCHMARKS = {
     acceptable: 1,
     warning: 3,
     critical: 5,
-    label: 'Error Rate',
+    label: 'Overall Error Rate',
     unit: '%',
   },
-  p99Latency: {
-    excellent: 500,
-    good: 1000,
-    acceptable: 2000,
-    warning: 4000,
-    critical: 6000,
-    label: 'P99 Latency',
+  // P99 for queries only (edge functions excluded due to AI agent variability)
+  queryP99Latency: {
+    excellent: 300,
+    good: 500,
+    acceptable: 1000,
+    warning: 2000,
+    critical: 3000,
+    label: 'Query P99 Latency',
     unit: 'ms',
   },
 } as const;
@@ -151,21 +154,25 @@ export async function getBenchmarkComparison(
     });
   }
 
-  // Edge function comparison
+  // Edge function error rate comparison (not duration - AI agents take 20-60s normally)
   const edgeMetrics = current.filter((m) => m.metric_type === 'edge_function');
   const edgeHistorical = historicalMap.get('edge_function');
   if (edgeMetrics.length > 0) {
-    const avgEdgeTime = edgeMetrics.reduce((sum, m) => sum + m.avg_duration_ms, 0) / edgeMetrics.length;
-    const historicalAvg = edgeHistorical?.avg_duration_ms || null;
+    const edgeTotalCount = edgeMetrics.reduce((sum, m) => sum + m.total_count, 0);
+    const edgeTotalErrors = edgeMetrics.reduce((sum, m) => sum + m.error_count, 0);
+    const edgeErrorRate = edgeTotalCount > 0 ? (edgeTotalErrors / edgeTotalCount) * 100 : 0;
+    const historicalErrorRate = edgeHistorical?.error_rate || null;
 
     comparisons.push({
-      metric: 'Edge Function Time',
-      current: Math.round(avgEdgeTime),
-      historical: historicalAvg,
-      industryBenchmark: INDUSTRY_BENCHMARKS.edgeFunctionTime.acceptable,
-      vsHistorical: historicalAvg ? Math.round(((avgEdgeTime - historicalAvg) / historicalAvg) * 100) : null,
-      vsIndustry: getIndustryRating(avgEdgeTime, INDUSTRY_BENCHMARKS.edgeFunctionTime),
-      trend: getTrend(avgEdgeTime, historicalAvg),
+      metric: 'Edge Function Error Rate',
+      current: Math.round(edgeErrorRate * 100) / 100,
+      historical: historicalErrorRate,
+      industryBenchmark: INDUSTRY_BENCHMARKS.edgeFunctionErrorRate.acceptable,
+      vsHistorical: historicalErrorRate && historicalErrorRate > 0 
+        ? Math.round(((edgeErrorRate - historicalErrorRate) / historicalErrorRate) * 100) 
+        : null,
+      vsIndustry: getIndustryRating(edgeErrorRate, INDUSTRY_BENCHMARKS.edgeFunctionErrorRate),
+      trend: getTrend(edgeErrorRate, historicalErrorRate, true), // Lower is better
     });
   }
 
@@ -192,22 +199,19 @@ export async function getBenchmarkComparison(
     trend: getTrend(currentErrorRate, historicalErrorRate, true), // Lower is better
   });
 
-  // P99 latency comparison
-  const allP99 = current.map((m) => m.p99_duration_ms).filter((p) => p > 0);
-  if (allP99.length > 0) {
-    const avgP99 = allP99.reduce((a, b) => a + b, 0) / allP99.length;
-    const historicalP99 =
-      historicalBaseline.length > 0
-        ? historicalBaseline.reduce((sum, h) => sum + h.p99_duration_ms, 0) / historicalBaseline.length
-        : null;
+  // P99 latency comparison (queries only - edge functions excluded due to AI variability)
+  const queryP99 = queryMetrics.map((m) => m.p99_duration_ms).filter((p) => p > 0);
+  if (queryP99.length > 0) {
+    const avgP99 = queryP99.reduce((a, b) => a + b, 0) / queryP99.length;
+    const historicalP99 = queryHistorical?.p99_duration_ms || null;
 
     comparisons.push({
-      metric: 'P99 Latency',
+      metric: 'Query P99 Latency',
       current: Math.round(avgP99),
       historical: historicalP99 ? Math.round(historicalP99) : null,
-      industryBenchmark: INDUSTRY_BENCHMARKS.p99Latency.acceptable,
+      industryBenchmark: INDUSTRY_BENCHMARKS.queryP99Latency.acceptable,
       vsHistorical: historicalP99 ? Math.round(((avgP99 - historicalP99) / historicalP99) * 100) : null,
-      vsIndustry: getIndustryRating(avgP99, INDUSTRY_BENCHMARKS.p99Latency),
+      vsIndustry: getIndustryRating(avgP99, INDUSTRY_BENCHMARKS.queryP99Latency),
       trend: getTrend(avgP99, historicalP99),
     });
   }
