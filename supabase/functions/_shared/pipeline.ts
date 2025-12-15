@@ -525,13 +525,15 @@ function mergeStrategy(
   strategist: StrategistOutput,
   skeptic: SkepticOutput,
   negotiator: NegotiatorOutput,
-  spy: SpyOutput
+  spy: SpyOutput,
+  agentWarnings?: string[]
 ): StrategyAudit {
   return {
     strategic_threading: strategist.strategic_threading,
     critical_gaps: skeptic.critical_gaps,
     objection_handling: negotiator,
     competitive_intel: spy.competitive_intel,
+    _analysis_warnings: agentWarnings && agentWarnings.length > 0 ? agentWarnings : undefined,
   };
 }
 
@@ -1074,9 +1076,15 @@ export async function runAnalysisPipeline(
   const profiler = profilerResult.data as ProfilerOutput;
   const auditor = auditorResult.data as AuditorOutput;
 
+  // Track which strategy-related agents used fallbacks
+  const strategyWarnings: string[] = [];
+  if (!strategistResult.success) strategyWarnings.push('strategist_fallback_used');
+  if (!skepticResult.success) strategyWarnings.push('skeptic_fallback_used');
+  if (!negotiatorResult.success) strategyWarnings.push('negotiator_fallback_used');
+
   const metadata = mergeCallMetadata(census, historian);
   const behavior = mergeBehaviorWithQuestions(referee, interrogator);
-  const strategy = mergeStrategy(strategist, skeptic, negotiator, spy);
+  const strategy = mergeStrategy(strategist, skeptic, negotiator, spy, strategyWarnings);
 
   console.log(`[Pipeline] Scores - Behavior: ${behavior.overall_score} (base: ${referee.overall_score}, questions: ${interrogator.score}), Threading: ${strategy.strategic_threading.score}, Critical Gaps: ${strategy.critical_gaps.length}, Pricing: ${auditor.pricing_score}`);
 

@@ -283,6 +283,7 @@ export interface StrategyAudit {
   critical_gaps: SkepticOutput['critical_gaps'];
   objection_handling: NegotiatorOutput;
   competitive_intel: SpyOutput['competitive_intel'];
+  _analysis_warnings?: string[];
 }
 
 // ============= COACHING INPUTS =============

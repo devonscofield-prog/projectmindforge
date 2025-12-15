@@ -24,7 +24,9 @@ import {
   Copy,
   Check,
   Lightbulb,
-  TrendingUp
+  TrendingUp,
+  RefreshCw,
+  Info
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { StrategyAudit } from '@/utils/analysis-schemas';
@@ -32,6 +34,141 @@ import { cn } from '@/lib/utils';
 
 interface StrategicRelevanceMapProps {
   data: StrategyAudit | null | undefined;
+  onReanalyze?: () => void;
+  isReanalyzing?: boolean;
+}
+
+// Empty state types for differentiated messaging
+type EmptyStateType = 
+  | 'loading'
+  | 'fallback_used'
+  | 'no_pains_identified'
+  | 'legacy_v1'
+  | 'pains_not_addressed';
+
+function getEmptyStateType(data: StrategyAudit): EmptyStateType {
+  const warnings = data._analysis_warnings || [];
+  const threading = data.strategic_threading;
+  
+  // Check for agent fallback
+  if (warnings.includes('strategist_fallback_used')) {
+    return 'fallback_used';
+  }
+  
+  // Check for legacy v1 data (no strategic_threading at all or missing score_breakdown)
+  if (!threading || !threading.score_breakdown) {
+    return 'legacy_v1';
+  }
+  
+  // Check if no pains were identified at all
+  const totalPains = (threading.score_breakdown.high_pains_total || 0) + 
+                     (threading.score_breakdown.medium_pains_total || 0);
+  if (totalPains === 0 && threading.relevance_map.length === 0) {
+    return 'no_pains_identified';
+  }
+  
+  // Pains found but no pitches matched
+  if (totalPains > 0 && threading.relevance_map.length === 0) {
+    return 'pains_not_addressed';
+  }
+  
+  return 'loading';
+}
+
+// Empty State Component
+interface EmptyStateAlertProps {
+  type: EmptyStateType;
+  strategicSummary?: string;
+  onReanalyze?: () => void;
+  isReanalyzing?: boolean;
+}
+
+function EmptyStateAlert({ type, strategicSummary, onReanalyze, isReanalyzing }: EmptyStateAlertProps) {
+  const configs = {
+    fallback_used: {
+      icon: AlertTriangle,
+      title: 'Strategic Analysis Incomplete',
+      description: 'The strategic analysis failed to complete. This may be due to a timeout or processing error.',
+      variant: 'destructive' as const,
+      showReanalyze: true,
+    },
+    no_pains_identified: {
+      icon: Info,
+      title: 'No Customer Pains Identified',
+      description: strategicSummary || 'No customer pains were identified in this call. This may indicate the call was primarily rapport-building, logistics, or a follow-up where pains were already established.',
+      variant: 'default' as const,
+      showReanalyze: false,
+    },
+    legacy_v1: {
+      icon: Info,
+      title: 'Legacy Analysis',
+      description: 'This call was analyzed with an earlier version that didn\'t include pain-to-pitch mapping. Re-run analysis to get the full strategic breakdown.',
+      variant: 'default' as const,
+      showReanalyze: true,
+    },
+    pains_not_addressed: {
+      icon: AlertTriangle,
+      title: 'Pains Not Addressed',
+      description: strategicSummary || 'Customer pains were identified but no matching pitches were found. The rep may not have addressed the identified pain points during this call.',
+      variant: 'secondary' as const,
+      showReanalyze: false,
+    },
+    loading: {
+      icon: Minus,
+      title: 'No Data',
+      description: 'No pain-to-pitch mappings identified.',
+      variant: 'default' as const,
+      showReanalyze: false,
+    },
+  };
+
+  const config = configs[type];
+  const IconComponent = config.icon;
+
+  return (
+    <Alert variant={config.variant === 'destructive' ? 'destructive' : 'default'} className={cn(
+      "border",
+      config.variant === 'destructive' && "border-destructive/50 bg-destructive/5",
+      config.variant === 'secondary' && "border-yellow-500/50 bg-yellow-500/5",
+      config.variant === 'default' && "border-muted"
+    )}>
+      <IconComponent className={cn(
+        "h-4 w-4",
+        config.variant === 'destructive' && "text-destructive",
+        config.variant === 'secondary' && "text-yellow-500"
+      )} />
+      <AlertTitle className={cn(
+        config.variant === 'destructive' && "text-destructive",
+        config.variant === 'secondary' && "text-yellow-700 dark:text-yellow-400"
+      )}>
+        {config.title}
+      </AlertTitle>
+      <AlertDescription className="mt-2 space-y-3">
+        <p className="text-sm">{config.description}</p>
+        {config.showReanalyze && onReanalyze && (
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={onReanalyze}
+            disabled={isReanalyzing}
+            className="mt-2"
+          >
+            {isReanalyzing ? (
+              <>
+                <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                Re-analyzing...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                Re-run Analysis
+              </>
+            )}
+          </Button>
+        )}
+      </AlertDescription>
+    </Alert>
+  );
 }
 
 // Severity color mapping
@@ -378,7 +515,7 @@ function ScoreBreakdown({ breakdown }: ScoreBreakdownProps) {
 }
 
 // Exported component for Pain-to-Pitch Alignment (Strategy tab)
-export function PainToPitchAlignment({ data }: StrategicRelevanceMapProps) {
+export function PainToPitchAlignment({ data, onReanalyze, isReanalyzing }: StrategicRelevanceMapProps) {
   const [showAll, setShowAll] = useState(false);
 
   if (!data) {
@@ -401,7 +538,7 @@ export function PainToPitchAlignment({ data }: StrategicRelevanceMapProps) {
   const isPassing = strategic_threading?.grade === 'Pass';
   
   // Sort relevance map: High severity first, then misaligned items
-  const sortedRelevanceMap = [...(strategic_threading.relevance_map || [])].sort((a, b) => {
+  const sortedRelevanceMap = [...(strategic_threading?.relevance_map || [])].sort((a, b) => {
     const severityOrder = { High: 0, Medium: 1, Low: 2 };
     const aSev = severityOrder[a.pain_severity || 'Low'];
     const bSev = severityOrder[b.pain_severity || 'Low'];
@@ -414,12 +551,15 @@ export function PainToPitchAlignment({ data }: StrategicRelevanceMapProps) {
   const hasMore = sortedRelevanceMap.length > 5;
 
   // Parse missed opportunities (can be strings or structured objects)
-  const missedOpportunities = strategic_threading.missed_opportunities || [];
+  const missedOpportunities = strategic_threading?.missed_opportunities || [];
   const structuredMissed = missedOpportunities.filter(
     (item): item is { pain: string; severity: 'High' | 'Medium'; suggested_pitch: string; talk_track: string } => 
       typeof item === 'object' && 'pain' in item
   );
   const legacyMissed = missedOpportunities.filter((item): item is string => typeof item === 'string');
+
+  // Determine empty state type for differentiated messaging
+  const emptyStateType = sortedRelevanceMap.length === 0 ? getEmptyStateType(data) : null;
 
   return (
     <Card>
@@ -462,7 +602,14 @@ export function PainToPitchAlignment({ data }: StrategicRelevanceMapProps) {
         )}
 
         {/* Relevance Map */}
-        {sortedRelevanceMap.length === 0 ? (
+        {sortedRelevanceMap.length === 0 && emptyStateType ? (
+          <EmptyStateAlert 
+            type={emptyStateType} 
+            strategicSummary={strategic_threading?.strategic_summary}
+            onReanalyze={onReanalyze}
+            isReanalyzing={isReanalyzing}
+          />
+        ) : sortedRelevanceMap.length === 0 ? (
           <div className="flex items-center justify-center py-8 text-muted-foreground">
             <Minus className="h-4 w-4 mr-2" />
             No pain-to-pitch mappings identified
@@ -619,7 +766,7 @@ export function CriticalGapsPanel({ data }: StrategicRelevanceMapProps) {
 }
 
 // Full component (backward compatibility)
-export function StrategicRelevanceMap({ data }: StrategicRelevanceMapProps) {
+export function StrategicRelevanceMap({ data, onReanalyze, isReanalyzing }: StrategicRelevanceMapProps) {
   // Loading skeleton state
   if (!data) {
     return (
@@ -650,7 +797,7 @@ export function StrategicRelevanceMap({ data }: StrategicRelevanceMapProps) {
 
   return (
     <div className="space-y-6">
-      <PainToPitchAlignment data={data} />
+      <PainToPitchAlignment data={data} onReanalyze={onReanalyze} isReanalyzing={isReanalyzing} />
       <CriticalGapsPanel data={data} />
     </div>
   );
