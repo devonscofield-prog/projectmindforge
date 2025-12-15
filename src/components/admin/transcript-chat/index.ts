@@ -7,3 +7,4 @@ export { ChatInput } from './ChatInput';
 export { ModeSelector } from './ModeSelector';
 export { SessionResumePrompt } from './SessionResumePrompt';
 export { PresetSelector } from './PresetSelector';
+export { TypingIndicator } from './TypingIndicator';
