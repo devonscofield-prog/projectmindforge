@@ -124,11 +124,12 @@ export function getAdminPageBreadcrumb(
  * Type-safe helper to get manager page breadcrumbs
  */
 export function getManagerPageBreadcrumb(
-  page: 'accounts' | 'coaching' | 'transcriptAnalysis' | 'callHistory'
+  page: 'accounts' | 'coaching' | 'coachingTrends' | 'transcriptAnalysis' | 'callHistory'
 ): BreadcrumbItem[] {
   const labels: Record<typeof page, string> = {
     accounts: 'Accounts',
-    coaching: BREADCRUMB_LABELS.coaching,
+    coaching: 'Coaching Sessions',
+    coachingTrends: 'AI Coaching Trends',
     transcriptAnalysis: BREADCRUMB_LABELS.transcriptAnalysis,
     callHistory: 'Team Call History',
   };

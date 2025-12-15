@@ -22,6 +22,7 @@ import {
   PanelLeft,
   UserPlus,
   Plus,
+  Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -107,7 +108,8 @@ const managerNavGroups = [
   {
     label: 'Coaching',
     items: [
-      { href: '/manager/coaching', label: 'Coaching Trends', icon: MessageSquare },
+      { href: '/manager/coaching-trends', label: 'AI Coaching Trends', icon: Sparkles },
+      { href: '/manager/coaching', label: 'Coaching Sessions', icon: MessageSquare },
     ],
   },
 ];
