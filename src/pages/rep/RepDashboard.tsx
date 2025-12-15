@@ -71,6 +71,7 @@ interface FormDraft {
   additionalSpeakersEnabled: boolean;
   stakeholders: StakeholderEntry[];
   selectedProducts: ProductEntry[];
+  isUnqualified: boolean;
   savedAt: number;
 }
 
@@ -96,6 +97,7 @@ function RepDashboard() {
   const [callTypeOther, setCallTypeOther] = useState('');
   const [selectedProducts, setSelectedProducts] = useState<ProductEntry[]>([]);
   const [managerOnCall, setManagerOnCall] = useState(false);
+  const [isUnqualified, setIsUnqualified] = useState(false);
   const [additionalSpeakersEnabled, setAdditionalSpeakersEnabled] = useState(false);
   const [additionalSpeakersText, setAdditionalSpeakersText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -154,6 +156,7 @@ function RepDashboard() {
           additionalSpeakersEnabled,
           stakeholders,
           selectedProducts,
+          isUnqualified,
           savedAt: Date.now(),
         };
         try {
@@ -165,7 +168,7 @@ function RepDashboard() {
     }, 30000);
 
     return () => clearInterval(interval);
-  }, [transcript, accountName, salesforceAccountLink, callDate, callType, callTypeOther, additionalSpeakersText, managerOnCall, additionalSpeakersEnabled, stakeholders, selectedProducts, isDirty, isSubmitting]);
+  }, [transcript, accountName, salesforceAccountLink, callDate, callType, callTypeOther, additionalSpeakersText, managerOnCall, additionalSpeakersEnabled, stakeholders, selectedProducts, isUnqualified, isDirty, isSubmitting]);
 
   // Warn before leaving with unsaved changes (browser close/refresh)
   useEffect(() => {
@@ -215,6 +218,7 @@ function RepDashboard() {
         // Restore stakeholders and products
         setStakeholders(draft.stakeholders || []);
         setSelectedProducts(draft.selectedProducts || []);
+        setIsUnqualified(draft.isUnqualified || false);
         toast.success('Draft restored', { description: 'Your previous work has been restored.' });
       }
     } catch {
@@ -366,6 +370,7 @@ function RepDashboard() {
     setStakeholders([]);
     setSelectedProducts([]);
     setManagerOnCall(false);
+    setIsUnqualified(false);
     setAdditionalSpeakersEnabled(false);
     setAdditionalSpeakersText('');
     clearDraft();
@@ -449,6 +454,7 @@ function RepDashboard() {
         additionalSpeakers: additionalSpeakersEnabled && additionalSpeakers.length > 0
           ? additionalSpeakers
           : undefined,
+        isUnqualified,
       });
 
       // Clear draft on successful submission
@@ -807,6 +813,29 @@ function RepDashboard() {
                           </div>
                         )}
                       </div>
+
+                      {/* Mark as Unqualified Checkbox */}
+                      <TooltipProvider>
+                        <div className="flex items-center space-x-2 pt-2 border-t border-border/50">
+                          <Checkbox 
+                            id="isUnqualified" 
+                            checked={isUnqualified} 
+                            onCheckedChange={(checked) => setIsUnqualified(checked === true)}
+                            disabled={isSubmitting}
+                          />
+                          <Label htmlFor="isUnqualified" className="text-sm font-normal flex items-center gap-1.5 cursor-pointer">
+                            🚫 Mark as Unqualified
+                          </Label>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="max-w-xs">Tag this call if the lead is not a fit. Managers can review and verify unqualified calls.</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                      </TooltipProvider>
                     </div>
                   </FormSection>
 

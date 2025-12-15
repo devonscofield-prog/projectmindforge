@@ -660,6 +660,7 @@ export type Database = {
           deleted_at: string | null
           deleted_by: string | null
           id: string
+          is_unqualified: boolean | null
           manager_id: string | null
           notes: string | null
           potential_revenue: number | null
@@ -684,6 +685,7 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           id?: string
+          is_unqualified?: boolean | null
           manager_id?: string | null
           notes?: string | null
           potential_revenue?: number | null
@@ -708,6 +710,7 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           id?: string
+          is_unqualified?: boolean | null
           manager_id?: string | null
           notes?: string | null
           potential_revenue?: number | null

@@ -79,6 +79,7 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
       call_type_other: callType === 'other' ? callTypeOther : null,
       manager_id: managerId,
       additional_speakers: params.additionalSpeakers || [],
+      is_unqualified: params.isUnqualified ?? false,
     })
     .select()
     .single();
@@ -270,6 +271,11 @@ export async function listCallTranscriptsForRepWithFilters(
   // Filter by analysis status
   if (filters.statuses && filters.statuses.length > 0) {
     query = query.in('analysis_status', filters.statuses);
+  }
+
+  // Filter by unqualified status
+  if (filters.isUnqualified !== undefined) {
+    query = query.eq('is_unqualified', filters.isUnqualified);
   }
 
   // Date range filters
@@ -629,6 +635,7 @@ export interface UpdateCallTranscriptParams {
   notes?: string | null;
   manager_id?: string | null;
   raw_text?: string;
+  is_unqualified?: boolean;
 }
 
 export async function updateCallTranscript(
@@ -702,6 +709,11 @@ export async function listCallTranscriptsForTeamWithFilters(
   // Filter by analysis status
   if (filters.statuses && filters.statuses.length > 0) {
     query = query.in('analysis_status', filters.statuses);
+  }
+
+  // Filter by unqualified status
+  if (filters.isUnqualified !== undefined) {
+    query = query.eq('is_unqualified', filters.isUnqualified);
   }
 
   // Date range filters

@@ -309,7 +309,16 @@ export function CallHistoryTable({
                         </TableCell>
                       )}
                       <TableCell>{t.primary_stakeholder_name || '-'}</TableCell>
-                      <TableCell>{t.account_name || '-'}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <span>{t.account_name || '-'}</span>
+                          {t.is_unqualified && (
+                            <Badge variant="outline" className="text-xs border-muted-foreground/50 text-muted-foreground">
+                              🚫 Unqualified
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>{getGradeBadge((t as CallTranscriptWithHeat & { coach_grade?: string | null }).coach_grade ?? null)}</TableCell>
                       <TableCell>
                         <Badge variant="outline">{getCallTypeDisplay(t)}</Badge>
