@@ -1,9 +1,11 @@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, Loader2, Lightbulb } from 'lucide-react';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { AlertCircle, Lightbulb, Sparkles, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AnalysisMessageRenderer } from '../AnalysisMessageRenderer';
 import { PresetSelector } from './PresetSelector';
+import { TypingIndicator } from './TypingIndicator';
 import type { ChatMessage } from '@/api/adminTranscriptChat';
 import type { AnalysisMode, ModePreset } from '../transcript-analysis/analysisModesConfig';
 import type { CustomPreset } from '@/api/customPresets';
@@ -49,10 +51,10 @@ export function ChatMessages({
   const starterQuestions = selectedMode.starterQuestions;
 
   return (
-    <ScrollArea ref={scrollAreaRef} className="flex-1 px-6">
+    <ScrollArea ref={scrollAreaRef} className="flex-1 px-6 bg-gradient-to-b from-background to-muted/20">
       <div className="py-4 space-y-4">
         {messages.length === 0 ? (
-          <div className="space-y-6">
+          <div className="space-y-6 animate-fade-in">
             <PresetSelector
               customPresets={customPresets}
               isLoadingPresets={isLoadingPresets}
@@ -75,15 +77,21 @@ export function ChatMessages({
               </div>
             </div>
 
-            {/* Introduction */}
-            <div className="text-center py-2">
-              <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 mb-2">
-                <ModeIcon className="h-5 w-5 text-primary" />
+            {/* Enhanced Introduction */}
+            <div className="relative overflow-hidden bg-gradient-to-br from-muted/80 via-muted/60 to-primary/5 rounded-xl p-5 border border-border/30">
+              <div className="flex gap-4">
+                <div className="shrink-0">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/20">
+                    <ModeIcon className="h-6 w-6 text-primary-foreground" />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-sm mb-1">{selectedMode.label}</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    {selectedMode.description}
+                  </p>
+                </div>
               </div>
-              <h3 className="font-semibold text-sm mb-1">{selectedMode.label}</h3>
-              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                {selectedMode.description}
-              </p>
             </div>
 
             {/* Starter Questions */}
@@ -97,10 +105,12 @@ export function ChatMessages({
                     key={i}
                     onClick={() => onStarterQuestion(q.prompt)}
                     disabled={isLoading || isRateLimited}
-                    className="flex items-center gap-3 p-3 text-left text-sm rounded-lg border hover:bg-muted/50 transition-colors disabled:opacity-50"
+                    className="flex items-center gap-3 p-3 text-left text-sm rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm hover:bg-gradient-to-br hover:from-primary/5 hover:to-primary/10 hover:border-primary/30 hover:scale-[1.01] hover:shadow-sm transition-all duration-200 disabled:opacity-50 group"
                   >
-                    <q.icon className="h-4 w-4 text-primary shrink-0" />
-                    <span>{q.label}</span>
+                    <div className="w-8 h-8 rounded-full bg-muted/80 flex items-center justify-center group-hover:bg-primary/15 group-hover:text-primary transition-all duration-200 shrink-0">
+                      <q.icon className="h-4 w-4" />
+                    </div>
+                    <span className="text-muted-foreground group-hover:text-foreground transition-colors">{q.label}</span>
                   </button>
                 ))}
               </div>
@@ -111,16 +121,24 @@ export function ChatMessages({
             <div
               key={i}
               className={cn(
-                "flex",
+                "flex gap-3 animate-fade-in group",
                 message.role === 'user' ? 'justify-end' : 'justify-start'
               )}
+              style={{ animationDelay: `${i * 50}ms` }}
             >
+              {message.role === 'assistant' && (
+                <Avatar className="h-8 w-8 shrink-0 ring-2 ring-primary/20 shadow-sm">
+                  <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-primary-foreground text-xs">
+                    <Sparkles className="h-4 w-4" />
+                  </AvatarFallback>
+                </Avatar>
+              )}
               <div
                 className={cn(
-                  "rounded-lg px-4 py-3 group relative",
+                  "rounded-2xl px-4 py-3 relative transition-all duration-200",
                   message.role === 'user'
-                    ? 'bg-primary text-primary-foreground max-w-[85%]'
-                    : 'bg-muted w-full max-w-full'
+                    ? 'bg-gradient-to-br from-primary to-primary/90 text-primary-foreground max-w-[85%] shadow-md shadow-primary/20'
+                    : 'bg-gradient-to-br from-muted via-muted to-muted/80 border-l-2 border-primary/30 w-full max-w-full shadow-sm'
                 )}
               >
                 {message.role === 'assistant' ? (
@@ -133,7 +151,7 @@ export function ChatMessages({
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="absolute -bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-7 text-xs gap-1 bg-background border shadow-sm"
+                        className="absolute -bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-7 text-xs gap-1 bg-background border shadow-sm hover:bg-primary/5 hover:border-primary/30"
                         onClick={() => onSaveInsight(message.content)}
                       >
                         <Lightbulb className="h-3 w-3" />
@@ -142,23 +160,35 @@ export function ChatMessages({
                     )}
                   </>
                 ) : (
-                  <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                  <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
                 )}
               </div>
+              {message.role === 'user' && (
+                <Avatar className="h-8 w-8 shrink-0 ring-2 ring-secondary/50 shadow-sm">
+                  <AvatarFallback className="bg-gradient-to-br from-secondary to-secondary/80 text-secondary-foreground text-xs">
+                    <User className="h-4 w-4" />
+                  </AvatarFallback>
+                </Avatar>
+              )}
             </div>
           ))
         )}
 
         {isLoading && messages.length > 0 && messages[messages.length - 1]?.role === 'user' && (
-          <div className="flex justify-start">
-            <div className="bg-muted rounded-lg px-4 py-2">
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          <div className="flex gap-3 animate-fade-in">
+            <Avatar className="h-8 w-8 shrink-0 ring-2 ring-primary/20 shadow-sm">
+              <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-primary-foreground text-xs">
+                <Sparkles className="h-4 w-4 animate-pulse" />
+              </AvatarFallback>
+            </Avatar>
+            <div className="bg-gradient-to-br from-muted to-muted/80 rounded-2xl px-4 py-3 border-l-2 border-primary/30 shadow-sm">
+              <TypingIndicator />
             </div>
           </div>
         )}
 
         {error && (
-          <div className="flex items-center gap-2 p-3 text-sm text-destructive bg-destructive/10 rounded-lg">
+          <div className="flex items-center gap-2 p-4 text-sm text-destructive bg-destructive/10 rounded-xl border border-destructive/20 animate-fade-in">
             <AlertCircle className="h-4 w-4 shrink-0" />
             {error}
           </div>

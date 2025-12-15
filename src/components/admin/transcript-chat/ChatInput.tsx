@@ -25,14 +25,14 @@ export function ChatInput({
   onKeyDown,
 }: ChatInputProps) {
   return (
-    <div className="border-t">
+    <div className="border-t bg-gradient-to-t from-background via-background to-muted/10">
       {isRateLimited && (
         <div className="px-4 pt-3">
           <RateLimitCountdown secondsRemaining={secondsRemaining} />
         </div>
       )}
-      <div className="p-4">
-        <form onSubmit={onSubmit} className="flex gap-2">
+      <form onSubmit={onSubmit} className="p-4">
+        <div className="flex gap-2.5 items-center bg-muted/30 rounded-xl p-1.5 ring-1 ring-border/50 focus-within:ring-2 focus-within:ring-primary/30 transition-all duration-200 shadow-sm">
           <Input
             ref={inputRef}
             value={input}
@@ -40,20 +40,25 @@ export function ChatInput({
             onKeyDown={onKeyDown}
             placeholder={isRateLimited ? "Please wait..." : "Ask about these transcripts..."}
             disabled={isLoading || isRateLimited}
-            className="flex-1"
+            className="flex-1 border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/60"
           />
-          <Button type="submit" size="icon" disabled={!input.trim() || isLoading || isRateLimited}>
+          <Button 
+            type="submit" 
+            size="icon" 
+            disabled={!input.trim() || isLoading || isRateLimited}
+            className="h-9 w-9 rounded-lg bg-gradient-to-br from-primary to-accent hover:from-primary/90 hover:to-accent/90 shadow-md hover:shadow-lg hover:scale-105 transition-all duration-200"
+          >
             {isLoading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <Send className="h-4 w-4" />
             )}
           </Button>
-        </form>
-        <p className="text-xs text-muted-foreground mt-2 text-center">
+        </div>
+        <p className="text-[10px] text-muted-foreground/50 text-center mt-2">
           Responses are grounded only in the selected transcripts • Auto-saved
         </p>
-      </div>
+      </form>
     </div>
   );
 }
