@@ -288,8 +288,18 @@ async function callLovableAI<T extends z.ZodTypeAny>(
 
     const data = await response.json();
 
+    // Check for Gemini reasoning model truncation (content empty but reasoning exists)
+    const message = data.choices?.[0]?.message;
+    const finishReason = data.choices?.[0]?.finish_reason;
+    if (finishReason === 'length' || (message?.reasoning && (!message?.content || message.content === '') && !message?.tool_calls?.[0])) {
+      console.warn(`[agent-factory] Gemini reasoning truncation detected for ${config.id} - reasoning used all tokens, no output generated`);
+      console.warn(`[agent-factory] finish_reason: ${finishReason}, has_reasoning: ${!!message?.reasoning}, content_length: ${message?.content?.length || 0}`);
+      lastError = new Error(`Agent ${config.id} output truncated - reasoning exhausted token budget`);
+      continue; // Retry - may succeed on second attempt with different reasoning path
+    }
+
     // Extract tool call arguments
-    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    const toolCall = message?.tool_calls?.[0];
     if (!toolCall || toolCall.function.name !== config.toolName) {
       console.error(`[agent-factory] Unexpected response structure for ${config.id}:`, JSON.stringify(data).substring(0, 500));
       throw new Error('Invalid AI response structure');
