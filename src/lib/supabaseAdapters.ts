@@ -472,6 +472,7 @@ export interface AnalysisSession {
   analysis_mode: string | null;
   use_rag: boolean | null;
   title: string | null;
+  is_active: boolean | null;
   created_at: string;
   updated_at: string;
 }
@@ -508,6 +509,7 @@ export function toAnalysisSession(row: Database['public']['Tables']['analysis_se
     analysis_mode: row.analysis_mode,
     use_rag: row.use_rag,
     title: row.title,
+    is_active: row.is_active,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
