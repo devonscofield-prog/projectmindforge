@@ -165,6 +165,11 @@ const App = () => (
                     <ManagerCoaching />
                   </ProtectedRoute>
                 } />
+                <Route path="/manager/coaching-trends" element={
+                  <ProtectedRoute allowedRoles={['manager']}>
+                    <AdminCoachingTrends />
+                  </ProtectedRoute>
+                } />
                 <Route path="/manager/transcripts" element={
                   <ProtectedRoute allowedRoles={['manager']}>
                     <AdminTranscriptAnalysis />
