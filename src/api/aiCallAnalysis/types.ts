@@ -54,6 +54,7 @@ export interface CreateCallTranscriptParams {
   products?: Omit<ProductEntry, 'productName'>[];
   managerOnCall?: boolean;
   additionalSpeakers?: string[];
+  isUnqualified?: boolean;
 }
 
 export interface CallTranscript {
@@ -78,6 +79,7 @@ export interface CallTranscript {
   call_type_other: string | null;
   prospect_id: string | null;
   additional_speakers: string[] | null;
+  is_unqualified: boolean;
 }
 
 export interface CallTranscriptWithHeat extends CallTranscript {
@@ -96,6 +98,7 @@ export interface CallHistoryFilters {
   dateFrom?: string;
   dateTo?: string;
   heatRange?: HeatRange;
+  isUnqualified?: boolean;
   sortBy?: 'call_date' | 'account_name' | 'created_at' | 'heat_score' | 'coach_grade';
   sortOrder?: 'asc' | 'desc';
   limit?: number;

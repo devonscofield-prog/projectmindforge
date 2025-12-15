@@ -51,6 +51,7 @@ export function EditCallDetailsDialog({
   const [notes, setNotes] = useState('');
   const [managerOnCall, setManagerOnCall] = useState(false);
   const [managerId, setManagerId] = useState<string | null>(null);
+  const [isUnqualified, setIsUnqualified] = useState(false);
 
   const originalAccountName = transcript.account_name || '';
 
@@ -67,6 +68,7 @@ export function EditCallDetailsDialog({
       setNotes(transcript.notes || '');
       setManagerOnCall(!!transcript.manager_id);
       setManagerId(transcript.manager_id);
+      setIsUnqualified(transcript.is_unqualified ?? false);
     }
   }, [open, transcript]);
 
@@ -109,6 +111,7 @@ export function EditCallDetailsDialog({
       potential_revenue: potentialRevenue ? parseFloat(potentialRevenue) : null,
       notes: notes.trim() || null,
       manager_id: managerOnCall ? managerId : null,
+      is_unqualified: isUnqualified,
     };
 
     onSave(updates);
@@ -187,6 +190,18 @@ export function EditCallDetailsDialog({
             <Label htmlFor="managerOnCall" className="text-sm font-normal flex items-center gap-1.5 cursor-pointer">
               <Users className="h-4 w-4 text-muted-foreground" />
               Manager was on this call
+            </Label>
+          </div>
+
+          {/* Unqualified Checkbox */}
+          <div className="flex items-center space-x-2">
+            <Checkbox 
+              id="isUnqualified" 
+              checked={isUnqualified} 
+              onCheckedChange={(checked) => setIsUnqualified(checked === true)}
+            />
+            <Label htmlFor="isUnqualified" className="text-sm font-normal flex items-center gap-1.5 cursor-pointer">
+              🚫 Mark as Unqualified
             </Label>
           </div>
 

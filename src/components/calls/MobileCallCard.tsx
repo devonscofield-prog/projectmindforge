@@ -20,6 +20,7 @@ interface MobileCallCardProps {
     heat_score?: number | null;
     coach_grade?: string | null;
     manager_id?: string | null;
+    is_unqualified?: boolean;
   };
   onClick: () => void;
 }
@@ -89,6 +90,11 @@ export function MobileCallCard({ call, onClick }: MobileCallCardProps) {
               <p className="font-medium truncate">
                 {call.account_name || call.primary_stakeholder_name || 'Unknown'}
               </p>
+              {call.is_unqualified && (
+                <Badge variant="outline" className="text-xs border-muted-foreground/50 text-muted-foreground gap-1">
+                  🚫 Unqualified
+                </Badge>
+              )}
               {call.manager_id && (
                 <TooltipProvider>
                   <Tooltip>
