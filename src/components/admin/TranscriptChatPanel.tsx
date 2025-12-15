@@ -22,6 +22,7 @@ import {
   ChatInput,
   ModeSelector,
   SessionResumePrompt,
+  ChatHistorySheet,
 } from './transcript-chat';
 import type { ModePreset } from './transcript-analysis/analysisModesConfig';
 import type { CustomPreset } from '@/api/customPresets';
@@ -49,6 +50,7 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
   const [saveInsightOpen, setSaveInsightOpen] = useState(false);
   const [insightToSave, setInsightToSave] = useState('');
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   
   const queryClient = useQueryClient();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -96,11 +98,20 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
   });
 
   const {
+    sessionId,
     existingSession,
+    allSessions,
     showResumePrompt,
+    showHistorySheet,
+    setShowHistorySheet,
     autoSaved,
+    lastUpdated,
+    archivedSessionsCount,
     resumeSession,
     startFresh,
+    handleNewChat,
+    handleSwitchSession,
+    handleDeleteSession,
   } = useChatSession({
     selectedTranscriptIds: selectedTranscripts.map(t => t.id),
     messages,
@@ -161,7 +172,12 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
         transcriptCount={selectedTranscripts.length}
         totalTokens={totalTokens}
         hasMessages={messages.length > 0}
+        lastUpdated={lastUpdated}
+        archivedSessionsCount={archivedSessionsCount}
         onExport={() => setExportDialogOpen(true)}
+        onNewChat={() => handleNewChat(() => setMessages([]))}
+        onShowHistory={() => setShowHistorySheet(true)}
+        onDeleteChat={() => setDeleteConfirmOpen(true)}
       />
 
       <ModeSelector
@@ -219,6 +235,42 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
         onSubmit={handleSubmit}
         onKeyDown={handleKeyDown}
       />
+
+      {/* Chat History Sheet */}
+      <ChatHistorySheet
+        open={showHistorySheet}
+        onOpenChange={setShowHistorySheet}
+        sessions={allSessions}
+        currentSessionId={sessionId}
+        onSwitchSession={(id) => handleSwitchSession(id, setMessages, setSelectedModeId)}
+        onDeleteSession={(id) => handleDeleteSession(id, id === sessionId ? () => setMessages([]) : undefined)}
+      />
+
+      {/* Delete Chat Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this chat?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this conversation. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (sessionId) {
+                  handleDeleteSession(sessionId, () => setMessages([]));
+                }
+                setDeleteConfirmOpen(false);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Mode Change Confirmation Dialog */}
       <AlertDialog open={showModeChangeConfirm} onOpenChange={setShowModeChangeConfirm}>

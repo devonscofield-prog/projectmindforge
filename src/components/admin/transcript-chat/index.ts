@@ -8,3 +8,4 @@ export { ModeSelector } from './ModeSelector';
 export { SessionResumePrompt } from './SessionResumePrompt';
 export { PresetSelector } from './PresetSelector';
 export { TypingIndicator } from './TypingIndicator';
+export { ChatHistorySheet } from './ChatHistorySheet';

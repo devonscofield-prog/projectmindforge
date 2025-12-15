@@ -2,7 +2,27 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Sparkles, Search, Download, FileText, CheckCircle2, Zap } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { 
+  Sparkles, 
+  Search, 
+  Download, 
+  FileText, 
+  CheckCircle2, 
+  Zap,
+  MoreVertical,
+  Plus,
+  History,
+  Trash2,
+  Clock
+} from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
 
 interface ChatHeaderProps {
   useRag: boolean;
@@ -10,10 +30,27 @@ interface ChatHeaderProps {
   transcriptCount: number;
   totalTokens: number;
   hasMessages: boolean;
+  lastUpdated: string | null;
+  archivedSessionsCount: number;
   onExport: () => void;
+  onNewChat: () => void;
+  onShowHistory: () => void;
+  onDeleteChat: () => void;
 }
 
-export function ChatHeader({ useRag, autoSaved, transcriptCount, totalTokens, hasMessages, onExport }: ChatHeaderProps) {
+export function ChatHeader({ 
+  useRag, 
+  autoSaved, 
+  transcriptCount, 
+  totalTokens, 
+  hasMessages,
+  lastUpdated,
+  archivedSessionsCount,
+  onExport,
+  onNewChat,
+  onShowHistory,
+  onDeleteChat,
+}: ChatHeaderProps) {
   return (
     <SheetHeader className="relative px-4 py-4 border-b border-primary-foreground/10 bg-gradient-to-r from-primary via-primary/95 to-accent text-primary-foreground overflow-hidden">
       {/* Animated background glow */}
@@ -54,23 +91,64 @@ export function ChatHeader({ useRag, autoSaved, transcriptCount, totalTokens, ha
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Last updated indicator */}
+          {lastUpdated && (
+            <span className="text-[10px] text-primary-foreground/50 flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {formatDistanceToNow(new Date(lastUpdated), { addSuffix: true })}
+            </span>
+          )}
+          
           {autoSaved && (
             <Badge variant="secondary" className="text-[10px] h-6 gap-1 bg-success/20 text-primary-foreground border-0">
               <CheckCircle2 className="h-3 w-3" />
               Saved
             </Badge>
           )}
-          {hasMessages && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onExport}
-              className="gap-1.5 text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary-foreground/15 backdrop-blur-sm transition-all duration-200"
-            >
-              <Download className="h-4 w-4" />
-              Export
-            </Button>
-          )}
+          
+          {/* Session controls dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary-foreground/15"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={onNewChat}>
+                <Plus className="h-4 w-4 mr-2" />
+                New Chat
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onShowHistory}>
+                <History className="h-4 w-4 mr-2" />
+                Chat History
+                {archivedSessionsCount > 0 && (
+                  <Badge variant="secondary" className="ml-auto text-[10px] h-5">
+                    {archivedSessionsCount}
+                  </Badge>
+                )}
+              </DropdownMenuItem>
+              {hasMessages && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={onExport}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Export Chat
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={onDeleteChat}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Chat
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </SheetHeader>

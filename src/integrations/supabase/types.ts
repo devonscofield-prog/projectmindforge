@@ -468,6 +468,7 @@ export type Database = {
           analysis_mode: string | null
           created_at: string
           id: string
+          is_active: boolean | null
           messages: Json
           title: string | null
           transcript_ids: string[]
@@ -479,6 +480,7 @@ export type Database = {
           analysis_mode?: string | null
           created_at?: string
           id?: string
+          is_active?: boolean | null
           messages?: Json
           title?: string | null
           transcript_ids: string[]
@@ -490,6 +492,7 @@ export type Database = {
           analysis_mode?: string | null
           created_at?: string
           id?: string
+          is_active?: boolean | null
           messages?: Json
           title?: string | null
           transcript_ids?: string[]
