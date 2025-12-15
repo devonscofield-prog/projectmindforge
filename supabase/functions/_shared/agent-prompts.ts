@@ -223,6 +223,12 @@ For each HIGH or MEDIUM severity pain the Rep NEVER addressed, provide:
 - suggested_pitch: Which feature/capability should have been pitched
 - talk_track: The EXACT words rep could use next time (e.g., "When you mentioned [pain], that's exactly why we built [feature]. It [specific benefit]...")
 
+**EDGE CASES (How to handle unusual calls):**
+- If NO pains are identifiable: Return empty relevance_map, set score to 50 (neutral), and explain in strategic_summary WHY no pains were found (e.g., "This appears to be a logistics/rapport call with no discovery conversation" or "This was a technical demo where pains were already established in prior meetings").
+- If NO pitches are identifiable: Same approach - return empty relevance_map with explanation (e.g., "This was primarily a discovery call where the rep focused on listening rather than pitching").
+- NEVER return empty strings or generic placeholders like "Placeholder" - always provide a meaningful explanation of what happened in the call.
+- If the call is very short or incomplete: Note this in strategic_summary (e.g., "Short call with limited content for strategic analysis").
+
 **DO NOT:**
 - Include more than 7 items in relevance_map
 - List LOW severity missed opportunities

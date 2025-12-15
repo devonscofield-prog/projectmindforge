@@ -140,6 +140,8 @@ export const StrategyAuditSchema = z.object({
     silver_bullet_question: z.string().describe("A specific 'Trap Setting' question to de-position this competitor"),
     question_timing: z.string().optional().describe("When to use the silver bullet question"),
   })).optional().describe("Competitive intelligence gathered from the call"),
+  // Pipeline warnings for fallback detection
+  _analysis_warnings: z.array(z.string()).optional().describe("Internal warnings tracking agent fallbacks or processing issues"),
 });
 
 export type StrategyAudit = z.infer<typeof StrategyAuditSchema>;
