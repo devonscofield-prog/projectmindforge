@@ -47,10 +47,20 @@ function getCorsHeaders(origin?: string | null): Record<string, string> {
   ];
   
   // Allow custom domain from environment variable
+  // Handle various formats: "example.com", "www.example.com", "https://example.com", etc.
   const customDomain = Deno.env.get('CUSTOM_DOMAIN');
   if (customDomain) {
-    allowedOrigins.push(`https://${customDomain}`);
-    allowedOrigins.push(`https://www.${customDomain}`);
+    // Clean the domain: remove protocol, www prefix, and trailing slashes
+    const cleanDomain = customDomain
+      .replace(/^https?:\/\//, '')  // Remove http:// or https://
+      .replace(/^www\./, '')         // Remove www. prefix
+      .replace(/\/+$/, '')           // Remove trailing slashes
+      .trim();
+    
+    if (cleanDomain) {
+      allowedOrigins.push(`https://${cleanDomain}`);
+      allowedOrigins.push(`https://www.${cleanDomain}`);
+    }
   }
   
   const requestOrigin = origin || '';
