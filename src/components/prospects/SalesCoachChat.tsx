@@ -310,17 +310,26 @@ export function SalesCoachChat({ prospectId, accountName, heatScore, lastContact
       if (!isOpen || !user?.id || hasLoadedHistory) return;
       
       setIsLoadingHistory(true);
-      const session = await fetchCoachSession(user.id, prospectId);
-      if (session && session.messages.length > 0) {
-        setMessages(session.messages);
-        setLastUpdated(session.updated_at);
-        setCurrentSessionId(session.id);
+      try {
+        console.log('[SalesCoach] Loading session for prospect:', prospectId);
+        const session = await fetchCoachSession(user.id, prospectId);
+        if (session && session.messages.length > 0) {
+          setMessages(session.messages);
+          setLastUpdated(session.updated_at);
+          setCurrentSessionId(session.id);
+          console.log('[SalesCoach] Loaded session with', session.messages.length, 'messages');
+        }
+        // Load all sessions for history
+        const sessions = await fetchAllCoachSessions(user.id, prospectId);
+        setAllSessions(sessions);
+        console.log('[SalesCoach] Loaded', sessions.length, 'total sessions');
+      } catch (err) {
+        console.error('[SalesCoach] Failed to load session:', err);
+        // Don't block UI - user can still start fresh conversation
+      } finally {
+        setHasLoadedHistory(true);
+        setIsLoadingHistory(false);
       }
-      // Load all sessions for history
-      const sessions = await fetchAllCoachSessions(user.id, prospectId);
-      setAllSessions(sessions);
-      setHasLoadedHistory(true);
-      setIsLoadingHistory(false);
     };
 
     loadSession();
