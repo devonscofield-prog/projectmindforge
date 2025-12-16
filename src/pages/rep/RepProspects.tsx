@@ -159,7 +159,7 @@ function RepProspects() {
   const stats = useMemo(() => ({
     total: prospects.length,
     active: prospects.filter(p => p.status === 'active').length,
-    hot: prospects.filter(p => (p.heat_score ?? 0) >= 70).length,
+    hot: prospects.filter(p => (p.account_heat_score ?? 0) >= 70).length,
     pipelineValue: prospects
       .filter(p => p.status === 'active')
       .reduce((sum, p) => sum + (p.active_revenue ?? 0), 0),
@@ -454,7 +454,7 @@ function RepProspects() {
                             })()}
                           </TableCell>
                           <TableCell>
-                            <HeatScoreBadge score={prospect.heat_score} />
+                            <HeatScoreBadge score={prospect.account_heat_score} />
                           </TableCell>
                           <TableCell>
                             {formatCurrency(prospect.active_revenue)}

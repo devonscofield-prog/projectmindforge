@@ -171,7 +171,7 @@ export function useAdminProspectStats(enabled = true) {
       ] = await Promise.all([
         supabase.from('prospects').select('*', { count: 'exact', head: true }),
         supabase.from('prospects').select('*', { count: 'exact', head: true }).eq('status', 'active'),
-        supabase.from('prospects').select('heat_score').gte('heat_score', 70),
+        supabase.from('prospects').select('account_heat_score').gte('account_heat_score', 70),
         supabase.from('prospects').select('active_revenue').eq('status', 'active')
       ]);
 
