@@ -159,9 +159,9 @@ function ManagerAccounts() {
                   <Flame className="h-5 w-5 text-orange-500" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Hot (8+)</p>
+                  <p className="text-sm text-muted-foreground">Hot (70+)</p>
                   <p className="text-2xl font-bold">
-                    {prospects.filter(p => (p.heat_score ?? 0) >= 8).length}
+                    {prospects.filter(p => (p.account_heat_score ?? 0) >= 70).length}
                   </p>
                 </div>
               </div>
@@ -319,7 +319,7 @@ function ManagerAccounts() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <HeatScoreBadge score={prospect.heat_score} />
+                        <HeatScoreBadge score={prospect.account_heat_score} />
                       </TableCell>
                       <TableCell>
                         {formatCurrency(prospect.active_revenue)}

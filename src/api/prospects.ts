@@ -21,6 +21,10 @@ export interface ProspectWithRep {
   suggested_follow_ups: string[] | null;
   last_contact_date: string | null;
   heat_score: number | null;
+  // Account Heat Score fields (0-100 scale)
+  account_heat_score: number | null;
+  account_heat_analysis: AccountHeatAnalysis | null;
+  account_heat_updated_at: string | null;
   follow_ups_generation_status: string | null;
   follow_ups_last_generated_at: string | null;
   created_at: string;
