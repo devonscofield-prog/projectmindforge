@@ -79,7 +79,7 @@ export default function AdminCompetitors() {
   const [newCompetitorWebsite, setNewCompetitorWebsite] = useState('');
   const [researchingIds, setResearchingIds] = useState<Set<string>>(new Set());
 
-  const { data: competitors, isLoading } = useQuery({
+  const { data: competitors, isLoading, isError } = useQuery({
     queryKey: ['competitors'],
     queryFn: fetchCompetitors,
   });
@@ -109,8 +109,13 @@ export default function AdminCompetitors() {
       setNewCompetitorWebsite('');
       toast.success('Competitor added, starting research...');
       
-      // Start research immediately
-      handleResearch(competitor);
+      // Start research immediately with proper error handling
+      try {
+        await handleResearch(competitor);
+      } catch (error) {
+        console.error('Research initiation error:', error);
+        // Error already handled in handleResearch
+      }
     },
     onError: (error) => {
       toast.error(`Failed to add competitor: ${error.message}`);
@@ -280,6 +285,20 @@ export default function AdminCompetitors() {
             </Card>
           ))}
         </div>
+      ) : isError ? (
+        <Card className="border-destructive">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <AlertTriangle className="h-12 w-12 text-destructive/50 mb-4" />
+            <h3 className="text-lg font-medium mb-2">Failed to load competitors</h3>
+            <p className="text-muted-foreground text-center max-w-sm mb-4">
+              There was an error loading the competitor data. Please try refreshing the page.
+            </p>
+            <Button onClick={() => queryClient.invalidateQueries({ queryKey: ['competitors'] })} variant="outline" className="gap-2">
+              <RefreshCw className="h-4 w-4" />
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
       ) : !competitors?.length ? (
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-12">
@@ -363,16 +382,16 @@ export default function AdminCompetitors() {
                 ) : competitor.intel ? (
                   <div className="space-y-3">
                     <p className="text-sm text-muted-foreground line-clamp-2">
-                      {competitor.intel.overview.description}
+                      {competitor.intel.overview?.description || 'No description available'}
                     </p>
                     <div className="flex flex-wrap gap-2">
                       <Badge variant="outline" className="gap-1">
                         <Package className="h-3 w-3" />
-                        {competitor.intel.products.length} Products
+                        {competitor.intel.products?.length || 0} Products
                       </Badge>
                       <Badge variant="outline" className="gap-1">
                         <Target className="h-3 w-3" />
-                        {competitor.intel.weaknesses.length} Weaknesses
+                        {competitor.intel.weaknesses?.length || 0} Weaknesses
                       </Badge>
                     </div>
                     {competitor.last_researched_at && (
@@ -477,7 +496,7 @@ export default function AdminCompetitors() {
                           Why We Win
                         </h3>
                         <div className="space-y-3">
-                          {selectedCompetitor.intel.battlecard.why_we_win.map((item, i) => (
+                          {(selectedCompetitor.intel.battlecard?.why_we_win || []).map((item, i) => (
                             <Card key={i} className="bg-green-500/5 border-green-500/20">
                               <CardContent className="p-3">
                                 <p className="font-medium text-sm">{item.point}</p>
@@ -495,7 +514,7 @@ export default function AdminCompetitors() {
                           Trap Questions
                         </h3>
                         <div className="space-y-3">
-                          {selectedCompetitor.intel.battlecard.trap_questions.map((item, i) => (
+                          {(selectedCompetitor.intel.battlecard?.trap_questions || []).map((item, i) => (
                             <Card key={i} className="bg-blue-500/5 border-blue-500/20">
                               <CardContent className="p-3">
                                 <p className="font-medium text-sm">"{item.question}"</p>
@@ -513,7 +532,7 @@ export default function AdminCompetitors() {
                           Objection Handlers
                         </h3>
                         <div className="space-y-3">
-                          {selectedCompetitor.intel.battlecard.objection_handlers.map((item, i) => (
+                          {(selectedCompetitor.intel.battlecard?.objection_handlers || []).map((item, i) => (
                             <Card key={i} className="bg-orange-500/5 border-orange-500/20">
                               <CardContent className="p-3">
                                 <p className="font-medium text-sm">"{item.objection}"</p>
