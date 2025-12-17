@@ -95,3 +95,6 @@ verify_jwt = true
 
 [functions.generate-agreed-next-steps]
 verify_jwt = true
+
+[functions.competitor-research]
+verify_jwt = true
