@@ -186,17 +186,35 @@ export const AuditorSchema = z.object({
   coaching_tips: z.array(z.string()).max(5).describe("2-3 specific tips for improving pricing discipline"),
 });
 
-// The Coach - synthesis
+// The Coach - synthesis (3-Pillar Direct Evaluation)
 export const CoachSchema = z.object({
   overall_grade: z.enum(['A+', 'A', 'B', 'C', 'D', 'F']),
   executive_summary: z.string(),
   top_3_strengths: z.array(z.string()),
   top_3_areas_for_improvement: z.array(z.string()),
-  primary_focus_area: z.enum(['Discovery Depth', 'Behavioral Polish', 'Closing/Next Steps', 'Objection Handling', 'Strategic Alignment']),
-  coaching_prescription: z.string().describe("1-2 sentence punchy diagnosis of the core issue. No markdown, no bullets."),
-  coaching_drill: z.string().optional().describe("Detailed roleplay or practice exercise in markdown format."),
+  primary_focus_area: z.enum(['Discovery Depth', 'Decision Mapping', 'Business Case Quality']),
+  coaching_prescription: z.string().describe("1-2 sentence punchy diagnosis focusing on the weakest pillar. No markdown, no bullets."),
+  coaching_drill: z.string().optional().describe("Detailed roleplay or practice exercise in markdown format targeting the weakest pillar."),
   immediate_action: z.string().optional().describe("The single most important action to take TODAY. Starts with a verb."),
   grade_reasoning: z.string(),
+  // 3-Pillar Scores (REQUIRED for new grading system)
+  pillar_scores: z.object({
+    discovery_depth: z.object({
+      score: z.number().min(0).max(100).describe("Discovery quality score 0-100"),
+      evidence: z.array(z.string()).describe("2-3 transcript quotes supporting the score"),
+      assessment: z.string().describe("1-2 sentence explanation of why this score was given"),
+    }),
+    decision_mapping: z.object({
+      score: z.number().min(0).max(100).describe("Decision mapping score 0-100"),
+      evidence: z.array(z.string()).describe("2-3 transcript quotes supporting the score"),
+      assessment: z.string().describe("1-2 sentence explanation of why this score was given"),
+    }),
+    business_case: z.object({
+      score: z.number().min(0).max(100).describe("Business case quality score 0-100"),
+      evidence: z.array(z.string()).describe("2-3 transcript quotes supporting the score"),
+      assessment: z.string().describe("1-2 sentence explanation of why this score was given"),
+    }),
+  }).describe("The 3 pillars that determine the grade: Discovery (40%), Decision Mapping (30%), Business Case (30%)"),
   // Deal progression tracking (populated when account history is available)
   deal_progression: z.object({
     momentum: z.enum(['accelerating', 'steady', 'stalling', 'regressing']),

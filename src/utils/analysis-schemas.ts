@@ -212,7 +212,7 @@ export const CompetitiveIntelSchema = z.object({
 
 export type CompetitiveIntel = z.infer<typeof CompetitiveIntelSchema>;
 
-// --- 7. THE COACH (Coaching Synthesis) ---
+// --- 7. THE COACH (Coaching Synthesis - 3-Pillar Direct Evaluation) ---
 export const CoachingSynthesisSchema = z.object({
   overall_grade: z.enum(['A+', 'A', 'B', 'C', 'D', 'F']),
   executive_summary: z.string().describe("A 2-sentence Manager's summary of the rep's performance."),
@@ -221,18 +221,37 @@ export const CoachingSynthesisSchema = z.object({
   top_3_strengths: z.array(z.string()),
   top_3_areas_for_improvement: z.array(z.string()),
   
-  // The "One Big Thing" (Highest Priority)
-  primary_focus_area: z.enum(['Discovery Depth', 'Behavioral Polish', 'Closing/Next Steps', 'Objection Handling', 'Strategic Alignment']),
-  coaching_prescription: z.string().describe("1-2 sentence punchy diagnosis of the core issue. No markdown, no bullets."),
+  // The "One Big Thing" (Highest Priority) - Now focused on 3 pillars
+  primary_focus_area: z.enum(['Discovery Depth', 'Decision Mapping', 'Business Case Quality']),
+  coaching_prescription: z.string().describe("1-2 sentence punchy diagnosis focusing on the weakest pillar. No markdown, no bullets."),
   
   // Detailed Practice Drill (optional - rich markdown)
-  coaching_drill: z.string().optional().describe("Detailed roleplay or practice exercise in markdown format with triggers, pivots, and example phrases."),
+  coaching_drill: z.string().optional().describe("Detailed roleplay or practice exercise in markdown format targeting the weakest pillar."),
   
   // Immediate Action (optional - single next step)
   immediate_action: z.string().optional().describe("The single most important action to take TODAY. Starts with a verb."),
   
   // The "why" behind the grade
   grade_reasoning: z.string(),
+  
+  // 3-Pillar Scores (NEW - primary grading mechanism)
+  pillar_scores: z.object({
+    discovery_depth: z.object({
+      score: z.number().min(0).max(100).describe("Discovery quality score 0-100"),
+      evidence: z.array(z.string()).describe("2-3 transcript quotes supporting the score"),
+      assessment: z.string().describe("1-2 sentence explanation of why this score was given"),
+    }),
+    decision_mapping: z.object({
+      score: z.number().min(0).max(100).describe("Decision mapping score 0-100"),
+      evidence: z.array(z.string()).describe("2-3 transcript quotes supporting the score"),
+      assessment: z.string().describe("1-2 sentence explanation of why this score was given"),
+    }),
+    business_case: z.object({
+      score: z.number().min(0).max(100).describe("Business case quality score 0-100"),
+      evidence: z.array(z.string()).describe("2-3 transcript quotes supporting the score"),
+      assessment: z.string().describe("1-2 sentence explanation of why this score was given"),
+    }),
+  }).optional().describe("The 3 pillars that determine the grade: Discovery (40%), Decision Mapping (30%), Business Case (30%)"),
   
   // Deal progression tracking (populated when account history is available)
   deal_progression: z.object({
