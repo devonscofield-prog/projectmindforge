@@ -1,6 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// Declare EdgeRuntime for background tasks
+declare const EdgeRuntime: {
+  waitUntil(promise: Promise<unknown>): void;
+};
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -137,45 +142,21 @@ const COMPETITOR_INTEL_TOOL = {
   },
 };
 
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
+// Background research function
+async function runCompetitorResearch(
+  competitor_id: string,
+  formattedUrl: string,
+  name: string,
+  firecrawlApiKey: string,
+  lovableApiKey: string
+): Promise<void> {
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  );
 
   try {
-    const { competitor_id, website, name } = await req.json();
-    
-    if (!website) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Website URL is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const firecrawlApiKey = Deno.env.get('FIRECRAWL_API_KEY');
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
-    
-    if (!firecrawlApiKey) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Firecrawl API key not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    
-    if (!lovableApiKey) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Lovable API key not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Format URL
-    let formattedUrl = website.trim();
-    if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
-      formattedUrl = `https://${formattedUrl}`;
-    }
-
-    console.log('Starting competitor research for:', formattedUrl);
+    console.log('Background research started for:', formattedUrl);
 
     // Step 1: Map the site to discover key pages
     console.log('Mapping site structure...');
@@ -197,7 +178,6 @@ serve(async (req) => {
       const mapData = await mapResponse.json();
       const allLinks = mapData.links || [];
       
-      // Find pricing and features pages
       const pricingPages = allLinks.filter((link: string) => 
         /pricing|plans|packages|cost/i.test(link)
       ).slice(0, 2);
@@ -233,10 +213,8 @@ serve(async (req) => {
     if (!homepageResponse.ok) {
       const errorText = await homepageResponse.text();
       console.error('Homepage scrape failed:', errorText);
-      return new Response(
-        JSON.stringify({ success: false, error: 'Failed to scrape competitor website' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      await supabase.from('competitors').update({ research_status: 'error' }).eq('id', competitor_id);
+      return;
     }
 
     const homepageData = await homepageResponse.json();
@@ -271,9 +249,9 @@ serve(async (req) => {
       }
     }
 
-    // Limit content size for AI processing
-    if (combinedContent.length > 80000) {
-      combinedContent = combinedContent.substring(0, 80000) + '\n\n[Content truncated for processing]';
+    // Keep full content - no truncation for thorough research
+    if (combinedContent.length > 100000) {
+      combinedContent = combinedContent.substring(0, 100000) + '\n\n[Content truncated for processing]';
     }
 
     console.log('Total content length:', combinedContent.length);
@@ -323,10 +301,8 @@ Extract comprehensive intel including overview, products, pricing (if visible), 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
       console.error('AI extraction failed:', errorText);
-      return new Response(
-        JSON.stringify({ success: false, error: 'AI analysis failed' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      await supabase.from('competitors').update({ research_status: 'error' }).eq('id', competitor_id);
+      return;
     }
 
     const aiData = await aiResponse.json();
@@ -334,10 +310,8 @@ Extract comprehensive intel including overview, products, pricing (if visible), 
     
     if (!toolCall || toolCall.function.name !== 'submit_competitor_intel') {
       console.error('No valid tool call in response');
-      return new Response(
-        JSON.stringify({ success: false, error: 'AI did not return structured intel' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      await supabase.from('competitors').update({ research_status: 'error' }).eq('id', competitor_id);
+      return;
     }
 
     let intel;
@@ -345,50 +319,119 @@ Extract comprehensive intel including overview, products, pricing (if visible), 
       intel = JSON.parse(toolCall.function.arguments);
     } catch (e) {
       console.error('Failed to parse AI response:', e);
+      await supabase.from('competitors').update({ research_status: 'error' }).eq('id', competitor_id);
+      return;
+    }
+
+    console.log('Intel extracted successfully, saving to database...');
+
+    // Save to database
+    const { error: updateError } = await supabase
+      .from('competitors')
+      .update({
+        raw_content: { 
+          scraped_pages: keyPages,
+          content_length: combinedContent.length,
+        },
+        intel,
+        branding,
+        logo_url: branding?.images?.logo || branding?.logo || null,
+        last_researched_at: new Date().toISOString(),
+        research_status: 'completed',
+      })
+      .eq('id', competitor_id);
+
+    if (updateError) {
+      console.error('Database update failed:', updateError);
+      await supabase.from('competitors').update({ research_status: 'error' }).eq('id', competitor_id);
+      return;
+    }
+
+    console.log('Competitor research completed successfully for:', name);
+
+  } catch (error) {
+    console.error('Background research error:', error);
+    await supabase.from('competitors').update({ research_status: 'error' }).eq('id', competitor_id);
+  }
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const { competitor_id, website, name } = await req.json();
+    
+    if (!website) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Failed to parse AI response' }),
+        JSON.stringify({ success: false, error: 'Website URL is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const firecrawlApiKey = Deno.env.get('FIRECRAWL_API_KEY');
+    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+    
+    if (!firecrawlApiKey) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Firecrawl API key not configured' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    if (!lovableApiKey) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Lovable API key not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('Intel extracted successfully');
+    // Format URL
+    let formattedUrl = website.trim();
+    if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
+      formattedUrl = `https://${formattedUrl}`;
+    }
 
-    // Step 5: Save to database if competitor_id provided
+    console.log('Starting competitor research for:', formattedUrl);
+
+    // If competitor_id provided, run in background and return immediately
     if (competitor_id) {
       const supabase = createClient(
         Deno.env.get('SUPABASE_URL')!,
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
       );
 
-      const { error: updateError } = await supabase
+      // Update status to processing
+      await supabase
         .from('competitors')
-        .update({
-          raw_content: { 
-            scraped_pages: keyPages,
-            content_length: combinedContent.length,
-          },
-          intel,
-          branding,
-          logo_url: branding?.images?.logo || branding?.logo || null,
-          last_researched_at: new Date().toISOString(),
-          research_status: 'completed',
-        })
+        .update({ research_status: 'processing' })
         .eq('id', competitor_id);
 
-      if (updateError) {
-        console.error('Database update failed:', updateError);
-        // Don't fail the request, just log it
-      }
+      // Run research in background - function continues after response
+      EdgeRuntime.waitUntil(
+        runCompetitorResearch(competitor_id, formattedUrl, name, firecrawlApiKey, lovableApiKey)
+      );
+
+      // Return immediately - research continues in background
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          status: 'processing',
+          message: 'Research started - this may take a few minutes',
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
+    // If no competitor_id, run synchronously (for testing)
+    // This path shouldn't normally be used in production
     return new Response(
       JSON.stringify({ 
-        success: true, 
-        intel,
-        branding,
-        scraped_pages: keyPages,
+        success: false, 
+        error: 'competitor_id is required for background processing',
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {

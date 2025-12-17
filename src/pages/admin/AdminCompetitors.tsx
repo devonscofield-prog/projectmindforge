@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   Swords, 
@@ -84,6 +84,21 @@ export default function AdminCompetitors() {
     queryFn: fetchCompetitors,
   });
 
+  // Poll for updates when any competitor is processing
+  const hasProcessingCompetitors = competitors?.some(
+    c => c.research_status === 'processing' || researchingIds.has(c.id)
+  );
+
+  useEffect(() => {
+    if (!hasProcessingCompetitors) return;
+
+    const interval = setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ['competitors'] });
+    }, 5000); // Poll every 5 seconds
+
+    return () => clearInterval(interval);
+  }, [hasProcessingCompetitors, queryClient]);
+
   const createMutation = useMutation({
     mutationFn: ({ name, website }: { name: string; website: string }) => 
       createCompetitor(name, website),
@@ -124,19 +139,30 @@ export default function AdminCompetitors() {
       );
       
       if (result.success) {
-        toast.success('Research completed!');
-        queryClient.invalidateQueries({ queryKey: ['competitors'] });
+        if (result.status === 'processing') {
+          // Background processing started - polling will handle updates
+          toast.info('Research started - this may take a few minutes');
+        } else {
+          toast.success('Research completed!');
+          queryClient.invalidateQueries({ queryKey: ['competitors'] });
+        }
       } else {
         toast.error(result.error || 'Research failed');
+        queryClient.invalidateQueries({ queryKey: ['competitors'] });
       }
     } catch (error) {
       toast.error('Research failed');
+      queryClient.invalidateQueries({ queryKey: ['competitors'] });
     } finally {
-      setResearchingIds(prev => {
-        const next = new Set(prev);
-        next.delete(competitor.id);
-        return next;
-      });
+      // Don't remove from researchingIds - let polling handle that based on DB status
+      // Only remove after a delay to give time for the status update
+      setTimeout(() => {
+        setResearchingIds(prev => {
+          const next = new Set(prev);
+          next.delete(competitor.id);
+          return next;
+        });
+      }, 2000);
     }
   };
 
@@ -308,7 +334,33 @@ export default function AdminCompetitors() {
                 </div>
               </CardHeader>
               <CardContent>
-                {competitor.intel ? (
+                {competitor.research_status === 'error' ? (
+                  <div className="space-y-3">
+                    <p className="text-sm text-destructive">
+                      Research failed. Click retry to try again.
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleResearch(competitor);
+                      }}
+                      disabled={researchingIds.has(competitor.id)}
+                      className="gap-1"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      Retry Research
+                    </Button>
+                  </div>
+                ) : competitor.research_status === 'processing' || researchingIds.has(competitor.id) ? (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Researching... this may take a few minutes
+                    </p>
+                  </div>
+                ) : competitor.intel ? (
                   <div className="space-y-3">
                     <p className="text-sm text-muted-foreground line-clamp-2">
                       {competitor.intel.overview.description}
