@@ -479,7 +479,32 @@ export default function AdminCompetitors() {
               </SheetHeader>
 
               <ScrollArea className="flex-1 -mx-6 px-6">
-                {selectedCompetitor.intel ? (
+                {/* Error state */}
+                {selectedCompetitor.research_status === 'error' ? (
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <AlertTriangle className="h-12 w-12 text-destructive/50 mb-4" />
+                    <h3 className="font-medium mb-2">Research Failed</h3>
+                    <p className="text-muted-foreground text-center max-w-sm mb-4">
+                      {selectedCompetitor.website?.includes('linkedin.com') 
+                        ? 'LinkedIn domains are not supported by our web scraping service due to their access restrictions.'
+                        : 'We were unable to research this competitor. This may be due to website access restrictions or temporary issues.'}
+                    </p>
+                    <Button 
+                      onClick={() => handleResearch(selectedCompetitor)}
+                      disabled={researchingIds.has(selectedCompetitor.id)}
+                      className="gap-2"
+                    >
+                      {researchingIds.has(selectedCompetitor.id) ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                      Retry Research
+                    </Button>
+                  </div>
+                ) : selectedCompetitor.intel && 
+                   selectedCompetitor.research_status === 'completed' &&
+                   (selectedCompetitor.intel.overview || selectedCompetitor.intel.products?.length) ? (
                   <Tabs defaultValue="battlecard" className="mt-6">
                     <TabsList className="grid w-full grid-cols-4">
                       <TabsTrigger value="battlecard">Battlecard</TabsTrigger>
@@ -544,7 +569,7 @@ export default function AdminCompetitors() {
                       </div>
 
                       {/* Landmines */}
-                      {selectedCompetitor.intel.battlecard.landmines?.length ? (
+                      {selectedCompetitor.intel.battlecard?.landmines?.length ? (
                         <div>
                           <h3 className="font-semibold flex items-center gap-2 mb-3">
                             <AlertTriangle className="h-4 w-4 text-red-500" />
@@ -570,9 +595,9 @@ export default function AdminCompetitors() {
                         <CardContent className="p-4 space-y-3">
                           <div>
                             <p className="text-sm text-muted-foreground">Description</p>
-                            <p>{selectedCompetitor.intel.overview.description}</p>
+                            <p>{selectedCompetitor.intel.overview?.description || 'No description available'}</p>
                           </div>
-                          {selectedCompetitor.intel.overview.tagline && (
+                          {selectedCompetitor.intel.overview?.tagline && (
                             <div>
                               <p className="text-sm text-muted-foreground">Tagline</p>
                               <p>"{selectedCompetitor.intel.overview.tagline}"</p>
@@ -580,7 +605,7 @@ export default function AdminCompetitors() {
                           )}
                           <div>
                             <p className="text-sm text-muted-foreground">Target Market</p>
-                            <p>{selectedCompetitor.intel.overview.target_market}</p>
+                            <p>{selectedCompetitor.intel.overview?.target_market || 'Not specified'}</p>
                           </div>
                           {selectedCompetitor.intel.positioning?.key_differentiators?.length ? (
                             <div>
@@ -596,41 +621,52 @@ export default function AdminCompetitors() {
                       </Card>
 
                       {/* Weaknesses */}
-                      <div>
-                        <h3 className="font-semibold flex items-center gap-2 mb-3">
-                          <Target className="h-4 w-4 text-red-500" />
-                          Identified Weaknesses
-                        </h3>
-                        <div className="space-y-2">
-                          {selectedCompetitor.intel.weaknesses.map((w, i) => (
-                            <Card key={i}>
-                              <CardContent className="p-3">
-                                <p className="font-medium text-sm">{w.area}</p>
-                                <p className="text-sm text-muted-foreground">{w.description}</p>
-                                <p className="text-sm text-green-600 mt-1">How to exploit: {w.how_to_exploit}</p>
-                              </CardContent>
-                            </Card>
-                          ))}
+                      {(selectedCompetitor.intel.weaknesses || []).length > 0 && (
+                        <div>
+                          <h3 className="font-semibold flex items-center gap-2 mb-3">
+                            <Target className="h-4 w-4 text-red-500" />
+                            Identified Weaknesses
+                          </h3>
+                          <div className="space-y-2">
+                            {(selectedCompetitor.intel.weaknesses || []).map((w, i) => (
+                              <Card key={i}>
+                                <CardContent className="p-3">
+                                  <p className="font-medium text-sm">{w.area}</p>
+                                  <p className="text-sm text-muted-foreground">{w.description}</p>
+                                  <p className="text-sm text-green-600 mt-1">How to exploit: {w.how_to_exploit}</p>
+                                </CardContent>
+                              </Card>
+                            ))}
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </TabsContent>
 
                     <TabsContent value="products" className="space-y-3 mt-4">
-                      {selectedCompetitor.intel.products.map((product, i) => (
-                        <Card key={i}>
-                          <CardContent className="p-4">
-                            <h4 className="font-semibold">{product.name}</h4>
-                            <p className="text-sm text-muted-foreground mt-1">{product.description}</p>
-                            {product.key_features?.length ? (
-                              <div className="flex flex-wrap gap-1 mt-2">
-                                {product.key_features.map((f, j) => (
-                                  <Badge key={j} variant="secondary" className="text-xs">{f}</Badge>
-                                ))}
-                              </div>
-                            ) : null}
+                      {(selectedCompetitor.intel.products || []).length > 0 ? (
+                        (selectedCompetitor.intel.products || []).map((product, i) => (
+                          <Card key={i}>
+                            <CardContent className="p-4">
+                              <h4 className="font-semibold">{product.name}</h4>
+                              <p className="text-sm text-muted-foreground mt-1">{product.description}</p>
+                              {product.key_features?.length ? (
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  {product.key_features.map((f, j) => (
+                                    <Badge key={j} variant="secondary" className="text-xs">{f}</Badge>
+                                  ))}
+                                </div>
+                              ) : null}
+                            </CardContent>
+                          </Card>
+                        ))
+                      ) : (
+                        <Card className="border-dashed">
+                          <CardContent className="flex flex-col items-center justify-center py-8">
+                            <Package className="h-8 w-8 text-muted-foreground/50 mb-2" />
+                            <p className="text-muted-foreground">No product information found</p>
                           </CardContent>
                         </Card>
-                      ))}
+                      )}
                     </TabsContent>
 
                     <TabsContent value="pricing" className="mt-4">
@@ -679,11 +715,11 @@ export default function AdminCompetitors() {
                   <div className="flex flex-col items-center justify-center py-12">
                     <Swords className="h-12 w-12 text-muted-foreground/50 mb-4" />
                     <p className="text-muted-foreground mb-4">
-                      {researchingIds.has(selectedCompetitor.id) 
+                      {researchingIds.has(selectedCompetitor.id) || selectedCompetitor.research_status === 'processing'
                         ? 'Researching competitor...'
                         : 'No intel available yet'}
                     </p>
-                    {!researchingIds.has(selectedCompetitor.id) && (
+                    {!researchingIds.has(selectedCompetitor.id) && selectedCompetitor.research_status !== 'processing' && (
                       <Button onClick={() => handleResearch(selectedCompetitor)}>
                         Start Research
                       </Button>
