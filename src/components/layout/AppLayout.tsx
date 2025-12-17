@@ -115,6 +115,7 @@ const managerNavGroups = [
       { href: '/manager/coaching-trends', label: 'AI Coaching Trends', icon: Sparkles },
       { href: '/manager/playbook', label: 'Sales Playbook', icon: BookOpen },
       { href: '/manager/coaching', label: 'Coaching Sessions', icon: MessageSquare },
+      { href: '/admin/competitors', label: 'Competitor Intel', icon: Swords },
     ],
   },
 ];
@@ -131,6 +132,12 @@ const repNavGroups = [
     items: [
       { href: '/rep/history', label: 'Call History', icon: History },
       { href: '/rep/prospects', label: 'Accounts', icon: UserCheck },
+    ],
+  },
+  {
+    label: 'Resources',
+    items: [
+      { href: '/admin/competitors', label: 'Competitor Intel', icon: Swords },
     ],
   },
 ];
