@@ -67,6 +67,9 @@ import {
   researchCompetitor 
 } from '@/api/competitors';
 import type { Competitor } from '@/types/competitors';
+import { AppLayout } from '@/components/layout/AppLayout';
+import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
+import { getAdminPageBreadcrumb } from '@/lib/breadcrumbConfig';
 
 export default function AdminCompetitors() {
   const queryClient = useQueryClient();
@@ -164,9 +167,12 @@ export default function AdminCompetitors() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <AppLayout>
+      <div className="space-y-6">
+        <PageBreadcrumb items={getAdminPageBreadcrumb('competitors')} />
+        
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Swords className="h-6 w-6 text-primary" />
@@ -618,6 +624,7 @@ export default function AdminCompetitors() {
           )}
         </SheetContent>
       </Sheet>
-    </div>
+      </div>
+    </AppLayout>
   );
 }
