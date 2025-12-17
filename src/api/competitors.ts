@@ -78,12 +78,6 @@ export async function researchCompetitor(
   website: string,
   name: string
 ): Promise<{ success: boolean; status?: string; error?: string }> {
-  // Update status to processing immediately for UI feedback
-  await supabase
-    .from('competitors')
-    .update({ research_status: 'processing' })
-    .eq('id', competitorId);
-
   const { data, error } = await supabase.functions.invoke('competitor-research', {
     body: {
       competitor_id: competitorId,
@@ -93,13 +87,22 @@ export async function researchCompetitor(
   });
 
   if (error) {
-    // Update status to error on failure
     await supabase
       .from('competitors')
       .update({ research_status: 'error' })
       .eq('id', competitorId);
     
     return { success: false, error: error.message };
+  }
+
+  // Handle null/undefined response
+  if (!data) {
+    await supabase
+      .from('competitors')
+      .update({ research_status: 'error' })
+      .eq('id', competitorId);
+    
+    return { success: false, error: 'No response from research function' };
   }
 
   // Background processing - returns { success: true, status: 'processing' }
