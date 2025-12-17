@@ -894,6 +894,51 @@ export type Database = {
         }
         Relationships: []
       }
+      competitors: {
+        Row: {
+          branding: Json | null
+          created_at: string
+          created_by: string | null
+          id: string
+          intel: Json | null
+          last_researched_at: string | null
+          logo_url: string | null
+          name: string
+          raw_content: Json | null
+          research_status: string | null
+          updated_at: string
+          website: string
+        }
+        Insert: {
+          branding?: Json | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          intel?: Json | null
+          last_researched_at?: string | null
+          logo_url?: string | null
+          name: string
+          raw_content?: Json | null
+          research_status?: string | null
+          updated_at?: string
+          website: string
+        }
+        Update: {
+          branding?: Json | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          intel?: Json | null
+          last_researched_at?: string | null
+          logo_url?: string | null
+          name?: string
+          raw_content?: Json | null
+          research_status?: string | null
+          updated_at?: string
+          website?: string
+        }
+        Relationships: []
+      }
       dashboard_cache: {
         Row: {
           cache_data: Json

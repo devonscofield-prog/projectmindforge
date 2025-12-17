@@ -24,6 +24,7 @@ import {
   Plus,
   Sparkles,
   BookOpen,
+  Swords,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -73,6 +74,7 @@ const adminNavGroups = [
     items: [
       { href: '/admin/coaching', label: 'Coaching Trends', icon: TrendingUp },
       { href: '/admin/playbook', label: 'Sales Playbook', icon: BookOpen },
+      { href: '/admin/competitors', label: 'Competitor Intel', icon: Swords },
     ],
   },
   {
