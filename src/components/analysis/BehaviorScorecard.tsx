@@ -20,7 +20,8 @@ import {
   ListChecks,
   Sparkles,
   Play,
-  ChevronRight
+  ChevronRight,
+  ArrowLeftRight
 } from 'lucide-react';
 import type { BehaviorScore } from '@/utils/analysis-schemas';
 import { cn } from '@/lib/utils';
@@ -428,6 +429,59 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
             </div>
           </CardContent>
         </Card>
+
+        {/* Interactivity - Turn-Taking Score */}
+        {metrics.interactivity && (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <ArrowLeftRight className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">Interactivity</span>
+                </div>
+                <span className="text-sm font-bold">{metrics.interactivity.score}/15</span>
+              </div>
+              
+              {/* Turn Rate Display */}
+              <div className="flex flex-col items-center py-2">
+                <div 
+                  className={cn(
+                    "text-3xl font-bold tabular-nums",
+                    metrics.interactivity.turns_per_minute >= 8 ? "text-green-600" :
+                    metrics.interactivity.turns_per_minute >= 5 ? "text-green-500" :
+                    metrics.interactivity.turns_per_minute >= 3 ? "text-yellow-600" :
+                    "text-orange-600"
+                  )}
+                >
+                  {metrics.interactivity.turns_per_minute.toFixed(1)}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">turns/min</p>
+              </div>
+              
+              {/* Stats Row */}
+              <div className="flex justify-between text-xs text-muted-foreground mt-3 pt-3 border-t border-border/50">
+                <span>{metrics.interactivity.total_turns} total turns</span>
+                <span>~{metrics.interactivity.avg_turn_length_words} words/turn</span>
+              </div>
+              
+              {/* Status Badge */}
+              <div className="mt-3 flex justify-end">
+                <Badge 
+                  variant="secondary"
+                  className={cn(
+                    "text-xs",
+                    metrics.interactivity.status === 'Excellent' ? 'bg-green-500/20 text-green-700 dark:text-green-400' :
+                    metrics.interactivity.status === 'Good' ? 'bg-green-400/20 text-green-600 dark:text-green-400' :
+                    metrics.interactivity.status === 'Fair' ? 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400' : 
+                    'bg-orange-500/20 text-orange-700 dark:text-orange-400'
+                  )}
+                >
+                  {metrics.interactivity.status}
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Questions Detail Sheet */}
