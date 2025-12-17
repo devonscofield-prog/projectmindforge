@@ -627,8 +627,7 @@ function buildCoachingInputReport(
   competitors: SpyOutput,
   pricing: AuditorOutput,
   callClassification?: CallClassification,
-  accountHistory?: AccountHistoryContext,
-  rawTranscript?: string
+  accountHistory?: AccountHistoryContext
 ): string {
   const callTypeSection = callClassification ? `
 ### 0. CALL CLASSIFICATION (The Sentinel)
@@ -663,27 +662,8 @@ ${buildAccountHistorySection(accountHistory)}
 ${pricing.discounts_offered?.length > 0 ? pricing.discounts_offered.map(d => `- [${d.timing_assessment}] ${d.type}: ${d.discount_value} | ${d.value_established_before ? '✓ Value first' : '✗ No value'} | ${d.prospect_requested ? '✓ Requested' : '✗ Volunteered'} | ${d.coaching_note}`).join('\n') : '- No discounts offered (excellent discipline).'}
 `;
 
-  // Include raw transcript for Coach's direct evaluation (truncated to 30k chars)
-  const transcriptSection = rawTranscript ? `
-
----
-
-## RAW TRANSCRIPT (For Direct Evaluation)
-
-**INSTRUCTION:** You MUST read through this transcript yourself to evaluate the 3 core pillars:
-1. **Discovery Depth** - Did the rep uncover REAL pain before pitching?
-2. **Decision Mapping** - Did the rep identify who makes decisions and how?
-3. **Business Case Quality** - Did the rep connect solutions to tangible business impact?
-
-The agent reports above are BONUS CONTEXT ONLY. Your grade is based on YOUR evaluation of the transcript below.
-
----
-
-${rawTranscript.slice(0, 30000)}${rawTranscript.length > 30000 ? '\n\n[Transcript truncated at 30,000 characters]' : ''}
-` : '';
-
   return `
-## AGENT REPORTS FOR THIS CALL (Bonus Context - Do NOT use for grading)
+## AGENT REPORTS FOR THIS CALL
 ${callTypeSection}
 ${accountHistorySection}
 
@@ -693,44 +673,43 @@ ${accountHistorySection}
 - Participants: ${metadata.participants?.map(p => `${p.name} (${p.role}, ${p.sentiment}${p.is_decision_maker ? ', Decision Maker' : ''})`).join('; ') || 'Unknown'}
 - Duration: ${metadata.logistics?.duration_minutes || 'Unknown'} minutes
 
-### 2. BEHAVIORAL SCORE (The Referee) - BONUS INFO
+### 2. BEHAVIORAL SCORE (The Referee)
 - Overall Score: ${behavior.overall_score}/100 (${behavior.grade})
 - Acknowledgment: ${behavior.metrics.patience.score}/30 (${behavior.metrics.patience.missed_acknowledgment_count} missed acknowledgments, ${behavior.metrics.patience.status})
 - Monologue: ${behavior.metrics.monologue.score}/20 (${behavior.metrics.monologue.violation_count} violations, longest turn ${behavior.metrics.monologue.longest_turn_word_count} words)
 - Talk/Listen Ratio: ${behavior.metrics.talk_listen_ratio.score}/15 (Rep talked ${behavior.metrics.talk_listen_ratio.rep_talk_percentage}%)
 - Next Steps: ${behavior.metrics.next_steps.score}/15 (${behavior.metrics.next_steps.secured ? 'SECURED' : 'NOT SECURED'}: ${behavior.metrics.next_steps.details})
 
-### 3. QUESTION LEVERAGE (The Interrogator) - BONUS INFO
+### 3. QUESTION LEVERAGE (The Interrogator)
 - Score: ${questions.score}/20
 - Yield Ratio: ${questions.yield_ratio}x (Avg Question: ${questions.average_question_length} words, Avg Answer: ${questions.average_answer_length} words)
 - High Leverage Questions: ${questions.high_leverage_count} | Low Leverage: ${questions.low_leverage_count}
 - Best Questions: ${questions.high_leverage_examples?.slice(0, 2).map(q => `"${q}"`).join(', ') || 'None'}
 - Worst Questions: ${questions.low_leverage_examples?.slice(0, 2).map(q => `"${q}"`).join(', ') || 'None'}
 
-### 4. STRATEGIC THREADING (The Strategist) - BONUS INFO
+### 4. STRATEGIC THREADING (The Strategist)
 - Score: ${strategy.strategic_threading.score}/100 (${strategy.strategic_threading.grade})
 - Relevance Map:
 ${strategy.strategic_threading.relevance_map?.map(r => `  - Pain: "${r.pain_identified}" → Feature: "${r.feature_pitched}" | ${r.is_relevant ? '✓ RELEVANT' : '✗ MISMATCH'}: ${r.reasoning}`).join('\n') || '  No mappings found.'}
 - Missed Opportunities: ${strategy.strategic_threading.missed_opportunities?.map(o => typeof o === 'string' ? o : o.pain).join(', ') || 'None'}
 
-### 5. CRITICAL GAPS (The Skeptic) - BONUS INFO
+### 5. CRITICAL GAPS (The Skeptic)
 ${gaps.critical_gaps?.length > 0 ? gaps.critical_gaps.map(g => `- [${g.impact}] ${g.category}: ${g.description} → Ask: "${g.suggested_question}"`).join('\n') : 'No critical gaps identified.'}
 
-### 6. OBJECTION HANDLING (The Negotiator) - BONUS INFO
+### 6. OBJECTION HANDLING (The Negotiator)
 - Score: ${objections.score}/100 (${objections.grade})
 ${objections.objections_detected?.length > 0 ? objections.objections_detected.map(o => `- [${o.handling_rating}] "${o.objection}" (${o.category}): ${o.rep_response} | Tip: ${o.coaching_tip}`).join('\n') : '- No objections detected in this call.'}
 
-### 7. PROSPECT PSYCHOLOGY (The Profiler) - BONUS INFO
+### 7. PROSPECT PSYCHOLOGY (The Profiler)
 - Persona: ${psychology.prospect_persona}
 - DISC Profile: ${psychology.disc_profile}
 - Communication Style: ${psychology.communication_style.tone}, ${psychology.communication_style.preference}
 - Do: ${psychology.dos_and_donts.do?.join(', ') || 'N/A'}
 - Don't: ${psychology.dos_and_donts.dont?.join(', ') || 'N/A'}
 
-### 8. COMPETITIVE INTEL (The Spy) - BONUS INFO
+### 8. COMPETITIVE INTEL (The Spy)
 ${competitors.competitive_intel?.length > 0 ? competitors.competitive_intel.map(c => `- ${c.competitor_name} (${c.usage_status}, Position: ${c.competitive_position}): Strengths: ${c.strengths_mentioned?.join(', ') || 'None'}; Weaknesses: ${c.weaknesses_mentioned?.join(', ') || 'None'}; Strategy: ${c.positioning_strategy}`).join('\n') : 'No competitors mentioned.'}
 ${pricingSection}
-${transcriptSection}
 `;
 }
 
@@ -1113,7 +1092,7 @@ export async function runAnalysisPipeline(
   console.log('[Pipeline] Phase 2: Running The Coach (synthesis agent)...');
   const phase2Start = performance.now();
 
-  // Build coaching input report (including raw transcript for direct evaluation)
+  // Build coaching input report
   const coachingReport = buildCoachingInputReport(
     metadata,
     behavior,
@@ -1125,8 +1104,7 @@ export async function runAnalysisPipeline(
     spy,
     auditor,
     callClassification,
-    accountHistory,
-    processedTranscript // Pass the transcript for Coach's direct evaluation
+    accountHistory
   );
 
   const coachResult = await executeAgent(coachConfig, coachingReport, supabase, callId);
