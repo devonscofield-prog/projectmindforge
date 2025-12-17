@@ -70,9 +70,12 @@ import type { Competitor } from '@/types/competitors';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
 import { getAdminPageBreadcrumb } from '@/lib/breadcrumbConfig';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function AdminCompetitors() {
   const queryClient = useQueryClient();
+  const { role } = useAuth();
+  const isAdmin = role === 'admin';
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedCompetitor, setSelectedCompetitor] = useState<Competitor | null>(null);
   const [newCompetitorName, setNewCompetitorName] = useState('');
@@ -214,60 +217,62 @@ export default function AdminCompetitors() {
           </p>
         </div>
         
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus className="h-4 w-4" />
-              Research Competitor
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Research New Competitor</DialogTitle>
-              <DialogDescription>
-                Enter a competitor's website to automatically research and generate a battlecard.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Competitor Name</Label>
-                <Input
-                  id="name"
-                  placeholder="e.g., Acme Corp"
-                  value={newCompetitorName}
-                  onChange={(e) => setNewCompetitorName(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="website">Website URL</Label>
-                <Input
-                  id="website"
-                  placeholder="e.g., acme.com"
-                  value={newCompetitorWebsite}
-                  onChange={(e) => setNewCompetitorWebsite(e.target.value)}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                Cancel
+        {isAdmin && (
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2">
+                <Plus className="h-4 w-4" />
+                Research Competitor
               </Button>
-              <Button 
-                onClick={handleAddCompetitor}
-                disabled={createMutation.isPending}
-              >
-                {createMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Adding...
-                  </>
-                ) : (
-                  'Start Research'
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Research New Competitor</DialogTitle>
+                <DialogDescription>
+                  Enter a competitor's website to automatically research and generate a battlecard.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Competitor Name</Label>
+                  <Input
+                    id="name"
+                    placeholder="e.g., Acme Corp"
+                    value={newCompetitorName}
+                    onChange={(e) => setNewCompetitorName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="website">Website URL</Label>
+                  <Input
+                    id="website"
+                    placeholder="e.g., acme.com"
+                    value={newCompetitorWebsite}
+                    onChange={(e) => setNewCompetitorWebsite(e.target.value)}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleAddCompetitor}
+                  disabled={createMutation.isPending}
+                >
+                  {createMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Adding...
+                    </>
+                  ) : (
+                    'Start Research'
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       {/* Competitors Grid */}
@@ -305,12 +310,16 @@ export default function AdminCompetitors() {
             <Swords className="h-12 w-12 text-muted-foreground/50 mb-4" />
             <h3 className="text-lg font-medium mb-2">No competitors yet</h3>
             <p className="text-muted-foreground text-center max-w-sm mb-4">
-              Research your first competitor to generate AI-powered battlecards with pricing intel, trap questions, and talk tracks.
+              {isAdmin 
+                ? 'Research your first competitor to generate AI-powered battlecards with pricing intel, trap questions, and talk tracks.'
+                : 'No competitor intelligence has been added yet. Ask an admin to research competitors.'}
             </p>
-            <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
-              <Plus className="h-4 w-4" />
-              Research Competitor
-            </Button>
+            {isAdmin && (
+              <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
+                <Plus className="h-4 w-4" />
+                Research Competitor
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -356,21 +365,23 @@ export default function AdminCompetitors() {
                 {competitor.research_status === 'error' ? (
                   <div className="space-y-3">
                     <p className="text-sm text-destructive">
-                      Research failed. Click retry to try again.
+                      Research failed. {isAdmin ? 'Click retry to try again.' : ''}
                     </p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleResearch(competitor);
-                      }}
-                      disabled={researchingIds.has(competitor.id)}
-                      className="gap-1"
-                    >
-                      <RefreshCw className="h-3 w-3" />
-                      Retry Research
-                    </Button>
+                    {isAdmin && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleResearch(competitor);
+                        }}
+                        disabled={researchingIds.has(competitor.id)}
+                        className="gap-1"
+                      >
+                        <RefreshCw className="h-3 w-3" />
+                        Retry Research
+                      </Button>
+                    )}
                   </div>
                 ) : competitor.research_status === 'processing' || researchingIds.has(competitor.id) ? (
                   <div className="space-y-2">
@@ -435,46 +446,48 @@ export default function AdminCompetitors() {
                       <SheetDescription>{selectedCompetitor.website}</SheetDescription>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleResearch(selectedCompetitor)}
-                      disabled={researchingIds.has(selectedCompetitor.id)}
-                    >
-                      {researchingIds.has(selectedCompetitor.id) ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <RefreshCw className="h-4 w-4" />
-                      )}
-                    </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="outline" size="sm">
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete competitor?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This will permanently delete {selectedCompetitor.name} and all associated intel.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => {
-                              deleteMutation.mutate(selectedCompetitor.id);
-                              setSelectedCompetitor(null);
-                            }}
-                          >
-                            Delete
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
+                  {isAdmin && (
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleResearch(selectedCompetitor)}
+                        disabled={researchingIds.has(selectedCompetitor.id)}
+                      >
+                        {researchingIds.has(selectedCompetitor.id) ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4" />
+                        )}
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="outline" size="sm">
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete competitor?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will permanently delete {selectedCompetitor.name} and all associated intel.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => {
+                                deleteMutation.mutate(selectedCompetitor.id);
+                                setSelectedCompetitor(null);
+                              }}
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  )}
                 </div>
               </SheetHeader>
 
@@ -489,18 +502,20 @@ export default function AdminCompetitors() {
                         ? 'LinkedIn domains are not supported by our web scraping service due to their access restrictions.'
                         : 'We were unable to research this competitor. This may be due to website access restrictions or temporary issues.'}
                     </p>
-                    <Button 
-                      onClick={() => handleResearch(selectedCompetitor)}
-                      disabled={researchingIds.has(selectedCompetitor.id)}
-                      className="gap-2"
-                    >
-                      {researchingIds.has(selectedCompetitor.id) ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <RefreshCw className="h-4 w-4" />
-                      )}
-                      Retry Research
-                    </Button>
+                    {isAdmin && (
+                      <Button 
+                        onClick={() => handleResearch(selectedCompetitor)}
+                        disabled={researchingIds.has(selectedCompetitor.id)}
+                        className="gap-2"
+                      >
+                        {researchingIds.has(selectedCompetitor.id) ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4" />
+                        )}
+                        Retry Research
+                      </Button>
+                    )}
                   </div>
                 ) : selectedCompetitor.intel && 
                    selectedCompetitor.research_status === 'completed' &&
