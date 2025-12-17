@@ -48,6 +48,7 @@ const AdminTranscriptAnalysis = lazy(() => import("./pages/admin/AdminTranscript
 const AdminPerformanceMonitor = lazy(() => import("./pages/admin/AdminPerformanceMonitor"));
 const AdminAuditLog = lazy(() => import("./pages/admin/AdminAuditLog"));
 const AdminBulkUpload = lazy(() => import("./pages/admin/AdminBulkUpload"));
+const AdminPlaybook = lazy(() => import("./pages/admin/AdminPlaybook"));
 
 // Lazy load - Shared pages
 const CallDetailPage = lazy(() => import("./pages/calls/CallDetailPage"));
@@ -180,6 +181,11 @@ const App = () => (
                     <RepDetail />
                   </ProtectedRoute>
                 } />
+                <Route path="/manager/playbook" element={
+                  <ProtectedRoute allowedRoles={['manager']}>
+                    <AdminPlaybook />
+                  </ProtectedRoute>
+                } />
 
                 {/* Admin Routes */}
                 <Route path="/admin" element={
@@ -245,6 +251,11 @@ const App = () => (
                 <Route path="/admin/bulk-upload" element={
                   <ProtectedRoute allowedRoles={['admin']}>
                     <AdminBulkUpload />
+                  </ProtectedRoute>
+                } />
+                <Route path="/admin/playbook" element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <AdminPlaybook />
                   </ProtectedRoute>
                 } />
 
