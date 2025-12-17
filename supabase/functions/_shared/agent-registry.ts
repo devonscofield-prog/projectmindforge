@@ -271,7 +271,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (t) => `Analyze this sales call transcript for strategic alignment. Map every prospect pain to every rep pitch and score the relevance:\n\n${t}`,
     toolName: 'audit_call_strategy',
     toolDescription: 'Audit the strategic alignment in a sales call - mapping pains to pitches',
-    options: { model: 'openai/gpt-5.2', temperature: 0.2, maxTokens: 4096 },
+    options: { model: 'openai/gpt-5.2', temperature: 0.2, maxTokens: 8192 },
     isCritical: false,
     default: DEFAULT_STRATEGIST,
     phase: 1,
