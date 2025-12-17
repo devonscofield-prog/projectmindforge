@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CheckCircle2, AlertTriangle, ChevronDown, Lightbulb, GraduationCap, Target, Dumbbell } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, ChevronDown, Lightbulb, GraduationCap, Target, Dumbbell, Search, Users, Briefcase, Quote } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -46,10 +46,71 @@ const getGradeStyles = (grade: string) => {
   }
 };
 
+const getPillarScoreColor = (score: number) => {
+  if (score >= 85) return 'text-green-600 dark:text-green-400';
+  if (score >= 70) return 'text-lime-600 dark:text-lime-400';
+  if (score >= 55) return 'text-amber-600 dark:text-amber-400';
+  return 'text-red-600 dark:text-red-400';
+};
+
+const getPillarBgColor = (score: number) => {
+  if (score >= 85) return 'bg-green-100 dark:bg-green-900/30';
+  if (score >= 70) return 'bg-lime-100 dark:bg-lime-900/30';
+  if (score >= 55) return 'bg-amber-100 dark:bg-amber-900/30';
+  return 'bg-red-100 dark:bg-red-900/30';
+};
+
+interface PillarScoreCardProps {
+  title: string;
+  weight: string;
+  icon: React.ReactNode;
+  score: number;
+  evidence: string[];
+  assessment: string;
+}
+
+function PillarScoreCard({ title, weight, icon, score, evidence, assessment }: PillarScoreCardProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  return (
+    <div className={cn('rounded-lg border p-4', getPillarBgColor(score))}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          {icon}
+          <span className="font-medium text-foreground">{title}</span>
+          <Badge variant="outline" className="text-xs">{weight}</Badge>
+        </div>
+        <span className={cn('text-2xl font-bold', getPillarScoreColor(score))}>
+          {score}
+        </span>
+      </div>
+      <p className="text-sm text-muted-foreground mb-2">{assessment}</p>
+      
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+        <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+          <Quote className="h-3 w-3" />
+          <span>View evidence ({evidence.length} quotes)</span>
+          <ChevronDown className={cn('h-3 w-3 transition-transform', isOpen && 'rotate-180')} />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pt-2">
+          <div className="space-y-2">
+            {evidence.map((quote, idx) => (
+              <div key={idx} className="text-xs italic text-muted-foreground border-l-2 border-primary/30 pl-2">
+                "{quote}"
+              </div>
+            ))}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    </div>
+  );
+}
+
 export function CoachingCard({ data, className, isLoading = false }: CoachingCardProps) {
   const [isReasoningOpen, setIsReasoningOpen] = useState(false);
   const [isDrillOpen, setIsDrillOpen] = useState(false);
   const [isCardOpen, setIsCardOpen] = useState(true);
+  const [isStrengthsOpen, setIsStrengthsOpen] = useState(false);
 
   // Loading skeleton state
   if (isLoading) {
@@ -65,7 +126,8 @@ export function CoachingCard({ data, className, isLoading = false }: CoachingCar
         <CardContent className="p-6 space-y-6">
           <Skeleton className="h-24 w-full rounded-lg" />
           <Skeleton className="h-16 w-full" />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Skeleton className="h-32 w-full" />
             <Skeleton className="h-32 w-full" />
             <Skeleton className="h-32 w-full" />
           </div>
@@ -90,6 +152,7 @@ export function CoachingCard({ data, className, isLoading = false }: CoachingCar
   }
 
   const gradeStyles = getGradeStyles(data.overall_grade);
+  const hasPillarScores = data.pillar_scores?.discovery_depth && data.pillar_scores?.decision_mapping && data.pillar_scores?.business_case;
 
   return (
     <Collapsible open={isCardOpen} onOpenChange={setIsCardOpen}>
@@ -127,107 +190,154 @@ export function CoachingCard({ data, className, isLoading = false }: CoachingCar
 
         <CollapsibleContent>
           <CardContent className="p-6 space-y-6">
-        {/* The One Big Thing - Punchy Headline */}
-        <div className="rounded-lg bg-primary/10 border border-primary/20 p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Lightbulb className="h-5 w-5 text-primary" />
-            <span className="font-semibold text-primary">The One Big Thing</span>
-          </div>
-          <p className="text-foreground leading-relaxed">{data.coaching_prescription}</p>
-        </div>
-
-        {/* Immediate Action - CTA Banner */}
-        {data.immediate_action && (
-          <div className="rounded-lg bg-amber-100 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 p-4">
-            <div className="flex items-start gap-3">
-              <Target className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-              <div>
-                <span className="font-semibold text-amber-700 dark:text-amber-300 text-sm">Immediate Action</span>
-                <p className="text-amber-800 dark:text-amber-200 mt-1">{data.immediate_action}</p>
+            {/* 3-Pillar Scores - Prominent Display */}
+            {hasPillarScores && data.pillar_scores && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 mb-3">
+                  <Target className="h-5 w-5 text-primary" />
+                  <span className="font-semibold text-foreground">3-Pillar Evaluation</span>
+                  <span className="text-xs text-muted-foreground">(What determines your grade)</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <PillarScoreCard
+                    title="Discovery Depth"
+                    weight="40%"
+                    icon={<Search className="h-4 w-4 text-primary" />}
+                    score={data.pillar_scores.discovery_depth.score}
+                    evidence={data.pillar_scores.discovery_depth.evidence}
+                    assessment={data.pillar_scores.discovery_depth.assessment}
+                  />
+                  <PillarScoreCard
+                    title="Decision Mapping"
+                    weight="30%"
+                    icon={<Users className="h-4 w-4 text-primary" />}
+                    score={data.pillar_scores.decision_mapping.score}
+                    evidence={data.pillar_scores.decision_mapping.evidence}
+                    assessment={data.pillar_scores.decision_mapping.assessment}
+                  />
+                  <PillarScoreCard
+                    title="Business Case"
+                    weight="30%"
+                    icon={<Briefcase className="h-4 w-4 text-primary" />}
+                    score={data.pillar_scores.business_case.score}
+                    evidence={data.pillar_scores.business_case.evidence}
+                    assessment={data.pillar_scores.business_case.assessment}
+                  />
+                </div>
               </div>
+            )}
+
+            {/* The One Big Thing - Punchy Headline */}
+            <div className="rounded-lg bg-primary/10 border border-primary/20 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Lightbulb className="h-5 w-5 text-primary" />
+                <span className="font-semibold text-primary">The One Big Thing</span>
+              </div>
+              <p className="text-foreground leading-relaxed">{data.coaching_prescription}</p>
             </div>
-          </div>
-        )}
 
-        {/* Practice Drill - Collapsible with Markdown */}
-        {data.coaching_drill && (
-          <Collapsible open={isDrillOpen} onOpenChange={setIsDrillOpen}>
-            <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium text-foreground hover:text-primary transition-colors w-full p-3 rounded-lg bg-muted/50 hover:bg-muted">
-              <Dumbbell className="h-4 w-4" />
-              <span>Practice Drill</span>
-              <ChevronDown
-                className={cn('h-4 w-4 ml-auto transition-transform', isDrillOpen && 'rotate-180')}
-              />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-3">
-              <div className="rounded-lg border border-border bg-muted/30 p-4 prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown
-                  components={{
-                    h1: ({ children }) => <h4 className="text-base font-semibold mb-2">{children}</h4>,
-                    h2: ({ children }) => <h5 className="text-sm font-semibold mb-2">{children}</h5>,
-                    p: ({ children }) => <p className="mb-2 text-foreground">{children}</p>,
-                    strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
-                    ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 mb-2">{children}</ol>,
-                    ul: ({ children }) => <ul className="list-disc list-inside space-y-1 mb-2">{children}</ul>,
-                    li: ({ children }) => <li className="text-foreground">{children}</li>,
-                  }}
-                >
-                  {data.coaching_drill}
-                </ReactMarkdown>
+            {/* Immediate Action - CTA Banner */}
+            {data.immediate_action && (
+              <div className="rounded-lg bg-amber-100 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 p-4">
+                <div className="flex items-start gap-3">
+                  <Target className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                  <div>
+                    <span className="font-semibold text-amber-700 dark:text-amber-300 text-sm">Immediate Action</span>
+                    <p className="text-amber-800 dark:text-amber-200 mt-1">{data.immediate_action}</p>
+                  </div>
+                </div>
               </div>
-            </CollapsibleContent>
-          </Collapsible>
-        )}
+            )}
 
-        {/* Executive Summary */}
-        <div>
-          <h4 className="text-sm font-medium text-muted-foreground mb-2">Executive Summary</h4>
-          <p className="text-foreground leading-relaxed">{data.executive_summary}</p>
-        </div>
+            {/* Practice Drill - Collapsible with Markdown */}
+            {data.coaching_drill && (
+              <Collapsible open={isDrillOpen} onOpenChange={setIsDrillOpen}>
+                <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium text-foreground hover:text-primary transition-colors w-full p-3 rounded-lg bg-muted/50 hover:bg-muted">
+                  <Dumbbell className="h-4 w-4" />
+                  <span>Practice Drill</span>
+                  <ChevronDown
+                    className={cn('h-4 w-4 ml-auto transition-transform', isDrillOpen && 'rotate-180')}
+                  />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-3">
+                  <div className="rounded-lg border border-border bg-muted/30 p-4 prose prose-sm dark:prose-invert max-w-none">
+                    <ReactMarkdown
+                      components={{
+                        h1: ({ children }) => <h4 className="text-base font-semibold mb-2">{children}</h4>,
+                        h2: ({ children }) => <h5 className="text-sm font-semibold mb-2">{children}</h5>,
+                        p: ({ children }) => <p className="mb-2 text-foreground">{children}</p>,
+                        strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
+                        ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 mb-2">{children}</ol>,
+                        ul: ({ children }) => <ul className="list-disc list-inside space-y-1 mb-2">{children}</ul>,
+                        li: ({ children }) => <li className="text-foreground">{children}</li>,
+                      }}
+                    >
+                      {data.coaching_drill}
+                    </ReactMarkdown>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            )}
 
-        {/* Strengths & Improvements Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Strengths */}
-          <div>
-            <h4 className="text-sm font-medium text-muted-foreground mb-3">Strengths</h4>
-            <ul className="space-y-2">
-              {data.top_3_strengths.map((strength, index) => (
-                <li key={index} className="flex items-start gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-500 mt-0.5 shrink-0" />
-                  <span className="text-foreground">{strength}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
+            {/* Executive Summary */}
+            <div>
+              <h4 className="text-sm font-medium text-muted-foreground mb-2">Executive Summary</h4>
+              <p className="text-foreground leading-relaxed">{data.executive_summary}</p>
+            </div>
 
-          {/* Areas for Improvement */}
-          <div>
-            <h4 className="text-sm font-medium text-muted-foreground mb-3">Areas for Improvement</h4>
-            <ul className="space-y-2">
-              {data.top_3_areas_for_improvement.map((improvement, index) => (
-                <li key={index} className="flex items-start gap-2">
-                  <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-500 mt-0.5 shrink-0" />
-                  <span className="text-foreground">{improvement}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
+            {/* Strengths & Improvements - Collapsible */}
+            <Collapsible open={isStrengthsOpen} onOpenChange={setIsStrengthsOpen}>
+              <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-full pt-4 border-t border-border">
+                <ChevronDown
+                  className={cn('h-4 w-4 transition-transform', isStrengthsOpen && 'rotate-180')}
+                />
+                <span>{isStrengthsOpen ? 'Hide' : 'Show'} Strengths & Areas for Improvement</span>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Strengths */}
+                  <div>
+                    <h4 className="text-sm font-medium text-muted-foreground mb-3">Strengths</h4>
+                    <ul className="space-y-2">
+                      {data.top_3_strengths.map((strength, index) => (
+                        <li key={index} className="flex items-start gap-2">
+                          <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-500 mt-0.5 shrink-0" />
+                          <span className="text-foreground">{strength}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
 
-        {/* Collapsible Grading Logic */}
-        <Collapsible open={isReasoningOpen} onOpenChange={setIsReasoningOpen}>
-          <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-full pt-4 border-t border-border">
-            <ChevronDown
-              className={cn('h-4 w-4 transition-transform', isReasoningOpen && 'rotate-180')}
-            />
-            <span>{isReasoningOpen ? 'Hide' : 'Show'} Grading Logic</span>
-          </CollapsibleTrigger>
-          <CollapsibleContent className="pt-3">
-            <p className="text-sm text-muted-foreground leading-relaxed">{data.grade_reasoning}</p>
-          </CollapsibleContent>
-          </Collapsible>
-        </CardContent>
-      </CollapsibleContent>
+                  {/* Areas for Improvement */}
+                  <div>
+                    <h4 className="text-sm font-medium text-muted-foreground mb-3">Areas for Improvement</h4>
+                    <ul className="space-y-2">
+                      {data.top_3_areas_for_improvement.map((improvement, index) => (
+                        <li key={index} className="flex items-start gap-2">
+                          <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-500 mt-0.5 shrink-0" />
+                          <span className="text-foreground">{improvement}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+
+            {/* Collapsible Grading Logic */}
+            <Collapsible open={isReasoningOpen} onOpenChange={setIsReasoningOpen}>
+              <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-full pt-4 border-t border-border">
+                <ChevronDown
+                  className={cn('h-4 w-4 transition-transform', isReasoningOpen && 'rotate-180')}
+                />
+                <span>{isReasoningOpen ? 'Hide' : 'Show'} Grading Logic</span>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-3">
+                <p className="text-sm text-muted-foreground leading-relaxed">{data.grade_reasoning}</p>
+              </CollapsibleContent>
+            </Collapsible>
+          </CardContent>
+        </CollapsibleContent>
       </Card>
     </Collapsible>
   );
