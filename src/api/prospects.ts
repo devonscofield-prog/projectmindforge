@@ -379,6 +379,8 @@ export async function updateProspect(
     opportunity_details?: OpportunityDetails;
     suggested_follow_ups?: string[];
     heat_score?: number;
+    account_name?: string | null;
+    prospect_name?: string | null;
   }
 ): Promise<Prospect> {
   const { data, error } = await supabase

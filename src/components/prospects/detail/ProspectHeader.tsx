@@ -71,6 +71,11 @@ export function ProspectHeader({
   const [editedOpportunity, setEditedOpportunity] = useState('');
   const [isSavingOpportunity, setIsSavingOpportunity] = useState(false);
 
+  // Account name editing state
+  const [isEditingAccountName, setIsEditingAccountName] = useState(false);
+  const [editedAccountName, setEditedAccountName] = useState('');
+  const [isSavingAccountName, setIsSavingAccountName] = useState(false);
+
   const aiInfo = prospect.ai_extracted_info as ProspectIntel | null;
   const latestHeat = aiInfo?.latest_heat_analysis;
   const coachingTrend = aiInfo?.coaching_trend;
@@ -160,6 +165,31 @@ export function ProspectHeader({
     }
   };
 
+  // Account name handlers
+  const handleStartEditAccountName = () => {
+    setEditedAccountName(prospect.account_name || prospect.prospect_name || '');
+    setIsEditingAccountName(true);
+  };
+
+  const handleSaveAccountName = async () => {
+    if (!onUpdateProspect) return;
+    const trimmed = editedAccountName.trim();
+    if (!trimmed) {
+      toast.error('Account name cannot be empty');
+      return;
+    }
+    setIsSavingAccountName(true);
+    try {
+      const success = await onUpdateProspect({ account_name: trimmed });
+      if (success) {
+        setIsEditingAccountName(false);
+        toast.success('Account name updated');
+      }
+    } finally {
+      setIsSavingAccountName(false);
+    }
+  };
+
   const getGradeColor = (grade: string) => {
     if (grade.startsWith('A')) return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
     if (grade.startsWith('B')) return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
@@ -200,9 +230,44 @@ export function ProspectHeader({
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-xl font-bold tracking-tight truncate">
-                  {prospect.account_name || prospect.prospect_name}
-                </h1>
+                {isEditingAccountName ? (
+                  <div className="flex items-center gap-1">
+                    <Input
+                      type="text"
+                      value={editedAccountName}
+                      onChange={(e) => setEditedAccountName(e.target.value)}
+                      className="h-8 w-[200px] text-lg font-bold"
+                      disabled={isSavingAccountName}
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveAccountName();
+                        if (e.key === 'Escape') setIsEditingAccountName(false);
+                      }}
+                    />
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleSaveAccountName} disabled={isSavingAccountName}>
+                      {isSavingAccountName ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                    </Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setIsEditingAccountName(false)} disabled={isSavingAccountName}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 group/name">
+                    <h1 className="text-xl font-bold tracking-tight truncate">
+                      {prospect.account_name || prospect.prospect_name}
+                    </h1>
+                    {onUpdateProspect && (
+                      <Button 
+                        size="icon" 
+                        variant="ghost" 
+                        className="h-6 w-6 opacity-0 group-hover/name:opacity-100 transition-opacity" 
+                        onClick={handleStartEditAccountName}
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </div>
+                )}
                 <Select value={prospect.status} onValueChange={(v) => onStatusChange(v as ProspectStatus)}>
                   <SelectTrigger className="w-[100px] h-7 text-xs">
                     <SelectValue />
