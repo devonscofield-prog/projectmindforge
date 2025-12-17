@@ -213,7 +213,7 @@ async function runCompetitorResearch(
     if (!homepageResponse.ok) {
       const errorText = await homepageResponse.text();
       console.error('Homepage scrape failed:', errorText);
-      await supabase.from('competitors').update({ research_status: 'error' }).eq('id', competitor_id);
+      await supabase.from('competitors').update({ research_status: 'error', intel: null }).eq('id', competitor_id);
       return;
     }
 
@@ -301,7 +301,7 @@ Extract comprehensive intel including overview, products, pricing (if visible), 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
       console.error('AI extraction failed:', errorText);
-      await supabase.from('competitors').update({ research_status: 'error' }).eq('id', competitor_id);
+      await supabase.from('competitors').update({ research_status: 'error', intel: null }).eq('id', competitor_id);
       return;
     }
 
@@ -310,7 +310,7 @@ Extract comprehensive intel including overview, products, pricing (if visible), 
     
     if (!toolCall || toolCall.function.name !== 'submit_competitor_intel') {
       console.error('No valid tool call in response');
-      await supabase.from('competitors').update({ research_status: 'error' }).eq('id', competitor_id);
+      await supabase.from('competitors').update({ research_status: 'error', intel: null }).eq('id', competitor_id);
       return;
     }
 
@@ -319,7 +319,7 @@ Extract comprehensive intel including overview, products, pricing (if visible), 
       intel = JSON.parse(toolCall.function.arguments);
     } catch (e) {
       console.error('Failed to parse AI response:', e);
-      await supabase.from('competitors').update({ research_status: 'error' }).eq('id', competitor_id);
+      await supabase.from('competitors').update({ research_status: 'error', intel: null }).eq('id', competitor_id);
       return;
     }
 
@@ -343,7 +343,7 @@ Extract comprehensive intel including overview, products, pricing (if visible), 
 
     if (updateError) {
       console.error('Database update failed:', updateError);
-      await supabase.from('competitors').update({ research_status: 'error' }).eq('id', competitor_id);
+      await supabase.from('competitors').update({ research_status: 'error', intel: null }).eq('id', competitor_id);
       return;
     }
 
@@ -351,7 +351,7 @@ Extract comprehensive intel including overview, products, pricing (if visible), 
 
   } catch (error) {
     console.error('Background research error:', error);
-    await supabase.from('competitors').update({ research_status: 'error' }).eq('id', competitor_id);
+    await supabase.from('competitors').update({ research_status: 'error', intel: null }).eq('id', competitor_id);
   }
 }
 
