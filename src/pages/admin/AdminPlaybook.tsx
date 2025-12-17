@@ -19,8 +19,16 @@ import {
   Check,
   ExternalLink,
   User,
-  Calendar
+  Calendar,
+  Download,
+  ChevronDown,
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -31,6 +39,10 @@ import {
   fetchSuggestedTalkTracks,
   getObjectionCategories,
   getSeverityLevels,
+  collectAllPains,
+  exportPainsToCSV,
+  getPainsAsList,
+  downloadFile,
   type ObjectionHandler,
   type PitchTrack,
   type TalkTrack,
@@ -304,6 +316,28 @@ export default function AdminPlaybook() {
     toast.success('Copied to clipboard');
   };
 
+  const handleExportPainsCSV = () => {
+    const pains = collectAllPains(pitchTracks || [], talkTracks || []);
+    if (pains.length === 0) {
+      toast.error('No pains to export');
+      return;
+    }
+    const csv = exportPainsToCSV(pains);
+    downloadFile(csv, 'pains-export.csv', 'text/csv');
+    toast.success(`Exported ${pains.length} pains to CSV`);
+  };
+
+  const handleCopyPainsList = async () => {
+    const pains = collectAllPains(pitchTracks || [], talkTracks || []);
+    if (pains.length === 0) {
+      toast.error('No pains to copy');
+      return;
+    }
+    const list = getPainsAsList(pains);
+    await navigator.clipboard.writeText(list);
+    toast.success(`Copied ${pains.length} pains to clipboard`);
+  };
+
   // Filter by search query
   const filteredObjections = objectionHandlers?.filter(h => 
     !searchQuery || 
@@ -411,6 +445,26 @@ export default function AdminPlaybook() {
                   className="pl-9 w-[200px]"
                 />
               </div>
+              
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1">
+                    <Download className="h-4 w-4" />
+                    Export Pains
+                    <ChevronDown className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleExportPainsCSV}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Download as CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleCopyPainsList}>
+                    <Copy className="h-4 w-4 mr-2" />
+                    Copy to Clipboard
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 
