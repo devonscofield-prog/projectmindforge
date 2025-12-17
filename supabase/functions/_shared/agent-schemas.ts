@@ -66,6 +66,13 @@ export const RefereeSchema = z.object({
       secured: z.boolean(),
       details: z.string(),
     }),
+    interactivity: z.object({
+      score: z.number(),
+      total_turns: z.number(),
+      turns_per_minute: z.number(),
+      avg_turn_length_words: z.number(),
+      status: z.enum(['Excellent', 'Good', 'Fair', 'Poor']),
+    }),
   }),
 });
 

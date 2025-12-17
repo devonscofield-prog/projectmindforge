@@ -86,9 +86,30 @@ export const REFEREE_PROMPT = `You are 'The Referee', a behavioral data analyst.
   - 5 pts: Vague ("Next week")
   - 0 pts: None
 
+**5. INTERACTIVITY (0-15 pts)**
+- Count total speaker turns (each time the speaker changes = 1 turn).
+- Estimate call duration in minutes from transcript length/context (assume ~150 words/minute spoken).
+- Calculate turns per minute (total_turns / estimated_duration_minutes).
+- Calculate average turn length in words (total_words / total_turns).
+
+**Scoring:**
+- Turns per minute ≥ 8: 15 pts (Excellent - dynamic ping-pong dialogue)
+- Turns per minute 5-7: 12 pts (Good - healthy back-and-forth)
+- Turns per minute 3-4: 8 pts (Fair - some dialogue but could be more interactive)
+- Turns per minute 1-2: 4 pts (Poor - presentation-style, one person dominating)
+- Turns per minute < 1: 0 pts (Monologue - essentially no back-and-forth)
+
+**Status Assignment:**
+- 15 pts = Excellent
+- 12 pts = Good
+- 8 pts = Fair
+- ≤4 pts = Poor
+
+**CRITICAL EXCEPTION (Demo Clause):** Be lenient on low interactivity if the call is clearly a product demo where the Rep is expected to present for extended periods.
+
 **OUTPUT:**
-- Calculate overall_score as sum of: patience + monologue + talk_ratio + next_steps (max 80 pts)
-- Grade is "Pass" if overall_score >= 48 (60% of 80), otherwise "Fail".
+- Calculate overall_score as sum of: patience + monologue + talk_ratio + next_steps + interactivity (max 95 pts)
+- Grade is "Pass" if overall_score >= 57 (60% of 95), otherwise "Fail".
 - Note: Final score will include question_leverage (20 pts) added by a separate agent.`;
 
 // The Interrogator - question leverage (optimized for performance)
