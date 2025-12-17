@@ -23,6 +23,7 @@ import {
   UserPlus,
   Plus,
   Sparkles,
+  BookOpen,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -71,6 +72,7 @@ const adminNavGroups = [
     label: 'Coaching',
     items: [
       { href: '/admin/coaching', label: 'Coaching Trends', icon: TrendingUp },
+      { href: '/admin/playbook', label: 'Sales Playbook', icon: BookOpen },
     ],
   },
   {
@@ -109,6 +111,7 @@ const managerNavGroups = [
     label: 'Coaching',
     items: [
       { href: '/manager/coaching-trends', label: 'AI Coaching Trends', icon: Sparkles },
+      { href: '/manager/playbook', label: 'Sales Playbook', icon: BookOpen },
       { href: '/manager/coaching', label: 'Coaching Sessions', icon: MessageSquare },
     ],
   },
