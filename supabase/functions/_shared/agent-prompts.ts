@@ -105,7 +105,13 @@ export const REFEREE_PROMPT = `You are 'The Referee', a behavioral data analyst.
 - 8 pts = Fair
 - ≤4 pts = Poor
 
-**CRITICAL EXCEPTION (Demo Clause):** Be lenient on low interactivity if the call is clearly a product demo where the Rep is expected to present for extended periods.
+**CRITICAL EXCEPTION (Demo Clause for Interactivity):**
+If the call is classified as 'group_demo' or 'technical_deep_dive' (check context for call type hints), apply lenient scoring:
+- Turns per minute ≥ 4: 15 pts (Excellent for demo context)
+- Turns per minute 2-3: 12 pts (Good - reasonable Q&A breaks)
+- Turns per minute 1-2: 8 pts (Fair - some interaction during demo)
+- Turns per minute < 1: 4 pts (Poor - but expected for heavy demos)
+In demo contexts, do NOT score 0 pts unless there is literally zero back-and-forth. Demos inherently have longer Rep monologues.
 
 **OUTPUT:**
 - Calculate overall_score as sum of: patience + monologue + talk_ratio + next_steps + interactivity (max 95 pts)
