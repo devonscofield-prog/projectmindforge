@@ -77,8 +77,8 @@ export async function researchCompetitor(
   competitorId: string,
   website: string,
   name: string
-): Promise<{ success: boolean; intel?: CompetitorIntel; error?: string }> {
-  // Update status to processing
+): Promise<{ success: boolean; status?: string; error?: string }> {
+  // Update status to processing immediately for UI feedback
   await supabase
     .from('competitors')
     .update({ research_status: 'processing' })
@@ -93,7 +93,7 @@ export async function researchCompetitor(
   });
 
   if (error) {
-    // Update status to error
+    // Update status to error on failure
     await supabase
       .from('competitors')
       .update({ research_status: 'error' })
@@ -102,6 +102,12 @@ export async function researchCompetitor(
     return { success: false, error: error.message };
   }
 
+  // Background processing - returns { success: true, status: 'processing' }
+  if (data.status === 'processing') {
+    return { success: true, status: 'processing' };
+  }
+
+  // Handle unexpected responses
   if (!data.success) {
     await supabase
       .from('competitors')
@@ -111,5 +117,14 @@ export async function researchCompetitor(
     return { success: false, error: data.error || 'Research failed' };
   }
 
-  return { success: true, intel: data.intel };
+  return { success: true };
+}
+
+export async function resetCompetitorStatus(competitorId: string): Promise<void> {
+  const { error } = await supabase
+    .from('competitors')
+    .update({ research_status: 'pending' })
+    .eq('id', competitorId);
+
+  if (error) throw error;
 }
