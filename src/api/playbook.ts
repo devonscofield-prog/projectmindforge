@@ -306,3 +306,93 @@ export function getObjectionCategories(): string[] {
 export function getSeverityLevels(): string[] {
   return ['High', 'Medium', 'Low'];
 }
+
+export interface ExportedPain {
+  pain: string;
+  severity: string;
+  type: string;
+  source: 'Pitch Library' | 'Missed Opportunity';
+  accountName: string | null;
+  repName: string;
+}
+
+/**
+ * Combines pains from pitches and talk tracks into a deduplicated list
+ */
+export function collectAllPains(
+  pitches: PitchTrack[],
+  talkTracks: TalkTrack[]
+): ExportedPain[] {
+  const painMap = new Map<string, ExportedPain>();
+
+  // Add pains from successful pitches
+  for (const pitch of pitches) {
+    const key = pitch.painIdentified.toLowerCase().trim();
+    if (!painMap.has(key)) {
+      painMap.set(key, {
+        pain: pitch.painIdentified,
+        severity: pitch.painSeverity,
+        type: pitch.painType,
+        source: 'Pitch Library',
+        accountName: pitch.accountName,
+        repName: pitch.repName,
+      });
+    }
+  }
+
+  // Add pains from missed opportunities (talk tracks)
+  for (const track of talkTracks) {
+    const key = track.pain.toLowerCase().trim();
+    if (!painMap.has(key)) {
+      painMap.set(key, {
+        pain: track.pain,
+        severity: track.severity,
+        type: 'Missed',
+        source: 'Missed Opportunity',
+        accountName: track.accountName,
+        repName: track.repName,
+      });
+    }
+  }
+
+  return Array.from(painMap.values());
+}
+
+/**
+ * Exports pains to CSV format
+ */
+export function exportPainsToCSV(pains: ExportedPain[]): string {
+  const headers = ['Pain', 'Severity', 'Type', 'Source', 'Account', 'Rep'];
+  const rows = pains.map(p => [
+    `"${p.pain.replace(/"/g, '""')}"`,
+    p.severity,
+    p.type,
+    p.source,
+    p.accountName ? `"${p.accountName.replace(/"/g, '""')}"` : '',
+    p.repName,
+  ]);
+
+  return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+}
+
+/**
+ * Returns unique pain strings as a plain text list
+ */
+export function getPainsAsList(pains: ExportedPain[]): string {
+  return pains.map(p => `• ${p.pain}`).join('\n');
+}
+
+/**
+ * Downloads content as a file
+ */
+export function downloadFile(content: string, filename: string, mimeType: string): void {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
