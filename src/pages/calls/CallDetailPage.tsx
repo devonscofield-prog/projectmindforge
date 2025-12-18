@@ -23,6 +23,7 @@ import { SalesAssetsGenerator } from '@/components/calls/SalesAssetsGenerator';
 import { CallAnalysisLayout } from '@/components/calls/CallAnalysisLayout';
 import { TranscriptViewer } from '@/components/calls/TranscriptViewer';
 import { CoachingCard } from '@/components/calls/coaching';
+import { SalesCoachChat } from '@/components/prospects/SalesCoachChat';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CallType, callTypeLabels } from '@/constants/callTypes';
@@ -534,6 +535,14 @@ function CallDetailPage() {
             </CollapsibleContent>
           </Card>
         </Collapsible>
+
+        {/* Sales Coach Chat - Same session as Account Detail page */}
+        {transcript.prospect_id && (
+          <SalesCoachChat 
+            prospectId={transcript.prospect_id} 
+            accountName={transcript.account_name || 'Unknown Account'} 
+          />
+        )}
 
         {/* Edit Call Details Dialog */}
         <EditCallDetailsDialog
