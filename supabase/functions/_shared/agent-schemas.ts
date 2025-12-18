@@ -67,7 +67,7 @@ export const RefereeSchema = z.object({
       details: z.string(),
     }),
     interactivity: z.object({
-      score: z.number(),
+      score: z.number().min(0).max(20),
       total_turns: z.number(),
       turns_per_minute: z.number(),
       avg_turn_length_words: z.number(),
