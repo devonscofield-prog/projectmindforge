@@ -16,7 +16,7 @@
 
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getAgent, getPhase0Agent, AgentConfig } from './agent-registry.ts';
-import { executeAgent, executeAgentWithPrompt, AgentResult, getAgentTimeout } from './agent-factory.ts';
+import { executeAgent, executeAgentWithPrompt, executeCoachWithConsensus, AgentResult, getAgentTimeout } from './agent-factory.ts';
 import {
   CensusOutput,
   HistorianOutput,
@@ -1105,7 +1105,8 @@ export async function runAnalysisPipeline(
     accountHistory
   );
 
-  const coachResult = await executeAgent(coachConfig, coachingReport, supabase, callId);
+  // Use multi-model consensus for Coach - runs on GPT-5.2 AND Gemini 3 Pro, then reconciles
+  const coachResult = await executeCoachWithConsensus(coachConfig, coachingReport, supabase, callId);
   
   if (!coachResult.success) {
     warnings.push(`Coaching synthesis failed: ${coachResult.error}`);
