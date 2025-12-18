@@ -88,16 +88,14 @@ export interface PipelineResult {
   totalDurationMs: number;
 }
 
-// Delay between batches to allow rate limits to recover (reduced for P1)
+// Delay between batches to allow rate limits to recover
 const BATCH_DELAY_MS = 300;
 
-// Phase 0 time budget - abort Speaker Labeler if it exceeds this
-// Reduced to 10s to leave more time for analysis agents (Sentinel typically completes in 2-3s)
-const PHASE0_BUDGET_MS = 10000;
+// Phase 0 time budget - extended for maximum quality
+const PHASE0_BUDGET_MS = 60000;
 
-// Maximum transcript length for speaker labeling (45k chars ~ 11k words)
-// Increased to support GPT-5.2 with 30s timeout for longer transcripts
-const MAX_TRANSCRIPT_LENGTH_FOR_LABELING = 45000;
+// No character limit for speaker labeling - process all transcripts regardless of length
+const MAX_TRANSCRIPT_LENGTH_FOR_LABELING = Infinity;
 
 // ============= ACCOUNT HISTORY HELPERS =============
 
@@ -715,7 +713,7 @@ ${pricingSection}
 
 // ============= PIPELINE TIMEOUT =============
 
-const PIPELINE_TIMEOUT_MS = 115000; // 55 seconds - leave 5s buffer for Edge Function limit
+const PIPELINE_TIMEOUT_MS = 300000; // 5 minutes - maximum quality mode, no time constraints
 
 class PipelineTimeoutError extends Error {
   constructor(elapsedMs: number) {
@@ -776,7 +774,7 @@ export async function runAnalysisPipeline(
   const labelerPrompt = speakerContext 
     ? buildSpeakerLabelerPrompt(transcript, speakerContext)
     : null;
-  const sentinelPrompt = `Classify this sales call transcript by type:\n\n${transcript.slice(0, 20000)}`; // Reduced from 50k to 20k for faster classification
+  const sentinelPrompt = `Classify this sales call transcript by type:\n\n${transcript}`; // Full transcript for maximum classification accuracy
   
   // Create timeout race for Phase 0 (20 second budget)
   const phase0Timeout = new Promise<'timeout'>((resolve) => 
