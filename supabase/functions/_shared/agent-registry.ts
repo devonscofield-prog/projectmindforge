@@ -341,7 +341,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (t) => `Analyze this sales call transcript for pricing discipline. Find ALL discounts, concessions, or price reductions offered and assess whether the timing was appropriate:\n\n${t}`,
     toolName: 'analyze_pricing_discipline',
     toolDescription: 'Analyze pricing discipline and discount behavior in a sales call',
-    options: { model: 'google/gemini-3-pro-preview', temperature: 0.1, maxTokens: 8192 },
+    options: { model: 'openai/gpt-5.2', maxTokens: 8192 },
     isCritical: false,
     default: DEFAULT_AUDITOR,
     phase: 1,
