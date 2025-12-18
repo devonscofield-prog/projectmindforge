@@ -69,7 +69,7 @@ export const BehaviorScoreSchema = z.object({
       details: z.string().describe("The specific next step found, or 'None'"),
     }),
     interactivity: z.object({
-      score: z.number().min(0).max(15),
+      score: z.number().min(0).max(20),
       total_turns: z.number().describe("Total number of speaker turns in the conversation"),
       turns_per_minute: z.number().describe("Average turns per minute of conversation"),
       avg_turn_length_words: z.number().describe("Average word count per turn"),
