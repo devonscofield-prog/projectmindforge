@@ -18,6 +18,7 @@ import {
 } from '@/components/prospects/detail';
 import { AccountHeatCard } from '@/components/prospects/detail/AccountHeatCard';
 import { AgreedNextStepsCard } from '@/components/prospects/detail/AgreedNextStepsCard';
+import { ProspectCallHistory } from '@/components/prospects/detail/ProspectCallHistory';
 
 // Existing dialog/sheet components
 import { AddStakeholderDialog } from '@/components/prospects/AddStakeholderDialog';
@@ -113,7 +114,10 @@ function ProspectDetail() {
           showRepName={showRepName}
         />
 
-        {/* Agreed Next Steps Card - prominent position */}
+        {/* Call History - prominent position */}
+        <ProspectCallHistory calls={calls} />
+
+        {/* Agreed Next Steps Card */}
         <AgreedNextStepsCard
           prospectId={prospect.id}
           aiExtractedInfo={prospect.ai_extracted_info as Record<string, unknown> | null}

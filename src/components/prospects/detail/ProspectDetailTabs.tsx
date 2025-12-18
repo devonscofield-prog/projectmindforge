@@ -10,7 +10,6 @@ import { ProspectProductsBreakdown } from './ProspectProductsBreakdown';
 import { Skeleton } from '@/components/ui/skeleton';
 
 // Lazy load heavy components that aren't immediately visible
-const ProspectCallHistory = lazy(() => import('./ProspectCallHistory').then(m => ({ default: m.ProspectCallHistory })));
 const ProspectEmailLogSection = lazy(() => import('./ProspectEmailLogSection').then(m => ({ default: m.ProspectEmailLogSection })));
 const ProspectActivityLog = lazy(() => import('./ProspectActivityLog').then(m => ({ default: m.ProspectActivityLog })));
 
@@ -142,7 +141,6 @@ export function ProspectDetailTabs({
 
       <TabsContent value="history" className="space-y-6 mt-6">
         <Suspense fallback={<TabContentSkeleton />}>
-          <ProspectCallHistory calls={calls} />
           <ProspectEmailLogSection
             emailLogs={emailLogs}
             stakeholders={stakeholders}
