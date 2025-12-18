@@ -242,7 +242,7 @@ Deno.serve(async (req) => {
           .eq('analysis_status', 'completed')
           .is('deleted_at', null)
           .order('call_date', { ascending: false })
-          .limit(3);
+          .limit(10); // Extended history for maximum context
 
         if (previousCalls && previousCalls.length > 0) {
           accountHistory = {

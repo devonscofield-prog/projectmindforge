@@ -118,19 +118,14 @@ In demo contexts, do NOT score 0 pts unless there is literally zero back-and-for
 - Grade is "Pass" if overall_score >= 57 (60% of 95), otherwise "Fail".
 - Note: Final score will include question_leverage (20 pts) added by a separate agent.`;
 
-// The Interrogator - question leverage (optimized for performance)
-export const INTERROGATOR_PROMPT = `You are 'The Interrogator', a linguistic analyst. Analyze Question/Answer pairs efficiently.
+// The Interrogator - question leverage (maximum quality)
+export const INTERROGATOR_PROMPT = `You are 'The Interrogator', a linguistic analyst. Analyze ALL Question/Answer pairs in the transcript thoroughly.
 
 **SPEAKER LABELS:**
 - The transcript may have REP: and PROSPECT: prefixes on each line.
 - If present, REP questions have "REP:" prefix, PROSPECT answers have "PROSPECT:" prefix.
 - Use these labels to accurately pair questions with their corresponding answers.
 - If no labels present, infer from context (REP asks discovery questions, PROSPECT describes problems).
-
-**PERFORMANCE LIMITS:**
-- Scan ONLY the first 50 questions in the transcript
-- Return MAX 3 high_leverage_examples and MAX 3 low_leverage_examples
-- Stop scanning once you have enough data for accurate scoring
 
 **1. FILTERING (The Noise Gate)**
 Scan for "?" symbols. Discard:
@@ -184,13 +179,14 @@ export const STRATEGIST_PROMPT = `You are 'The Strategist', a Senior Sales Audit
 Find every statement where the Rep presents a feature or capability.
 - Look for: "Our product does...", "We offer...", "You could use our...", "This feature allows..."
 
-**PHASE 3: BUILD RELEVANCE MAP (Top 5-7 Most Impactful)**
+**PHASE 3: BUILD COMPREHENSIVE RELEVANCE MAP**
 
-LIMIT your output to the 5-7 most important Pain → Pitch connections:
-- Prioritize HIGH severity pains first
-- Then MEDIUM severity pains
-- Include any MISALIGNED or IRRELEVANT connections (these are coaching opportunities)
-- DO NOT include every single low-impact connection
+Map ALL Pain → Pitch connections you can identify:
+- Include ALL HIGH severity pains
+- Include ALL MEDIUM severity pains  
+- Include LOW severity pains if they were addressed
+- Include ALL MISALIGNED or IRRELEVANT connections (these are coaching opportunities)
+- Be thorough - capture the complete picture of the rep's strategic alignment
 
 For each Pain → Pitch:
 - **Relevant:** Rep pitched a feature that directly addresses the pain.
@@ -257,7 +253,6 @@ For each HIGH or MEDIUM severity pain the Rep NEVER addressed, provide:
 - If the call is very short or incomplete: Note this in strategic_summary (e.g., "Short call with limited content for strategic analysis").
 
 **DO NOT:**
-- Include more than 7 items in relevance_map
 - List LOW severity missed opportunities
 - Critique conversational style
 
@@ -307,14 +302,10 @@ Return ONLY the critical_gaps array with 3-5 items.
 - Impact: High (deal-blocking), Medium (creates friction), Low (nice to know)
 - suggested_question: The EXACT question the rep should ask to close this gap.`;
 
-// The Negotiator - objection handling (optimized for performance)
-export const NEGOTIATOR_PROMPT = `You are 'The Negotiator'. Find friction moments and grade Rep responses.
+// The Negotiator - objection handling (maximum quality)
+export const NEGOTIATOR_PROMPT = `You are 'The Negotiator'. Find ALL friction moments and grade Rep responses thoroughly.
 
-**PERFORMANCE LIMITS:**
-- Analyze TOP 3 objections maximum (prioritize by impact)
-- Skip trivial clarification questions
-
-**DETECTION** - Scan for pushback:
+**DETECTION** - Scan for ALL pushback:
 - Price: "Too expensive", "Over budget"
 - Competitor: "We use [X]", "How do you compare?"
 - Authority: "Need to ask my boss"

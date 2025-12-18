@@ -12,29 +12,29 @@ import { createToolFromSchema } from './zod-to-json-schema.ts';
 // AI Gateway configuration
 const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
-const AI_GATEWAY_TIMEOUT_MS = 60000; // 60s maximum timeout
+const AI_GATEWAY_TIMEOUT_MS = 120000; // 120s maximum timeout for maximum quality
 
-// Per-agent timeouts based on model - all set to 60s for maximum reliability
+// Per-agent timeouts based on model - all set to 120s for maximum quality
 const AGENT_TIMEOUT_MS = {
-  'google/gemini-2.5-flash': 60000,
-  'google/gemini-2.5-pro': 60000,
-  'google/gemini-3-pro-preview': 60000,
-  'openai/gpt-5.2': 60000,
+  'google/gemini-2.5-flash': 120000,
+  'google/gemini-2.5-pro': 120000,
+  'google/gemini-3-pro-preview': 120000,
+  'openai/gpt-5.2': 120000,
 } as const;
 
 type ModelType = keyof typeof AGENT_TIMEOUT_MS;
 
-// Agent-specific timeout overrides - all set to 60s for maximum reliability
+// Agent-specific timeout overrides - all set to 120s for maximum quality
 const AGENT_TIMEOUT_OVERRIDES: Record<string, number> = {
-  'speaker_labeler': 60000,
-  'skeptic': 60000,
-  'negotiator': 60000,
-  'coach': 60000,
-  'auditor': 60000,
-  'profiler': 60000,
-  'interrogator': 60000,
-  'strategist': 60000,
-  'referee': 60000,
+  'speaker_labeler': 120000,
+  'skeptic': 120000,
+  'negotiator': 120000,
+  'coach': 120000,
+  'auditor': 120000,
+  'profiler': 120000,
+  'interrogator': 120000,
+  'strategist': 120000,
+  'referee': 120000,
 } as const;
 
 // Non-critical agents that can fail gracefully without blocking analysis
