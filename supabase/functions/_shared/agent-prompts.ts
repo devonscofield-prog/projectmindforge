@@ -413,10 +413,6 @@ export const SPY_PROMPT = `You are 'The Spy'. Extract competitor mentions and bu
 
 ${STORMWIND_PRODUCT_CONTEXT}
 
-**PERFORMANCE LIMITS:**
-- Analyze TOP 3 competitors maximum
-- Focus on most impactful/mentioned
-
 **COMPETITOR QUALIFICATION RULES (CRITICAL):**
 A vendor is ONLY a competitor if ALL of these are true:
 1. They sell TRAINING, ELEARNING, CERTIFICATION, or SECURITY AWARENESS products
