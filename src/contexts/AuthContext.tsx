@@ -6,8 +6,11 @@ import { toast } from 'sonner';
 import { logUserActivity } from '@/api/userActivityLogs';
 import { preloadRoleRoutes } from '@/lib/routePreloader';
 import { createLogger } from '@/lib/logger';
+import { getDeviceId } from '@/lib/deviceId';
 
 const log = createLogger('auth');
+
+type MFAStatus = 'loading' | 'verified' | 'needs-enrollment' | 'needs-verification';
 
 interface AuthContextType {
   user: User | null;
@@ -15,11 +18,13 @@ interface AuthContextType {
   profile: Profile | null;
   role: UserRole | null;
   loading: boolean;
+  mfaStatus: MFAStatus;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, name: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
   updatePassword: (newPassword: string) => Promise<{ error: Error | null }>;
+  setMfaVerified: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -30,6 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
   const [profile, setProfile] = useState<Profile | null>(null);
   const [role, setRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mfaStatus, setMfaStatus] = useState<MFAStatus>('loading');
   const [presenceChannel, setPresenceChannel] = useState<RealtimeChannel | null>(null);
   const hasLoggedLogin = useRef(false);
   const hasHandledSessionExpiry = useRef(false);
@@ -47,6 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     setSession(null);
     setProfile(null);
     setRole(null);
+    setMfaStatus('loading');
     hasLoggedLogin.current = false;
 
     // Show friendly toast
@@ -144,14 +151,70 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     }
   };
 
+  // Check MFA status - returns the MFA state
+  const checkMfaStatus = async (userId: string): Promise<MFAStatus> => {
+    try {
+      const deviceId = getDeviceId();
+      
+      // Check trusted device and MFA factors in parallel
+      const [trustedDeviceResult, factorsResult] = await Promise.all([
+        supabase
+          .from('user_trusted_devices')
+          .select('id, expires_at')
+          .eq('user_id', userId)
+          .eq('device_id', deviceId)
+          .maybeSingle(),
+        supabase.auth.mfa.listFactors()
+      ]);
+
+      const trustedDevice = trustedDeviceResult.data;
+      const factors = factorsResult.data;
+
+      // If device is trusted and not expired
+      if (trustedDevice?.expires_at && new Date(trustedDevice.expires_at) > new Date()) {
+        // Update last_used_at in background (don't await)
+        supabase
+          .from('user_trusted_devices')
+          .update({ last_used_at: new Date().toISOString() })
+          .eq('id', trustedDevice.id)
+          .then(() => {});
+        
+        return 'verified';
+      }
+
+      // Check if user has verified TOTP
+      const hasVerifiedTOTP = factors?.totp?.some(f => f.status === 'verified');
+
+      if (hasVerifiedTOTP) {
+        return 'needs-verification';
+      } else {
+        return 'needs-enrollment';
+      }
+    } catch (error) {
+      log.error('Error checking MFA status', { error });
+      return 'needs-enrollment';
+    }
+  };
+
   const fetchUserData = async (userId: string) => {
     try {
-      // Fetch profile
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
+      // Fetch profile, role, and MFA status in parallel
+      const [profileResult, roleResult, mfaResult] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle(),
+        supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', userId)
+          .maybeSingle(),
+        checkMfaStatus(userId)
+      ]);
+
+      const { data: profileData, error: profileError } = profileResult;
+      const { data: roleData, error: roleError } = roleResult;
 
       // Check for session-related errors
       if (profileError) {
@@ -172,13 +235,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
         setProfile(profileData as Profile);
       }
 
-      // Fetch role
-      const { data: roleData, error: roleError } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId)
-        .maybeSingle();
-
       // Check for session-related errors
       if (roleError) {
         const errorMessage = roleError.message?.toLowerCase() || '';
@@ -194,9 +250,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
         // Preload routes for this role to improve navigation performance
         preloadRoleRoutes(userRole);
       }
+
+      // Set MFA status
+      setMfaStatus(mfaResult);
     } catch (error) {
       log.error('Error fetching user data', { error });
     }
+  };
+
+  // Function to mark MFA as verified (called by MFAGate after successful verification)
+  const setMfaVerified = () => {
+    setMfaStatus('verified');
   };
 
   useEffect(() => {
@@ -218,6 +282,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
           setUser(null);
           setProfile(null);
           setRole(null);
+          setMfaStatus('loading');
           setLoading(false);
           return;
         }
@@ -233,6 +298,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
         } else {
           setProfile(null);
           setRole(null);
+          setMfaStatus('loading');
         }
       }
     );
@@ -348,6 +414,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     setSession(null);
     setProfile(null);
     setRole(null);
+    setMfaStatus('loading');
     
     // Then attempt server-side signout (may fail if session already invalid after MFA)
     try {
@@ -389,11 +456,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
       profile,
       role,
       loading,
+      mfaStatus,
       signIn,
       signUp,
       signOut,
       resetPassword,
-      updatePassword
+      updatePassword,
+      setMfaVerified
     }}>
       {children}
     </AuthContext.Provider>
