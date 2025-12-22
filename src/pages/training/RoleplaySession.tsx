@@ -255,7 +255,8 @@ export default function RoleplaySession() {
 
       // Connect to OpenAI Realtime API
       const baseUrl = 'https://api.openai.com/v1/realtime';
-      const model = 'gpt-4o-realtime-preview-2024-12-17';
+      // Must match the model used in roleplay-session-manager edge function
+      const model = 'gpt-realtime-mini-2025-12-15';
       
       const response = await fetch(`${baseUrl}?model=${model}`, {
         method: 'POST',
