@@ -103,6 +103,92 @@ async function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// ============= SCHEMA COERCION HELPERS =============
+
+/**
+ * Attempt to fix common schema validation issues before failing
+ * This helps recover from minor AI response formatting issues
+ */
+function coerceStrategistOutput(data: unknown): unknown {
+  if (!data || typeof data !== 'object') return data;
+  
+  const obj = data as Record<string, unknown>;
+  
+  // Fix strategic_threading.missed_opportunities - coerce strings to objects
+  if (obj.strategic_threading && typeof obj.strategic_threading === 'object') {
+    const st = obj.strategic_threading as Record<string, unknown>;
+    
+    // Coerce string array to object array for missed_opportunities
+    if (Array.isArray(st.missed_opportunities)) {
+      st.missed_opportunities = st.missed_opportunities
+        .slice(0, 3) // Limit to 3 as per optimized prompt
+        .map((item: unknown) => {
+          if (typeof item === 'string') {
+            // Convert string to object format
+            return {
+              pain: item,
+              severity: 'Medium' as const,
+              suggested_pitch: 'See above pain description',
+              talk_track: `When you mentioned "${item}", that's exactly where we can help...`,
+            };
+          }
+          return item;
+        });
+    }
+    
+    // Ensure score_breakdown exists with defaults
+    if (!st.score_breakdown || typeof st.score_breakdown !== 'object') {
+      st.score_breakdown = {
+        high_pains_addressed: 0,
+        high_pains_total: 0,
+        medium_pains_addressed: 0,
+        medium_pains_total: 0,
+        spray_and_pray_count: 0,
+      };
+    }
+  }
+  
+  return obj;
+}
+
+/**
+ * Attempt to fix common Referee schema issues
+ */
+function coerceRefereeOutput(data: unknown): unknown {
+  if (!data || typeof data !== 'object') return data;
+  
+  const obj = data as Record<string, unknown>;
+  
+  if (obj.metrics && typeof obj.metrics === 'object') {
+    const metrics = obj.metrics as Record<string, unknown>;
+    
+    // Fix interactivity.score exceeding max of 20
+    if (metrics.interactivity && typeof metrics.interactivity === 'object') {
+      const interactivity = metrics.interactivity as Record<string, unknown>;
+      if (typeof interactivity.score === 'number' && interactivity.score > 20) {
+        console.log(`[agent-factory] Coercing interactivity.score from ${interactivity.score} to 20`);
+        interactivity.score = 20;
+      }
+    }
+  }
+  
+  return obj;
+}
+
+/**
+ * Apply agent-specific coercion based on agent ID
+ */
+function applySchemaCoercion(agentId: string, data: unknown): unknown {
+  switch (agentId) {
+    case 'strategist':
+      return coerceStrategistOutput(data);
+    case 'referee':
+      return coerceRefereeOutput(data);
+    default:
+      return data;
+  }
+}
+
 // ============= AI CALLING =============
 
 /**
@@ -176,8 +262,13 @@ async function callOpenAIAPI<T extends z.ZodTypeAny>(
       throw new Error('Failed to parse OpenAI response');
     }
 
+    // Apply agent-specific coercion before validation
+    const coercedResult = applySchemaCoercion(config.id, parsedResult);
+
     // Validate against schema
-    const validationResult = config.schema.safeParse(parsedResult);
+    let validationResult = config.schema.safeParse(coercedResult);
+    
+    // If validation still fails after coercion, log and throw
     if (!validationResult.success) {
       console.error(`[agent-factory] Schema validation failed for ${config.id}:`, validationResult.error.message);
       throw new Error(`Schema validation failed: ${validationResult.error.message}`);
@@ -313,11 +404,23 @@ async function callLovableAI<T extends z.ZodTypeAny>(
       throw new Error('Failed to parse AI response');
     }
 
+    // Apply agent-specific coercion before validation
+    const coercedResult = applySchemaCoercion(config.id, parsedResult);
+
     // Validate against schema
-    const validationResult = config.schema.safeParse(parsedResult);
+    const validationResult = config.schema.safeParse(coercedResult);
+    
+    // If validation fails, handle gracefully for non-critical agents
     if (!validationResult.success) {
-      console.error(`[agent-factory] Schema validation failed for ${config.id}:`, validationResult.error.message);
-      console.error('[agent-factory] Invalid data received:', JSON.stringify(parsedResult).substring(0, 500));
+      console.warn(`[agent-factory] Validation failed for ${config.id}: ${validationResult.error.message}`);
+      console.warn(`[agent-factory] Validation errors: ${JSON.stringify(validationResult.error.issues.slice(0, 3))}`);
+      
+      // For non-critical agents, return defaults rather than throwing
+      if (isNonCriticalAgent(config.id)) {
+        console.warn(`[agent-factory] Non-critical agent ${config.id} - returning default values`);
+        return config.default as z.infer<T>;
+      }
+      
       throw new Error(`Schema validation failed: ${validationResult.error.message}`);
     }
 
