@@ -9,7 +9,7 @@ const corsHeaders = {
 interface InviteRequest {
   email: string;
   name: string;
-  role: 'rep' | 'manager' | 'admin';
+  role: 'rep' | 'manager' | 'admin' | 'trainee';
   teamId?: string;
   sendEmail?: boolean;
   redirectTo?: string;
@@ -201,7 +201,8 @@ Deno.serve(async (req) => {
         const roleDisplayName = {
           rep: 'Sales Rep',
           manager: 'Manager',
-          admin: 'Administrator'
+          admin: 'Administrator',
+          trainee: 'Trainee'
         }[role];
 
         const { error: sendError } = await resend.emails.send({

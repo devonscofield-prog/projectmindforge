@@ -1575,6 +1575,223 @@ export type Database = {
         }
         Relationships: []
       }
+      roleplay_grades: {
+        Row: {
+          coaching_prescription: string | null
+          created_at: string | null
+          feedback: Json | null
+          focus_areas: Json | null
+          graded_at: string | null
+          grader_id: string | null
+          grader_type: string | null
+          id: string
+          overall_grade: string | null
+          scores: Json
+          session_id: string
+        }
+        Insert: {
+          coaching_prescription?: string | null
+          created_at?: string | null
+          feedback?: Json | null
+          focus_areas?: Json | null
+          graded_at?: string | null
+          grader_id?: string | null
+          grader_type?: string | null
+          id?: string
+          overall_grade?: string | null
+          scores?: Json
+          session_id: string
+        }
+        Update: {
+          coaching_prescription?: string | null
+          created_at?: string | null
+          feedback?: Json | null
+          focus_areas?: Json | null
+          graded_at?: string | null
+          grader_id?: string | null
+          grader_type?: string | null
+          id?: string
+          overall_grade?: string | null
+          scores?: Json
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roleplay_grades_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "roleplay_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      roleplay_personas: {
+        Row: {
+          backstory: string | null
+          common_objections: Json | null
+          communication_style: Json | null
+          created_at: string | null
+          created_by: string | null
+          difficulty_level: string | null
+          disc_profile: string | null
+          dos_and_donts: Json | null
+          id: string
+          industry: string | null
+          is_active: boolean | null
+          is_ai_generated: boolean | null
+          name: string
+          pain_points: Json | null
+          persona_type: string
+          source_data_refs: Json | null
+          updated_at: string | null
+          voice: string | null
+        }
+        Insert: {
+          backstory?: string | null
+          common_objections?: Json | null
+          communication_style?: Json | null
+          created_at?: string | null
+          created_by?: string | null
+          difficulty_level?: string | null
+          disc_profile?: string | null
+          dos_and_donts?: Json | null
+          id?: string
+          industry?: string | null
+          is_active?: boolean | null
+          is_ai_generated?: boolean | null
+          name: string
+          pain_points?: Json | null
+          persona_type: string
+          source_data_refs?: Json | null
+          updated_at?: string | null
+          voice?: string | null
+        }
+        Update: {
+          backstory?: string | null
+          common_objections?: Json | null
+          communication_style?: Json | null
+          created_at?: string | null
+          created_by?: string | null
+          difficulty_level?: string | null
+          disc_profile?: string | null
+          dos_and_donts?: Json | null
+          id?: string
+          industry?: string | null
+          is_active?: boolean | null
+          is_ai_generated?: boolean | null
+          name?: string
+          pain_points?: Json | null
+          persona_type?: string
+          source_data_refs?: Json | null
+          updated_at?: string | null
+          voice?: string | null
+        }
+        Relationships: []
+      }
+      roleplay_sessions: {
+        Row: {
+          created_at: string | null
+          duration_seconds: number | null
+          ended_at: string | null
+          id: string
+          manager_id: string | null
+          persona_id: string | null
+          scenario_prompt: string | null
+          session_config: Json | null
+          session_type: string | null
+          started_at: string | null
+          status: string | null
+          team_id: string | null
+          trainee_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          manager_id?: string | null
+          persona_id?: string | null
+          scenario_prompt?: string | null
+          session_config?: Json | null
+          session_type?: string | null
+          started_at?: string | null
+          status?: string | null
+          team_id?: string | null
+          trainee_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          manager_id?: string | null
+          persona_id?: string | null
+          scenario_prompt?: string | null
+          session_config?: Json | null
+          session_type?: string | null
+          started_at?: string | null
+          status?: string | null
+          team_id?: string | null
+          trainee_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roleplay_sessions_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "roleplay_personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "roleplay_sessions_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      roleplay_transcripts: {
+        Row: {
+          audio_url: string | null
+          created_at: string | null
+          duration_seconds: number | null
+          id: string
+          raw_text: string | null
+          session_id: string
+          transcript_json: Json | null
+        }
+        Insert: {
+          audio_url?: string | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          id?: string
+          raw_text?: string | null
+          session_id: string
+          transcript_json?: Json | null
+        }
+        Update: {
+          audio_url?: string | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          id?: string
+          raw_text?: string | null
+          session_id?: string
+          transcript_json?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roleplay_transcripts_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "roleplay_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sales_coach_sessions: {
         Row: {
           created_at: string
@@ -2184,7 +2401,7 @@ export type Database = {
         | "user_deactivated"
         | "user_reactivated"
         | "user_deleted"
-      user_role: "rep" | "manager" | "admin"
+      user_role: "rep" | "manager" | "admin" | "trainee"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2358,7 +2575,7 @@ export const Constants = {
         "user_reactivated",
         "user_deleted",
       ],
-      user_role: ["rep", "manager", "admin"],
+      user_role: ["rep", "manager", "admin", "trainee"],
     },
   },
 } as const

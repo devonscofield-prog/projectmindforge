@@ -55,6 +55,8 @@ export function getDashboardUrl(role: UserRole | null): string {
       return '/admin';
     case 'manager':
       return '/manager';
+    case 'trainee':
+      return '/training';
     case 'rep':
     default:
       return '/rep';

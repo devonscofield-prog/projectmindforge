@@ -98,3 +98,6 @@ verify_jwt = true
 
 [functions.competitor-research]
 verify_jwt = true
+
+[functions.roleplay-session-manager]
+verify_jwt = true
