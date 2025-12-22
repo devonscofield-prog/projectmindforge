@@ -2,11 +2,11 @@ import { useQuery } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useUserRole } from '@/hooks/useUserRole';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Separator } from '@/components/ui/separator';
 import { 
   ArrowLeft, 
   Clock, 
@@ -18,7 +18,8 @@ import {
   MessageSquare,
   Lightbulb,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  Lock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -55,6 +56,7 @@ interface Session {
     focus_areas: Json | null;
     coaching_prescription: string | null;
     graded_at: string | null;
+    feedback_visibility: string | null;
   }>;
   roleplay_transcripts: Array<{
     id: string;
@@ -72,7 +74,8 @@ const gradeColors: Record<string, string> = {
   'F': 'bg-red-500 text-white',
 };
 
-const scoreCategories = [
+// Default score categories (used when persona doesn't have custom criteria)
+const defaultScoreCategories = [
   { key: 'discovery', label: 'Discovery Skills', icon: Target },
   { key: 'objection_handling', label: 'Objection Handling', icon: MessageSquare },
   { key: 'rapport', label: 'Rapport Building', icon: User },
@@ -84,6 +87,7 @@ export default function SessionDetail() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { data: userRole } = useUserRole(user?.id);
 
   const { data: session, isLoading, error } = useQuery({
     queryKey: ['session-detail', sessionId],
@@ -109,7 +113,8 @@ export default function SessionDetail() {
             feedback,
             focus_areas,
             coaching_prescription,
-            graded_at
+            graded_at,
+            feedback_visibility
           ),
           roleplay_transcripts (
             id,
@@ -138,6 +143,16 @@ export default function SessionDetail() {
     if (score >= 60) return 'text-blue-500';
     if (score >= 40) return 'text-amber-500';
     return 'text-red-500';
+  };
+
+  // Determine if user can see full feedback
+  const canViewFullFeedback = (feedbackVisibility: string | null): boolean => {
+    // Managers and admins can always see everything
+    if (userRole === 'admin' || userRole === 'manager') {
+      return true;
+    }
+    // Reps can only see full feedback if visibility is 'full'
+    return feedbackVisibility !== 'restricted';
   };
 
   if (isLoading) {
@@ -176,8 +191,25 @@ export default function SessionDetail() {
     ? (transcript.transcript_json as unknown as TranscriptEntry[])
     : [];
   const scores = grade?.scores as Record<string, number> | undefined;
-  const feedback = grade?.feedback as Record<string, string> | undefined;
+  const feedback = grade?.feedback as Record<string, unknown> | undefined;
   const focusAreas = grade?.focus_areas as string[] | undefined;
+  
+  const showFullFeedback = canViewFullFeedback(grade?.feedback_visibility ?? null);
+
+  // Build score categories from the scores object (supports custom criteria)
+  const scoreCategories = scores 
+    ? Object.keys(scores)
+        .filter(key => key !== 'overall')
+        .map(key => {
+          // Try to find a matching default category for the icon
+          const defaultCat = defaultScoreCategories.find(dc => dc.key === key);
+          return {
+            key,
+            label: defaultCat?.label || key.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+            icon: defaultCat?.icon || Target,
+          };
+        })
+    : defaultScoreCategories;
 
   return (
     <div className="min-h-screen bg-background">
@@ -267,8 +299,36 @@ export default function SessionDetail() {
           </CardContent>
         </Card>
 
-        {/* Scores */}
-        {scores && (
+        {/* Restricted Feedback Message for Reps */}
+        {grade && !showFullFeedback && (
+          <Card className="mb-6 border-amber-500/50 bg-amber-500/5">
+            <CardContent className="py-6">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0">
+                  <Lock className="h-6 w-6 text-amber-500" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg mb-1">Keep Practicing</h3>
+                  <p className="text-muted-foreground">
+                    Your detailed feedback is available after you achieve a higher score. 
+                    Focus on active listening, asking open-ended questions, and uncovering 
+                    the prospect's true challenges. Try again to unlock your coaching insights.
+                  </p>
+                  <Button 
+                    className="mt-4"
+                    onClick={() => navigate(`/training/roleplay/${session.persona_id}`)}
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Practice Again
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Scores - Always show if available */}
+        {scores && showFullFeedback && (
           <Card className="mb-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -286,9 +346,6 @@ export default function SessionDetail() {
                       <Icon className="h-5 w-5 text-muted-foreground" />
                       <div className="flex-1">
                         <p className="text-sm font-medium">{label}</p>
-                        {feedback?.[key] && (
-                          <p className="text-xs text-muted-foreground line-clamp-1">{feedback[key]}</p>
-                        )}
                       </div>
                       <span className={cn("text-xl font-bold", getScoreColor(score))}>
                         {score}
@@ -301,8 +358,8 @@ export default function SessionDetail() {
           </Card>
         )}
 
-        {/* Focus Areas & Coaching */}
-        {(focusAreas?.length || grade?.coaching_prescription) && (
+        {/* Focus Areas & Coaching - Only show for full visibility */}
+        {showFullFeedback && (focusAreas?.length || grade?.coaching_prescription) && (
           <Card className="mb-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -326,6 +383,74 @@ export default function SessionDetail() {
                   <p className="text-sm font-medium mb-2">Coaching Prescription</p>
                   <p className="text-sm text-muted-foreground bg-secondary/50 p-3 rounded-lg">
                     {grade.coaching_prescription}
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Detailed Feedback - Only show for full visibility */}
+        {showFullFeedback && feedback && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5" />
+                Detailed Feedback
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Strengths */}
+              {Array.isArray(feedback.strengths) && feedback.strengths.length > 0 && (
+                <div>
+                  <p className="text-sm font-medium text-green-600 mb-2">Strengths</p>
+                  <ul className="space-y-1">
+                    {feedback.strengths.map((strength, idx) => (
+                      <li key={idx} className="text-sm text-muted-foreground flex items-start gap-2">
+                        <span className="text-green-500 mt-1">✓</span>
+                        {String(strength)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              
+              {/* Improvements */}
+              {Array.isArray(feedback.improvements) && feedback.improvements.length > 0 && (
+                <div>
+                  <p className="text-sm font-medium text-amber-600 mb-2">Areas for Improvement</p>
+                  <ul className="space-y-1">
+                    {feedback.improvements.map((improvement, idx) => (
+                      <li key={idx} className="text-sm text-muted-foreground flex items-start gap-2">
+                        <span className="text-amber-500 mt-1">→</span>
+                        {String(improvement)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              
+              {/* Missed Opportunities */}
+              {Array.isArray(feedback.missed_opportunities) && feedback.missed_opportunities.length > 0 && (
+                <div>
+                  <p className="text-sm font-medium text-red-600 mb-2">Missed Opportunities</p>
+                  <ul className="space-y-1">
+                    {feedback.missed_opportunities.map((missed, idx) => (
+                      <li key={idx} className="text-sm text-muted-foreground flex items-start gap-2">
+                        <span className="text-red-500 mt-1">✗</span>
+                        {String(missed)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              
+              {/* Persona-specific feedback */}
+              {typeof feedback.persona_specific === 'string' && feedback.persona_specific && (
+                <div>
+                  <p className="text-sm font-medium mb-2">Persona Adaptation</p>
+                  <p className="text-sm text-muted-foreground bg-secondary/50 p-3 rounded-lg">
+                    {feedback.persona_specific}
                   </p>
                 </div>
               )}
