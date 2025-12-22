@@ -154,6 +154,12 @@ const traineeNavGroups = [
       { href: '/training/progress', label: 'My Progress', icon: TrendingUp },
     ],
   },
+  {
+    label: 'Resources',
+    items: [
+      { href: '/admin/competitors', label: 'Competitor Intel', icon: Swords },
+    ],
+  },
 ];
 
 // Quick actions for footer by role
