@@ -1,4 +1,4 @@
-export type UserRole = 'rep' | 'manager' | 'admin';
+export type UserRole = 'rep' | 'manager' | 'admin' | 'trainee';
 
 export type ActivityType = 'cold_calls' | 'emails' | 'linkedin' | 'demos' | 'meetings' | 'proposals';
 

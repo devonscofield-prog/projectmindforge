@@ -87,11 +87,12 @@ export function preloadRoute(path: string): void {
  * Preload routes based on user role
  * Call this after authentication to preload likely routes
  */
-export function preloadRoleRoutes(role: "rep" | "manager" | "admin"): void {
+export function preloadRoleRoutes(role: "rep" | "manager" | "admin" | "trainee"): void {
   const roleRoutes: Record<string, string[]> = {
-    rep: ["/rep", "/rep/history", "/rep/prospects", "/rep/coaching-summary"],
+    rep: ["/rep", "/rep/history", "/rep/prospects"],
     manager: ["/manager", "/manager/accounts", "/manager/coaching"],
     admin: ["/admin", "/admin/teams", "/admin/users", "/admin/accounts"],
+    trainee: ["/training", "/training/history"],
   };
 
   const routes = roleRoutes[role] || [];
