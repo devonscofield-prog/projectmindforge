@@ -81,6 +81,14 @@ export default function RoleplaySession() {
     enabled: !!personaId,
   });
 
+  // Redirect if persona not found
+  useEffect(() => {
+    if (!personaLoading && !persona && personaId) {
+      toast.error('Practice partner not found');
+      navigate('/training');
+    }
+  }, [persona, personaLoading, personaId, navigate]);
+
   // Auto-scroll transcript
   useEffect(() => {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
