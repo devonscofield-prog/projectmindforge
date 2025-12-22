@@ -32,6 +32,7 @@ interface Persona {
   industry: string | null;
   backstory: string | null;
   voice: string;
+  communication_style: Record<string, unknown> | null;
 }
 
 interface TranscriptEntry {
@@ -231,6 +232,14 @@ export default function RoleplaySession() {
 
       dc.onopen = () => {
         console.log('Data channel opened');
+        
+        // Determine silence duration based on persona communication style
+        // Stoic/minimal personas like Alex use longer pauses (1200ms) to create awkward silences
+        const communicationStyle = persona?.communication_style;
+        const isSlowPaced = String(communicationStyle?.pace || '').includes('slow') || 
+                           String(communicationStyle?.tone || '').includes('monotone');
+        const silenceDurationMs = isSlowPaced ? 1200 : 800;
+        
         // Configure session settings
         dc.send(JSON.stringify({
           type: 'session.update',
@@ -245,10 +254,11 @@ export default function RoleplaySession() {
               type: 'server_vad',
               threshold: 0.5,
               prefix_padding_ms: 300,
-              silence_duration_ms: 800
+              silence_duration_ms: silenceDurationMs
             }
           }
         }));
+        console.log('Session configured with silence_duration_ms:', silenceDurationMs);
       };
 
       dc.onmessage = handleDataChannelMessage;
