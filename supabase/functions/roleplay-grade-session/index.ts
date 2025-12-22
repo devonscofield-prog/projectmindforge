@@ -385,7 +385,7 @@ async function gradeWithAI(
   const apiKey = isLovableAI ? lovableKey : openaiKey;
   
   // Use more powerful models for better grading quality
-  const model = isLovableAI ? 'google/gemini-2.5-pro' : 'gpt-4o';
+  const model = isLovableAI ? 'google/gemini-3-pro-preview' : 'gpt-4o';
   
   console.log(`Using ${isLovableAI ? 'Lovable AI Gateway' : 'OpenAI'} (${model}) for grading`);
 
