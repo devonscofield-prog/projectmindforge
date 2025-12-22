@@ -489,6 +489,7 @@ function AdminUserEdit() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="trainee">Trainee</SelectItem>
                       <SelectItem value="rep">Sales Rep</SelectItem>
                       <SelectItem value="manager">Manager</SelectItem>
                       <SelectItem value="admin">Admin</SelectItem>
