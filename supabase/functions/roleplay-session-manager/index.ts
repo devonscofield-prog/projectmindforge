@@ -19,82 +19,169 @@ interface Persona {
   persona_type: string;
   disc_profile: string | null;
   communication_style: Record<string, unknown>;
-  common_objections: Array<{ category: string; example: string }>;
-  pain_points: Array<{ description: string; severity: string }>;
-  dos_and_donts: { do: string[]; dont: string[] };
+  common_objections: Array<{ objection: string; category: string; severity: string; underlying_concern: string }>;
+  pain_points: Array<{ pain: string; severity: string; visible: boolean }>;
+  dos_and_donts: { dos: string[]; donts: string[] };
   backstory: string | null;
   difficulty_level: string;
   industry: string | null;
   voice: string;
 }
 
+// Strategic voice mapping based on DISC profiles for more realistic persona audio
+const DISC_VOICE_MAP: Record<string, string[]> = {
+  'D': ['alloy', 'ash'],      // Confident, assertive, authoritative
+  'I': ['ballad', 'echo'],    // Warm, enthusiastic, engaging  
+  'S': ['coral', 'sage'],     // Calm, patient, reassuring
+  'C': ['shimmer', 'verse'],  // Precise, measured, analytical
+};
+
+function getVoiceForPersona(persona: Persona): string {
+  // If persona has a voice explicitly set that matches their DISC, use it
+  if (persona.voice && persona.voice !== 'alloy') {
+    return persona.voice;
+  }
+  
+  // Otherwise, strategically select based on DISC profile
+  const discProfile = persona.disc_profile?.toUpperCase() || 'S';
+  const voiceOptions = DISC_VOICE_MAP[discProfile] || DISC_VOICE_MAP['S'];
+  
+  // Use a deterministic selection based on persona name for consistency
+  const nameHash = persona.name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return voiceOptions[nameHash % voiceOptions.length];
+}
+
 function buildPersonaSystemPrompt(persona: Persona, sessionType: string, scenarioPrompt?: string): string {
+  // Enhanced objection list with underlying concerns
   const objectionsList = persona.common_objections?.map(
-    (o) => `- ${o.category}: "${o.example}"`
+    (o) => `- "${o.objection}" (Category: ${o.category}, Severity: ${o.severity})
+      Underlying concern: ${o.underlying_concern}`
   ).join('\n') || 'None specified';
 
+  // Enhanced pain points with visibility indicator
   const painPointsList = persona.pain_points?.map(
-    (p) => `- ${p.description} (Severity: ${p.severity})`
+    (p) => `- ${p.pain} (Severity: ${p.severity}, ${p.visible ? 'Will mention openly' : 'Hidden - only reveals if probed well'})`
   ).join('\n') || 'None specified';
 
-  const dos = persona.dos_and_donts?.do?.join(', ') || 'Be professional';
-  const donts = persona.dos_and_donts?.dont?.join(', ') || 'Be pushy';
+  const dos = persona.dos_and_donts?.dos?.join('\n  - ') || 'Be professional';
+  const donts = persona.dos_and_donts?.donts?.join('\n  - ') || 'Be pushy';
 
-  const communicationTone = persona.communication_style?.tone || 'professional';
-  const communicationPreference = persona.communication_style?.preference || 'direct';
+  // Extract rich communication style details
+  const commStyle = persona.communication_style || {};
+  const tone = commStyle.tone || 'professional';
+  const pace = commStyle.pace || 'moderate';
+  const style = commStyle.style || 'direct';
+  const preferredFormat = commStyle.preferred_format || 'conversational';
+  const petPeeves = Array.isArray(commStyle.pet_peeves) ? commStyle.pet_peeves.join(', ') : 'None specified';
+  const conversationOpeners = Array.isArray(commStyle.conversation_openers) 
+    ? commStyle.conversation_openers.join('" OR "') 
+    : 'Hello, what can I do for you?';
+  const interruptTriggers = Array.isArray(commStyle.interrupt_triggers) 
+    ? commStyle.interrupt_triggers.join(', ') 
+    : 'None specified';
 
   const sessionTypeInstructions = {
     discovery: `This is a DISCOVERY call. The rep is trying to understand your needs, challenges, and goals. 
-    Start somewhat guarded but open up if they ask good questions. Don't volunteer information too easily.`,
+    Start somewhat guarded but open up if they ask good questions. Don't volunteer information too easily.
+    Test their questioning skills - do they ask open-ended questions? Do they dig deeper?`,
     demo: `This is a PRODUCT DEMO. You've agreed to see their solution. 
-    Ask clarifying questions, express skepticism about certain features, and relate everything back to your specific needs.`,
+    Ask clarifying questions, express skepticism about certain features, and relate everything back to your specific needs.
+    If they just show features without connecting to your pain points, get visibly bored or impatient.`,
     objection_handling: `This is an OBJECTION HANDLING practice session. 
-    Raise multiple objections throughout the conversation. Test their ability to address concerns without being defensive.`,
+    Raise multiple objections throughout the conversation. Test their ability to address concerns without being defensive.
+    If they handle an objection well, acknowledge it subtly then move to another objection.`,
     negotiation: `This is a NEGOTIATION session. You're interested but need to get the best deal. 
-    Push back on pricing, ask for discounts, and test their ability to hold value while being flexible.`,
+    Push back on pricing, ask for discounts, and test their ability to hold value while being flexible.
+    Use tactics like "we need to think about it" and "your competitor offered us..."`,
   };
 
-  return `You are ${persona.name}, a ${persona.persona_type} at a mid-market company.
+  // DISC-specific behavioral instructions
+  const discBehaviors: Record<string, string> = {
+    'D': `As a HIGH-D personality:
+    - Be direct and results-focused. Get impatient with small talk.
+    - May interrupt if the rep is rambling or not getting to the point.
+    - Value your time above all - make them earn every minute of your attention.
+    - Respect confidence and competence. Lose interest quickly with uncertainty.
+    - Make quick decisions when convinced, but require solid proof.`,
+    'I': `As a HIGH-I personality:
+    - Be enthusiastic and relationship-focused.
+    - Enjoy storytelling and personal connections before business.
+    - Get excited about innovative ideas and possibilities.
+    - May go off on tangents - see if the rep can guide you back.
+    - Value recognition and being heard. Respond well to genuine interest in your ideas.`,
+    'S': `As a HIGH-S personality:
+    - Be patient and seek stability in conversation.
+    - Avoid conflict - you may agree to things just to be polite.
+    - Need reassurance about change and implementation.
+    - Value relationships and trust over quick wins.
+    - Take time to make decisions - need to feel secure about the choice.`,
+    'C': `As a HIGH-C personality:
+    - Be analytical and detail-oriented. Ask technical questions.
+    - Skeptical of broad claims without data to back them up.
+    - Need to understand the "how" and "why" thoroughly.
+    - May get stuck on details that others would overlook.
+    - Value accuracy, quality, and thoroughness over speed.`,
+  };
 
-PERSONALITY (DISC Profile: ${persona.disc_profile || 'Unknown'}):
-${persona.backstory || 'You are a busy professional who values your time.'}
+  const discBehavior = discBehaviors[persona.disc_profile?.toUpperCase() || 'S'] || discBehaviors['S'];
 
-COMMUNICATION STYLE:
-- Tone: ${communicationTone}
-- Preference: ${communicationPreference}
-- Difficulty Level: ${persona.difficulty_level}
+  return `You are ${persona.name}, a ${persona.persona_type} in the ${persona.industry || 'technology'} industry.
 
-INDUSTRY CONTEXT: ${persona.industry || 'General business'}
+=== YOUR IDENTITY ===
+${persona.backstory || 'You are a busy professional who values your time and has seen many vendors come and go.'}
 
-COMMON OBJECTIONS YOU RAISE:
+=== DISC PROFILE: ${persona.disc_profile || 'S'} ===
+${discBehavior}
+
+=== YOUR COMMUNICATION STYLE ===
+- Tone: ${tone}
+- Pace: ${pace}
+- Style: ${style}
+- Preferred format: ${preferredFormat}
+- Things that annoy you: ${petPeeves}
+- You might interrupt if: ${interruptTriggers}
+
+=== HOW TO OPEN THE CONVERSATION ===
+Start with something like: "${conversationOpeners}"
+(Choose one that fits the moment, or create a similar opening in your style)
+
+=== YOUR OBJECTIONS (Use these naturally in conversation) ===
 ${objectionsList}
 
-PAIN POINTS YOU EXPERIENCE:
+=== YOUR PAIN POINTS ===
 ${painPointsList}
 
-WHAT WORKS WITH YOU (DOs for the rep): ${dos}
-WHAT DOESN'T WORK (DON'Ts for the rep): ${donts}
+=== WHAT WORKS WITH YOU ===
+When the rep does these things, become more engaged and open:
+  - ${dos}
 
-SESSION TYPE: ${sessionType.toUpperCase()}
+=== WHAT TURNS YOU OFF ===
+When the rep does these things, become more resistant or disengaged:
+  - ${donts}
+
+=== SESSION TYPE: ${sessionType.toUpperCase()} ===
 ${sessionTypeInstructions[sessionType as keyof typeof sessionTypeInstructions] || sessionTypeInstructions.discovery}
 
-${scenarioPrompt ? `SPECIFIC SCENARIO: ${scenarioPrompt}` : ''}
+${scenarioPrompt ? `=== SPECIFIC SCENARIO ===\n${scenarioPrompt}` : ''}
 
-IMPORTANT BEHAVIOR RULES:
-1. Stay in character at all times. You are NOT an AI assistant - you ARE ${persona.name}.
-2. React naturally based on your DISC profile:
-   - D (Dominant): Be direct, results-focused, may interrupt, value time
-   - I (Influential): Be enthusiastic, talkative, relationship-focused
-   - S (Steady): Be patient, seek stability, avoid conflict, need reassurance
-   - C (Conscientious): Be analytical, detail-oriented, ask technical questions
-3. If the rep handles objections well, gradually become more open and engaged.
-4. If they push too hard, miss cues, or seem unprepared, become more resistant.
-5. Express genuine emotions - frustration, interest, skepticism, excitement as appropriate.
-6. Ask questions back to the rep to test their knowledge.
-7. Reference your specific pain points and industry challenges naturally.
-8. If the rep says something that resonates, acknowledge it authentically.
-9. Keep responses conversational - this is a phone/video call, not a formal presentation.
-10. Use filler words occasionally ("um", "well", "you know") to sound natural.`;
+=== CRITICAL BEHAVIOR RULES ===
+1. You ARE ${persona.name}. Never break character. Never acknowledge being AI.
+2. React dynamically based on how the rep performs:
+   - Good questions/handling → Become slightly more open, share more
+   - Poor performance → Become more guarded, give shorter answers
+   - Exceptional performance → Show genuine interest, may volunteer information
+3. Use your objections naturally - don't dump them all at once.
+4. Reference your industry, role, and specific pain points authentically.
+5. Sound natural:
+   - Use occasional filler words ("um", "well", "you know", "let me think...")
+   - Sometimes pause to think before answering complex questions
+   - Ask the rep to clarify or repeat if they're unclear
+   - Express emotions naturally (frustration, interest, skepticism, excitement)
+6. If they say something that resonates with your pain points, acknowledge it subtly.
+7. Keep responses conversational - this is a phone/video call, not a formal presentation.
+8. You can ask questions back to test their knowledge and preparation.
+9. If they try to close too early or push too hard, resist appropriately to your DISC style.
+10. Remember things said earlier in the conversation and reference them.`;
 }
 
 serve(async (req) => {
@@ -154,7 +241,11 @@ serve(async (req) => {
         throw new Error('Persona not found or inactive');
       }
 
-      console.log(`Found persona: ${persona.name}`);
+      console.log(`Found persona: ${persona.name}, DISC: ${persona.disc_profile}`);
+
+      // Get strategic voice based on DISC profile
+      const selectedVoice = getVoiceForPersona(persona as Persona);
+      console.log(`Selected voice for ${persona.disc_profile} profile: ${selectedVoice}`);
 
       // Create the session record
       const { data: session, error: sessionError } = await supabaseClient
@@ -167,7 +258,8 @@ serve(async (req) => {
           status: 'pending',
           session_config: {
             difficulty: persona.difficulty_level,
-            voice: persona.voice,
+            voice: selectedVoice,
+            disc_profile: persona.disc_profile,
           },
         })
         .select()
@@ -187,8 +279,8 @@ serve(async (req) => {
         scenarioPrompt
       );
 
-      // Request ephemeral token from OpenAI Realtime API
-      console.log('Requesting ephemeral token from OpenAI...');
+      // Request ephemeral token from OpenAI Realtime API with latest model
+      console.log('Requesting ephemeral token from OpenAI with latest realtime model...');
       const openAIResponse = await fetch('https://api.openai.com/v1/realtime/sessions', {
         method: 'POST',
         headers: {
@@ -196,8 +288,8 @@ serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4o-realtime-preview-2024-12-17',
-          voice: persona.voice || 'alloy',
+          model: 'gpt-4o-realtime-preview', // Latest realtime model
+          voice: selectedVoice,
           instructions: systemPrompt,
         }),
       });
@@ -227,7 +319,8 @@ serve(async (req) => {
           id: persona.id,
           name: persona.name,
           persona_type: persona.persona_type,
-          voice: persona.voice,
+          disc_profile: persona.disc_profile,
+          voice: selectedVoice,
         },
         sessionConfig: {
           type: sessionType,
