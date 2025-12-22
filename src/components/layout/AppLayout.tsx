@@ -25,6 +25,7 @@ import {
   Sparkles,
   BookOpen,
   Swords,
+  GraduationCap,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -112,6 +113,7 @@ const managerNavGroups = [
   {
     label: 'Coaching',
     items: [
+      { href: '/manager/training', label: 'Training Center', icon: GraduationCap },
       { href: '/manager/coaching-trends', label: 'AI Coaching Trends', icon: Sparkles },
       { href: '/manager/playbook', label: 'Sales Playbook', icon: BookOpen },
       { href: '/manager/coaching', label: 'Coaching Sessions', icon: MessageSquare },
@@ -137,6 +139,7 @@ const repNavGroups = [
   {
     label: 'Resources',
     items: [
+      { href: '/training', label: 'Practice Roleplay', icon: GraduationCap },
       { href: '/admin/competitors', label: 'Competitor Intel', icon: Swords },
     ],
   },

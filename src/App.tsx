@@ -59,6 +59,7 @@ const UserSettings = lazy(() => import("./pages/UserSettings"));
 const TrainingDashboard = lazy(() => import("./pages/training/TrainingDashboard"));
 const RoleplaySession = lazy(() => import("./pages/training/RoleplaySession"));
 const TrainingHistory = lazy(() => import("./pages/training/TrainingHistory"));
+const ManagerTrainingDashboard = lazy(() => import("./pages/training/ManagerTrainingDashboard"));
 
 // Lazy load - Marketing pages (public)
 const ROICalculatorPage = lazy(() => import("./pages/marketing/ROICalculatorPage"));
@@ -148,8 +149,14 @@ const App = () => (
                   </ProtectedRoute>
                 } />
                 <Route path="/training/history" element={
-                  <ProtectedRoute allowedRoles={['trainee', 'rep']}>
+                  <ProtectedRoute allowedRoles={['trainee', 'rep', 'manager']}>
                     <TrainingHistory />
+                  </ProtectedRoute>
+                } />
+                {/* Manager Training Dashboard */}
+                <Route path="/manager/training" element={
+                  <ProtectedRoute allowedRoles={['manager']}>
+                    <ManagerTrainingDashboard />
                   </ProtectedRoute>
                 } />
 
