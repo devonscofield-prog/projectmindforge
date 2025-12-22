@@ -1580,6 +1580,7 @@ export type Database = {
           coaching_prescription: string | null
           created_at: string | null
           feedback: Json | null
+          feedback_visibility: string | null
           focus_areas: Json | null
           graded_at: string | null
           grader_id: string | null
@@ -1593,6 +1594,7 @@ export type Database = {
           coaching_prescription?: string | null
           created_at?: string | null
           feedback?: Json | null
+          feedback_visibility?: string | null
           focus_areas?: Json | null
           graded_at?: string | null
           grader_id?: string | null
@@ -1606,6 +1608,7 @@ export type Database = {
           coaching_prescription?: string | null
           created_at?: string | null
           feedback?: Json | null
+          feedback_visibility?: string | null
           focus_areas?: Json | null
           graded_at?: string | null
           grader_id?: string | null
@@ -1635,6 +1638,7 @@ export type Database = {
           difficulty_level: string | null
           disc_profile: string | null
           dos_and_donts: Json | null
+          grading_criteria: Json | null
           id: string
           industry: string | null
           is_active: boolean | null
@@ -1655,6 +1659,7 @@ export type Database = {
           difficulty_level?: string | null
           disc_profile?: string | null
           dos_and_donts?: Json | null
+          grading_criteria?: Json | null
           id?: string
           industry?: string | null
           is_active?: boolean | null
@@ -1675,6 +1680,7 @@ export type Database = {
           difficulty_level?: string | null
           disc_profile?: string | null
           dos_and_donts?: Json | null
+          grading_criteria?: Json | null
           id?: string
           industry?: string | null
           is_active?: boolean | null
