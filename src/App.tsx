@@ -59,6 +59,8 @@ const UserSettings = lazy(() => import("./pages/UserSettings"));
 const TrainingDashboard = lazy(() => import("./pages/training/TrainingDashboard"));
 const RoleplaySession = lazy(() => import("./pages/training/RoleplaySession"));
 const TrainingHistory = lazy(() => import("./pages/training/TrainingHistory"));
+const SessionDetail = lazy(() => import("./pages/training/SessionDetail"));
+const TrainingProgress = lazy(() => import("./pages/training/TrainingProgress"));
 const ManagerTrainingDashboard = lazy(() => import("./pages/training/ManagerTrainingDashboard"));
 
 // Lazy load - Marketing pages (public)
@@ -139,23 +141,33 @@ const App = () => (
 
                 {/* Training Routes (Trainees and Reps can practice) */}
                 <Route path="/training" element={
-                  <ProtectedRoute allowedRoles={['trainee', 'rep']}>
+                  <ProtectedRoute allowedRoles={['trainee', 'rep', 'admin']}>
                     <TrainingDashboard />
                   </ProtectedRoute>
                 } />
                 <Route path="/training/roleplay/:personaId" element={
-                  <ProtectedRoute allowedRoles={['trainee', 'rep']}>
+                  <ProtectedRoute allowedRoles={['trainee', 'rep', 'admin']}>
                     <RoleplaySession />
                   </ProtectedRoute>
                 } />
                 <Route path="/training/history" element={
-                  <ProtectedRoute allowedRoles={['trainee', 'rep', 'manager']}>
+                  <ProtectedRoute allowedRoles={['trainee', 'rep', 'manager', 'admin']}>
                     <TrainingHistory />
+                  </ProtectedRoute>
+                } />
+                <Route path="/training/session/:sessionId" element={
+                  <ProtectedRoute allowedRoles={['trainee', 'rep', 'manager', 'admin']}>
+                    <SessionDetail />
+                  </ProtectedRoute>
+                } />
+                <Route path="/training/progress" element={
+                  <ProtectedRoute allowedRoles={['trainee', 'rep', 'admin']}>
+                    <TrainingProgress />
                   </ProtectedRoute>
                 } />
                 {/* Manager Training Dashboard */}
                 <Route path="/manager/training" element={
-                  <ProtectedRoute allowedRoles={['manager']}>
+                  <ProtectedRoute allowedRoles={['manager', 'admin']}>
                     <ManagerTrainingDashboard />
                   </ProtectedRoute>
                 } />

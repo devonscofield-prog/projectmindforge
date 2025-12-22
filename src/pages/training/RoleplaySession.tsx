@@ -60,6 +60,8 @@ export default function RoleplaySession() {
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
+  // Use ref to track current transcript to avoid stale closure in handleDataChannelMessage
+  const currentTranscriptRef = useRef('');
 
   // Fetch persona details
   const { data: persona, isLoading: personaLoading } = useQuery({
@@ -113,20 +115,23 @@ export default function RoleplaySession() {
 
       switch (data.type) {
         case 'response.audio_transcript.delta':
-          // Accumulate assistant transcript
-          setCurrentTranscript(prev => prev + (data.delta || ''));
+          // Accumulate assistant transcript using ref to avoid stale closure
+          currentTranscriptRef.current += (data.delta || '');
+          setCurrentTranscript(currentTranscriptRef.current);
           setStatus('speaking');
           break;
           
         case 'response.audio_transcript.done':
-          // Finalize assistant message
-          if (currentTranscript || data.transcript) {
+          // Finalize assistant message using ref value
+          const finalTranscript = data.transcript || currentTranscriptRef.current;
+          if (finalTranscript) {
             setTranscript(prev => [...prev, {
               role: 'assistant',
-              content: data.transcript || currentTranscript,
+              content: finalTranscript,
               timestamp: Date.now()
             }]);
           }
+          currentTranscriptRef.current = '';
           setCurrentTranscript('');
           setStatus('listening');
           break;
@@ -158,7 +163,7 @@ export default function RoleplaySession() {
     } catch (e) {
       console.error('Failed to parse message:', e);
     }
-  }, [currentTranscript]);
+  }, []);
 
   const startSession = async () => {
     if (!personaId || !user) return;
