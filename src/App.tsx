@@ -55,6 +55,11 @@ const AdminCompetitors = lazy(() => import("./pages/admin/AdminCompetitors"));
 const CallDetailPage = lazy(() => import("./pages/calls/CallDetailPage"));
 const UserSettings = lazy(() => import("./pages/UserSettings"));
 
+// Lazy load - Training pages
+const TrainingDashboard = lazy(() => import("./pages/training/TrainingDashboard"));
+const RoleplaySession = lazy(() => import("./pages/training/RoleplaySession"));
+const TrainingHistory = lazy(() => import("./pages/training/TrainingHistory"));
+
 // Lazy load - Marketing pages (public)
 const ROICalculatorPage = lazy(() => import("./pages/marketing/ROICalculatorPage"));
 const PitchDeckPage = lazy(() => import("./pages/marketing/PitchDeckPage"));
@@ -126,8 +131,25 @@ const App = () => (
 
                 {/* User Settings Route (All Roles) */}
                 <Route path="/settings" element={
-                  <ProtectedRoute allowedRoles={['rep', 'manager', 'admin']}>
+                  <ProtectedRoute allowedRoles={['rep', 'manager', 'admin', 'trainee']}>
                     <UserSettings />
+                  </ProtectedRoute>
+                } />
+
+                {/* Training Routes (Trainees and Reps can practice) */}
+                <Route path="/training" element={
+                  <ProtectedRoute allowedRoles={['trainee', 'rep']}>
+                    <TrainingDashboard />
+                  </ProtectedRoute>
+                } />
+                <Route path="/training/roleplay/:personaId" element={
+                  <ProtectedRoute allowedRoles={['trainee', 'rep']}>
+                    <RoleplaySession />
+                  </ProtectedRoute>
+                } />
+                <Route path="/training/history" element={
+                  <ProtectedRoute allowedRoles={['trainee', 'rep']}>
+                    <TrainingHistory />
                   </ProtectedRoute>
                 } />
 
