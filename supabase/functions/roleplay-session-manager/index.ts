@@ -288,7 +288,8 @@ serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4o-realtime-preview', // Latest realtime model
+          // Using gpt-realtime-mini (Dec 2025): 50% cost savings, faster, improved voice fidelity
+          model: 'gpt-realtime-mini-2025-12-15',
           voice: selectedVoice,
           instructions: systemPrompt,
         }),
