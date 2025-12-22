@@ -145,6 +145,17 @@ const repNavGroups = [
   },
 ];
 
+const traineeNavGroups = [
+  {
+    label: 'Training',
+    items: [
+      { href: '/training', label: 'Training Dashboard', icon: LayoutDashboard },
+      { href: '/training/history', label: 'Session History', icon: History },
+      { href: '/training/progress', label: 'My Progress', icon: TrendingUp },
+    ],
+  },
+];
+
 // Quick actions for footer by role
 const adminQuickActions = [
   { href: '/admin/users/invite', label: 'Invite User', icon: UserPlus },
@@ -156,6 +167,10 @@ const managerQuickActions = [
 
 const repQuickActions = [
   { href: '/rep', label: 'Submit Call', icon: Plus },
+];
+
+const traineeQuickActions = [
+  { href: '/training', label: 'Start Training', icon: GraduationCap },
 ];
 
 function SidebarNav() {
@@ -174,6 +189,8 @@ function SidebarNav() {
     ? adminNavGroups 
     : role === 'manager' 
     ? managerNavGroups 
+    : role === 'trainee'
+    ? traineeNavGroups
     : repNavGroups;
 
   // Get quick actions based on role
@@ -181,6 +198,8 @@ function SidebarNav() {
     ? adminQuickActions
     : role === 'manager'
     ? managerQuickActions
+    : role === 'trainee'
+    ? traineeQuickActions
     : repQuickActions;
 
   // Prefix-based active detection (exact match for dashboards)
