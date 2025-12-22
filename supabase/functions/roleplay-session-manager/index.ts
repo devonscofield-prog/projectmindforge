@@ -28,17 +28,20 @@ interface Persona {
   voice: string;
 }
 
+// Valid voices for OpenAI Realtime API (as of Dec 2024)
+const VALID_VOICES = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'sage', 'shimmer', 'verse', 'marin', 'cedar'];
+
 // Strategic voice mapping based on DISC profiles for more realistic persona audio
 const DISC_VOICE_MAP: Record<string, string[]> = {
-  'D': ['alloy', 'ash'],      // Confident, assertive, authoritative
+  'D': ['ash', 'coral'],      // Confident, assertive, authoritative
   'I': ['ballad', 'echo'],    // Warm, enthusiastic, engaging  
-  'S': ['coral', 'sage'],     // Calm, patient, reassuring
+  'S': ['sage', 'marin'],     // Calm, patient, reassuring
   'C': ['shimmer', 'verse'],  // Precise, measured, analytical
 };
 
 function getVoiceForPersona(persona: Persona): string {
-  // If persona has a voice explicitly set that matches their DISC, use it
-  if (persona.voice && persona.voice !== 'alloy') {
+  // If persona has a valid voice explicitly set, use it
+  if (persona.voice && VALID_VOICES.includes(persona.voice)) {
     return persona.voice;
   }
   
