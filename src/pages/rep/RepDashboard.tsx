@@ -560,12 +560,6 @@ function RepDashboard() {
                 ✨ Ready to capture your next win?
               </p>
             </div>
-            <Button variant="outline" size="lg" asChild className="shadow-sm border-primary/20 hover:bg-primary/5 hover:text-primary transition-all animate-fade-in" style={{ animationDelay: '200ms' }}>
-              <Link to="/rep/coaching-summary" className="flex items-center">
-                <BarChart3 className="h-5 w-5 mr-2" />
-                Coaching Summary
-              </Link>
-            </Button>
           </div>
         </div>
 

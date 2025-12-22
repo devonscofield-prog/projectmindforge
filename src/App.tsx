@@ -111,11 +111,6 @@ const App = () => (
                     <ProspectDetail />
                   </ProtectedRoute>
                 } />
-                <Route path="/rep/coaching-summary" element={
-                  <ProtectedRoute allowedRoles={['rep']}>
-                    <RepCoachingSummary />
-                  </ProtectedRoute>
-                } />
                 <Route path="/rep/coaching-summary/:repId" element={
                   <ProtectedRoute allowedRoles={['manager', 'admin']}>
                     <RepCoachingSummary />
