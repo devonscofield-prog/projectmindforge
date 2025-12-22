@@ -460,63 +460,133 @@ export default function RoleplaySession() {
           </CardHeader>
         </Card>
 
-        {/* Transcript Area */}
+        {/* Voice Activity Indicator */}
         <Card className="mb-6 min-h-[400px] max-h-[500px] overflow-hidden flex flex-col">
           <CardHeader className="border-b pb-3">
             <CardTitle className="text-base font-medium flex items-center gap-2">
               <Volume2 className="h-4 w-4" />
-              Conversation
+              Voice Call
             </CardTitle>
           </CardHeader>
-          <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
+          <CardContent className="flex-1 flex items-center justify-center p-4">
+            {/* Idle state */}
             {status === 'idle' && (
-              <div className="flex items-center justify-center h-full text-muted-foreground">
+              <div className="flex flex-col items-center justify-center text-muted-foreground">
+                <div className="w-24 h-24 rounded-full bg-secondary flex items-center justify-center mb-6">
+                  <Bot className="h-12 w-12 text-muted-foreground" />
+                </div>
                 <p>Click "Start Call" to begin your practice session</p>
               </div>
             )}
-            
-            {transcript.map((entry, idx) => (
-              <div 
-                key={idx}
-                className={cn(
-                  "flex gap-3",
-                  entry.role === 'user' ? 'flex-row-reverse' : ''
-                )}
-              >
-                <div className={cn(
-                  "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
-                  entry.role === 'user' ? 'bg-primary' : 'bg-secondary'
-                )}>
-                  {entry.role === 'user' ? (
-                    <User className="h-4 w-4 text-primary-foreground" />
-                  ) : (
-                    <Bot className="h-4 w-4" />
-                  )}
+
+            {/* Connecting state */}
+            {status === 'connecting' && (
+              <div className="flex flex-col items-center justify-center">
+                <div className="relative w-24 h-24">
+                  <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
+                  <div className="relative w-24 h-24 rounded-full bg-secondary flex items-center justify-center">
+                    <Loader2 className="h-12 w-12 text-muted-foreground animate-spin" />
+                  </div>
                 </div>
-                <div className={cn(
-                  "rounded-lg px-4 py-2 max-w-[80%]",
-                  entry.role === 'user' 
-                    ? 'bg-primary text-primary-foreground' 
-                    : 'bg-secondary'
-                )}>
-                  <p className="text-sm">{entry.content}</p>
-                </div>
-              </div>
-            ))}
-            
-            {/* Current streaming response */}
-            {currentTranscript && (
-              <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center shrink-0">
-                  <Bot className="h-4 w-4" />
-                </div>
-                <div className="rounded-lg px-4 py-2 max-w-[80%] bg-secondary">
-                  <p className="text-sm">{currentTranscript}</p>
-                </div>
+                <p className="mt-6 text-muted-foreground">Connecting...</p>
               </div>
             )}
             
-            <div ref={transcriptEndRef} />
+            {/* Active call states */}
+            {(status === 'connected' || status === 'speaking' || status === 'listening') && (
+              <div className="flex flex-col items-center justify-center">
+                {/* AI Avatar with animated rings */}
+                <div className="relative">
+                  {/* Pulsing rings when AI is speaking */}
+                  {status === 'speaking' && (
+                    <>
+                      <div 
+                        className="absolute inset-[-12px] rounded-full bg-primary/30 animate-ping" 
+                        style={{ animationDuration: '1.5s' }} 
+                      />
+                      <div 
+                        className="absolute inset-[-24px] rounded-full bg-primary/15 animate-ping" 
+                        style={{ animationDuration: '2s', animationDelay: '0.3s' }} 
+                      />
+                      <div 
+                        className="absolute inset-[-36px] rounded-full bg-primary/10 animate-ping" 
+                        style={{ animationDuration: '2.5s', animationDelay: '0.6s' }} 
+                      />
+                    </>
+                  )}
+                  
+                  {/* Main avatar */}
+                  <div className={cn(
+                    "relative w-28 h-28 rounded-full flex items-center justify-center transition-all duration-300",
+                    status === 'speaking' 
+                      ? 'bg-primary scale-110 shadow-lg shadow-primary/30' 
+                      : 'bg-secondary'
+                  )}>
+                    <Bot className={cn(
+                      "h-14 w-14 transition-colors",
+                      status === 'speaking' ? 'text-primary-foreground' : 'text-muted-foreground'
+                    )} />
+                  </div>
+                </div>
+                
+                {/* Persona name */}
+                <h3 className="mt-8 text-xl font-semibold">{persona.name}</h3>
+                
+                {/* Status text */}
+                <p className={cn(
+                  "mt-2 text-muted-foreground transition-all",
+                  status === 'speaking' && 'text-primary font-medium'
+                )}>
+                  {status === 'speaking' ? 'Speaking...' : 'Listening...'}
+                </p>
+                
+                {/* Visual waveform when speaking */}
+                {status === 'speaking' && (
+                  <div className="flex items-center gap-1 mt-6 h-8">
+                    {[...Array(7)].map((_, i) => (
+                      <div 
+                        key={i}
+                        className="w-1.5 bg-primary rounded-full animate-pulse"
+                        style={{ 
+                          height: `${16 + Math.sin(i * 0.8) * 12}px`,
+                          animationDelay: `${i * 0.1}s`,
+                          animationDuration: '0.6s'
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
+                
+                {/* Subtle indicator when listening */}
+                {(status === 'connected' || status === 'listening') && (
+                  <div className="flex items-center gap-2 mt-6 text-sm text-muted-foreground">
+                    <Mic className="h-4 w-4" />
+                    <span>Your turn to speak</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Ending state */}
+            {status === 'ending' && (
+              <div className="flex flex-col items-center justify-center">
+                <div className="w-24 h-24 rounded-full bg-secondary flex items-center justify-center">
+                  <Loader2 className="h-12 w-12 text-muted-foreground animate-spin" />
+                </div>
+                <p className="mt-6 text-muted-foreground">Saving your session...</p>
+              </div>
+            )}
+
+            {/* Ended state */}
+            {status === 'ended' && (
+              <div className="flex flex-col items-center justify-center">
+                <div className="w-24 h-24 rounded-full bg-green-500/20 flex items-center justify-center">
+                  <Phone className="h-12 w-12 text-green-500" />
+                </div>
+                <h3 className="mt-6 text-xl font-semibold">Session Complete!</h3>
+                <p className="mt-2 text-muted-foreground">Your performance is being evaluated</p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
