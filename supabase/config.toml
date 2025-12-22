@@ -101,3 +101,6 @@ verify_jwt = true
 
 [functions.roleplay-session-manager]
 verify_jwt = true
+
+[functions.roleplay-grade-session]
+verify_jwt = true

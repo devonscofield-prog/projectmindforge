@@ -309,12 +309,22 @@ export default function RoleplaySession() {
     
     try {
       if (sessionId) {
+        // Save the session
         await supabase.functions.invoke('roleplay-session-manager/end-session', {
           body: {
             sessionId,
             transcript,
             durationSeconds: elapsedSeconds
           }
+        });
+
+        // Trigger AI grading asynchronously
+        supabase.functions.invoke('roleplay-grade-session', {
+          body: { sessionId }
+        }).then(() => {
+          console.log('Grading complete');
+        }).catch((err) => {
+          console.error('Grading failed:', err);
         });
       }
     } catch (error) {
