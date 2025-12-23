@@ -213,7 +213,7 @@ function SidebarNav() {
   // Prefix-based active detection (exact match for dashboards)
   const isActive = (href: string) => {
     // Exact match for dashboard routes
-    if (href === '/admin' || href === '/manager' || href === '/rep') {
+    if (href === '/admin' || href === '/manager' || href === '/rep' || href === '/training') {
       return location.pathname === href;
     }
     // Prefix match for all other routes

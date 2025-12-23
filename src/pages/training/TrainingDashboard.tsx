@@ -7,18 +7,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { 
-  Mic, 
-  Users, 
-  Trophy, 
-  Clock, 
+import {
+  Mic,
+  Users,
+  Trophy,
+  Clock,
   Target,
   Sparkles,
   ArrowRight,
   History,
-  TrendingUp
+  TrendingUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { AppLayout } from '@/components/layout/AppLayout';
 
 interface Persona {
   id: string;
@@ -106,175 +107,174 @@ export default function TrainingDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8 max-w-6xl">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 rounded-lg bg-primary/10">
-              <Mic className="h-6 w-6 text-primary" />
+    <AppLayout>
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-4 py-8 max-w-6xl">
+          {/* Header */}
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Mic className="h-6 w-6 text-primary" />
+              </div>
+              <h1 className="text-3xl font-bold tracking-tight">Sales Roleplay Training</h1>
             </div>
-            <h1 className="text-3xl font-bold tracking-tight">Sales Roleplay Training</h1>
+            <p className="text-muted-foreground text-lg">
+              Practice your sales skills with AI-powered prospect simulations
+            </p>
           </div>
-          <p className="text-muted-foreground text-lg">
-            Practice your sales skills with AI-powered prospect simulations
-          </p>
-        </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Sessions</p>
-                  <p className="text-3xl font-bold">{stats?.total_sessions ?? 0}</p>
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Sessions</p>
+                    <p className="text-3xl font-bold">{stats?.total_sessions ?? 0}</p>
+                  </div>
+                  <Target className="h-10 w-10 text-primary/60" />
                 </div>
-                <Target className="h-10 w-10 text-primary/60" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card className="bg-gradient-to-br from-green-500/5 to-green-500/10 border-green-500/20">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Completed</p>
-                  <p className="text-3xl font-bold">{stats?.completed_sessions ?? 0}</p>
-                </div>
-                <Trophy className="h-10 w-10 text-green-500/60" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card className="bg-gradient-to-br from-blue-500/5 to-blue-500/10 border-blue-500/20">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Avg Duration</p>
-                  <p className="text-3xl font-bold">
-                    {stats?.avg_duration_seconds ? formatDuration(stats.avg_duration_seconds) : '0:00'}
-                  </p>
-                </div>
-                <Clock className="h-10 w-10 text-blue-500/60" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              </CardContent>
+            </Card>
 
-        {/* Quick Actions */}
-        <div className="flex gap-3 mb-8">
-          <Button variant="outline" onClick={() => navigate('/training/history')}>
-            <History className="h-4 w-4 mr-2" />
-            View History
-          </Button>
-          <Button variant="outline" onClick={() => navigate('/training/progress')}>
-            <TrendingUp className="h-4 w-4 mr-2" />
-            My Progress
-          </Button>
-        </div>
+            <Card className="bg-gradient-to-br from-green-500/5 to-green-500/10 border-green-500/20">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Completed</p>
+                    <p className="text-3xl font-bold">{stats?.completed_sessions ?? 0}</p>
+                  </div>
+                  <Trophy className="h-10 w-10 text-green-500/60" />
+                </div>
+              </CardContent>
+            </Card>
 
-        {/* Personas Section */}
-        <div className="mb-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Users className="h-5 w-5 text-muted-foreground" />
-            <h2 className="text-xl font-semibold">Choose Your Practice Partner</h2>
+            <Card className="bg-gradient-to-br from-blue-500/5 to-blue-500/10 border-blue-500/20">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Avg Duration</p>
+                    <p className="text-3xl font-bold">
+                      {stats?.avg_duration_seconds ? formatDuration(stats.avg_duration_seconds) : '0:00'}
+                    </p>
+                  </div>
+                  <Clock className="h-10 w-10 text-blue-500/60" />
+                </div>
+              </CardContent>
+            </Card>
           </div>
-          <p className="text-muted-foreground mb-6">
-            Select a persona to practice with. Each persona has unique communication styles, objections, and personality traits.
-          </p>
-        </div>
 
-        {/* Persona Grid */}
-        {personasLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[1, 2, 3].map((i) => (
-              <Card key={i} className="animate-pulse">
-                <CardHeader>
-                  <Skeleton className="h-6 w-3/4" />
-                  <Skeleton className="h-4 w-1/2" />
-                </CardHeader>
-                <CardContent>
-                  <Skeleton className="h-20 w-full" />
-                </CardContent>
-              </Card>
-            ))}
+          {/* Quick Actions */}
+          <div className="flex gap-3 mb-8">
+            <Button variant="outline" onClick={() => navigate('/training/history')}>
+              <History className="h-4 w-4 mr-2" />
+              View History
+            </Button>
+            <Button variant="outline" onClick={() => navigate('/training/progress')}>
+              <TrendingUp className="h-4 w-4 mr-2" />
+              My Progress
+            </Button>
           </div>
-        ) : personas && personas.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {personas.map((persona) => (
-              <Card 
-                key={persona.id}
-                className={cn(
-                  "cursor-pointer transition-all hover:shadow-lg hover:border-primary/50",
-                  selectedPersonaId === persona.id && "ring-2 ring-primary border-primary"
-                )}
-                onClick={() => setSelectedPersonaId(persona.id)}
-              >
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2">
-                      {persona.disc_profile && (
-                        <div 
-                          className={cn(
-                            "w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm",
-                            discProfileColors[persona.disc_profile] || 'bg-gray-500'
-                          )}
-                        >
-                          {persona.disc_profile}
+
+          {/* Personas Section */}
+          <div className="mb-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Users className="h-5 w-5 text-muted-foreground" />
+              <h2 className="text-xl font-semibold">Choose Your Practice Partner</h2>
+            </div>
+            <p className="text-muted-foreground mb-6">
+              Select a persona to practice with. Each persona has unique communication styles, objections, and personality traits.
+            </p>
+          </div>
+
+          {/* Persona Grid */}
+          {personasLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[1, 2, 3].map((i) => (
+                <Card key={i} className="animate-pulse">
+                  <CardHeader>
+                    <Skeleton className="h-6 w-3/4" />
+                    <Skeleton className="h-4 w-1/2" />
+                  </CardHeader>
+                  <CardContent>
+                    <Skeleton className="h-20 w-full" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : personas && personas.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {personas.map((persona) => (
+                <Card
+                  key={persona.id}
+                  className={cn(
+                    "cursor-pointer transition-all hover:shadow-lg hover:border-primary/50",
+                    selectedPersonaId === persona.id && "ring-2 ring-primary border-primary"
+                  )}
+                  onClick={() => setSelectedPersonaId(persona.id)}
+                >
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-2">
+                        {persona.disc_profile && (
+                          <div
+                            className={cn(
+                              "w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm",
+                              discProfileColors[persona.disc_profile] || 'bg-gray-500'
+                            )}
+                          >
+                            {persona.disc_profile}
+                          </div>
+                        )}
+                        <div>
+                          <CardTitle className="text-lg">{persona.name}</CardTitle>
+                          <CardDescription className="capitalize">{persona.persona_type.replace('_', ' ')}</CardDescription>
                         </div>
-                      )}
-                      <div>
-                        <CardTitle className="text-lg">{persona.name}</CardTitle>
-                        <CardDescription className="capitalize">{persona.persona_type.replace('_', ' ')}</CardDescription>
                       </div>
                     </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <p className="text-sm text-muted-foreground line-clamp-2">
-                    {persona.backstory || 'A challenging prospect to practice with.'}
-                  </p>
-                  
-                  <div className="flex flex-wrap gap-2">
-                    <Badge 
-                      variant="outline" 
-                      className={cn("capitalize", difficultyColors[persona.difficulty_level])}
-                    >
-                      {persona.difficulty_level}
-                    </Badge>
-                    {persona.industry && (
-                      <Badge variant="secondary" className="capitalize">
-                        {persona.industry}
-                      </Badge>
-                    )}
-                  </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <p className="text-sm text-muted-foreground line-clamp-2">
+                      {persona.backstory || 'A challenging prospect to practice with.'}
+                    </p>
 
-                  <Button 
-                    className="w-full mt-4" 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleStartSession(persona.id);
-                    }}
-                  >
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    Start Practice
-                    <ArrowRight className="h-4 w-4 ml-2" />
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <Card className="p-8 text-center">
-            <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No Personas Available</h3>
-            <p className="text-muted-foreground">
-              Your team admin hasn't created any practice personas yet. Check back soon!
-            </p>
-          </Card>
-        )}
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="outline" className={cn("capitalize", difficultyColors[persona.difficulty_level])}>
+                        {persona.difficulty_level}
+                      </Badge>
+                      {persona.industry && (
+                        <Badge variant="secondary" className="capitalize">
+                          {persona.industry}
+                        </Badge>
+                      )}
+                    </div>
+
+                    <Button
+                      className="w-full mt-4"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleStartSession(persona.id);
+                      }}
+                    >
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Start Practice
+                      <ArrowRight className="h-4 w-4 ml-2" />
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card className="p-8 text-center">
+              <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No Personas Available</h3>
+              <p className="text-muted-foreground">
+                Your team admin hasn't created any practice personas yet. Check back soon!
+              </p>
+            </Card>
+          )}
+        </div>
       </div>
-    </div>
+    </AppLayout>
   );
 }
