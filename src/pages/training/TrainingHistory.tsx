@@ -2,19 +2,20 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { 
-  ArrowLeft, 
-  Clock, 
+import {
+  ArrowLeft,
+  Clock,
   Calendar,
   CheckCircle,
   XCircle,
   PlayCircle,
   Bot,
-  Star
+  Star,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -96,104 +97,102 @@ export default function TrainingHistory() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <Button variant="ghost" onClick={() => navigate('/training')}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold">Training History</h1>
-            <p className="text-muted-foreground">Review your past practice sessions</p>
+    <AppLayout>
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-4 py-8 max-w-4xl">
+          {/* Header */}
+          <div className="flex items-center gap-4 mb-8">
+            <Button variant="ghost" onClick={() => navigate('/training')}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold">Training History</h1>
+              <p className="text-muted-foreground">Review your past practice sessions</p>
+            </div>
           </div>
-        </div>
 
-        {/* Sessions List */}
-        {isLoading ? (
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <Card key={i}>
-                <CardContent className="p-4">
-                  <Skeleton className="h-16 w-full" />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : sessions && sessions.length > 0 ? (
-          <div className="space-y-4">
-            {sessions.map((session) => (
-              <Card 
-                key={session.id} 
-                className="hover:shadow-md transition-shadow cursor-pointer"
-                onClick={() => navigate(`/training/session/${session.id}`)}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center">
-                        <Bot className="h-5 w-5 text-muted-foreground" />
-                      </div>
-                      <div>
-                        <h3 className="font-medium">
-                          {session.roleplay_personas?.name || 'Unknown Persona'}
-                        </h3>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Calendar className="h-3 w-3" />
-                          <span>
-                            {format(new Date(session.created_at), 'MMM d, yyyy h:mm a')}
-                          </span>
-                          <span>•</span>
-                          <Clock className="h-3 w-3" />
-                          <span>{formatDuration(session.duration_seconds)}</span>
+          {/* Sessions List */}
+          {isLoading ? (
+            <div className="space-y-4">
+              {[1, 2, 3].map((i) => (
+                <Card key={i}>
+                  <CardContent className="p-4">
+                    <Skeleton className="h-16 w-full" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : sessions && sessions.length > 0 ? (
+            <div className="space-y-4">
+              {sessions.map((session) => (
+                <Card
+                  key={session.id}
+                  className="hover:shadow-md transition-shadow cursor-pointer"
+                  onClick={() => navigate(`/training/session/${session.id}`)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center">
+                          <Bot className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                        <div>
+                          <h3 className="font-medium">
+                            {session.roleplay_personas?.name || 'Unknown Persona'}
+                          </h3>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Calendar className="h-3 w-3" />
+                            <span>{format(new Date(session.created_at), 'MMM d, yyyy h:mm a')}</span>
+                            <span>•</span>
+                            <Clock className="h-3 w-3" />
+                            <span>{formatDuration(session.duration_seconds)}</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-3">
-                      {/* Grade Badge */}
-                      {session.roleplay_grades?.[0]?.overall_grade && (
-                        <Badge 
-                          className={cn(
-                            "font-bold",
-                            gradeColors[session.roleplay_grades[0].overall_grade] || 'bg-secondary'
-                          )}
-                        >
-                          <Star className="h-3 w-3 mr-1" />
-                          {session.roleplay_grades[0].overall_grade}
+
+                      <div className="flex items-center gap-3">
+                        {/* Grade Badge */}
+                        {session.roleplay_grades?.[0]?.overall_grade && (
+                          <Badge
+                            className={cn(
+                              "font-bold",
+                              gradeColors[session.roleplay_grades[0].overall_grade] || 'bg-secondary'
+                            )}
+                          >
+                            <Star className="h-3 w-3 mr-1" />
+                            {session.roleplay_grades[0].overall_grade}
+                          </Badge>
+                        )}
+
+                        {/* Status Badge */}
+                        <Badge variant="outline" className="flex items-center gap-1.5 capitalize">
+                          {statusIcons[session.status] || statusIcons.pending}
+                          {session.status.replace('_', ' ')}
                         </Badge>
-                      )}
-                      
-                      {/* Status Badge */}
-                      <Badge variant="outline" className="flex items-center gap-1.5 capitalize">
-                        {statusIcons[session.status] || statusIcons.pending}
-                        {session.status.replace('_', ' ')}
-                      </Badge>
-                      
-                      {/* Difficulty */}
-                      <Badge variant="secondary" className="capitalize">
-                        {session.roleplay_personas?.difficulty_level || 'medium'}
-                      </Badge>
+
+                        {/* Difficulty */}
+                        <Badge variant="secondary" className="capitalize">
+                          {session.roleplay_personas?.difficulty_level || 'medium'}
+                        </Badge>
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <Card className="p-8 text-center">
-            <PlayCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No Sessions Yet</h3>
-            <p className="text-muted-foreground mb-4">
-              Start your first practice session to see your history here.
-            </p>
-            <Button onClick={() => navigate('/training')}>
-              Start Practicing
-            </Button>
-          </Card>
-        )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card className="p-8 text-center">
+              <PlayCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No Sessions Yet</h3>
+              <p className="text-muted-foreground mb-4">
+                Start your first practice session to see your history here.
+              </p>
+              <Button onClick={() => navigate('/training')}>Start Practicing</Button>
+            </Card>
+          )}
+        </div>
       </div>
-    </div>
+    </AppLayout>
   );
 }

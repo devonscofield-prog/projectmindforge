@@ -2,20 +2,21 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
-import { 
-  ArrowLeft, 
-  TrendingUp, 
+import {
+  ArrowLeft,
+  TrendingUp,
   Target,
   Trophy,
   Clock,
   Star,
   BarChart3,
-  Calendar
+  Calendar,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Json } from '@/integrations/supabase/types';
@@ -177,186 +178,179 @@ export default function TrainingProgress() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <div className="container mx-auto px-4 py-8 max-w-4xl">
-          <Skeleton className="h-8 w-48 mb-6" />
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <Skeleton className="h-32" />
-            <Skeleton className="h-32" />
-            <Skeleton className="h-32" />
+      <AppLayout>
+        <div className="min-h-screen bg-background">
+          <div className="container mx-auto px-4 py-8 max-w-4xl">
+            <Skeleton className="h-8 w-48 mb-6" />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <Skeleton className="h-32" />
+              <Skeleton className="h-32" />
+              <Skeleton className="h-32" />
+            </div>
+            <Skeleton className="h-64" />
           </div>
-          <Skeleton className="h-64" />
         </div>
-      </div>
+      </AppLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <Button variant="ghost" onClick={() => navigate('/training')}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <TrendingUp className="h-6 w-6" />
-              My Progress
-            </h1>
-            <p className="text-muted-foreground">Track your sales training performance</p>
-          </div>
-        </div>
-
-        {/* Overview Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Sessions</p>
-                  <p className="text-3xl font-bold">{stats?.totalSessions ?? 0}</p>
-                </div>
-                <Target className="h-10 w-10 text-primary/60" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-green-500/5 to-green-500/10 border-green-500/20">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Graded</p>
-                  <p className="text-3xl font-bold">{stats?.completedSessions ?? 0}</p>
-                </div>
-                <Trophy className="h-10 w-10 text-green-500/60" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-blue-500/5 to-blue-500/10 border-blue-500/20">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Practice Time</p>
-                  <p className="text-3xl font-bold">
-                    {stats ? formatTime(stats.totalPracticeTime) : '0m'}
-                  </p>
-                </div>
-                <Clock className="h-10 w-10 text-blue-500/60" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-amber-500/5 to-amber-500/10 border-amber-500/20">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Avg Score</p>
-                  <p className={cn("text-3xl font-bold", stats ? getScoreColor(stats.averageScore) : '')}>
-                    {stats?.averageScore ?? 0}
-                  </p>
-                </div>
-                <Star className="h-10 w-10 text-amber-500/60" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Trend Indicator */}
-        {stats?.recentTrend && stats.completedSessions >= 6 && (
-          <Card className="mb-6">
-            <CardContent className="py-4">
-              <div className="flex items-center gap-3">
-                <TrendingUp className={cn(
-                  "h-5 w-5",
-                  stats.recentTrend === 'improving' && 'text-green-500',
-                  stats.recentTrend === 'stable' && 'text-blue-500',
-                  stats.recentTrend === 'declining' && 'text-red-500'
-                )} />
-                <span className="font-medium">
-                  {stats.recentTrend === 'improving' && "You're improving! Your recent scores are higher than before."}
-                  {stats.recentTrend === 'stable' && "Consistent performance. Keep practicing to level up!"}
-                  {stats.recentTrend === 'declining' && "Scores dipping. Consider focused practice on weak areas."}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Skill Breakdown */}
-        {stats && Object.keys(stats.skillAverages).length > 0 && (
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5" />
-                Skill Breakdown
-              </CardTitle>
-              <CardDescription>Your average scores across skill categories</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {Object.entries(stats.skillAverages).map(([key, score]) => (
-                <div key={key}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-medium">{skillLabels[key] || key}</span>
-                    <span className={cn("text-sm font-bold", getScoreColor(score))}>{score}</span>
-                  </div>
-                  <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                    <div 
-                      className={cn("h-full transition-all", getProgressColor(score))}
-                      style={{ width: `${score}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Grade Distribution */}
-        {stats && Object.keys(stats.gradeDistribution).length > 0 && (
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Star className="h-5 w-5" />
-                Grade Distribution
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex gap-3 flex-wrap">
-                {['A+', 'A', 'B', 'C', 'D', 'F'].map(grade => {
-                  const count = stats.gradeDistribution[grade] || 0;
-                  if (count === 0) return null;
-                  return (
-                    <Badge 
-                      key={grade} 
-                      variant="secondary"
-                      className="text-base px-4 py-2"
-                    >
-                      {grade}: {count}
-                    </Badge>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Empty State */}
-        {(!stats || stats.totalSessions === 0) && (
-          <Card className="p-8 text-center">
-            <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No Data Yet</h3>
-            <p className="text-muted-foreground mb-4">
-              Complete some practice sessions to see your progress here.
-            </p>
-            <Button onClick={() => navigate('/training')}>
-              Start Practicing
+    <AppLayout>
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-4 py-8 max-w-4xl">
+          {/* Header */}
+          <div className="flex items-center gap-4 mb-8">
+            <Button variant="ghost" onClick={() => navigate('/training')}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
             </Button>
-          </Card>
-        )}
+            <div>
+              <h1 className="text-2xl font-bold flex items-center gap-2">
+                <TrendingUp className="h-6 w-6" />
+                My Progress
+              </h1>
+              <p className="text-muted-foreground">Track your sales training performance</p>
+            </div>
+          </div>
+
+          {/* Overview Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Sessions</p>
+                    <p className="text-3xl font-bold">{stats?.totalSessions ?? 0}</p>
+                  </div>
+                  <Target className="h-10 w-10 text-primary/60" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-br from-green-500/5 to-green-500/10 border-green-500/20">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Graded</p>
+                    <p className="text-3xl font-bold">{stats?.completedSessions ?? 0}</p>
+                  </div>
+                  <Trophy className="h-10 w-10 text-green-500/60" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-br from-blue-500/5 to-blue-500/10 border-blue-500/20">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Practice Time</p>
+                    <p className="text-3xl font-bold">{stats ? formatTime(stats.totalPracticeTime) : '0m'}</p>
+                  </div>
+                  <Clock className="h-10 w-10 text-blue-500/60" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-br from-amber-500/5 to-amber-500/10 border-amber-500/20">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Avg Score</p>
+                    <p className={cn("text-3xl font-bold", stats ? getScoreColor(stats.averageScore) : '')}>
+                      {stats?.averageScore ?? 0}
+                    </p>
+                  </div>
+                  <Star className="h-10 w-10 text-amber-500/60" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Trend Indicator */}
+          {stats?.recentTrend && stats.completedSessions >= 6 && (
+            <Card className="mb-6">
+              <CardContent className="py-4">
+                <div className="flex items-center gap-3">
+                  <TrendingUp
+                    className={cn(
+                      "h-5 w-5",
+                      stats.recentTrend === 'improving' && 'text-green-500',
+                      stats.recentTrend === 'stable' && 'text-blue-500',
+                      stats.recentTrend === 'declining' && 'text-red-500'
+                    )}
+                  />
+                  <span className="font-medium">
+                    {stats.recentTrend === 'improving' && "You're improving! Your recent scores are higher than before."}
+                    {stats.recentTrend === 'stable' && "Consistent performance. Keep practicing to level up!"}
+                    {stats.recentTrend === 'declining' && "Scores dipping. Consider focused practice on weak areas."}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Skill Breakdown */}
+          {stats && Object.keys(stats.skillAverages).length > 0 && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5" />
+                  Skill Breakdown
+                </CardTitle>
+                <CardDescription>Your average scores across skill categories</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {Object.entries(stats.skillAverages).map(([key, score]) => (
+                  <div key={key}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-medium">{skillLabels[key] || key}</span>
+                      <span className={cn("text-sm font-bold", getScoreColor(score))}>{score}</span>
+                    </div>
+                    <Progress value={score} />
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Grade Distribution */}
+          {stats && Object.keys(stats.gradeDistribution).length > 0 && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Star className="h-5 w-5" />
+                  Grade Distribution
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex gap-3 flex-wrap">
+                  {['A+', 'A', 'B', 'C', 'D', 'F'].map((grade) => {
+                    const count = stats.gradeDistribution[grade] || 0;
+                    if (count === 0) return null;
+                    return (
+                      <Badge key={grade} variant="secondary" className="text-base px-4 py-2">
+                        {grade}: {count}
+                      </Badge>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Empty State */}
+          {(!stats || stats.totalSessions === 0) && (
+            <Card className="p-8 text-center">
+              <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No Data Yet</h3>
+              <p className="text-muted-foreground mb-4">
+                Complete some practice sessions to see your progress here.
+              </p>
+              <Button onClick={() => navigate('/training')}>Start Practicing</Button>
+            </Card>
+          )}
+        </div>
       </div>
-    </div>
+    </AppLayout>
   );
 }
