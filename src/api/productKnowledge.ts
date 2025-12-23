@@ -84,12 +84,14 @@ export async function listProductKnowledgePages(
  */
 export async function triggerProductKnowledgeScrape(
   options: {
+    domain?: string;
     fullRescrape?: boolean;
     specificUrls?: string[];
   } = {}
 ): Promise<ScrapeResult> {
   const { data, error } = await supabase.functions.invoke('scrape-product-knowledge', {
     body: {
+      domain: options.domain,
       full_rescrape: options.fullRescrape,
       specific_urls: options.specificUrls,
     },

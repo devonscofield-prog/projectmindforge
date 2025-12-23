@@ -11,7 +11,8 @@ import {
   Clock,
   FileText,
   Layers,
-  BookOpen
+  BookOpen,
+  Globe
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -20,6 +21,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { 
   Table, 
   TableBody, 
@@ -28,6 +33,15 @@ import {
   TableHeader, 
   TableRow 
 } from '@/components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -146,6 +160,11 @@ function StatusBadge({ status }: { status: string }) {
 export default function AdminKnowledgeBase() {
   const queryClient = useQueryClient();
   const [currentPage, setCurrentPage] = useState(1);
+  const [scrapeDialogOpen, setScrapeDialogOpen] = useState(false);
+  const [scrapeMode, setScrapeMode] = useState<'entire' | 'specific'>('entire');
+  const [domain, setDomain] = useState('stormwindstudios.com');
+  const [specificUrls, setSpecificUrls] = useState('');
+  const [fullRescrape, setFullRescrape] = useState(false);
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['product-knowledge-stats'],
@@ -158,12 +177,18 @@ export default function AdminKnowledgeBase() {
   });
 
   const scrapeMutation = useMutation({
-    mutationFn: (fullRescrape: boolean) => triggerProductKnowledgeScrape({ fullRescrape }),
+    mutationFn: (params: { domain: string; fullRescrape: boolean; specificUrls?: string[] }) => 
+      triggerProductKnowledgeScrape({ 
+        domain: params.domain,
+        fullRescrape: params.fullRescrape,
+        specificUrls: params.specificUrls,
+      }),
     onSuccess: (result) => {
       if (result.success) {
-        toast.success(`Scraped ${result.results?.scraped || 0} pages`);
+        toast.success(`Scraped ${result.results?.scraped || 0} pages from ${domain}`);
         queryClient.invalidateQueries({ queryKey: ['product-knowledge-stats'] });
         queryClient.invalidateQueries({ queryKey: ['product-knowledge-pages'] });
+        setScrapeDialogOpen(false);
       } else {
         toast.error(result.error || 'Scrape failed');
       }
@@ -225,46 +250,131 @@ export default function AdminKnowledgeBase() {
               )}
               Process Chunks
             </Button>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
+            <Dialog open={scrapeDialogOpen} onOpenChange={setScrapeDialogOpen}>
+              <DialogTrigger asChild>
                 <Button disabled={scrapeMutation.isPending}>
                   {scrapeMutation.isPending ? (
                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                   ) : (
-                    <RefreshCw className="h-4 w-4 mr-2" />
+                    <Globe className="h-4 w-4 mr-2" />
                   )}
                   Scrape Website
                 </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Scrape StormWind Website</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Choose how to scrape the website for product knowledge.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => scrapeMutation.mutate(false)}>
-                    Scrape New Only
-                  </AlertDialogAction>
-                  <AlertDialogAction 
-                    onClick={() => scrapeMutation.mutate(true)}
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle>Scrape Website for Knowledge Base</DialogTitle>
+                  <DialogDescription>
+                    Configure which website and pages to scrape for product knowledge.
+                  </DialogDescription>
+                </DialogHeader>
+                
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="domain">Domain</Label>
+                    <Input
+                      id="domain"
+                      value={domain}
+                      onChange={(e) => setDomain(e.target.value)}
+                      placeholder="example.com"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Enter the domain without https:// (e.g., stormwindstudios.com)
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label>Scrape Mode</Label>
+                    <RadioGroup value={scrapeMode} onValueChange={(v) => setScrapeMode(v as 'entire' | 'specific')}>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="entire" id="entire" />
+                        <Label htmlFor="entire" className="font-normal">Scrape entire website</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="specific" id="specific" />
+                        <Label htmlFor="specific" className="font-normal">Scrape specific URLs</Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+
+                  {scrapeMode === 'specific' && (
+                    <div className="space-y-2">
+                      <Label htmlFor="urls">URLs (one per line)</Label>
+                      <Textarea
+                        id="urls"
+                        value={specificUrls}
+                        onChange={(e) => setSpecificUrls(e.target.value)}
+                        placeholder={`https://${domain}/pricing\nhttps://${domain}/features`}
+                        rows={5}
+                      />
+                    </div>
+                  )}
+
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="fullRescrape"
+                      checked={fullRescrape}
+                      onChange={(e) => setFullRescrape(e.target.checked)}
+                      className="h-4 w-4 rounded border-border"
+                    />
+                    <Label htmlFor="fullRescrape" className="font-normal">
+                      Full re-scrape (replace existing content)
+                    </Label>
+                  </div>
+                </div>
+
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setScrapeDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      const urlList = scrapeMode === 'specific' && specificUrls.trim()
+                        ? specificUrls.split('\n').map(u => u.trim()).filter(Boolean)
+                        : undefined;
+                      scrapeMutation.mutate({
+                        domain,
+                        fullRescrape,
+                        specificUrls: urlList,
+                      });
+                    }}
+                    disabled={scrapeMutation.isPending}
                   >
-                    Full Re-scrape
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+                    {scrapeMutation.isPending ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        Scraping...
+                      </>
+                    ) : (
+                      'Start Scrape'
+                    )}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
 
-        {stats?.last_scraped_at && (
-          <p className="text-sm text-muted-foreground">
-            Last scraped: {format(new Date(stats.last_scraped_at), 'PPp')}
-          </p>
-        )}
+        {/* Configuration Info */}
+        <Card className="bg-muted/50">
+          <CardContent className="py-4">
+            <div className="flex flex-wrap items-center gap-4 text-sm">
+              <div className="flex items-center gap-2">
+                <Globe className="h-4 w-4 text-muted-foreground" />
+                <span className="text-muted-foreground">Current domain:</span>
+                <Badge variant="secondary" className="font-mono">{domain}</Badge>
+              </div>
+              {stats?.last_scraped_at && (
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Last scraped:</span>
+                  <span>{format(new Date(stats.last_scraped_at), 'PPp')}</span>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         <StatsCard stats={stats ?? null} isLoading={statsLoading} />
 
