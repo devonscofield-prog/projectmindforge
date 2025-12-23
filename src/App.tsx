@@ -48,6 +48,7 @@ const AdminTranscriptAnalysis = lazy(() => import("./pages/admin/AdminTranscript
 const AdminPerformanceMonitor = lazy(() => import("./pages/admin/AdminPerformanceMonitor"));
 const AdminAuditLog = lazy(() => import("./pages/admin/AdminAuditLog"));
 const AdminBulkUpload = lazy(() => import("./pages/admin/AdminBulkUpload"));
+const AdminKnowledgeBase = lazy(() => import("./pages/admin/AdminKnowledgeBase"));
 const AdminPlaybook = lazy(() => import("./pages/admin/AdminPlaybook"));
 const AdminCompetitors = lazy(() => import("./pages/admin/AdminCompetitors"));
 
@@ -298,6 +299,11 @@ const App = () => (
                 <Route path="/admin/competitors" element={
                   <ProtectedRoute allowedRoles={['admin', 'manager', 'rep', 'trainee']}>
                     <AdminCompetitors />
+                  </ProtectedRoute>
+                } />
+                <Route path="/admin/knowledge-base" element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <AdminKnowledgeBase />
                   </ProtectedRoute>
                 } />
 
