@@ -254,6 +254,24 @@ Deno.serve(async (req) => {
     // Build comprehensive context
     const contextPrompt = buildAccountContext(prospect, calls || [], analyses, stakeholders || [], emailLogs || [], followUps || []);
 
+    // Get product knowledge context
+    let productContext = '';
+    try {
+      const { data: productChunks } = await supabase.rpc('find_product_knowledge', {
+        query_text: messages[messages.length - 1]?.content || null,
+        match_count: 6,
+      });
+      if (productChunks?.length) {
+        productContext = '\n\n--- STORMWIND PRODUCT KNOWLEDGE ---\n';
+        for (const chunk of productChunks.slice(0, 6)) {
+          productContext += `${chunk.chunk_text}\n\n`;
+        }
+        productContext += '--- END PRODUCT KNOWLEDGE ---\n';
+      }
+    } catch (err) {
+      console.warn('[sales-coach-chat] Product knowledge retrieval warning:', err);
+    }
+
     // Call Lovable AI Gateway with streaming
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
@@ -273,7 +291,7 @@ Deno.serve(async (req) => {
         messages: [
           { 
             role: 'system', 
-            content: `${SALES_COACH_SYSTEM_PROMPT}\n\n## ACCOUNT CONTEXT\n${contextPrompt}` 
+            content: `${SALES_COACH_SYSTEM_PROMPT}\n\n## ACCOUNT CONTEXT\n${contextPrompt}${productContext}` 
           },
           ...messages
         ],

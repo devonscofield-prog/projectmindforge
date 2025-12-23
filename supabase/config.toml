@@ -104,3 +104,9 @@ verify_jwt = true
 
 [functions.roleplay-grade-session]
 verify_jwt = true
+
+[functions.scrape-product-knowledge]
+verify_jwt = true
+
+[functions.process-product-knowledge]
+verify_jwt = false
