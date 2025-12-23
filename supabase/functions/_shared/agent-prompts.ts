@@ -302,7 +302,7 @@ Create a memorable archetype name that captures their essence:
   - High I: Warm, personal, connecting (e.g., "Great chatting today, [Name]!")
   - High S: Safe, process-oriented (e.g., "Next steps & implementation timeline")
   - High C: Specific, data-rich (e.g., "Technical specs & compliance docs attached")
-- **Dos/Donts:** Be specific and actionable - not generic advice.`;
+- **Dos/Donts:** Keep each item CONCISE (under 100 characters). Be punchy and specific - not verbose paragraphs. Example: "Lead with ROI numbers" not "When presenting to this person, make sure you lead with concrete return on investment figures and data points".`;
 
 // Stormwind Product Context - used by Spy agent for accurate competitor detection
 export const STORMWIND_PRODUCT_CONTEXT = `

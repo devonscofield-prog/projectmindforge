@@ -75,10 +75,21 @@ const generateSalesAssetsSchema = z.object({
       preference: z.string().max(1000).optional()
     }).optional(),
     dos_and_donts: z.object({
-      do: z.array(z.string().max(200)).max(10).optional(),
-      dont: z.array(z.string().max(200)).max(10).optional()
+      do: z.array(z.string().max(500)).max(10).optional(),
+      dont: z.array(z.string().max(500)).max(10).optional()
     }).optional()
-  }).optional(),
+  }).optional().transform((ctx) => {
+    // Truncate overly long dos_and_donts strings as a fallback
+    if (ctx?.dos_and_donts) {
+      if (ctx.dos_and_donts.do) {
+        ctx.dos_and_donts.do = ctx.dos_and_donts.do.map(s => s.length > 500 ? s.substring(0, 497) + '...' : s);
+      }
+      if (ctx.dos_and_donts.dont) {
+        ctx.dos_and_donts.dont = ctx.dos_and_donts.dont.map(s => s.length > 500 ? s.substring(0, 497) + '...' : s);
+      }
+    }
+    return ctx;
+  }),
   account_name: z.string().max(200).transform(sanitizeUserInput).optional(),
   stakeholder_name: z.string().max(200).transform(sanitizeUserInput).optional()
 });
