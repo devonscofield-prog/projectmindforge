@@ -1334,6 +1334,92 @@ export type Database = {
         }
         Relationships: []
       }
+      product_knowledge: {
+        Row: {
+          created_at: string | null
+          id: string
+          metadata: Json | null
+          page_type: string | null
+          raw_markdown: string
+          scrape_error: string | null
+          scrape_status: string | null
+          scraped_at: string | null
+          source_url: string
+          title: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          page_type?: string | null
+          raw_markdown: string
+          scrape_error?: string | null
+          scrape_status?: string | null
+          scraped_at?: string | null
+          source_url: string
+          title?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          page_type?: string | null
+          raw_markdown?: string
+          scrape_error?: string | null
+          scrape_status?: string | null
+          scraped_at?: string | null
+          source_url?: string
+          title?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      product_knowledge_chunks: {
+        Row: {
+          chunk_index: number
+          chunk_text: string
+          created_at: string | null
+          embedding: string | null
+          id: string
+          products_mentioned: string[] | null
+          search_vector: unknown
+          source_id: string
+          topics: string[] | null
+        }
+        Insert: {
+          chunk_index: number
+          chunk_text: string
+          created_at?: string | null
+          embedding?: string | null
+          id?: string
+          products_mentioned?: string[] | null
+          search_vector?: unknown
+          source_id: string
+          topics?: string[] | null
+        }
+        Update: {
+          chunk_index?: number
+          chunk_text?: string
+          created_at?: string | null
+          embedding?: string | null
+          id?: string
+          products_mentioned?: string[] | null
+          search_vector?: unknown
+          source_id?: string
+          topics?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_knowledge_chunks_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "product_knowledge"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           created_at: string | null
@@ -2249,6 +2335,30 @@ export type Database = {
           vector_score: number
         }[]
       }
+      find_product_knowledge: {
+        Args: {
+          filter_products?: string[]
+          filter_topics?: string[]
+          match_count?: number
+          query_embedding?: string
+          query_text?: string
+          weight_fts?: number
+          weight_vector?: number
+        }
+        Returns: {
+          chunk_text: string
+          fts_score: number
+          id: string
+          page_type: string
+          products_mentioned: string[]
+          relevance_score: number
+          source_id: string
+          source_url: string
+          title: string
+          topics: string[]
+          vector_score: number
+        }[]
+      }
       get_admin_prospects_with_call_counts: {
         Args: {
           p_limit?: number
@@ -2321,6 +2431,7 @@ export type Database = {
           total_count: number
         }[]
       }
+      get_product_knowledge_stats: { Args: never; Returns: Json }
       get_rag_health_stats: { Args: never; Returns: Json }
       get_user_role: {
         Args: { _user_id: string }
