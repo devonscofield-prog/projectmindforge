@@ -26,6 +26,7 @@ import {
   BookOpen,
   Swords,
   GraduationCap,
+  Database,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -88,6 +89,7 @@ const adminNavGroups = [
   {
     label: 'System',
     items: [
+      { href: '/admin/knowledge-base', label: 'Knowledge Base', icon: Database },
       { href: '/admin/bulk-upload', label: 'Bulk Upload', icon: Upload },
       { href: '/admin/performance', label: 'Performance', icon: Activity },
       { href: '/admin/audit-log', label: 'Audit Log', icon: History },
