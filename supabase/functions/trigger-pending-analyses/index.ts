@@ -23,8 +23,17 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    // Find calls that are pending for more than 10 seconds
-    // Reduced from 30s to minimize wait time for users
+    // Step 1: Recover any stuck processing/pending calls (5+ minutes old)
+    try {
+      const { data: recovered } = await supabase.rpc('recover_stuck_processing_transcripts');
+      if (recovered && recovered.length > 0) {
+        log(`Recovered ${recovered.length} stuck transcript(s): ${recovered.map((r: { account_name: string }) => r.account_name).join(', ')}`);
+      }
+    } catch (e) {
+      log(`Recovery check failed (non-critical): ${e instanceof Error ? e.message : 'Unknown'}`);
+    }
+
+    // Step 2: Find calls that are pending for more than 10 seconds
     const tenSecondsAgo = new Date(Date.now() - 10 * 1000).toISOString();
     
     const { data: pendingCalls, error: queryError } = await supabase
@@ -51,43 +60,31 @@ Deno.serve(async (req) => {
 
     const results = [];
     for (const call of pendingCalls) {
-      try {
-        log(`Triggering analysis for call ${call.id} (${call.account_name})`);
-        
-        // Invoke analyze-call edge function
-        const response = await fetch(`${supabaseUrl}/functions/v1/analyze-call`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${serviceKey}`,
-          },
-          body: JSON.stringify({ call_id: call.id }),
-        });
+      log(`Triggering analysis for call ${call.id} (${call.account_name})`);
+      
+      // Fire-and-forget: Don't await the response since analysis can take 60+ seconds
+      fetch(`${supabaseUrl}/functions/v1/analyze-call`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${serviceKey}`,
+        },
+        body: JSON.stringify({ call_id: call.id }),
+      }).catch(err => {
+        log(`Background analysis trigger failed for ${call.id}: ${err instanceof Error ? err.message : 'Unknown'}`);
+      });
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          log(`Failed to trigger analysis for ${call.id}: ${response.status} - ${errorText}`);
-          results.push({ call_id: call.id, success: false, error: errorText });
-        } else {
-          log(`Successfully triggered analysis for ${call.id}`);
-          results.push({ call_id: call.id, success: true });
-        }
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : 'Unknown error';
-        log(`Error triggering analysis for ${call.id}: ${errorMsg}`);
-        results.push({ call_id: call.id, success: false, error: errorMsg });
-      }
+      results.push({ call_id: call.id, success: true, triggered: true });
 
-      // Small delay between calls to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Small delay between triggers to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 200));
     }
 
-    const successCount = results.filter(r => r.success).length;
-    log(`Processed ${successCount}/${pendingCalls.length} calls successfully`);
+    log(`Triggered ${results.length} analyses (fire-and-forget)`);
 
     return new Response(JSON.stringify({ 
       processed: pendingCalls.length,
-      successful: successCount,
+      triggered: results.length,
       results 
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
