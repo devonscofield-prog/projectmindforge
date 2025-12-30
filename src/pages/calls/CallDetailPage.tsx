@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { createLogger } from '@/lib/logger';
@@ -28,7 +28,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Skeleton } from '@/components/ui/skeleton';
 import { CallType, callTypeLabels } from '@/constants/callTypes';
 import { format } from 'date-fns';
-import { getDashboardUrl, getCallHistoryUrl } from '@/lib/routes';
+import { getDashboardUrl, getCallHistoryUrl, getAccountDetailUrl } from '@/lib/routes';
 import { getCallDetailBreadcrumbs } from '@/lib/breadcrumbConfig';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 import { formatCurrency, parseDateOnly } from '@/lib/formatters';
@@ -305,7 +305,16 @@ function CallDetailPage() {
                   <Building className="h-4 w-4 text-muted-foreground" />
                   <div>
                     <p className="text-xs text-muted-foreground">Account</p>
-                    <p className="font-medium">{transcript.account_name}</p>
+                    {transcript.prospect_id ? (
+                      <Link 
+                        to={getAccountDetailUrl(role, transcript.prospect_id)}
+                        className="font-medium text-primary hover:underline"
+                      >
+                        {transcript.account_name}
+                      </Link>
+                    ) : (
+                      <p className="font-medium">{transcript.account_name}</p>
+                    )}
                   </div>
                 </div>
               )}
