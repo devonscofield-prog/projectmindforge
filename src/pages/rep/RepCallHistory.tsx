@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { listCallTranscriptsForRepWithFilters } from '@/api/aiCallAnalysis';
 import { Search, History } from 'lucide-react';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
+import { SalesAssistantChat } from '@/components/SalesAssistantChat';
 import {
   CallHistoryFilters,
   CallHistoryTable,

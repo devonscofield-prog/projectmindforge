@@ -29,7 +29,7 @@ import { PendingFollowUpsWidget } from '@/components/dashboard/PendingFollowUpsW
 import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-// Progress component no longer needed - using custom attached progress bar
+import { SalesAssistantChat } from '@/components/SalesAssistantChat';
 import {
   Tooltip,
   TooltipContent,
