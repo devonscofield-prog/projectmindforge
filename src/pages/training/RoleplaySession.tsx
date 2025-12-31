@@ -19,9 +19,12 @@ import {
   Loader2,
   ArrowLeft,
   Clock,
-  AlertCircle
+  AlertCircle,
+  Monitor,
+  MonitorOff
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ScreenCapture } from '@/utils/ScreenCapture';
 
 interface Persona {
   id: string;
@@ -54,6 +57,8 @@ export default function RoleplaySession() {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const [currentTranscript, setCurrentTranscript] = useState('');
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [sessionType, setSessionType] = useState<'discovery' | 'demo'>('discovery');
   
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
@@ -61,6 +66,7 @@ export default function RoleplaySession() {
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
+  const screenCaptureRef = useRef<ScreenCapture | null>(null);
   // Use ref to track current transcript to avoid stale closure in handleDataChannelMessage
   const currentTranscriptRef = useRef('');
 
@@ -196,7 +202,7 @@ export default function RoleplaySession() {
       const { data: sessionData, error: sessionError } = await supabase.functions.invoke(
         'roleplay-session-manager/create-session',
         {
-          body: { personaId, sessionType: 'discovery' }
+          body: { personaId, sessionType, screenShareEnabled: isScreenSharing }
         }
       );
 
@@ -310,6 +316,13 @@ export default function RoleplaySession() {
   };
 
   const cleanup = () => {
+    // Stop screen capture
+    if (screenCaptureRef.current) {
+      screenCaptureRef.current.stop();
+      screenCaptureRef.current = null;
+    }
+    setIsScreenSharing(false);
+    
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
@@ -326,6 +339,63 @@ export default function RoleplaySession() {
       audioElRef.current.srcObject = null;
       audioElRef.current = null;
     }
+  };
+
+  /**
+   * Start screen sharing - sends periodic screenshots to the AI
+   */
+  const startScreenShare = async () => {
+    if (!dcRef.current || dcRef.current.readyState !== 'open') {
+      toast.error('Please start the call first');
+      return;
+    }
+
+    const screenCapture = new ScreenCapture({
+      onFrame: (base64Frame) => {
+        if (dcRef.current?.readyState === 'open') {
+          // Send screenshot as an image message to the AI
+          dcRef.current.send(JSON.stringify({
+            type: 'conversation.item.create',
+            item: {
+              type: 'message',
+              role: 'user',
+              content: [{
+                type: 'input_image',
+                image_url: `data:image/jpeg;base64,${base64Frame}`
+              }]
+            }
+          }));
+          console.log('Sent screen frame to AI');
+        }
+      },
+      onEnd: () => {
+        setIsScreenSharing(false);
+        toast.info('Screen sharing ended');
+      },
+      intervalMs: 4000, // Capture every 4 seconds
+      maxWidthPx: 1024, // Compress to reasonable size
+    });
+
+    const success = await screenCapture.start();
+    if (success) {
+      screenCaptureRef.current = screenCapture;
+      setIsScreenSharing(true);
+      toast.success('Screen sharing active - Steven can now see your screen');
+    } else {
+      toast.error('Failed to start screen sharing');
+    }
+  };
+
+  /**
+   * Stop screen sharing
+   */
+  const stopScreenShare = () => {
+    if (screenCaptureRef.current) {
+      screenCaptureRef.current.stop();
+      screenCaptureRef.current = null;
+    }
+    setIsScreenSharing(false);
+    toast.info('Screen sharing stopped');
   };
 
   const endSession = async () => {
@@ -424,6 +494,14 @@ export default function RoleplaySession() {
               <Clock className="h-4 w-4" />
               <span className="font-mono text-lg">{formatTime(elapsedSeconds)}</span>
             </div>
+            
+            {/* Screen Share Status Badge */}
+            {isScreenSharing && (
+              <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">
+                <Monitor className="h-3 w-3 mr-1" />
+                Screen Visible
+              </Badge>
+            )}
             
             <Badge 
               variant={status === 'connected' || status === 'listening' ? 'default' : 'secondary'}
@@ -612,6 +690,29 @@ export default function RoleplaySession() {
           
           {(status === 'connected' || status === 'speaking' || status === 'listening') && (
             <>
+              {/* Screen Share Button */}
+              <Button
+                size="lg"
+                variant={isScreenSharing ? 'default' : 'outline'}
+                className={cn(
+                  "gap-2",
+                  isScreenSharing && "bg-green-600 hover:bg-green-700"
+                )}
+                onClick={isScreenSharing ? stopScreenShare : startScreenShare}
+              >
+                {isScreenSharing ? (
+                  <>
+                    <Monitor className="h-5 w-5" />
+                    Screen Visible
+                  </>
+                ) : (
+                  <>
+                    <MonitorOff className="h-5 w-5" />
+                    Share Screen
+                  </>
+                )}
+              </Button>
+              
               <Button
                 size="lg"
                 variant={isMuted ? 'destructive' : 'secondary'}
