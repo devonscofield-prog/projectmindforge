@@ -11,6 +11,7 @@ interface CreateSessionRequest {
   personaId: string;
   sessionType?: 'discovery' | 'demo' | 'objection_handling' | 'negotiation';
   scenarioPrompt?: string;
+  screenShareEnabled?: boolean;
 }
 
 interface Persona {
@@ -88,7 +89,7 @@ function getVoiceForPersona(persona: Persona): string {
   return voiceOptions[nameHash % voiceOptions.length];
 }
 
-function buildPersonaSystemPrompt(persona: Persona, sessionType: string, scenarioPrompt?: string): string {
+function buildPersonaSystemPrompt(persona: Persona, sessionType: string, scenarioPrompt?: string, screenShareEnabled?: boolean): string {
   const commStyle = persona.communication_style || {};
   
   // Build objections list - handle both new and legacy formats
@@ -157,6 +158,15 @@ ${triggers}`;
     Start somewhat guarded but open up if they ask good questions. Don't volunteer information too easily.
     Test their questioning skills - do they ask open-ended questions? Do they dig deeper?`,
     demo: `This is a PRODUCT DEMO. You've agreed to see their solution. 
+    ${screenShareEnabled ? `
+    IMPORTANT: THE REP IS SHARING THEIR SCREEN WITH YOU. You can SEE what they're showing.
+    - Reference specific elements, text, buttons, or sections you see on screen
+    - Ask about what you see: "What does that graph mean?" or "Can you show me how that feature works?"
+    - If they skip past something interesting, call it out: "Wait, go back - what was that screen?"
+    - If they rush through without explaining, get impatient: "Slow down, you're clicking through too fast"
+    - If the screen shows irrelevant features, say so: "That's nice, but how does this help with my Azure training problem?"
+    - Connect everything you SEE back to YOUR specific pain points
+    ` : ''}
     Ask clarifying questions, express skepticism about certain features, and relate everything back to your specific needs.
     If they just show features without connecting to your pain points, get visibly bored or impatient.`,
     objection_handling: `This is an OBJECTION HANDLING practice session. 
@@ -166,6 +176,23 @@ ${triggers}`;
     Push back on pricing, ask for discounts, and test their ability to hold value while being flexible.
     Use tactics like "we need to think about it" and "your competitor offered us..."`,
   };
+
+  // Vision-specific instructions for when screen sharing is enabled
+  const visionInstructions = screenShareEnabled ? `
+=== SCREEN SHARING ACTIVE ===
+The rep is sharing their screen with you. You can SEE what they are presenting.
+When you receive an image of their screen:
+- Look carefully at what's displayed and reference it SPECIFICALLY in your responses
+- Ask questions about what you see: "I notice that dashboard shows usage metrics - what would that look like for my team of 15?"
+- If they skip important content, call it out: "Wait, you went past that quickly - can we go back to that pricing section?"
+- If you see features that don't relate to your needs, get impatient: "OK, I see a lot of options here, but how does this actually help with my Azure training problem?"
+- Reference specific UI elements, text, numbers, or charts you see
+- Test their product knowledge by asking about specific things on screen
+- If you see the same screen for too long, mention it: "Are we still on the same page? What else can you show me?"
+- If they show a wall of text without explaining it, push back: "There's a lot on this screen - what should I be focusing on?"
+` : '';
+
+
 
   // DISC-specific behavioral instructions
   const discBehaviors: Record<string, string> = {
@@ -245,7 +272,7 @@ ${negativeTriggerSection}
 
 === SESSION TYPE: ${sessionType.toUpperCase()} ===
 ${sessionTypeInstructions[sessionType] || sessionTypeInstructions.discovery}
-
+${visionInstructions}
 ${scenarioPrompt ? `=== SPECIFIC SCENARIO ===\n${scenarioPrompt}` : ''}
 ${endState ? `
 === END STATE ===
@@ -314,9 +341,9 @@ serve(async (req) => {
     if (action === 'create-session') {
       // Create a new roleplay session and get ephemeral token
       const body: CreateSessionRequest = await req.json();
-      const { personaId, sessionType = 'discovery', scenarioPrompt } = body;
+      const { personaId, sessionType = 'discovery', scenarioPrompt, screenShareEnabled = false } = body;
 
-      console.log(`Creating session for persona: ${personaId}, type: ${sessionType}`);
+      console.log(`Creating session for persona: ${personaId}, type: ${sessionType}, screenShare: ${screenShareEnabled}`);
 
       // Fetch the persona
       const { data: persona, error: personaError } = await supabaseClient
@@ -350,6 +377,7 @@ serve(async (req) => {
             difficulty: persona.difficulty_level,
             voice: selectedVoice,
             disc_profile: persona.disc_profile,
+            screenShareEnabled,
           },
         })
         .select()
@@ -366,7 +394,8 @@ serve(async (req) => {
       const systemPrompt = buildPersonaSystemPrompt(
         persona as Persona,
         sessionType,
-        scenarioPrompt
+        scenarioPrompt,
+        screenShareEnabled
       );
 
       // Request ephemeral token from OpenAI Realtime API with latest model
