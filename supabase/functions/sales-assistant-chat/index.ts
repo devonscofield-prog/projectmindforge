@@ -269,7 +269,7 @@ Deno.serve(async (req) => {
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
-    console.log(`[sales-assistant-chat] Calling Lovable AI (GPT 5.2) with ${messages.length} messages`);
+    console.log(`[sales-assistant-chat] Calling Lovable AI (GPT 5) with ${messages.length} messages`);
 
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -278,7 +278,7 @@ Deno.serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'openai/gpt-5.2',
+        model: 'openai/gpt-5',
         messages: [
           { 
             role: 'system', 
