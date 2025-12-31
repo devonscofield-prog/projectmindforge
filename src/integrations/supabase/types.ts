@@ -1884,6 +1884,36 @@ export type Database = {
           },
         ]
       }
+      sales_assistant_sessions: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean | null
+          messages: Json
+          title: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          messages?: Json
+          title?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          messages?: Json
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       sales_coach_sessions: {
         Row: {
           created_at: string

@@ -46,6 +46,7 @@ import {
   prospectKeys 
 } from '@/hooks/useProspectQueries';
 import { type ProspectIntel } from '@/api/prospects';
+import { SalesAssistantChat } from '@/components/SalesAssistantChat';
 
 // Helper to extract V2 coaching data from ai_extracted_info
 function getCoachingData(aiInfo: unknown): { avgGrade?: string; trend?: 'improving' | 'declining' | 'stable' } {

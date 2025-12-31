@@ -110,3 +110,6 @@ verify_jwt = true
 
 [functions.process-product-knowledge]
 verify_jwt = false
+
+[functions.sales-assistant-chat]
+verify_jwt = true
