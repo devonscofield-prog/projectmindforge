@@ -126,16 +126,19 @@ function buildPersonaSystemPrompt(persona: Persona, sessionType: string, scenari
   const fillerWords = commStyle.filler_words?.join('", "') || 'um, uh, well';
   const tone = commStyle.tone || 'professional';
 
-  // Build success criteria if available
+  // Build success criteria as information the persona HOLDS (not volunteers)
   let successCriteriaSection = '';
   if (persona.grading_criteria?.success_criteria) {
     const criteria = persona.grading_criteria.success_criteria
-      .map(c => `- ${c.criterion}: ${c.description}`)
+      .map(c => `- ${c.criterion}: ${c.description} — Only share this if they specifically ask about it.`)
       .join('\n');
     successCriteriaSection = `
-=== WHAT THE REP MUST ACHIEVE ===
-Do NOT agree to a next step (demo, follow-up meeting, etc.) until the rep has:
-${criteria}`;
+=== INFORMATION YOU HOLD (DO NOT VOLUNTEER) ===
+You have specific information that the rep must UNCOVER through good questioning.
+Do NOT bring up these topics yourself - make them ASK for it:
+${criteria}
+
+Do NOT agree to a next step (demo, follow-up meeting, etc.) until the rep has uncovered this information through their questions.`;
   }
 
   // Build negative triggers if available
@@ -297,8 +300,9 @@ ${endState}` : ''}
    - Express genuine emotions (frustration, skepticism, interest)
    - Reference things said earlier in the conversation
 6. Protect your time and budget. Make them EARN your attention.
-7. You can ask questions back to test their knowledge and preparation.
-8. If they try to close too early without understanding your needs, resist firmly.`;
+7. You can ask questions to test their knowledge of YOUR industry, YOUR challenges, or YOUR company - but NEVER ask questions that hand them discovery answers (like "Don't you want to know about my budget process?" or "Shouldn't you ask about my team structure?").
+8. If they try to close too early without understanding your needs, resist firmly.
+9. NEVER proactively bring up your decision-making process, budget approval requirements, or internal stakeholders. Wait for the rep to ask about these topics.`;
 }
 
 serve(async (req) => {
