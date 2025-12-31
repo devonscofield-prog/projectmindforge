@@ -200,7 +200,7 @@ export const CoachSchema = z.object({
   top_3_strengths: z.array(z.string()),
   top_3_areas_for_improvement: z.array(z.string()),
   primary_focus_area: z.enum(['Discovery Depth', 'Behavioral Polish', 'Closing/Next Steps', 'Objection Handling', 'Strategic Alignment']),
-  coaching_prescription: z.string().describe("1-2 sentence punchy diagnosis of the core issue. No markdown, no bullets."),
+  coaching_prescription: z.string().describe("2-3 sentences: Acknowledge one thing done well, then offer one constructive improvement. Warm, peer-mentor tone. No markdown."),
   coaching_drill: z.string().optional().describe("Detailed roleplay or practice exercise in markdown format."),
   immediate_action: z.string().optional().describe("The single most important action to take TODAY. Starts with a verb."),
   grade_reasoning: z.string(),
