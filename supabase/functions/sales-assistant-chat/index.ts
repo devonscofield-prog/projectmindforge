@@ -263,30 +263,31 @@ Deno.serve(async (req) => {
       console.warn('[sales-assistant-chat] Product knowledge retrieval warning:', err);
     }
 
-    // Call Lovable AI Gateway with GPT 5.2 and streaming
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
+    // Call OpenAI API directly for GPT 5.2
+    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+    if (!OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY not configured');
     }
 
-    console.log(`[sales-assistant-chat] Calling Lovable AI (GPT 5) with ${messages.length} messages`);
+    console.log(`[sales-assistant-chat] Calling OpenAI API (GPT 5.2) with ${messages.length} messages`);
 
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'openai/gpt-5',
+        model: 'gpt-5.2',
         messages: [
           { 
             role: 'system', 
             content: `${SALES_ASSISTANT_SYSTEM_PROMPT}\n\n## PIPELINE CONTEXT\n${contextPrompt}${productContext}` 
           },
-          ...messages
+          ...messages.slice(-20) // Limit conversation history
         ],
         stream: true,
+        max_completion_tokens: 4096,
       })
     });
 
