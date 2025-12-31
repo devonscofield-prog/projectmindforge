@@ -510,6 +510,7 @@ function RepProspects() {
         </Card>
         </QueryErrorBoundary>
       </div>
+      <SalesAssistantChat />
     </AppLayout>
   );
 }

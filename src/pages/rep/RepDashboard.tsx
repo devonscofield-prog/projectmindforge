@@ -1019,6 +1019,7 @@ The more detail you include, the better the AI analysis."
             </>}
         </Button>
       </div>
+      <SalesAssistantChat />
     </AppLayout>
   );
 }
