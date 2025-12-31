@@ -18,14 +18,48 @@ interface Persona {
   name: string;
   persona_type: string;
   disc_profile: string | null;
-  communication_style: Record<string, unknown>;
-  common_objections: Array<{ objection: string; category: string; severity: string; underlying_concern: string }>;
-  pain_points: Array<{ pain: string; severity: string; visible: boolean }>;
+  communication_style: {
+    default_response_length?: string;
+    reward_discovery?: boolean;
+    discovery_reward?: string;
+    interruption_handling?: string;
+    annoyance_trigger?: string;
+    filler_words?: string[];
+    tone?: string;
+    pace?: string;
+    style?: string;
+    preferred_format?: string;
+    pet_peeves?: string[];
+    conversation_openers?: string[];
+    interrupt_triggers?: string[];
+  };
+  common_objections: Array<{ 
+    objection: string; 
+    trigger?: string; 
+    response?: string;
+    // Legacy fields
+    category?: string; 
+    severity?: string; 
+    underlying_concern?: string;
+  }>;
+  pain_points: Array<{ 
+    pain: string; 
+    context?: string;
+    emotional_weight?: string;
+    // Legacy fields
+    severity?: string; 
+    visible?: boolean;
+  }>;
   dos_and_donts: { dos: string[]; donts: string[] };
   backstory: string | null;
   difficulty_level: string;
   industry: string | null;
   voice: string;
+  grading_criteria?: {
+    success_criteria?: Array<{ criterion: string; description: string; weight: number }>;
+    negative_triggers?: Array<{ trigger: string; description: string; grade_cap: string }>;
+    end_state?: string;
+  };
 }
 
 // Valid voices for OpenAI Realtime API (as of Dec 2024)
@@ -55,35 +89,70 @@ function getVoiceForPersona(persona: Persona): string {
 }
 
 function buildPersonaSystemPrompt(persona: Persona, sessionType: string, scenarioPrompt?: string): string {
-  // Enhanced objection list with underlying concerns
-  const objectionsList = persona.common_objections?.map(
-    (o) => `- "${o.objection}" (Category: ${o.category}, Severity: ${o.severity})
-      Underlying concern: ${o.underlying_concern}`
-  ).join('\n') || 'None specified';
+  const commStyle = persona.communication_style || {};
+  
+  // Build objections list - handle both new and legacy formats
+  const objectionsList = persona.common_objections?.map((o) => {
+    if (o.trigger && o.response) {
+      // New format with trigger/response
+      return `- "${o.objection}"
+      When to use: ${o.trigger}
+      Your response: "${o.response}"`;
+    } else {
+      // Legacy format
+      return `- "${o.objection}" (Category: ${o.category || 'general'})
+      Underlying concern: ${o.underlying_concern || 'Not specified'}`;
+    }
+  }).join('\n') || 'None specified';
 
-  // Enhanced pain points with visibility indicator
-  const painPointsList = persona.pain_points?.map(
-    (p) => `- ${p.pain} (Severity: ${p.severity}, ${p.visible ? 'Will mention openly' : 'Hidden - only reveals if probed well'})`
-  ).join('\n') || 'None specified';
+  // Build pain points list - handle both new and legacy formats
+  const painPointsList = persona.pain_points?.map((p) => {
+    if (p.context) {
+      // New format with context/emotional_weight
+      const weight = p.emotional_weight || 'medium';
+      return `- ${p.pain} [Importance: ${weight.toUpperCase()}]
+      Context: ${p.context}`;
+    } else {
+      // Legacy format
+      return `- ${p.pain} (Severity: ${p.severity || 'medium'}, ${p.visible ? 'Will mention openly' : 'Hidden - only reveals if probed well'})`;
+    }
+  }).join('\n') || 'None specified';
 
   const dos = persona.dos_and_donts?.dos?.join('\n  - ') || 'Be professional';
   const donts = persona.dos_and_donts?.donts?.join('\n  - ') || 'Be pushy';
 
-  // Extract rich communication style details
-  const commStyle = persona.communication_style || {};
+  // Build communication style section
+  const fillerWords = commStyle.filler_words?.join('", "') || 'um, uh, well';
   const tone = commStyle.tone || 'professional';
-  const pace = commStyle.pace || 'moderate';
-  const style = commStyle.style || 'direct';
-  const preferredFormat = commStyle.preferred_format || 'conversational';
-  const petPeeves = Array.isArray(commStyle.pet_peeves) ? commStyle.pet_peeves.join(', ') : 'None specified';
-  const conversationOpeners = Array.isArray(commStyle.conversation_openers) 
-    ? commStyle.conversation_openers.join('" OR "') 
-    : 'Hello, what can I do for you?';
-  const interruptTriggers = Array.isArray(commStyle.interrupt_triggers) 
-    ? commStyle.interrupt_triggers.join(', ') 
-    : 'None specified';
 
-  const sessionTypeInstructions = {
+  // Build success criteria if available
+  let successCriteriaSection = '';
+  if (persona.grading_criteria?.success_criteria) {
+    const criteria = persona.grading_criteria.success_criteria
+      .map(c => `- ${c.criterion}: ${c.description}`)
+      .join('\n');
+    successCriteriaSection = `
+=== WHAT THE REP MUST ACHIEVE ===
+Do NOT agree to a next step (demo, follow-up meeting, etc.) until the rep has:
+${criteria}`;
+  }
+
+  // Build negative triggers if available
+  let negativeTriggerSection = '';
+  if (persona.grading_criteria?.negative_triggers) {
+    const triggers = persona.grading_criteria.negative_triggers
+      .map(t => `- If they ${t.trigger}: ${t.description}`)
+      .join('\n');
+    negativeTriggerSection = `
+=== WHAT WILL MAKE YOU DISENGAGE ===
+${triggers}`;
+  }
+
+  // Build end state if available
+  const endState = persona.grading_criteria?.end_state || '';
+
+  // Session type instructions
+  const sessionTypeInstructions: Record<string, string> = {
     discovery: `This is a DISCOVERY call. The rep is trying to understand your needs, challenges, and goals. 
     Start somewhat guarded but open up if they ask good questions. Don't volunteer information too easily.
     Test their questioning skills - do they ask open-ended questions? Do they dig deeper?`,
@@ -128,63 +197,81 @@ function buildPersonaSystemPrompt(persona: Persona, sessionType: string, scenari
 
   const discBehavior = discBehaviors[persona.disc_profile?.toUpperCase() || 'S'] || discBehaviors['S'];
 
-  return `You are ${persona.name}, a ${persona.persona_type} in the ${persona.industry || 'technology'} industry.
+  return `=== CRITICAL ROLE DEFINITION ===
+You are a PROSPECT. A sales representative is on a call with you trying to sell their product or service.
+You are NOT a coach, trainer, or helper. You are a BUYER being sold to.
+Your job is to respond as a realistic buyer would - protecting your time, budget, and making the rep work for your attention.
 
 === YOUR IDENTITY ===
+You are ${persona.name}, a ${persona.persona_type} in the ${persona.industry || 'technology'} industry.
+
 ${persona.backstory || 'You are a busy professional who values your time and has seen many vendors come and go.'}
 
 === DISC PROFILE: ${persona.disc_profile || 'S'} ===
 ${discBehavior}
 
 === YOUR COMMUNICATION STYLE ===
-- Tone: ${tone}
-- Pace: ${pace}
-- Style: ${style}
-- Preferred format: ${preferredFormat}
-- Things that annoy you: ${petPeeves}
-- You might interrupt if: ${interruptTriggers}
+Tone: ${tone}
+${commStyle.default_response_length === 'short' ? `
+IMPORTANT - Response Length Rules:
+- Give SHORT 1-2 sentence answers to closed-ended or lazy questions (like "How are you?" or "Do you need training?")
+- Only give LONGER, detailed responses when the rep asks high-quality, open-ended discovery questions` : ''}
+${commStyle.reward_discovery ? `
+Reward Discovery: ${commStyle.discovery_reward || 'If the rep asks thoughtful, probing questions about your specific situation, reward them with more detailed answers.'}` : ''}
+${commStyle.annoyance_trigger ? `
+Annoyance Trigger: ${commStyle.annoyance_trigger}` : ''}
+${commStyle.interruption_handling ? `
+Interruption Handling: ${commStyle.interruption_handling}` : ''}
 
-=== HOW TO OPEN THE CONVERSATION ===
-Start with something like: "${conversationOpeners}"
-(Choose one that fits the moment, or create a similar opening in your style)
+Use these filler words naturally: "${fillerWords}"
 
-=== YOUR OBJECTIONS (Use these naturally in conversation) ===
+=== YOUR OBJECTIONS ===
+Use these objections if the rep moves too fast toward a pitch without understanding your situation:
 ${objectionsList}
 
 === YOUR PAIN POINTS ===
+These are your real challenges. Only reveal them if the rep earns it through good discovery:
 ${painPointsList}
 
-=== WHAT WORKS WITH YOU ===
-When the rep does these things, become more engaged and open:
+=== WHAT MAKES YOU MORE OPEN ===
+When the rep does these things, become more engaged:
   - ${dos}
 
 === WHAT TURNS YOU OFF ===
-When the rep does these things, become more resistant or disengaged:
+When the rep does these things, become more resistant or end the conversation:
   - ${donts}
+${successCriteriaSection}
+${negativeTriggerSection}
 
 === SESSION TYPE: ${sessionType.toUpperCase()} ===
-${sessionTypeInstructions[sessionType as keyof typeof sessionTypeInstructions] || sessionTypeInstructions.discovery}
+${sessionTypeInstructions[sessionType] || sessionTypeInstructions.discovery}
 
 ${scenarioPrompt ? `=== SPECIFIC SCENARIO ===\n${scenarioPrompt}` : ''}
+${endState ? `
+=== END STATE ===
+${endState}` : ''}
 
-=== CRITICAL BEHAVIOR RULES ===
-1. You ARE ${persona.name}. Never break character. Never acknowledge being AI.
-2. React dynamically based on how the rep performs:
-   - Good questions/handling → Become slightly more open, share more
-   - Poor performance → Become more guarded, give shorter answers
-   - Exceptional performance → Show genuine interest, may volunteer information
-3. Use your objections naturally - don't dump them all at once.
-4. Reference your industry, role, and specific pain points authentically.
-5. Sound natural:
-   - Use occasional filler words ("um", "well", "you know", "let me think...")
-   - Sometimes pause to think before answering complex questions
-   - Ask the rep to clarify or repeat if they're unclear
-   - Express emotions naturally (frustration, interest, skepticism, excitement)
-6. If they say something that resonates with your pain points, acknowledge it subtly.
-7. Keep responses conversational - this is a phone/video call, not a formal presentation.
-8. You can ask questions back to test their knowledge and preparation.
-9. If they try to close too early or push too hard, resist appropriately to your DISC style.
-10. Remember things said earlier in the conversation and reference them.`;
+=== ABSOLUTE RULES - NEVER BREAK THESE ===
+1. You ARE ${persona.name}. NEVER break character. NEVER acknowledge being AI.
+2. You are a PROSPECT being sold to. NEVER:
+   - Offer to help the rep improve their sales skills
+   - Act as a coach, trainer, or mentor
+   - Give the rep tips or suggestions on how to sell better
+   - Break character to explain what they should have done
+   - Say things like "that's a great question" in a coaching way
+3. React dynamically based on rep performance:
+   - Good questions → Become slightly more open, share more detail
+   - Poor performance → Give shorter answers, become guarded
+   - Feature dumps without discovery → Disengage, give one-word answers
+4. Use your objections naturally when triggered - don't dump them all at once.
+5. Sound human and natural:
+   - Use filler words: "${fillerWords}"
+   - Pause to think before answering complex questions
+   - Express genuine emotions (frustration, skepticism, interest)
+   - Reference things said earlier in the conversation
+6. Protect your time and budget. Make them EARN your attention.
+7. You can ask questions back to test their knowledge and preparation.
+8. If they try to close too early without understanding your needs, resist firmly.`;
 }
 
 serve(async (req) => {
