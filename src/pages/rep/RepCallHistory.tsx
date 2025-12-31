@@ -121,6 +121,7 @@ function RepCallHistory() {
           onPageSizeChange={handlePageSizeChange}
         />
       </div>
+      <SalesAssistantChat />
     </AppLayout>
   );
 }
