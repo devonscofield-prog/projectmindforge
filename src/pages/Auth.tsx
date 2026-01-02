@@ -38,6 +38,7 @@ export default function Auth() {
   const [isLoading, setIsLoading] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [signInStartTime, setSignInStartTime] = useState<number | null>(null);
+  const [isFinishingSignIn, setIsFinishingSignIn] = useState(false);
   
   // OTP flow states
   const [isEnteringOTP, setIsEnteringOTP] = useState(false);
@@ -123,18 +124,36 @@ export default function Auth() {
 
   // Redirect authenticated users (but not during recovery)
   useEffect(() => {
-    // Once we have a user, stop the local loading spinner regardless of role status
-    if (user && isLoading && signInStartTime) {
+    // Once we have a user after sign-in, transition to "finishing" state
+    if (user && signInStartTime) {
       setIsLoading(false);
       setSignInStartTime(null);
+      setIsFinishingSignIn(true);
     }
     
     // Only redirect when we have both user and role
     if (user && role && !isRecoveryMode && !recoveryComplete && !isEnteringOTP && !sessionToken) {
+      setIsFinishingSignIn(false);
       const redirectPath = role === 'admin' ? '/admin' : role === 'manager' ? '/manager' : '/rep';
       navigate(redirectPath, { replace: true });
     }
-  }, [user, role, navigate, isRecoveryMode, recoveryComplete, isEnteringOTP, sessionToken, isLoading, signInStartTime]);
+  }, [user, role, navigate, isRecoveryMode, recoveryComplete, isEnteringOTP, sessionToken, signInStartTime]);
+
+  // Timeout for finishing sign-in state
+  useEffect(() => {
+    if (!isFinishingSignIn) return;
+    
+    const timeout = setTimeout(() => {
+      if (isFinishingSignIn && !role) {
+        setIsFinishingSignIn(false);
+        toast.error('Unable to complete sign-in', {
+          description: 'Please try again. If the problem persists, contact support.',
+        });
+      }
+    }, 10000); // 10 second timeout
+    
+    return () => clearTimeout(timeout);
+  }, [isFinishingSignIn, role]);
 
   // Failsafe: if sign-in is taking too long, stop spinner and show error
   useEffect(() => {
@@ -349,6 +368,20 @@ export default function Auth() {
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  // Transitional UI while finishing sign-in
+  if (isFinishingSignIn) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4" />
+            <p className="text-muted-foreground">Completing sign-in...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   // Link Expired UI
   if (linkExpired && !isResettingPassword) {
