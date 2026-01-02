@@ -145,15 +145,16 @@ export default function Auth() {
     
     const timeout = setTimeout(() => {
       if (isFinishingSignIn && !role) {
+        console.warn('Sign-in timeout reached', { user: !!user, role, isFinishingSignIn });
         setIsFinishingSignIn(false);
         toast.error('Unable to complete sign-in', {
           description: 'Please try again. If the problem persists, contact support.',
         });
       }
-    }, 10000); // 10 second timeout
+    }, 15000); // 15 second timeout
     
     return () => clearTimeout(timeout);
-  }, [isFinishingSignIn, role]);
+  }, [isFinishingSignIn, role, user]);
 
   // Failsafe: if sign-in is taking too long, stop spinner and show error
   useEffect(() => {

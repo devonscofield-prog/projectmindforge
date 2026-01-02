@@ -276,10 +276,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
         }
       }
 
-      if (resolvedRole) {
-        setRole(resolvedRole);
-        preloadRoleRoutes(resolvedRole);
+      // Always set role - fallback to 'rep' if not resolved to prevent user being stuck
+      if (!resolvedRole) {
+        log.warn('Could not resolve role, defaulting to rep', { userId });
+        resolvedRole = 'rep';
       }
+      setRole(resolvedRole);
+      preloadRoleRoutes(resolvedRole);
 
       // Handle MFA result
       if (mfaSettled.status === 'fulfilled') {
@@ -337,7 +340,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
           setLoading(true);
           setTimeout(() => {
             fetchUserData(session.user.id)
-              .catch(() => {})
+              .catch((err) => log.error('fetchUserData failed in onAuthStateChange', { error: err }))
               .finally(() => setLoading(false));
           }, 0);
         } else {
