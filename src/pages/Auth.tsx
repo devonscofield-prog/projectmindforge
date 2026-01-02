@@ -123,11 +123,18 @@ export default function Auth() {
 
   // Redirect authenticated users (but not during recovery)
   useEffect(() => {
+    // Once we have a user, stop the local loading spinner regardless of role status
+    if (user && isLoading && signInStartTime) {
+      setIsLoading(false);
+      setSignInStartTime(null);
+    }
+    
+    // Only redirect when we have both user and role
     if (user && role && !isRecoveryMode && !recoveryComplete && !isEnteringOTP && !sessionToken) {
       const redirectPath = role === 'admin' ? '/admin' : role === 'manager' ? '/manager' : '/rep';
       navigate(redirectPath, { replace: true });
     }
-  }, [user, role, navigate, isRecoveryMode, recoveryComplete, isEnteringOTP, sessionToken]);
+  }, [user, role, navigate, isRecoveryMode, recoveryComplete, isEnteringOTP, sessionToken, isLoading, signInStartTime]);
 
   // Failsafe: if sign-in is taking too long, stop spinner and show error
   useEffect(() => {
