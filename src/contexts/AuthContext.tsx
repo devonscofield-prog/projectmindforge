@@ -39,6 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
   const [presenceChannel, setPresenceChannel] = useState<RealtimeChannel | null>(null);
   const hasLoggedLogin = useRef(false);
   const hasHandledSessionExpiry = useRef(false);
+  const mfaManuallyVerified = useRef(false);
 
   // Handle session expiry gracefully
   const handleSessionExpired = () => {
@@ -199,6 +200,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
   const fetchUserData = async (userId: string) => {
     try {
       // Fetch profile, role, and MFA status in parallel
+      // Skip MFA check if already manually verified this session (prevents race condition)
       const [profileResult, roleResult, mfaResult] = await Promise.all([
         supabase
           .from('profiles')
@@ -210,7 +212,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
           .select('role')
           .eq('user_id', userId)
           .maybeSingle(),
-        checkMfaStatus(userId)
+        mfaManuallyVerified.current 
+          ? Promise.resolve('verified' as MFAStatus) 
+          : checkMfaStatus(userId)
       ]);
 
       const { data: profileData, error: profileError } = profileResult;
@@ -260,6 +264,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
 
   // Function to mark MFA as verified (called by MFAGate after successful verification)
   const setMfaVerified = () => {
+    mfaManuallyVerified.current = true;
     setMfaStatus('verified');
   };
 
@@ -278,6 +283,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
 
         // Handle sign out
         if (event === 'SIGNED_OUT') {
+          mfaManuallyVerified.current = false;
           setSession(null);
           setUser(null);
           setProfile(null);
@@ -408,6 +414,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     }
     
     hasLoggedLogin.current = false;
+    mfaManuallyVerified.current = false;
     
     // Clear local state first - this ensures UI updates even if server call fails
     setUser(null);
