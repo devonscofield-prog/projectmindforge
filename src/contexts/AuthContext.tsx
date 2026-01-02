@@ -298,47 +298,59 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
 
         // Defer data fetching with setTimeout to avoid deadlock
         if (session?.user) {
+          // Ensure we don't get stuck in a permanent loading state
+          setLoading(true);
           setTimeout(() => {
-            fetchUserData(session.user.id);
+            fetchUserData(session.user.id)
+              .catch(() => {})
+              .finally(() => setLoading(false));
           }, 0);
         } else {
           setProfile(null);
           setRole(null);
           setMfaStatus('loading');
+          setLoading(false);
         }
       }
     );
 
     // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      // Check for session errors (invalid refresh token, etc.)
-      if (error) {
-        const errorMessage = (error as AuthError).message?.toLowerCase() || '';
-        if (errorMessage.includes('refresh') || errorMessage.includes('token') || errorMessage.includes('invalid')) {
-          log.warn('Invalid session on load', { error: errorMessage });
-          handleSessionExpired();
+    supabase.auth
+      .getSession()
+      .then(({ data: { session }, error }) => {
+        // Check for session errors (invalid refresh token, etc.)
+        if (error) {
+          const errorMessage = (error as AuthError).message?.toLowerCase() || '';
+          if (errorMessage.includes('refresh') || errorMessage.includes('token') || errorMessage.includes('invalid')) {
+            log.warn('Invalid session on load', { error: errorMessage });
+            handleSessionExpired();
+            setLoading(false);
+            return;
+          }
+        }
+
+        setSession(session);
+        setUser(session?.user ?? null);
+
+        if (session?.user) {
+          fetchUserData(session.user.id).then(() => setLoading(false));
+          // Log login for existing session (page load/refresh)
+          if (!hasLoggedLogin.current) {
+            hasLoggedLogin.current = true;
+            logUserActivity({
+              user_id: session.user.id,
+              activity_type: 'login',
+            });
+          }
+        } else {
           setLoading(false);
-          return;
         }
-      }
-
-      setSession(session);
-      setUser(session?.user ?? null);
-
-      if (session?.user) {
-        fetchUserData(session.user.id).then(() => setLoading(false));
-        // Log login for existing session (page load/refresh)
-        if (!hasLoggedLogin.current) {
-          hasLoggedLogin.current = true;
-          logUserActivity({
-            user_id: session.user.id,
-            activity_type: 'login',
-          });
-        }
-      } else {
+      })
+      .catch((error) => {
+        // If getSession throws/rejects, don't leave the app stuck on a loader
+        log.error('getSession failed', { error });
         setLoading(false);
-      }
-    });
+      });
 
     return () => subscription.unsubscribe();
   }, []);
