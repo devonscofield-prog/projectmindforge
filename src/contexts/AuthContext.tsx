@@ -368,14 +368,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
         setUser(session?.user ?? null);
 
         if (session?.user) {
-          fetchUserData(session.user.id).then(() => setLoading(false));
+          fetchUserData(session.user.id)
+            .catch((err) => log.error('fetchUserData failed on getSession', { error: err }))
+            .finally(() => setLoading(false));
           // Log login for existing session (page load/refresh)
           if (!hasLoggedLogin.current) {
             hasLoggedLogin.current = true;
             logUserActivity({
               user_id: session.user.id,
               activity_type: 'login',
-            });
+            }).catch(() => {}); // Fire and forget
           }
         } else {
           setLoading(false);
