@@ -199,9 +199,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
 
   const fetchUserData = async (userId: string) => {
     try {
-      // Fetch profile, role, and MFA status in parallel
-      // Skip MFA check if already manually verified this session (prevents race condition)
-      const [profileResult, roleResult, mfaResult] = await Promise.all([
+      log.info('fetchUserData start', { userId });
+      
+      // Use Promise.allSettled so one failure doesn't block others
+      const results = await Promise.allSettled([
         supabase
           .from('profiles')
           .select('*')
@@ -217,48 +218,82 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
           : checkMfaStatus(userId)
       ]);
 
-      const { data: profileData, error: profileError } = profileResult;
-      const { data: roleData, error: roleError } = roleResult;
+      const [profileSettled, roleSettled, mfaSettled] = results;
 
-      // Check for session-related errors
-      if (profileError) {
-        const errorMessage = profileError.message?.toLowerCase() || '';
-        if (errorMessage.includes('refresh') || errorMessage.includes('token') || errorMessage.includes('jwt')) {
-          handleSessionExpired();
-          return;
+      // Handle profile result
+      if (profileSettled.status === 'fulfilled') {
+        const { data: profileData, error: profileError } = profileSettled.value;
+        
+        if (profileError) {
+          const errorMessage = profileError.message?.toLowerCase() || '';
+          if (errorMessage.includes('refresh') || errorMessage.includes('token') || errorMessage.includes('jwt')) {
+            handleSessionExpired();
+            return;
+          }
+          log.warn('Profile fetch failed', { error: profileError.message });
+        } else if (profileData) {
+          if (!profileData.is_active) {
+            toast.error('Your account has been deactivated. Please contact an administrator.');
+            await supabase.auth.signOut();
+            return;
+          }
+          setProfile(profileData as Profile);
+        }
+      } else {
+        log.error('Profile fetch rejected', { reason: profileSettled.reason });
+      }
+
+      // Handle role result with RPC fallback
+      let resolvedRole: UserRole | null = null;
+      
+      if (roleSettled.status === 'fulfilled') {
+        const { data: roleData, error: roleError } = roleSettled.value;
+        
+        if (roleError) {
+          const errorMessage = roleError.message?.toLowerCase() || '';
+          if (errorMessage.includes('refresh') || errorMessage.includes('token') || errorMessage.includes('jwt')) {
+            handleSessionExpired();
+            return;
+          }
+          log.warn('Role fetch failed, trying RPC fallback', { error: roleError.message });
+        } else if (roleData) {
+          resolvedRole = roleData.role as UserRole;
+        }
+      } else {
+        log.warn('Role fetch rejected, trying RPC fallback', { reason: roleSettled.reason });
+      }
+
+      // If role not resolved, try RPC fallback
+      if (!resolvedRole) {
+        try {
+          const { data: rpcRole } = await supabase.rpc('get_user_role', { _user_id: userId });
+          if (rpcRole) {
+            resolvedRole = rpcRole as UserRole;
+            log.info('Role resolved via RPC fallback', { role: resolvedRole });
+          }
+        } catch (rpcError) {
+          log.error('RPC role fallback also failed', { error: rpcError });
         }
       }
 
-      if (profileData) {
-        // Check if user is active
-        if (!profileData.is_active) {
-          toast.error('Your account has been deactivated. Please contact an administrator.');
-          await supabase.auth.signOut();
-          return;
-        }
-        setProfile(profileData as Profile);
+      if (resolvedRole) {
+        setRole(resolvedRole);
+        preloadRoleRoutes(resolvedRole);
       }
 
-      // Check for session-related errors
-      if (roleError) {
-        const errorMessage = roleError.message?.toLowerCase() || '';
-        if (errorMessage.includes('refresh') || errorMessage.includes('token') || errorMessage.includes('jwt')) {
-          handleSessionExpired();
-          return;
-        }
+      // Handle MFA result
+      if (mfaSettled.status === 'fulfilled') {
+        setMfaStatus(mfaSettled.value);
+      } else {
+        log.warn('MFA check failed, defaulting to needs-enrollment', { reason: mfaSettled.reason });
+        setMfaStatus('needs-enrollment');
       }
-
-      if (roleData) {
-        const userRole = roleData.role as UserRole;
-        setRole(userRole);
-        // Preload routes for this role to improve navigation performance
-        preloadRoleRoutes(userRole);
-      }
-
-      // Set MFA status
-      setMfaStatus(mfaResult);
+      
+      log.info('fetchUserData complete', { hasProfile: !!profileSettled, hasRole: !!resolvedRole });
     } catch (error) {
       log.error('Error fetching user data', { error });
+      // Even on error, set a sensible default MFA state so user isn't stuck
+      setMfaStatus('needs-enrollment');
     }
   };
 
@@ -371,31 +406,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
   }, [user]);
 
   const signIn = async (email: string, password: string) => {
+    // Only perform auth - do NOT await any database calls here
+    // to prevent the login button from spinning indefinitely
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     
     if (error) {
       return { error: error as Error };
     }
 
-    // Check if user is active after successful auth
+    // Log login activity in background (don't await)
     if (data.user) {
-      const isActive = await checkUserActive(data.user.id);
-      if (!isActive) {
-        // Sign them out immediately
-        await supabase.auth.signOut();
-        return { 
-          error: new Error('Your account has been deactivated. Please contact an administrator.') 
-        };
-      }
-      
-      // Log login activity
       hasLoggedLogin.current = true;
       logUserActivity({
         user_id: data.user.id,
         activity_type: 'login',
-      });
+      }).catch(() => {}); // Fire and forget
     }
 
+    // Active check and data fetch will happen via onAuthStateChange -> fetchUserData
     return { error: null };
   };
 

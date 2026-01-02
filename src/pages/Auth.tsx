@@ -37,6 +37,7 @@ export default function Auth() {
   const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [signInStartTime, setSignInStartTime] = useState<number | null>(null);
   
   // OTP flow states
   const [isEnteringOTP, setIsEnteringOTP] = useState(false);
@@ -128,6 +129,23 @@ export default function Auth() {
     }
   }, [user, role, navigate, isRecoveryMode, recoveryComplete, isEnteringOTP, sessionToken]);
 
+  // Failsafe: if sign-in is taking too long, stop spinner and show error
+  useEffect(() => {
+    if (!isLoading || !signInStartTime) return;
+    
+    const timeout = setTimeout(() => {
+      if (isLoading) {
+        setIsLoading(false);
+        setSignInStartTime(null);
+        toast.error('Sign-in is taking longer than expected', {
+          description: 'Please try again. If the problem persists, contact support.',
+        });
+      }
+    }, 12000); // 12 second timeout
+    
+    return () => clearTimeout(timeout);
+  }, [isLoading, signInStartTime]);
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -145,16 +163,21 @@ export default function Auth() {
     }
 
     setIsLoading(true);
+    setSignInStartTime(Date.now());
+    
     const { error } = await signIn(email, password);
-    setIsLoading(false);
-
+    
+    // Only stop loading on error - success will trigger auth state change which handles redirect
     if (error) {
+      setIsLoading(false);
+      setSignInStartTime(null);
       toast.error('Sign In Failed', {
         description: error.message === 'Invalid login credentials' 
           ? 'Invalid email or password. Please try again.'
           : error.message,
       });
     }
+    // Note: on success, loading state will be managed by AuthContext and failsafe timeout
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
