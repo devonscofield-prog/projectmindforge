@@ -129,7 +129,7 @@ export const StrategyAuditSchema = z.object({
   }),
   // Required fields from pipeline (merged from Skeptic and Negotiator agents)
   critical_gaps: z.array(z.object({
-    category: z.enum(['Budget', 'Authority', 'Need', 'Timeline', 'Competition', 'Technical']),
+    category: z.enum(['Budget', 'Authority', 'Need', 'Timeline', 'Competition', 'Technical', 'Procurement', 'Process', 'Stakeholder', 'Integration', 'Security', 'Training']),
     description: z.string().describe("Specific description of what is missing in this deal"),
     impact: z.enum(['High', 'Medium', 'Low']),
     suggested_question: z.string().describe("The exact question the rep should ask to close this gap"),
