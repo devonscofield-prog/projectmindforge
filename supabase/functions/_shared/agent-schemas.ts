@@ -124,7 +124,7 @@ export const StrategistSchema = z.object({
 // The Skeptic - deal gaps
 export const SkepticSchema = z.object({
   critical_gaps: z.array(z.object({
-    category: z.enum(['Budget', 'Authority', 'Need', 'Timeline', 'Competition', 'Technical']),
+    category: z.enum(['Budget', 'Authority', 'Need', 'Timeline', 'Competition', 'Technical', 'Procurement', 'Process', 'Stakeholder', 'Integration', 'Security', 'Training']),
     description: z.string(),
     impact: z.enum(['High', 'Medium', 'Low']),
     suggested_question: z.string(),
