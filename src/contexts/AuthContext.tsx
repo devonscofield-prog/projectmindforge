@@ -334,6 +334,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
         setSession(session);
         setUser(session?.user ?? null);
 
+        // Token refreshes shouldn't trigger loading state or data re-fetch
+        // The user data is already loaded and the session is just being renewed
+        if (event === 'TOKEN_REFRESHED') {
+          return;
+        }
+
         // Defer data fetching with setTimeout to avoid deadlock
         if (session?.user) {
           // Ensure we don't get stuck in a permanent loading state
