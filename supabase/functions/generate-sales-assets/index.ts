@@ -163,12 +163,11 @@ const COPYWRITER_SYSTEM_PROMPT = `You are an expert Enterprise Sales Copywriter 
 - Confident without being pushy
 
 **STRUCTURE:**
-- Opening: 1-2 sentences acknowledging the conversation and their specific situation
-- Body: 2-4 outcome-focused sections with **bold titles** (e.g., "Risk Mitigation", "Operational Speed")
-  - Each section: 1-2 sentences focused on business value, not features
-- Resources: Mention relevant links naturally within the body or as a single sentence
-- Closing: Reference any attachments + clear next step with specific date if discussed
-- Length: 150-300 words
+- Opening: 1-2 sentences max
+- Body: 2-3 short outcome-focused sections with **bold titles**
+  - Each section: ONE sentence only, focused on business value
+- Closing: 1-2 sentences with next step
+- **TOTAL LENGTH: 100-200 words** (shorter is better)
 
 **CRITICAL - DO NOT:**
 - ❌ Create a "your needs" bullet list followed by a "our solutions" bullet list
@@ -176,6 +175,8 @@ const COPYWRITER_SYSTEM_PROMPT = `You are an expert Enterprise Sales Copywriter 
 - ❌ Map every pain point to a feature in a 1:1 list format
 - ❌ Sound like a proposal template or marketing brochure
 - ❌ Generic openers like "Thank you for taking the time to meet"
+- ❌ Long explanatory paragraphs - keep sections to ONE sentence
+- ❌ More than 3 body sections - prioritize the most important points
 
 **DO:**
 - ✅ Use bold outcome-focused headers (e.g., "**Risk Mitigation (Sandboxes):**")
@@ -192,21 +193,17 @@ const COPYWRITER_SYSTEM_PROMPT = `You are an expert Enterprise Sales Copywriter 
 ---
 {{ProspectFirstName}},
 
-Great connecting with you. Given the history with previous training tools at {{CompanyName}}, it is clear that simply buying content isn't enough - you need adoption and practical application.
+Great connecting with you. Given your concerns about training becoming "shelfware" at {{CompanyName}}, here's how we're structuring this to ensure adoption:
 
-Based on our discussion, here is how we are structuring the partnership to ensure this doesn't become "shelfware" and delivers immediate value to the infrastructure team:
+**Risk-Free Practice:** Your team can break/fix environments in our [Ranges](https://info.stormwind.com/ranges) instead of production.
 
-**Risk Mitigation (Sandboxes):** Your team can break/fix Azure, Server, and Security environments in our [Ranges](https://info.stormwind.com/ranges) rather than testing in production.
+**Targeted Skill Building:** [Skills Assessments](https://info.stormwind.com/skills-assessments) identify gaps, then practical 20-30 hour/year plans that fit real schedules.
 
-**Operational Speed (Storm AI):** Reducing troubleshooting time by giving the team instant answers based on verified documentation.
+**Quick Answers:** Storm AI provides instant troubleshooting help from verified documentation.
 
-**Realistic Adoption:** Moving away from "certification mills" to a quarterly skill development plan (20-30 hours/year) that fits a busy 16-person team's schedule.
+I've attached the Executive Brief for your leadership. Quote is in PandaDoc - just need a signature to get started with Net30 terms.
 
-I've attached the Executive Brief we discussed. This highlights the ROI and specifically addresses the retention/adoption concerns for your leadership. You should have an email from Pandadoc with the official quote, once you have approval all we need to get you started is a signature and we can invoice with Net30 terms.
-
-Here is a link to [Course Samples](https://info.stormwind.com/training-samples) with the full course list and detailed platform info.
-
-I look forward to touching base on the 30th to review the feedback and hopefully schedule an onboarding.
+Looking forward to our follow-up on the 30th.
 ---
 
 **PLACEHOLDERS:**
@@ -450,7 +447,7 @@ ${transcript.substring(0, 30000)}`;
           ],
           tools: [SALES_ASSETS_TOOL],
           tool_choice: { type: 'function', function: { name: 'generate_sales_assets' } },
-          max_tokens: 4096,
+          max_tokens: 8192,
           temperature: 0.5,
         }),
       });
@@ -478,6 +475,13 @@ ${transcript.substring(0, 30000)}`;
       const aiResponse = await response.json();
       const finishReason = aiResponse.choices?.[0]?.finish_reason;
       const toolCall = aiResponse.choices?.[0]?.message?.tool_calls?.[0];
+
+      // Check for truncation due to token limit
+      if (finishReason === 'length') {
+        console.warn(`[generate-sales-assets] Attempt ${attempt + 1}: Response truncated due to token limit`);
+        lastError = new Error(`Response truncated (attempt ${attempt + 1})`);
+        continue; // Try again
+      }
 
       // Check for malformed function call - retry if this occurs
       if (finishReason === 'MALFORMED_FUNCTION_CALL' || !toolCall) {
