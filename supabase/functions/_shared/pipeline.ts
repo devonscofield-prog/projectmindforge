@@ -713,7 +713,9 @@ ${pricingSection}
 
 // ============= PIPELINE TIMEOUT =============
 
-const PIPELINE_TIMEOUT_MS = 300000; // 5 minutes - maximum quality mode, no time constraints
+// 5 minutes - extended for background processing with fire-and-forget pattern
+// analyze-call returns 202 immediately, so we have ample time for quality
+const PIPELINE_TIMEOUT_MS = 300000;
 
 class PipelineTimeoutError extends Error {
   constructor(elapsedMs: number) {
@@ -1064,6 +1066,11 @@ export async function runAnalysisPipeline(
 
   const phase1Duration = batch1Duration + batch2Duration + BATCH_DELAY_MS;
   console.log(`[Pipeline] Phase 1 (all 2 batches) complete in ${Math.round(phase1Duration)}ms (${warnings.length} warnings)`);
+  
+  // Circuit breaker: if we have 3+ warnings already, log prominently for investigation
+  if (warnings.length >= 3) {
+    console.warn(`[Pipeline] ⚠️ WARNING ACCUMULATION: ${warnings.length} warnings accumulated - this call may have issues:`, warnings.slice(0, 5));
+  }
 
   // ============= MERGE PHASE 1 RESULTS =============
   const strategist = strategistResult.data as StrategistOutput;

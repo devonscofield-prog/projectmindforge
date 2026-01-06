@@ -124,7 +124,7 @@ Deno.serve(async (req) => {
   let targetCallId: string | null = null;
 
   try {
-    // Recover stuck transcripts
+    // Recover stuck transcripts before processing
     try {
       const { data: recovered } = await supabaseAdmin.rpc('recover_stuck_processing_transcripts');
       if (recovered?.length > 0) {
@@ -166,28 +166,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch rep name for speaker context
-    const { data: repProfile } = await supabaseAdmin
-      .from('profiles')
-      .select('name')
-      .eq('id', transcript.rep_id)
-      .maybeSingle();
-
-    // Build speaker context for Speaker Labeler (allow partial context with rep name only)
-    const speakerContext: SpeakerContext | undefined = repProfile?.name ? {
-      repName: repProfile.name,
-      stakeholderName: transcript.primary_stakeholder_name || 'Unknown',
-      accountName: transcript.account_name || 'Unknown Company',
-      managerOnCall: !!transcript.manager_id,
-      additionalSpeakers: transcript.additional_speakers || [],
-    } : undefined;
-
-    if (speakerContext) {
-      console.log(`[analyze-call] Speaker context: REP=${speakerContext.repName}, PROSPECT=${speakerContext.stakeholderName}, Manager=${speakerContext.managerOnCall}, Others=${speakerContext.additionalSpeakers.length}`);
-    } else {
-      console.log(`[analyze-call] No speaker context available (missing rep profile name)`);
-    }
-
     const { force_reanalyze } = body;
     
     // Request deduplication: Atomically check and set processing status
@@ -222,111 +200,154 @@ Deno.serve(async (req) => {
       await supabaseAdmin.from('call_transcripts').update({ analysis_status: 'processing', analysis_error: null }).eq('id', targetCallId);
     }
 
-    // Fetch account history for follow-up context
-    let accountHistory: AccountHistoryContext | undefined;
-    if (transcript.prospect_id) {
+    // ============= FIRE-AND-FORGET PATTERN =============
+    // Return 202 Accepted immediately and continue processing in background
+    // This avoids Edge Function HTTP timeout (60s) for long-running analysis
+    console.log(`[analyze-call] Returning 202 Accepted, processing ${targetCallId} in background...`);
+    
+    // Background processing function
+    const runBackgroundAnalysis = async () => {
       try {
-        const { data: previousCalls } = await supabaseAdmin
-          .from('call_transcripts')
-          .select(`
-            id, call_date, call_type,
-            ai_call_analysis (
-              call_summary,
-              analysis_strategy,
-              analysis_behavior,
-              deal_heat_analysis
-            )
-          `)
-          .eq('prospect_id', transcript.prospect_id)
-          .neq('id', targetCallId)
-          .eq('analysis_status', 'completed')
-          .is('deleted_at', null)
-          .order('call_date', { ascending: false })
-          .limit(10); // Extended history for maximum context
+        // Fetch rep name for speaker context
+        const { data: repProfile } = await supabaseAdmin
+          .from('profiles')
+          .select('name')
+          .eq('id', transcript.rep_id)
+          .maybeSingle();
 
-        if (previousCalls && previousCalls.length > 0) {
-          accountHistory = {
-            previousCalls: previousCalls.map(call => {
-              const analysis = Array.isArray(call.ai_call_analysis) ? call.ai_call_analysis[0] : call.ai_call_analysis;
-              const strategy = analysis?.analysis_strategy as { critical_gaps?: Array<{ category: string; description: string; impact: string }> } | null;
-              const behavior = analysis?.analysis_behavior as { metrics?: { next_steps?: { secured: boolean; details: string } } } | null;
-              const dealHeat = analysis?.deal_heat_analysis as { heat_score?: number } | null;
-              
-              return {
-                call_date: call.call_date,
-                call_type: call.call_type,
-                summary: analysis?.call_summary || 'No summary available',
-                critical_gaps: strategy?.critical_gaps || [],
-                next_steps_secured: behavior?.metrics?.next_steps?.secured,
-                next_steps_details: behavior?.metrics?.next_steps?.details,
-                deal_heat_score: dealHeat?.heat_score,
-              };
-            }),
-            totalPreviousCalls: previousCalls.length,
-            accountName: transcript.account_name || 'Unknown',
-          };
-          console.log(`[analyze-call] Account history: ${accountHistory.totalPreviousCalls} previous calls for ${accountHistory.accountName}`);
+        // Build speaker context for Speaker Labeler (allow partial context with rep name only)
+        const speakerContext: SpeakerContext | undefined = repProfile?.name ? {
+          repName: repProfile.name,
+          stakeholderName: transcript.primary_stakeholder_name || 'Unknown',
+          accountName: transcript.account_name || 'Unknown Company',
+          managerOnCall: !!transcript.manager_id,
+          additionalSpeakers: transcript.additional_speakers || [],
+        } : undefined;
+
+        if (speakerContext) {
+          console.log(`[analyze-call] Speaker context: REP=${speakerContext.repName}, PROSPECT=${speakerContext.stakeholderName}, Manager=${speakerContext.managerOnCall}, Others=${speakerContext.additionalSpeakers.length}`);
+        } else {
+          console.log(`[analyze-call] No speaker context available (missing rep profile name)`);
         }
-      } catch (historyError) {
-        console.warn('[analyze-call] Failed to fetch account history:', historyError);
+
+        // Fetch account history for follow-up context
+        let accountHistory: AccountHistoryContext | undefined;
+        if (transcript.prospect_id) {
+          try {
+            const { data: previousCalls } = await supabaseAdmin
+              .from('call_transcripts')
+              .select(`
+                id, call_date, call_type,
+                ai_call_analysis (
+                  call_summary,
+                  analysis_strategy,
+                  analysis_behavior,
+                  deal_heat_analysis
+                )
+              `)
+              .eq('prospect_id', transcript.prospect_id)
+              .neq('id', targetCallId)
+              .eq('analysis_status', 'completed')
+              .is('deleted_at', null)
+              .order('call_date', { ascending: false })
+              .limit(10); // Extended history for maximum context
+
+            if (previousCalls && previousCalls.length > 0) {
+              accountHistory = {
+                previousCalls: previousCalls.map(call => {
+                  const analysis = Array.isArray(call.ai_call_analysis) ? call.ai_call_analysis[0] : call.ai_call_analysis;
+                  const strategy = analysis?.analysis_strategy as { critical_gaps?: Array<{ category: string; description: string; impact: string }> } | null;
+                  const behavior = analysis?.analysis_behavior as { metrics?: { next_steps?: { secured: boolean; details: string } } } | null;
+                  const dealHeat = analysis?.deal_heat_analysis as { heat_score?: number } | null;
+                  
+                  return {
+                    call_date: call.call_date,
+                    call_type: call.call_type,
+                    summary: analysis?.call_summary || 'No summary available',
+                    critical_gaps: strategy?.critical_gaps || [],
+                    next_steps_secured: behavior?.metrics?.next_steps?.secured,
+                    next_steps_details: behavior?.metrics?.next_steps?.details,
+                    deal_heat_score: dealHeat?.heat_score,
+                  };
+                }),
+                totalPreviousCalls: previousCalls.length,
+                accountName: transcript.account_name || 'Unknown',
+              };
+              console.log(`[analyze-call] Account history: ${accountHistory.totalPreviousCalls} previous calls for ${accountHistory.accountName}`);
+            }
+          } catch (historyError) {
+            console.warn('[analyze-call] Failed to fetch account history:', historyError);
+          }
+        }
+
+        // Run the pipeline with speaker context and account history
+        const result = await runAnalysisPipeline(transcript.raw_text, supabaseAdmin, targetCallId!, speakerContext, accountHistory);
+
+        // Save results
+        const { data: existingAnalysis } = await supabaseAdmin.from('ai_call_analysis').select('id').eq('call_id', targetCallId).maybeSingle();
+
+        const analysisData = {
+          analysis_metadata: result.metadata,
+          analysis_behavior: result.behavior,
+          analysis_strategy: result.strategy,
+          analysis_psychology: result.psychology,
+          analysis_pricing: result.pricing,
+          analysis_coaching: result.coaching,
+          analysis_pipeline_version: 'v2-registry',
+          call_summary: result.metadata.summary,
+          detected_call_type: result.callClassification?.detected_call_type || null,
+          raw_json: {
+            ...(result.warnings.length > 0 ? { analysis_warnings: result.warnings } : {}),
+            ...(result.callClassification ? { call_classification: result.callClassification } : {}),
+          },
+        };
+
+        if (existingAnalysis) {
+          await supabaseAdmin.from('ai_call_analysis').update(analysisData).eq('id', existingAnalysis.id);
+        } else {
+          await supabaseAdmin.from('ai_call_analysis').insert({
+            call_id: targetCallId,
+            rep_id: transcript.rep_id,
+            model_name: 'google/gemini-2.5-flash,google/gemini-2.5-pro',
+            ...analysisData,
+          });
+        }
+
+        await supabaseAdmin.from('call_transcripts').update({ analysis_status: 'completed', analysis_version: 'v2' }).eq('id', targetCallId);
+
+        console.log(`[analyze-call] ✅ Analysis complete for ${targetCallId}, Grade: ${result.coaching.overall_grade}, Warnings: ${result.warnings.length}`);
+        
+        // Log if many warnings accumulated
+        if (result.warnings.length >= 3) {
+          console.warn(`[analyze-call] ⚠️ High warning count (${result.warnings.length}) for ${targetCallId}:`, result.warnings);
+        }
+
+        // Trigger background chunking for RAG indexing
+        await triggerBackgroundChunking(targetCallId!, supabaseUrl, supabaseServiceKey);
+        
+      } catch (bgError) {
+        const errorMessage = bgError instanceof Error ? bgError.message : String(bgError);
+        console.error(`[analyze-call] ❌ Background analysis failed for ${targetCallId}:`, errorMessage);
+        
+        // Update transcript status to error
+        await supabaseAdmin.from('call_transcripts').update({ 
+          analysis_status: 'error', 
+          analysis_error: errorMessage 
+        }).eq('id', targetCallId);
       }
-    }
-
-    // Run the pipeline with speaker context and account history
-    const result = await runAnalysisPipeline(transcript.raw_text, supabaseAdmin, targetCallId, speakerContext, accountHistory);
-
-    // Save results
-    const { data: existingAnalysis } = await supabaseAdmin.from('ai_call_analysis').select('id').eq('call_id', targetCallId).maybeSingle();
-
-    const analysisData = {
-      analysis_metadata: result.metadata,
-      analysis_behavior: result.behavior,
-      analysis_strategy: result.strategy,
-      analysis_psychology: result.psychology,
-      analysis_pricing: result.pricing,
-      analysis_coaching: result.coaching,
-      analysis_pipeline_version: 'v2-registry',
-      call_summary: result.metadata.summary,
-      // Enhancement #5: Store detected_call_type in dedicated column for easy filtering
-      detected_call_type: result.callClassification?.detected_call_type || null,
-      raw_json: {
-        ...(result.warnings.length > 0 ? { analysis_warnings: result.warnings } : {}),
-        ...(result.callClassification ? { call_classification: result.callClassification } : {}),
-      },
     };
 
-    if (existingAnalysis) {
-      await supabaseAdmin.from('ai_call_analysis').update(analysisData).eq('id', existingAnalysis.id);
-    } else {
-      await supabaseAdmin.from('ai_call_analysis').insert({
-        call_id: targetCallId,
-        rep_id: transcript.rep_id,
-        model_name: 'google/gemini-2.5-flash,google/gemini-2.5-pro',
-        ...analysisData,
-      });
-    }
-
-    await supabaseAdmin.from('call_transcripts').update({ analysis_status: 'completed', analysis_version: 'v2' }).eq('id', targetCallId);
-
-    console.log(`[analyze-call] Analysis complete for ${targetCallId}, Grade: ${result.coaching.overall_grade}`);
-
     // @ts-ignore - EdgeRuntime available in Supabase
-    EdgeRuntime.waitUntil(triggerBackgroundChunking(targetCallId, supabaseUrl, supabaseServiceKey));
+    EdgeRuntime.waitUntil(runBackgroundAnalysis());
 
+    // Return 202 Accepted immediately
     return new Response(
       JSON.stringify({
-        success: true,
+        status: 'processing',
+        message: 'Analysis started in background',
         call_id: targetCallId,
-        analysis_version: 'v2-registry',
-        metadata: result.metadata,
-        behavior: result.behavior,
-        strategy: result.strategy,
-        psychology: result.psychology,
-        coaching: result.coaching,
-        processing_time_ms: Math.round(result.totalDurationMs),
-        warnings: result.warnings.length > 0 ? result.warnings : undefined,
       }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 202, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
@@ -339,11 +360,10 @@ Deno.serve(async (req) => {
 
     const isRateLimit = errorMessage.includes('Rate limit');
     const isCredits = errorMessage.includes('credits');
-    const isTimeout = errorMessage.includes('timeout');
 
     return new Response(
       JSON.stringify({ error: errorMessage }),
-      { status: isRateLimit ? 429 : isCredits ? 402 : isTimeout ? 504 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: isRateLimit ? 429 : isCredits ? 402 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
