@@ -14,13 +14,8 @@ function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Required links that MUST be included in every email
+// Links that MUST be included in every email
 const REQUIRED_LINKS = {
-  skill_assessments: {
-    url: 'https://info.stormwind.com/skills-assessments',
-    text: 'Skills Assessments',
-    context: 'Skills testing and validation'
-  },
   stormwind_ranges: {
     url: 'https://info.stormwind.com/ranges',
     text: 'Ranges',
@@ -30,6 +25,15 @@ const REQUIRED_LINKS = {
     url: 'https://info.stormwind.com/training-samples',
     text: 'Course Samples',
     context: 'Sample training content'
+  }
+};
+
+// Optional links - include when contextually relevant
+const OPTIONAL_LINKS = {
+  skill_assessments: {
+    url: 'https://info.stormwind.com/skills-assessments',
+    text: 'Skills Assessments',
+    context: 'When discussing skill gaps, assessments, or baseline measurement'
   }
 };
 
@@ -184,10 +188,12 @@ const COPYWRITER_SYSTEM_PROMPT = `You are an expert Enterprise Sales Copywriter 
 - ✅ Reference specific details from the call (team size, concerns mentioned, etc.)
 - ✅ Include clear next steps with dates when available
 
-**REQUIRED LINKS (integrate naturally within sections):**
-- [Skills Assessments](https://info.stormwind.com/skills-assessments)
-- [Ranges](https://info.stormwind.com/ranges)
-- [Course Samples](https://info.stormwind.com/training-samples)
+**REQUIRED LINKS (must include both):**
+- [Ranges](https://info.stormwind.com/ranges) - hands-on lab environments
+- [Course Samples](https://info.stormwind.com/training-samples) - training content preview
+
+**OPTIONAL LINKS (include only when relevant):**
+- [Skills Assessments](https://info.stormwind.com/skills-assessments) - use when discussing skill gaps, baselining, or measuring progress
 
 **EXAMPLE OF GOOD EMAIL:**
 ---
@@ -197,7 +203,7 @@ Great connecting with you. Given your concerns about training becoming "shelfwar
 
 **Risk-Free Practice:** Your team can break/fix environments in our [Ranges](https://info.stormwind.com/ranges) instead of production.
 
-**Targeted Skill Building:** [Skills Assessments](https://info.stormwind.com/skills-assessments) identify gaps, then practical 20-30 hour/year plans that fit real schedules.
+**Targeted Skill Building:** Practical 20-30 hour/year plans with [Course Samples](https://info.stormwind.com/training-samples) that fit real schedules.
 
 **Quick Answers:** Storm AI provides instant troubleshooting help from verified documentation.
 
@@ -259,13 +265,10 @@ interface StrategicContext {
   critical_gaps?: CriticalGap[];
 }
 
-// Validate that the email contains required links
+// Validate that the email contains required links (Ranges and Course Samples only)
 function validateEmailLinks(emailBody: string): { valid: boolean; missing: string[] } {
   const missing: string[] = [];
   
-  if (!emailBody.includes(REQUIRED_LINKS.skill_assessments.url)) {
-    missing.push('Skill Assessments link');
-  }
   if (!emailBody.includes(REQUIRED_LINKS.stormwind_ranges.url)) {
     missing.push('StormWind Ranges link');
   }
