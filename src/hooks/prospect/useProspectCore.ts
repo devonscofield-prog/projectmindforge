@@ -107,6 +107,8 @@ export function useProspectCore({ prospectId }: UseProspectCoreOptions) {
       if (updates.ai_extracted_info !== undefined) sanitizedUpdates.ai_extracted_info = updates.ai_extracted_info ?? undefined;
       if (updates.suggested_follow_ups !== undefined) sanitizedUpdates.suggested_follow_ups = updates.suggested_follow_ups ?? undefined;
       if (updates.heat_score !== undefined) sanitizedUpdates.heat_score = updates.heat_score ?? undefined;
+      if (updates.account_name !== undefined) sanitizedUpdates.account_name = updates.account_name;
+      if (updates.prospect_name !== undefined) sanitizedUpdates.prospect_name = updates.prospect_name;
       
       await updateProspect(prospect.id, sanitizedUpdates);
       setProspect({ ...prospect, ...updates });
