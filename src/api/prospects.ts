@@ -395,6 +395,19 @@ export async function updateProspect(
     throw new Error(`Failed to update prospect: ${error.message}`);
   }
 
+  // If account_name changed, cascade update to all linked call transcripts
+  if (updates.account_name !== undefined) {
+    const { error: callsError } = await supabase
+      .from('call_transcripts')
+      .update({ account_name: updates.account_name })
+      .eq('prospect_id', prospectId);
+    
+    if (callsError) {
+      log.warn('Failed to update call transcripts account name', { error: callsError });
+      // Don't throw - the prospect update succeeded
+    }
+  }
+
   return toProspect(data);
 }
 
