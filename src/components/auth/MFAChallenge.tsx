@@ -83,15 +83,18 @@ export function MFAChallenge({ onSuccess, onCancel }: MFAChallengeProps) {
           const deviceId = await getDeviceIdAsync();
           console.log('[MFA] Saving trusted device with ID:', deviceId.substring(0, 8));
           
-          const { error: upsertError } = await supabase.from('user_trusted_devices').upsert({
-            user_id: user.id,
-            device_id: deviceId,
-            device_name: getDeviceName(),
-            user_agent: navigator.userAgent,
-            trusted_at: new Date().toISOString(),
-            expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-            last_used_at: new Date().toISOString(),
-          });
+          const { error: upsertError } = await supabase.from('user_trusted_devices').upsert(
+            {
+              user_id: user.id,
+              device_id: deviceId,
+              device_name: getDeviceName(),
+              user_agent: navigator.userAgent,
+              trusted_at: new Date().toISOString(),
+              expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+              last_used_at: new Date().toISOString(),
+            },
+            { onConflict: 'user_id,device_id' }
+          );
           
           if (upsertError) {
             console.error('[MFA] Failed to save trusted device:', upsertError);
