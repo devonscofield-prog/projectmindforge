@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { logUserActivity } from '@/api/userActivityLogs';
 import { preloadRoleRoutes } from '@/lib/routePreloader';
 import { createLogger } from '@/lib/logger';
-import { getDeviceId } from '@/lib/deviceId';
+import { getDeviceIdAsync } from '@/lib/deviceId';
 
 const log = createLogger('auth');
 
@@ -155,7 +155,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
   // Check MFA status - returns the MFA state
   const checkMfaStatus = async (userId: string): Promise<MFAStatus> => {
     try {
-      const deviceId = getDeviceId();
+      // Use async version to ensure we check all storage layers including IndexedDB
+      const deviceId = await getDeviceIdAsync();
       log.info('Checking MFA status', { 
         userId: userId.substring(0, 8), 
         deviceId: deviceId.substring(0, 8) 

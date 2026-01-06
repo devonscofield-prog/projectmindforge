@@ -8,28 +8,11 @@ const IDB_DB_NAME = 'mfa_device';
 const IDB_STORE_NAME = 'device';
 
 /**
- * Generate a deterministic device ID based on browser characteristics
- * This creates a stable fingerprint for the device (no random components)
+ * Generate a new random device ID (only called once per device, then persisted)
+ * Uses crypto.randomUUID for a truly unique identifier
  */
-function generateDeviceId(): string {
-  const nav = navigator as Navigator & { deviceMemory?: number };
-  const components = [
-    navigator.userAgent,
-    navigator.language,
-    screen.width,
-    screen.height,
-    screen.colorDepth,
-    new Date().getTimezoneOffset(),
-    navigator.hardwareConcurrency || 'unknown',
-    navigator.platform || 'unknown',
-    nav.deviceMemory || 'unknown',
-  ];
-  
-  // Create a hash-like string from components
-  const fingerprint = components.join('|');
-  
-  // Convert to a base64-like identifier
-  return btoa(fingerprint).replace(/[^a-zA-Z0-9]/g, '').substring(0, 32);
+function createNewDeviceId(): string {
+  return crypto.randomUUID();
 }
 
 /**
@@ -126,7 +109,7 @@ async function saveDeviceIdToIndexedDB(deviceId: string): Promise<void> {
 
 /**
  * Get or create the device ID for this browser (synchronous version)
- * Uses multi-layer persistence: localStorage → cookie → generate new
+ * Uses multi-layer persistence: localStorage → cookie → generate new random UUID once
  */
 export function getDeviceId(): string {
   let deviceId: string | null = null;
@@ -154,10 +137,10 @@ export function getDeviceId(): string {
     }
   }
   
-  // 3. If still not found, generate new deterministic ID
+  // 3. If still not found, generate a new random UUID (only happens once per device)
   if (!deviceId) {
-    deviceId = generateDeviceId();
-    source = 'generated';
+    deviceId = createNewDeviceId();
+    source = 'generated (new)';
   }
   
   // Log for debugging
@@ -197,10 +180,10 @@ export async function getDeviceIdAsync(): Promise<string> {
     if (deviceId) source = 'indexedDB';
   }
   
-  // 4. Generate if still not found
+  // 4. Generate a new random UUID if still not found (only happens once per device)
   if (!deviceId) {
-    deviceId = generateDeviceId();
-    source = 'generated';
+    deviceId = createNewDeviceId();
+    source = 'generated (new)';
   }
   
   console.log(`[deviceId] Async source: ${source}, ID: ${deviceId.substring(0, 8)}...`);
