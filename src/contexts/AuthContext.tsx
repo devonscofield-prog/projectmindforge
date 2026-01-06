@@ -355,6 +355,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
 
         // Defer data fetching with setTimeout to avoid deadlock
         if (session?.user) {
+          // Skip loading state if we already have this user's data loaded
+          // This prevents unmounting protected routes on tab focus / INITIAL_SESSION re-fires
+          const alreadyHasData = profile && role && user?.id === session.user.id;
+          
+          if (alreadyHasData) {
+            // Just update session refs silently without triggering loading state
+            log.info('Skipping data refetch - user data already loaded', { userId: session.user.id.substring(0, 8) });
+            return;
+          }
+          
           // Ensure we don't get stuck in a permanent loading state
           setLoading(true);
           setTimeout(() => {

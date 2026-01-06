@@ -125,11 +125,31 @@ function RepDashboard() {
       const savedDraft = localStorage.getItem(DRAFT_KEY);
       if (savedDraft) {
         const draft: FormDraft = JSON.parse(savedDraft);
-        // Only show restore prompt if draft has meaningful content and is less than 24 hours old
-        const isRecent = Date.now() - draft.savedAt < 24 * 60 * 60 * 1000;
+        const draftAge = Date.now() - draft.savedAt;
+        const isRecent = draftAge < 24 * 60 * 60 * 1000; // 24 hours
+        const isVeryRecent = draftAge < 5 * 60 * 1000; // 5 minutes (likely tab-switch)
+        
         if (isRecent && (draft.transcript.trim().length > 0 || draft.accountName.trim().length > 0)) {
-          setHasDraft(true);
-          setShowDraftDialog(true);
+          // If very recent (likely tab-switch), auto-restore silently
+          if (isVeryRecent) {
+            setTranscript(draft.transcript || '');
+            setAccountName(draft.accountName || '');
+            setSalesforceAccountLink(draft.salesforceAccountLink || '');
+            setCallDate(draft.callDate || format(new Date(), 'yyyy-MM-dd'));
+            setCallType(draft.callType || 'first_demo');
+            setCallTypeOther(draft.callTypeOther || '');
+            setAdditionalSpeakersText(draft.additionalSpeakersText || '');
+            setManagerOnCall(draft.managerOnCall || false);
+            setAdditionalSpeakersEnabled(draft.additionalSpeakersEnabled || false);
+            setStakeholders(draft.stakeholders || []);
+            setSelectedProducts(draft.selectedProducts || []);
+            setIsUnqualified(draft.isUnqualified || false);
+            // Silent restore - no dialog, no toast for seamless tab-switch experience
+          } else {
+            // Older draft - show confirmation dialog
+            setHasDraft(true);
+            setShowDraftDialog(true);
+          }
         } else {
           localStorage.removeItem(DRAFT_KEY);
         }
@@ -183,6 +203,39 @@ function RepDashboard() {
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [isDirty, isSubmitting]);
+
+  // Save draft immediately when tab loses visibility (prevents data loss on tab-switch)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && isDirty() && !isSubmitting) {
+        const draft: FormDraft = {
+          transcript,
+          accountName,
+          salesforceAccountLink,
+          callDate,
+          callType,
+          callTypeOther,
+          additionalSpeakersText,
+          managerOnCall,
+          additionalSpeakersEnabled,
+          stakeholders,
+          selectedProducts,
+          isUnqualified,
+          savedAt: Date.now(),
+        };
+        try {
+          localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+        } catch {
+          // Storage full or unavailable
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [transcript, accountName, salesforceAccountLink, callDate, callType, callTypeOther, 
+      additionalSpeakersText, managerOnCall, additionalSpeakersEnabled, stakeholders, 
+      selectedProducts, isUnqualified, isDirty, isSubmitting]);
 
   // Note: In-app navigation blocking removed due to useBlocker requiring data router.
   // The beforeunload event handler above still protects against browser close/refresh.
