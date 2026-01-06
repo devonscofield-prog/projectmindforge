@@ -12,29 +12,35 @@ import { createToolFromSchema } from './zod-to-json-schema.ts';
 // AI Gateway configuration
 const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
-const AI_GATEWAY_TIMEOUT_MS = 55000; // 55s to stay within edge function limits
+const AI_GATEWAY_TIMEOUT_MS = 90000; // 90s - extended for fire-and-forget background processing
 
-// Per-agent timeouts based on model - capped at 55s to fit edge function limits
+// Per-agent timeouts based on model - extended for background processing
+// analyze-call now returns 202 immediately and processes in background
 const AGENT_TIMEOUT_MS = {
-  'google/gemini-2.5-flash': 55000,
-  'google/gemini-2.5-pro': 55000,
-  'google/gemini-3-pro-preview': 55000,
-  'openai/gpt-5.2': 55000,
+  'google/gemini-2.5-flash': 60000,
+  'google/gemini-2.5-pro': 90000,
+  'google/gemini-3-pro-preview': 90000,
+  'openai/gpt-5.2': 90000,
 } as const;
 
 type ModelType = keyof typeof AGENT_TIMEOUT_MS;
 
-// Agent-specific timeout overrides - capped at 55s to fit edge function limits
+// Agent-specific timeout overrides - tuned per agent complexity
+// Since analyze-call runs in background, we can afford longer timeouts for quality
 const AGENT_TIMEOUT_OVERRIDES: Record<string, number> = {
-  'speaker_labeler': 55000,
-  'skeptic': 55000,
-  'negotiator': 55000,
-  'coach': 55000,
-  'auditor': 55000,
-  'profiler': 55000,
-  'interrogator': 55000,
-  'strategist': 55000,
-  'referee': 55000,
+  'speaker_labeler': 60000,   // Simple labeling task
+  'sentinel': 45000,          // Fast classification
+  'census': 60000,            // Entity extraction
+  'historian': 60000,         // Summary generation
+  'spy': 75000,               // Competitive intel extraction
+  'profiler': 60000,          // Psychology profiling
+  'strategist': 90000,        // Complex multi-phase analysis
+  'referee': 75000,           // Behavioral scoring with nuance
+  'interrogator': 75000,      // Question/answer analysis
+  'skeptic': 75000,           // Complex gap reasoning
+  'negotiator': 75000,        // LAER framework analysis
+  'auditor': 60000,           // Simple pricing analysis
+  'coach': 120000,            // Synthesis of all agents - needs most time
 } as const;
 
 // Non-critical agents that can fail gracefully without blocking analysis
@@ -669,17 +675,30 @@ Output your reconciled assessment using the same schema.`;
   }
 }
 
+export interface CoachConsensusOptions {
+  skipConsensus?: boolean;  // If true, use single model (GPT-5.2) for speed
+}
+
 /**
  * Execute Coach agent with multi-model consensus
  * Runs on both GPT-5.2 and Gemini 3 Pro in parallel, then reconciles
+ * Set skipConsensus=true for faster single-model execution when speed is preferred over maximum accuracy
  */
 export async function executeCoachWithConsensus(
   config: AgentConfig<z.ZodTypeAny>,
   userPrompt: string,
   supabase: SupabaseClient,
-  callId: string
+  callId: string,
+  options?: CoachConsensusOptions
 ): Promise<AgentResult<z.infer<typeof import('./agent-schemas.ts').CoachSchema>>> {
   const start = performance.now();
+  
+  // Fast path: skip consensus and use single model
+  if (options?.skipConsensus) {
+    console.log('[Coach] Running in fast mode (single model, no consensus)...');
+    return executeAgentWithModel(config, userPrompt, 'openai/gpt-5.2', supabase, callId);
+  }
+  
   console.log('[Coach Consensus] Starting multi-model execution...');
 
   // Run both models in parallel
