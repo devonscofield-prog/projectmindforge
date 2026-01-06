@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { createLogger } from '@/lib/logger';
 import {
@@ -21,6 +22,7 @@ interface UseProspectCoreOptions {
 
 export function useProspectCore({ prospectId }: UseProspectCoreOptions) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [prospect, setProspect] = useState<Prospect | null>(null);
   const [stakeholders, setStakeholders] = useState<Stakeholder[]>([]);
@@ -86,12 +88,17 @@ export function useProspectCore({ prospectId }: UseProspectCoreOptions) {
     try {
       await updateProspect(prospect.id, { status: newStatus });
       setProspect({ ...prospect, status: newStatus });
+      
+      // Invalidate queries so lists refresh
+      queryClient.invalidateQueries({ queryKey: ['prospects'] });
+      queryClient.invalidateQueries({ queryKey: ['prospect', prospect.id] });
+      
       toast.success('Status updated');
     } catch (error) {
       log.error('Failed to update status', { error });
       toast.error('Failed to update status');
     }
-  }, [prospect]);
+  }, [prospect, queryClient]);
 
   const handleUpdateProspect = useCallback(async (updates: Partial<Prospect>): Promise<boolean> => {
     if (!prospect) return false;
@@ -112,12 +119,24 @@ export function useProspectCore({ prospectId }: UseProspectCoreOptions) {
       
       await updateProspect(prospect.id, sanitizedUpdates);
       setProspect({ ...prospect, ...updates });
+      
+      // Invalidate all prospect-related queries for immediate consistency
+      queryClient.invalidateQueries({ queryKey: ['prospects'] });
+      queryClient.invalidateQueries({ queryKey: ['prospect', prospect.id] });
+      
+      // If account_name changed, also invalidate call-related queries
+      if (updates.account_name !== undefined) {
+        queryClient.invalidateQueries({ queryKey: ['calls'] });
+        queryClient.invalidateQueries({ queryKey: ['rep-calls'] });
+        queryClient.invalidateQueries({ queryKey: ['admin-transcripts'] });
+      }
+      
       return true;
     } catch (error) {
       log.error('Failed to update prospect', { error });
       return false;
     }
-  }, [prospect]);
+  }, [prospect, queryClient]);
 
   const refreshCalls = useCallback(async () => {
     if (!prospectId) return;
