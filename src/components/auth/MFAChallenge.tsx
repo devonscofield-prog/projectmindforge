@@ -7,7 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Loader2, Shield, AlertCircle } from 'lucide-react';
-import { getDeviceId, getDeviceName } from '@/lib/deviceId';
+import { getDeviceIdAsync, getDeviceName } from '@/lib/deviceId';
 
 interface MFAChallengeProps {
   onSuccess: () => void;
@@ -80,15 +80,36 @@ export function MFAChallenge({ onSuccess, onCancel }: MFAChallengeProps) {
       if (trustDevice) {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          await supabase.from('user_trusted_devices').upsert({
+          const deviceId = await getDeviceIdAsync();
+          console.log('[MFA] Saving trusted device with ID:', deviceId.substring(0, 8));
+          
+          const { error: upsertError } = await supabase.from('user_trusted_devices').upsert({
             user_id: user.id,
-            device_id: getDeviceId(),
+            device_id: deviceId,
             device_name: getDeviceName(),
             user_agent: navigator.userAgent,
             trusted_at: new Date().toISOString(),
             expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
             last_used_at: new Date().toISOString(),
           });
+          
+          if (upsertError) {
+            console.error('[MFA] Failed to save trusted device:', upsertError);
+          } else {
+            // Verify the save
+            const { data: verified } = await supabase
+              .from('user_trusted_devices')
+              .select('device_id')
+              .eq('user_id', user.id)
+              .eq('device_id', deviceId)
+              .maybeSingle();
+            
+            if (verified) {
+              console.log('[MFA] Device trust confirmed:', verified.device_id.substring(0, 8));
+            } else {
+              console.error('[MFA] Device trust verification failed - not found in DB');
+            }
+          }
         }
       }
 

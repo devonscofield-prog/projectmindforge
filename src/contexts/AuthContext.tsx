@@ -156,12 +156,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
   const checkMfaStatus = async (userId: string): Promise<MFAStatus> => {
     try {
       const deviceId = getDeviceId();
+      log.info('Checking MFA status', { 
+        userId: userId.substring(0, 8), 
+        deviceId: deviceId.substring(0, 8) 
+      });
       
       // Check trusted device and MFA factors in parallel
       const [trustedDeviceResult, factorsResult] = await Promise.all([
         supabase
           .from('user_trusted_devices')
-          .select('id, expires_at')
+          .select('id, expires_at, device_id')
           .eq('user_id', userId)
           .eq('device_id', deviceId)
           .maybeSingle(),
@@ -170,9 +174,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
 
       const trustedDevice = trustedDeviceResult.data;
       const factors = factorsResult.data;
+      const hasVerifiedTOTP = factors?.totp?.some(f => f.status === 'verified');
+      
+      log.info('MFA check results', { 
+        hasTrustedDevice: !!trustedDevice, 
+        trustedDeviceId: trustedDevice?.device_id?.substring(0, 8),
+        isExpired: trustedDevice?.expires_at ? new Date(trustedDevice.expires_at) <= new Date() : null,
+        hasVerifiedTOTP
+      });
 
       // If device is trusted and not expired
       if (trustedDevice?.expires_at && new Date(trustedDevice.expires_at) > new Date()) {
+        log.info('Device is trusted, skipping MFA');
         // Update last_used_at in background (don't await)
         supabase
           .from('user_trusted_devices')
@@ -183,12 +196,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
         return 'verified';
       }
 
-      // Check if user has verified TOTP
-      const hasVerifiedTOTP = factors?.totp?.some(f => f.status === 'verified');
-
       if (hasVerifiedTOTP) {
+        log.info('MFA verification required');
         return 'needs-verification';
       } else {
+        log.info('MFA enrollment required');
         return 'needs-enrollment';
       }
     } catch (error) {
