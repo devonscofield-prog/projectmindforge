@@ -1,6 +1,9 @@
 // Device ID generation and management for MFA trusted devices
+// Uses multi-layer persistence: localStorage + cookie fallback
 
 const DEVICE_ID_KEY = 'mfa_device_id';
+const DEVICE_ID_COOKIE = 'mfa_did';
+const TRUST_DAYS = 30;
 
 /**
  * Generate a unique device ID based on browser characteristics
@@ -27,16 +30,49 @@ function generateDeviceId(): string {
 }
 
 /**
+ * Get a cookie value by name
+ */
+function getCookie(name: string): string | null {
+  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+  return match ? match[2] : null;
+}
+
+/**
+ * Persist device ID to both localStorage and cookie
+ */
+function persistDeviceId(deviceId: string): void {
+  // Save to localStorage
+  localStorage.setItem(DEVICE_ID_KEY, deviceId);
+  
+  // Save to cookie (30 day expiry, same as trust period)
+  const expires = new Date(Date.now() + TRUST_DAYS * 24 * 60 * 60 * 1000).toUTCString();
+  document.cookie = `${DEVICE_ID_COOKIE}=${deviceId}; expires=${expires}; path=/; SameSite=Strict`;
+}
+
+/**
  * Get or create the device ID for this browser
- * Stored in localStorage for persistence
+ * Uses multi-layer persistence: localStorage → cookie → generate new
  */
 export function getDeviceId(): string {
+  // 1. Try localStorage first (fastest)
   let deviceId = localStorage.getItem(DEVICE_ID_KEY);
   
+  // 2. If not in localStorage, try cookie fallback
+  if (!deviceId) {
+    deviceId = getCookie(DEVICE_ID_COOKIE);
+    if (deviceId) {
+      // Restore to localStorage for faster access next time
+      localStorage.setItem(DEVICE_ID_KEY, deviceId);
+    }
+  }
+  
+  // 3. If still not found, generate new
   if (!deviceId) {
     deviceId = generateDeviceId();
-    localStorage.setItem(DEVICE_ID_KEY, deviceId);
   }
+  
+  // Always sync to both storage locations
+  persistDeviceId(deviceId);
   
   return deviceId;
 }
