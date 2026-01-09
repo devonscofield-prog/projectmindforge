@@ -922,20 +922,26 @@ export async function runAnalysisPipeline(
   // Check timeout after each batch
   checkTimeout(pipelineStart, 'After Batch 1');
 
-  // Check critical agents
+  // Check critical agents - graceful degradation instead of hard failure
   if (!censusResult.success) {
-    throw new Error(`Critical agent 'Census' failed: ${censusResult.error}`);
+    warnings.push(`Critical agent 'Census' failed: ${censusResult.error} - using defaults`);
+    console.warn(`[Pipeline] Census failed, using defaults: ${censusResult.error}`);
   }
   if (!historianResult.success) {
-    throw new Error(`Critical agent 'Historian' failed: ${historianResult.error}`);
+    warnings.push(`Critical agent 'Historian' failed: ${historianResult.error} - using defaults`);
+    console.warn(`[Pipeline] Historian failed, using defaults: ${historianResult.error}`);
   }
   if (!spyResult.success) {
     warnings.push(`Competitive intelligence failed: ${spyResult.error}`);
   }
 
-  // Extract context from Batch 1 for Batch 2
-  const census = censusResult.data as CensusOutput;
-  const historian = historianResult.data as HistorianOutput;
+  // Extract context from Batch 1 for Batch 2 - use defaults if agents failed
+  const census = censusResult.success 
+    ? censusResult.data as CensusOutput 
+    : (censusConfig.default as CensusOutput);
+  const historian = historianResult.success 
+    ? historianResult.data as HistorianOutput 
+    : (historianConfig.default as HistorianOutput);
   const spy = spyResult.data as SpyOutput;
   
   const primaryDecisionMaker = census.participants.find(p => p.is_decision_maker);
