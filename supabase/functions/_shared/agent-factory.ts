@@ -30,7 +30,7 @@ type ModelType = keyof typeof AGENT_TIMEOUT_MS;
 const AGENT_TIMEOUT_OVERRIDES: Record<string, number> = {
   'speaker_labeler': 60000,   // Simple labeling task
   'sentinel': 45000,          // Fast classification
-  'census': 60000,            // Entity extraction
+  'census': 90000,            // Entity extraction - extended for complex transcripts
   'historian': 60000,         // Summary generation
   'spy': 75000,               // Competitive intel extraction
   'profiler': 60000,          // Psychology profiling
@@ -229,65 +229,87 @@ async function callOpenAIAPI<T extends z.ZodTypeAny>(
 
   console.log(`[agent-factory] Calling OpenAI API with model: ${modelName}`);
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), agentTimeoutMs);
+  let lastError: Error | null = null;
 
-  try {
-    const response = await fetch(OPENAI_API_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[agent-factory] OpenAI API error ${response.status} for ${config.id}:`, errorText);
-      throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      const delayMs = BASE_RETRY_DELAY_MS * Math.pow(2, attempt - 1);
+      console.log(`[agent-factory] OpenAI retry ${attempt}/${MAX_RETRIES} for ${config.id} after ${delayMs}ms...`);
+      await delay(delayMs);
     }
 
-    const data = await response.json();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), agentTimeoutMs);
 
-    // Extract tool call arguments
-    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall || toolCall.function.name !== config.toolName) {
-      console.error(`[agent-factory] Unexpected OpenAI response for ${config.id}:`, JSON.stringify(data).substring(0, 500));
-      throw new Error('Invalid OpenAI response structure');
-    }
-
-    let parsedResult: unknown;
     try {
-      parsedResult = JSON.parse(toolCall.function.arguments);
-    } catch (e) {
-      console.error(`[agent-factory] Failed to parse OpenAI tool arguments for ${config.id}:`, toolCall.function.arguments.substring(0, 500));
-      throw new Error('Failed to parse OpenAI response');
-    }
+      const response = await fetch(OPENAI_API_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
+      });
 
-    // Apply agent-specific coercion before validation
-    const coercedResult = applySchemaCoercion(config.id, parsedResult);
+      clearTimeout(timeoutId);
 
-    // Validate against schema
-    let validationResult = config.schema.safeParse(coercedResult);
-    
-    // If validation still fails after coercion, log and throw
-    if (!validationResult.success) {
-      console.error(`[agent-factory] Schema validation failed for ${config.id}:`, validationResult.error.message);
-      throw new Error(`Schema validation failed: ${validationResult.error.message}`);
-    }
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[agent-factory] OpenAI API error ${response.status} for ${config.id}:`, errorText);
+        
+        if (isRetryableError(response.status)) {
+          lastError = new Error(`OpenAI API error: ${response.status}`);
+          continue; // Retry on 429 or 5xx
+        }
+        
+        throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
+      }
 
-    return validationResult.data;
-  } catch (err) {
-    clearTimeout(timeoutId);
-    if (err instanceof Error && err.name === 'AbortError') {
-      throw new Error(`OpenAI API timeout after ${agentTimeoutMs / 1000}s`);
+      const data = await response.json();
+
+      // Extract tool call arguments
+      const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+      if (!toolCall || toolCall.function.name !== config.toolName) {
+        console.error(`[agent-factory] Unexpected OpenAI response for ${config.id}:`, JSON.stringify(data).substring(0, 500));
+        throw new Error('Invalid OpenAI response structure');
+      }
+
+      let parsedResult: unknown;
+      try {
+        parsedResult = JSON.parse(toolCall.function.arguments);
+      } catch (e) {
+        console.error(`[agent-factory] Failed to parse OpenAI tool arguments for ${config.id}:`, toolCall.function.arguments.substring(0, 500));
+        // Treat JSON parse errors as retryable - AI may have returned truncated JSON
+        lastError = new Error('Failed to parse OpenAI response - truncated JSON');
+        continue; // Retry
+      }
+
+      // Apply agent-specific coercion before validation
+      const coercedResult = applySchemaCoercion(config.id, parsedResult);
+
+      // Validate against schema
+      let validationResult = config.schema.safeParse(coercedResult);
+      
+      // If validation still fails after coercion, log and throw
+      if (!validationResult.success) {
+        console.error(`[agent-factory] Schema validation failed for ${config.id}:`, validationResult.error.message);
+        throw new Error(`Schema validation failed: ${validationResult.error.message}`);
+      }
+
+      return validationResult.data;
+    } catch (err) {
+      clearTimeout(timeoutId);
+      if (err instanceof Error && err.name === 'AbortError') {
+        lastError = new Error(`OpenAI API timeout after ${agentTimeoutMs / 1000}s`);
+        continue; // Retry on timeout
+      }
+      throw err;
     }
-    throw err;
   }
+
+  // All retries exhausted
+  throw lastError || new Error(`OpenAI API failed after ${MAX_RETRIES + 1} attempts`);
 }
 
 async function callLovableAI<T extends z.ZodTypeAny>(
@@ -407,7 +429,9 @@ async function callLovableAI<T extends z.ZodTypeAny>(
       parsedResult = JSON.parse(toolCall.function.arguments);
     } catch (e) {
       console.error(`[agent-factory] Failed to parse tool arguments for ${config.id}:`, toolCall.function.arguments.substring(0, 500));
-      throw new Error('Failed to parse AI response');
+      // Treat JSON parse errors as retryable - AI may have returned truncated JSON
+      lastError = new Error('Failed to parse AI response - truncated JSON');
+      continue; // Retry
     }
 
     // Apply agent-specific coercion before validation
