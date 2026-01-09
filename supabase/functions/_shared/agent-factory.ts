@@ -34,7 +34,7 @@ const AGENT_TIMEOUT_OVERRIDES: Record<string, number> = {
   'historian': 60000,         // Summary generation
   'spy': 75000,               // Competitive intel extraction
   'profiler': 60000,          // Psychology profiling
-  'strategist': 90000,        // Complex multi-phase analysis
+  'strategist': 75000,        // Reduced from 90000 - force faster completion or fail-fast
   'referee': 75000,           // Behavioral scoring with nuance
   'interrogator': 75000,      // Question/answer analysis
   'skeptic': 75000,           // Complex gap reasoning

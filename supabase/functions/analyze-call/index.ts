@@ -284,6 +284,7 @@ Deno.serve(async (req) => {
         const result = await runAnalysisPipeline(transcript.raw_text, supabaseAdmin, targetCallId!, speakerContext, accountHistory);
 
         // Save results
+        console.log(`[analyze-call] Preparing to save results and update status to completed for ${targetCallId}`);
         const { data: existingAnalysis } = await supabaseAdmin.from('ai_call_analysis').select('id').eq('call_id', targetCallId).maybeSingle();
 
         const analysisData = {
