@@ -717,6 +717,10 @@ ${pricingSection}
 // analyze-call returns 202 immediately, so we have ample time for quality
 const PIPELINE_TIMEOUT_MS = 300000;
 
+// Hard limit before Coach phase - if we've exceeded this, skip Coach and return partial results
+// This prevents complete analysis failure when agents take too long
+const PIPELINE_HARD_LIMIT_MS = 240000; // 4 minutes
+
 class PipelineTimeoutError extends Error {
   constructor(elapsedMs: number) {
     super(`Pipeline timeout after ${Math.round(elapsedMs)}ms`);
@@ -1100,6 +1104,29 @@ export async function runAnalysisPipeline(
   console.log(`[Pipeline] Scores - Behavior: ${behavior.overall_score} (base: ${referee.overall_score}, questions: ${interrogator.score}), Threading: ${strategy.strategic_threading.score}, Critical Gaps: ${strategy.critical_gaps.length}, Pricing: ${auditor.pricing_score}`);
 
   // ============= PHASE 2: The Coach =============
+  
+  // Check if we've exceeded the hard limit - if so, skip Coach and return partial results
+  const elapsedBeforeCoach = performance.now() - pipelineStart;
+  if (elapsedBeforeCoach > PIPELINE_HARD_LIMIT_MS) {
+    console.warn(`[Pipeline] ⚠️ Pipeline exceeded ${PIPELINE_HARD_LIMIT_MS}ms (${Math.round(elapsedBeforeCoach)}ms), skipping Coach phase`);
+    warnings.push(`Pipeline timeout (${Math.round(elapsedBeforeCoach)}ms) - coaching skipped, using defaults`);
+    
+    const coachDefault = coachConfig.default as CoachOutput;
+    return {
+      metadata,
+      behavior,
+      strategy,
+      psychology: profiler,
+      pricing: auditor,
+      coaching: coachDefault,
+      callClassification,
+      warnings,
+      phase1DurationMs: phase1Duration,
+      phase2DurationMs: 0,
+      totalDurationMs: elapsedBeforeCoach,
+    };
+  }
+  
   console.log('[Pipeline] Phase 2: Running The Coach (synthesis agent)...');
   const phase2Start = performance.now();
 
