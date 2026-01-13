@@ -32,7 +32,8 @@ import { getDashboardUrl, getCallHistoryUrl, getAccountDetailUrl } from '@/lib/r
 import { getCallDetailBreadcrumbs } from '@/lib/breadcrumbConfig';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 import { formatCurrency, parseDateOnly } from '@/lib/formatters';
-import { useCallWithAnalysis, useAnalysisPolling, callDetailKeys, useRetryAnalysis, useDeleteFailedCall, useUpdateCallTranscript, useUpdateAnalysisUserCounts, useReanalyzeCall } from '@/hooks/useCallDetailQueries';
+import { useCallWithAnalysis, useAnalysisPolling, callDetailKeys, useRetryAnalysis, useDeleteFailedCall, useUpdateCallTranscript, useUpdateAnalysisUserCounts, useReanalyzeCall, useCallProducts } from '@/hooks/useCallDetailQueries';
+import { downloadCallDetailCSV, CallExportData } from '@/lib/callDetailExport';
 import { useCallAnalysisRealtime } from '@/hooks/useCallAnalysisRealtime';
 import { getStakeholdersForCall, influenceLevelLabels } from '@/api/stakeholders';
 import type { CallMetadata } from '@/utils/analysis-schemas';
@@ -61,7 +62,8 @@ import {
   ScrollText,
   Crown,
   Mail,
-  ChevronRight
+  ChevronRight,
+  Download
 } from 'lucide-react';
 
 function CallDetailPage() {
@@ -113,6 +115,9 @@ function CallDetailPage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Fetch products for this call (needed for CSV export)
+  const { data: callProducts = [] } = useCallProducts(id);
+
   // Edit dialog states
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isUserCountsDialogOpen, setIsUserCountsDialogOpen] = useState(false);
@@ -134,6 +139,33 @@ function CallDetailPage() {
     if (!id) return;
     queryClient.invalidateQueries({ queryKey: callDetailKeys.call(id) });
     queryClient.invalidateQueries({ queryKey: callDetailKeys.analysis(id) });
+  };
+
+  // Export call details to CSV
+  const handleExportCSV = () => {
+    if (!transcript) return;
+    
+    const metadata = analysis?.analysis_metadata as CallMetadata | null;
+    const exportData: CallExportData = {
+      accountName: transcript.account_name,
+      callDate: transcript.call_date,
+      callType: getCallTypeDisplay(transcript),
+      stakeholderName: transcript.primary_stakeholder_name,
+      potentialRevenue: transcript.potential_revenue,
+      salesforceLink: transcript.salesforce_demo_link,
+      summary: metadata?.summary || analysis?.call_summary || null,
+      topics: metadata?.topics || null,
+      products: callProducts.map(p => ({
+        name: p.products?.name || 'Unknown Product',
+        quantity: p.quantity,
+        unitPrice: p.unit_price,
+      })),
+    };
+    
+    const sanitizedAccountName = (transcript.account_name || 'Call').replace(/[^a-zA-Z0-9]/g, '_');
+    const filename = `${sanitizedAccountName}_${transcript.call_date}.csv`;
+    downloadCallDetailCSV(exportData, filename);
+    toast.success('Call details exported to CSV');
   };
 
   // Handle error states
@@ -229,12 +261,18 @@ function CallDetailPage() {
               </p>
             </div>
           </div>
-          {(transcript.analysis_status === 'pending' || transcript.analysis_status === 'processing' || shouldPoll) && (
-            <Button variant="outline" onClick={handleRefresh} disabled={isLoading}>
-              <RefreshCw className={`h-4 w-4 mr-2 ${shouldPoll ? 'animate-spin' : ''}`} />
-              {shouldPoll ? 'Analyzing...' : 'Refresh'}
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={handleExportCSV} aria-label="Export call details to CSV">
+              <Download className="h-4 w-4 mr-2" />
+              Export CSV
             </Button>
-          )}
+            {(transcript.analysis_status === 'pending' || transcript.analysis_status === 'processing' || shouldPoll) && (
+              <Button variant="outline" onClick={handleRefresh} disabled={isLoading}>
+                <RefreshCw className={`h-4 w-4 mr-2 ${shouldPoll ? 'animate-spin' : ''}`} />
+                {shouldPoll ? 'Analyzing...' : 'Refresh'}
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Call Metadata */}
