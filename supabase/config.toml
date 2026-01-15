@@ -113,3 +113,6 @@ verify_jwt = false
 
 [functions.sales-assistant-chat]
 verify_jwt = true
+
+[functions.submit-call-transcript]
+verify_jwt = false
