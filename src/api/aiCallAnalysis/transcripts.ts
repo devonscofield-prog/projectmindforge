@@ -38,6 +38,23 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
     managerOnCall,
   } = params;
 
+  // Validate session before attempting insert to catch stale sessions early
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  
+  if (sessionError || !session?.user) {
+    log.error('Session validation failed', { error: sessionError });
+    throw new Error('Your session has expired. Please refresh the page and sign in again.');
+  }
+  
+  // Verify the user ID matches what we expect
+  if (session.user.id !== repId) {
+    log.error('Session user ID mismatch', { 
+      sessionUserId: session.user.id, 
+      repId 
+    });
+    throw new Error('Session mismatch detected. Please refresh the page and try again.');
+  }
+
   // Get primary stakeholder name (first in array) for backward compatibility
   const primaryStakeholderName = stakeholders.length > 0 ? stakeholders[0].stakeholderName : '';
 
@@ -61,28 +78,62 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
     }
   }
 
+  // Prepare insert data
+  const insertData = {
+    rep_id: repId,
+    call_date: callDate,
+    source: 'other' as const,
+    raw_text: rawText,
+    notes: null,
+    analysis_status: 'pending' as const,
+    primary_stakeholder_name: primaryStakeholderName,
+    account_name: accountName,
+    salesforce_demo_link: salesforceAccountLink || null,
+    potential_revenue: potentialRevenue ?? null,
+    call_type: callType,
+    call_type_other: callType === 'other' ? callTypeOther : null,
+    manager_id: managerId,
+    additional_speakers: params.additionalSpeakers || [],
+    is_unqualified: params.isUnqualified ?? false,
+  };
+
   // Insert new call transcript
-  const { data: transcript, error: insertError } = await supabase
+  let { data: transcript, error: insertError } = await supabase
     .from('call_transcripts')
-    .insert({
-      rep_id: repId,
-      call_date: callDate,
-      source: 'other',
-      raw_text: rawText,
-      notes: null,
-      analysis_status: 'pending',
-      primary_stakeholder_name: primaryStakeholderName,
-      account_name: accountName,
-      salesforce_demo_link: salesforceAccountLink || null,
-      potential_revenue: potentialRevenue ?? null,
-      call_type: callType,
-      call_type_other: callType === 'other' ? callTypeOther : null,
-      manager_id: managerId,
-      additional_speakers: params.additionalSpeakers || [],
-      is_unqualified: params.isUnqualified ?? false,
-    })
+    .insert(insertData)
     .select()
     .single();
+
+  // If RLS error, attempt one retry with session refresh
+  if (insertError?.message?.includes('row-level security')) {
+    log.warn('RLS error on insert, attempting session refresh and retry', { 
+      callId: 'new', 
+      error: insertError.message 
+    });
+    
+    const { error: refreshError } = await supabase.auth.refreshSession();
+    
+    if (!refreshError) {
+      // Retry the insert once with fresh token
+      const retryResult = await supabase
+        .from('call_transcripts')
+        .insert(insertData)
+        .select()
+        .single();
+      
+      if (!retryResult.error) {
+        transcript = retryResult.data;
+        insertError = null;
+        log.info('Insert succeeded after session refresh');
+      } else {
+        insertError = retryResult.error;
+        log.error('Insert still failed after session refresh', { error: retryResult.error });
+      }
+    } else {
+      log.error('Session refresh failed during retry', { error: refreshError });
+      throw new Error('Your session has expired. Please refresh the page and sign in again.');
+    }
+  }
 
   if (insertError) {
     log.error('Insert error', { error: insertError });
