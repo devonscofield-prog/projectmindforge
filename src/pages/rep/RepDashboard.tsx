@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { createLogger } from '@/lib/logger';
+import { callDetailKeys } from '@/hooks/useCallDetailQueries';
 
 const log = createLogger('RepDashboard');
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -82,6 +84,7 @@ function RepDashboard() {
     profile
   } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const callTypeOtherRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -524,6 +527,14 @@ function RepDashboard() {
 
       // Clear draft on successful submission
       clearDraft();
+
+      // Pre-populate the React Query cache with the transcript data
+      // This avoids the CallDetailPage making a SELECT that could be blocked by RLS
+      // (e.g., the 90-day visibility restriction for reps)
+      queryClient.setQueryData(
+        callDetailKeys.call(result.transcript.id),
+        { transcript: result.transcript, analysis: null }
+      );
 
       // Show success toast immediately - this confirms the call was saved
       // regardless of background analysis status

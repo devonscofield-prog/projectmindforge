@@ -26,8 +26,12 @@ export const callDetailKeys = {
 
 /**
  * Hook to fetch call with analysis
+ * Uses placeholderData to gracefully fall back to cached data if the database
+ * query fails (e.g., due to RLS restrictions like the 90-day visibility rule)
  */
 export function useCallWithAnalysis(callId: string | undefined, userId: string | undefined, role: string | undefined) {
+  const queryClient = useQueryClient();
+  
   return useQuery({
     queryKey: callDetailKeys.call(callId || ''),
     queryFn: async () => {
@@ -48,6 +52,13 @@ export function useCallWithAnalysis(callId: string | undefined, userId: string |
       const result = await getCallWithAnalysis(callId);
       
       if (!result) {
+        // Check if we have cached data we can use as fallback
+        // This handles the case where RLS blocks the query but we have pre-populated data
+        const cachedData = queryClient.getQueryData(callDetailKeys.call(callId));
+        if (cachedData) {
+          log.info('Using cached data as fallback for call not found via RLS', { callId });
+          return cachedData as { transcript: any; analysis: any };
+        }
         log.warn('Call not found', { callId, userId, role });
         throw new Error('Call not found');
       }
