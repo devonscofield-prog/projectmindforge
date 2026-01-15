@@ -28,7 +28,7 @@ import {
 import { getAlertHistory } from '@/api/performanceAlerts';
 import { useAuth } from '@/contexts/AuthContext';
 import { createLogger } from '@/lib/logger';
-import { sanitizeHtmlForPdf } from '@/lib/sanitize';
+// sanitizeHtmlForPdf is now handled internally by pdfExport utility
 
 interface PerformanceReportExportProps {
   className?: string;
@@ -73,28 +73,20 @@ export function PerformanceReportExport({ className }: PerformanceReportExportPr
     setIsGenerating(true);
     
     try {
-      // Dynamically import html2pdf
-      const html2pdf = (await import('html2pdf.js')).default;
-
       const reportContent = generateReportHTML();
       
-      const element = document.createElement('div');
-      // Sanitize HTML for defense-in-depth against XSS
-      element.innerHTML = sanitizeHtmlForPdf(reportContent);
-      element.style.padding = '20px';
-      document.body.appendChild(element);
-
-      const opt = {
-        margin: 10,
-        filename: `performance-report-${format(new Date(), 'yyyy-MM-dd')}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
-      };
-
-      await html2pdf().set(opt).from(element).save();
+      // Use secure PDF export utility (replaces vulnerable html2pdf.js)
+      const { exportHtmlToPdf } = await import('@/lib/pdfExport');
       
-      document.body.removeChild(element);
+      await exportHtmlToPdf(reportContent, {
+        filename: `performance-report-${format(new Date(), 'yyyy-MM-dd')}.pdf`,
+        margin: 10,
+        format: 'a4',
+        orientation: 'portrait',
+        scale: 2,
+        imageQuality: 0.98,
+      });
+      
       toast.success('Report exported successfully');
       setOpen(false);
     } catch (error) {

@@ -75,7 +75,6 @@ export function PitchDeck() {
   }, [nextSlide, prevSlide]);
 
   const handleExportPDF = async () => {
-    const html2pdf = (await import('html2pdf.js')).default;
     const element = document.getElementById('pitch-deck-container');
     if (!element) return;
 
@@ -99,17 +98,16 @@ export function PitchDeck() {
     
     document.body.appendChild(pdfContainer);
     
-    await html2pdf()
-      .set({
-        margin: 0,
-        filename: 'sales-performance-tracker-pitch-deck.pdf',
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
-        jsPDF: { unit: 'px', format: [1280, 720], orientation: 'landscape' },
-        pagebreak: { mode: 'avoid-all' },
-      })
-      .from(pdfContainer)
-      .save();
+    // Use secure PDF export utility (replaces vulnerable html2pdf.js)
+    const { exportHtmlToPdf } = await import('@/lib/pdfExport');
+    
+    await exportHtmlToPdf(pdfContainer.innerHTML, {
+      filename: 'sales-performance-tracker-pitch-deck.pdf',
+      margin: 0,
+      format: 'a4', // Will handle landscape via content dimensions
+      orientation: 'landscape',
+      scale: 2,
+    });
     
     document.body.removeChild(pdfContainer);
     setCurrentSlide(originalSlide);

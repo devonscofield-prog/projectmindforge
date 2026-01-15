@@ -55,20 +55,19 @@ export function ExecutiveSummary() {
   };
 
   const handleExportPDF = async () => {
-    const html2pdf = (await import('html2pdf.js')).default;
     const element = document.getElementById('executive-summary-content');
     if (!element) return;
 
-    await html2pdf()
-      .set({
-        margin: [8, 8, 8, 8],
-        filename: `executive-summary${companyName ? `-${companyName.toLowerCase().replace(/\s+/g, '-')}` : ''}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      })
-      .from(element)
-      .save();
+    // Use secure PDF export utility (replaces vulnerable html2pdf.js)
+    const { exportHtmlToPdf } = await import('@/lib/pdfExport');
+    
+    await exportHtmlToPdf(element.innerHTML, {
+      filename: `executive-summary${companyName ? `-${companyName.toLowerCase().replace(/\s+/g, '-')}` : ''}.pdf`,
+      margin: [8, 8, 8, 8],
+      format: 'a4',
+      orientation: 'portrait',
+      scale: 2,
+    });
   };
 
   return (

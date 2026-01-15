@@ -49,20 +49,19 @@ export function ROICalculator() {
   };
 
   const handleExportPDF = async () => {
-    const html2pdf = (await import('html2pdf.js')).default;
     const element = document.getElementById('roi-results');
     if (!element) return;
     
-    html2pdf()
-      .set({
-        margin: 10,
-        filename: 'sales-performance-tracker-roi.pdf',
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      })
-      .from(element)
-      .save();
+    // Use secure PDF export utility (replaces vulnerable html2pdf.js)
+    const { exportHtmlToPdf } = await import('@/lib/pdfExport');
+    
+    await exportHtmlToPdf(element.innerHTML, {
+      filename: 'sales-performance-tracker-roi.pdf',
+      margin: 10,
+      format: 'a4',
+      orientation: 'portrait',
+      scale: 2,
+    });
   };
 
   const comparisonData = [

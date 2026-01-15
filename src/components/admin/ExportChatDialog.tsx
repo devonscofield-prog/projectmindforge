@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { createLogger } from '@/lib/logger';
-import { sanitizeHtmlForPdf } from '@/lib/sanitize';
+// sanitizeHtmlForPdf is now handled internally by pdfExport utility
 import { format } from 'date-fns';
 import { parseDateOnly } from '@/lib/formatters';
 import {
@@ -121,26 +121,16 @@ export function ExportChatDialog({
       const md = generateMarkdown();
       const html = convertMarkdownToHtml(md);
       
-      const element = document.createElement('div');
-      // Sanitize HTML for defense-in-depth against XSS
-      element.innerHTML = sanitizeHtmlForPdf(html);
-      element.style.position = 'absolute';
-      element.style.left = '-9999px';
-      document.body.appendChild(element);
-
-      const html2pdf = (await import('html2pdf.js')).default;
+      // Use secure PDF export utility (replaces vulnerable html2pdf.js)
+      const { exportHtmlToPdf } = await import('@/lib/pdfExport');
       
-      await html2pdf()
-        .from(element)
-        .set({
-          margin: [15, 15, 15, 15],
-          filename: `transcript-analysis-${format(new Date(), 'yyyy-MM-dd')}.pdf`,
-          html2canvas: { scale: 2, useCORS: true },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        })
-        .save();
-
-      document.body.removeChild(element);
+      await exportHtmlToPdf(html, {
+        filename: `transcript-analysis-${format(new Date(), 'yyyy-MM-dd')}.pdf`,
+        margin: [15, 15, 15, 15],
+        format: 'a4',
+        orientation: 'portrait',
+        scale: 2,
+      });
     } catch (error) {
       log.error('PDF export failed', { error });
     } finally {
