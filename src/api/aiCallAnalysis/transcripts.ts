@@ -103,18 +103,9 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
     throw new Error(functionResponse?.error || 'Failed to create call transcript');
   }
 
-  // Fetch the full transcript record so we have all fields
-  const { data: transcript, error: fetchError } = await supabase
-    .from('call_transcripts')
-    .select('*')
-    .eq('id', functionResponse.transcript.id)
-    .single();
-
-  if (fetchError || !transcript) {
-    log.error('Failed to fetch created transcript', { error: fetchError });
-    throw new Error('Transcript created but failed to retrieve details');
-  }
-
+  // Use the full transcript data returned directly from the edge function
+  // This avoids a separate SELECT that could be blocked by RLS (e.g., 90-day restriction)
+  const transcript = functionResponse.transcript;
   log.info('Transcript created', { transcriptId: transcript.id });
 
   // Get or create prospect and link to call

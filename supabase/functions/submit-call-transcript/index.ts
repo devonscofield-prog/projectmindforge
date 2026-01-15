@@ -134,13 +134,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true,
-        transcript: {
-          id: transcript.id,
-          rep_id: transcript.rep_id,
-          call_date: transcript.call_date,
-          account_name: transcript.account_name,
-          analysis_status: transcript.analysis_status,
-        }
+        transcript: transcript // Return full transcript object
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
