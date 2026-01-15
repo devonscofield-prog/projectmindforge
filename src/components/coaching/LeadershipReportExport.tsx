@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { createLogger } from '@/lib/logger';
-import { sanitizeHtmlForPdf } from '@/lib/sanitize';
+// sanitizeHtmlForPdf is now handled internally by pdfExport utility
 
 const log = createLogger('LeadershipReportExport');
 import {
@@ -222,29 +222,22 @@ export function LeadershipReportExport({
   const handleExportPdf = async () => {
     setIsExporting(true);
     try {
-      const html2pdf = (await import('html2pdf.js')).default;
-      
       const content = generatePdfContent();
-      const container = document.createElement('div');
-      // Sanitize HTML for defense-in-depth against XSS
-      container.innerHTML = sanitizeHtmlForPdf(content);
-      document.body.appendChild(container);
-
       const dateRangeStr = `${format(dateRange.from, 'MMM-d')}-${format(dateRange.to, 'MMM-d-yyyy')}`;
       const filename = `leadership-report-${scopeLabel.toLowerCase().replace(/\s+/g, '-')}-${dateRangeStr}.pdf`;
 
-      await html2pdf()
-        .set({
-          margin: 0,
-          filename,
-          image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true },
-          jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
-        })
-        .from(container)
-        .save();
+      // Use secure PDF export utility (replaces vulnerable html2pdf.js)
+      const { exportHtmlToPdf } = await import('@/lib/pdfExport');
+      
+      await exportHtmlToPdf(content, {
+        filename,
+        margin: 0,
+        format: 'letter',
+        orientation: 'portrait',
+        scale: 2,
+        imageQuality: 0.98,
+      });
 
-      document.body.removeChild(container);
       toast.success('Leadership report exported');
     } catch (error) {
       log.error('PDF export error', { error });

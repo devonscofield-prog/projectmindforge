@@ -85,20 +85,19 @@ export function DiscoveryQuestionsCheatSheet() {
   };
 
   const handleExportPDF = async () => {
-    const html2pdf = (await import('html2pdf.js')).default;
     const element = document.getElementById('cheat-sheet-content');
     if (!element) return;
 
-    await html2pdf()
-      .set({
-        margin: [10, 10, 10, 10],
-        filename: 'discovery-questions-cheat-sheet.pdf',
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      })
-      .from(element)
-      .save();
+    // Use secure PDF export utility (replaces vulnerable html2pdf.js)
+    const { exportHtmlToPdf } = await import('@/lib/pdfExport');
+    
+    await exportHtmlToPdf(element.innerHTML, {
+      filename: 'discovery-questions-cheat-sheet.pdf',
+      margin: [10, 10, 10, 10],
+      format: 'a4',
+      orientation: 'portrait',
+      scale: 2,
+    });
   };
 
   return (
