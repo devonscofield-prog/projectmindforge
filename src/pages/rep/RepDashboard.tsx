@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { createLogger } from '@/lib/logger';
 
 const log = createLogger('RepDashboard');
@@ -481,6 +482,17 @@ function RepDashboard() {
 
     setIsSubmitting(true);
     try {
+      // Force refresh the session before submission to ensure fresh token
+      const { error: refreshError } = await supabase.auth.refreshSession();
+      if (refreshError) {
+        log.warn('Session refresh failed before submission', { error: refreshError });
+        toast.error('Session expired', { 
+          description: 'Please sign in again to submit your call.' 
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
       // If user edited the Salesforce link for an existing account, update the prospect
       if (selectedProspectId && isEditingSalesforceLink && salesforceAccountLink.trim()) {
         await updateProspect(selectedProspectId, {
