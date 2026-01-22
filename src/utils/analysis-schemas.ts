@@ -229,7 +229,7 @@ export const CoachingSynthesisSchema = z.object({
   top_3_areas_for_improvement: z.array(z.string()),
   
   // The "One Big Thing" (Highest Priority)
-  primary_focus_area: z.enum(['Discovery Depth', 'Behavioral Polish', 'Closing/Next Steps', 'Objection Handling', 'Strategic Alignment']),
+  primary_focus_area: z.enum(['Discovery Depth', 'Behavioral Polish', 'Closing/Next Steps', 'Objection Handling', 'Strategic Alignment', 'Deal Progression']),
   coaching_prescription: z.string().describe("2-3 sentences highlighting one strength and one growth opportunity. Supportive, peer-mentor tone. No markdown, no bullets."),
   
   // Detailed Practice Drill (optional - rich markdown)

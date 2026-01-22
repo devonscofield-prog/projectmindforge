@@ -20,6 +20,47 @@ import { runAnalysisPipeline, SpeakerContext, AccountHistoryContext } from '../_
 const MIN_TRANSCRIPT_LENGTH = 500;
 
 /**
+ * Trigger Deal Heat calculation after analysis completes
+ * Passes the analysis results to calculate-deal-heat for scoring
+ */
+async function triggerDealHeatCalculation(
+  callId: string,
+  transcript: string,
+  strategyData: unknown,
+  behaviorData: unknown,
+  metadataData: unknown,
+  supabaseUrl: string,
+  serviceKey: string
+): Promise<void> {
+  try {
+    const response = await fetch(`${supabaseUrl}/functions/v1/calculate-deal-heat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify({
+        call_id: callId,
+        transcript: transcript,
+        strategy_data: strategyData,
+        behavior_data: behaviorData,
+        metadata: metadataData,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.warn(`[analyze-call] Deal Heat calculation failed for ${callId}:`, response.status, errorText);
+    } else {
+      const result = await response.json();
+      console.log(`[analyze-call] Deal Heat calculated for ${callId}: ${result.deal_heat?.heat_score}/100 (saved: ${result.saved})`);
+    }
+  } catch (err) {
+    console.warn(`[analyze-call] Failed to trigger Deal Heat calculation for ${callId}:`, err);
+  }
+}
+
+/**
  * Trigger background chunking for RAG indexing with HMAC signing
  */
 async function triggerBackgroundChunking(callId: string, supabaseUrl: string, serviceKey: string): Promise<void> {
@@ -322,6 +363,17 @@ Deno.serve(async (req) => {
         if (result.warnings.length >= 3) {
           console.warn(`[analyze-call] ⚠️ High warning count (${result.warnings.length}) for ${targetCallId}:`, result.warnings);
         }
+
+        // Trigger Deal Heat calculation with analysis results
+        await triggerDealHeatCalculation(
+          targetCallId!,
+          transcript.raw_text,
+          result.strategy,
+          result.behavior,
+          result.metadata,
+          supabaseUrl,
+          supabaseServiceKey
+        );
 
         // Trigger background chunking for RAG indexing
         await triggerBackgroundChunking(targetCallId!, supabaseUrl, supabaseServiceKey);
