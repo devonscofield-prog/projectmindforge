@@ -281,30 +281,31 @@ Deno.serve(async (req) => {
       console.warn('[sales-coach-chat] Product knowledge retrieval warning:', err);
     }
 
-    // Call Lovable AI Gateway with streaming
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
+    // Call OpenAI API directly with GPT-5.2
+    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+    if (!OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY not configured');
     }
 
-    console.log(`[sales-coach-chat] Calling Lovable AI with ${messages.length} messages`);
+    console.log(`[sales-coach-chat] Calling OpenAI API (GPT 5.2) with ${messages.length} messages`);
 
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-3-pro-preview',
+        model: 'gpt-5.2-2025-12-11',
         messages: [
           { 
             role: 'system', 
             content: `${SALES_COACH_SYSTEM_PROMPT}\n\n## ACCOUNT CONTEXT\n${contextPrompt}${productContext}` 
           },
-          ...messages
+          ...messages.slice(-20) // Window to last 20 messages
         ],
         stream: true,
+        max_completion_tokens: 32768, // 32K tokens for detailed coaching responses
       })
     });
 
@@ -322,8 +323,8 @@ Deno.serve(async (req) => {
         );
       }
       const errorText = await aiResponse.text();
-      console.error('[sales-coach-chat] AI Gateway error:', aiResponse.status, errorText);
-      throw new Error(`AI Gateway error: ${aiResponse.status}`);
+      console.error('[sales-coach-chat] OpenAI API error:', aiResponse.status, errorText);
+      throw new Error(`OpenAI API error: ${aiResponse.status}`);
     }
 
     // Stream the response back
