@@ -18,7 +18,10 @@ import {
   startFullReindexJob,
   isJobStalled,
   processNERBatch,
-  NERBatchResult
+  processDealHeatBatch,
+  fetchMissingDealHeatCount,
+  NERBatchResult,
+  DealHeatBatchResult
 } from '@/api/backgroundJobs';
 
 const log = createLogger('transcriptAnalysis');
@@ -83,6 +86,15 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
   const nerBatchCountRef = useRef(0);
   const MAX_NER_RETRIES = 3;
   const TOKEN_REFRESH_INTERVAL = 10; // Refresh token every 10 batches
+
+  // Frontend-driven Deal Heat backfill state
+  const [isDealHeatBackfillRunning, setIsDealHeatBackfillRunning] = useState(false);
+  const [dealHeatProgress, setDealHeatProgress] = useState<{ processed: number; total: number } | null>(null);
+  const [dealHeatLastUpdateTime, setDealHeatLastUpdateTime] = useState<number | null>(null);
+  const shouldStopDealHeatRef = useRef(false);
+  const dealHeatRetryCountRef = useRef(0);
+  const dealHeatBatchCountRef = useRef(0);
+  const MAX_DEAL_HEAT_RETRIES = 3;
   
   // Pre-indexing state
   const [isIndexing, setIsIndexing] = useState(false);
@@ -333,6 +345,14 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     },
     enabled: role === 'admin',
     staleTime: 2 * 60 * 1000, // 2 minutes - stats don't change frequently
+  });
+
+  // Query for missing Deal Heat count (admin only)
+  const { data: missingDealHeatCount, refetch: refetchMissingDealHeatCount } = useQuery({
+    queryKey: ['missing-deal-heat-count'],
+    queryFn: fetchMissingDealHeatCount,
+    enabled: role === 'admin',
+    staleTime: 2 * 60 * 1000, // 2 minutes
   });
 
   // Check for existing active embeddings job on page load
@@ -895,6 +915,140 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     toast.info('Stopping NER extraction...');
   };
 
+  // Start Deal Heat backfill - frontend-driven pattern (similar to NER)
+  const handleBackfillDealHeat = async () => {
+    if (role !== 'admin') {
+      toast.error('Only admins can backfill Deal Heat');
+      return;
+    }
+    
+    // Check if already running
+    if (isDealHeatBackfillRunning) {
+      toast.info('Deal Heat backfill is already in progress');
+      return;
+    }
+    
+    const initialToken = await getFreshToken();
+    if (!initialToken) {
+      toast.error('Your session has expired. Please sign in again.');
+      return;
+    }
+    
+    // Reset stop flag, retry count, and batch count
+    shouldStopDealHeatRef.current = false;
+    dealHeatRetryCountRef.current = 0;
+    dealHeatBatchCountRef.current = 0;
+    setIsDealHeatBackfillRunning(true);
+    
+    // Set initial progress
+    const initialMissing = missingDealHeatCount || 0;
+    setDealHeatProgress({
+      processed: 0,
+      total: initialMissing
+    });
+    setDealHeatLastUpdateTime(Date.now());
+    
+    toast.success('Deal Heat calculation started...');
+    
+    // Frontend-driven loop with token refresh
+    const runDealHeatLoop = async () => {
+      let currentToken = initialToken;
+      
+      while (!shouldStopDealHeatRef.current) {
+        try {
+          // Refresh token periodically
+          if (dealHeatBatchCountRef.current > 0 && dealHeatBatchCountRef.current % TOKEN_REFRESH_INTERVAL === 0) {
+            log.info('Refreshing auth token', { batchCount: dealHeatBatchCountRef.current });
+            const freshToken = await getFreshToken();
+            if (!freshToken) {
+              toast.error('Session expired. Please sign in again and restart.');
+              break;
+            }
+            currentToken = freshToken;
+          }
+          
+          const result = await processDealHeatBatch(currentToken, 3); // Small batches due to AI call time
+          dealHeatBatchCountRef.current++;
+          
+          // Update progress
+          setDealHeatProgress({
+            processed: result.total - result.remaining,
+            total: result.total
+          });
+          setDealHeatLastUpdateTime(Date.now());
+          
+          // Reset retry count on success
+          dealHeatRetryCountRef.current = 0;
+          
+          // Check if complete
+          if (result.complete || result.remaining === 0) {
+            toast.success(`Deal Heat backfill complete! Calculated ${result.processed} scores`);
+            break;
+          }
+          
+          // Small delay between batches
+          await new Promise(r => setTimeout(r, 500));
+          
+        } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : '';
+          
+          // Check for auth errors specifically
+          const isAuthError = errorMessage.includes('[401]') || 
+                              errorMessage.includes('[403]') || 
+                              errorMessage.toLowerCase().includes('unauthorized') ||
+                              errorMessage.toLowerCase().includes('jwt');
+          
+          if (isAuthError) {
+            log.info('Auth error detected, refreshing token');
+            const freshToken = await getFreshToken();
+            if (freshToken) {
+              currentToken = freshToken;
+              toast.info('Refreshed authentication, continuing...');
+              continue;
+            } else {
+              toast.error('Session expired. Please sign in again.');
+              break;
+            }
+          }
+          
+          // Retry logic with exponential backoff
+          dealHeatRetryCountRef.current++;
+          log.error('Deal Heat batch failed', { error: err, retryCount: dealHeatRetryCountRef.current });
+          
+          if (dealHeatRetryCountRef.current >= MAX_DEAL_HEAT_RETRIES) {
+            toast.error(`Deal Heat backfill stopped after ${dealHeatRetryCountRef.current} consecutive failures.`);
+            break;
+          }
+          
+          const backoffDelay = Math.min(2000 * Math.pow(2, dealHeatRetryCountRef.current - 1), 30000);
+          toast.warning(`Deal Heat batch failed, retrying in ${backoffDelay / 1000}s...`);
+          await new Promise(r => setTimeout(r, backoffDelay));
+        }
+      }
+      
+      // Cleanup
+      const wasStopped = shouldStopDealHeatRef.current;
+      setIsDealHeatBackfillRunning(false);
+      shouldStopDealHeatRef.current = false;
+      dealHeatBatchCountRef.current = 0;
+      refetchMissingDealHeatCount();
+      
+      if (wasStopped) {
+        toast.info('Deal Heat backfill stopped');
+      }
+    };
+    
+    // Start the loop (don't await - runs in background)
+    runDealHeatLoop();
+  };
+
+  // Stop Deal Heat backfill
+  const stopDealHeatBackfill = () => {
+    if (!isDealHeatBackfillRunning) return;
+    shouldStopDealHeatRef.current = true;
+    toast.info('Stopping Deal Heat backfill...');
+  };
+
   const handlePresetChange = (value: string) => {
     onPresetChange(value as any);
   };
@@ -1092,13 +1246,17 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     isBackfilling,
     isBackfillingEmbeddings,
     isBackfillingEntities,
+    isBackfillingDealHeat: isDealHeatBackfillRunning,
     isResetting,
     isSelectingAll,
     resetProgress,
     embeddingsProgress,
     entitiesProgress,
+    dealHeatProgress,
+    missingDealHeatCount: missingDealHeatCount || 0,
     isEmbeddingsJobStalled,
     isNERJobStalled: isNERBackfillRunning && nerLastUpdateTime !== null && (Date.now() - nerLastUpdateTime > 60000),
+    isDealHeatJobStalled: isDealHeatBackfillRunning && dealHeatLastUpdateTime !== null && (Date.now() - dealHeatLastUpdateTime > 120000),
     isReindexJobStalled,
     
     // Pagination
@@ -1125,6 +1283,8 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     handleBackfillEntities,
     stopEmbeddingsBackfill,
     stopNERBackfill,
+    handleBackfillDealHeat,
+    stopDealHeatBackfill,
     handleResetAndReindex,
     stopReindex,
     handleLoadSelection,

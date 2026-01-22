@@ -73,12 +73,16 @@ function AdminTranscriptAnalysis() {
     isBackfilling,
     isBackfillingEmbeddings,
     isBackfillingEntities,
+    isBackfillingDealHeat,
     isResetting,
     resetProgress,
     embeddingsProgress,
     entitiesProgress,
+    dealHeatProgress,
+    missingDealHeatCount,
     isEmbeddingsJobStalled,
     isNERJobStalled,
+    isDealHeatJobStalled,
     isReindexJobStalled,
     
     // Pagination
@@ -103,8 +107,10 @@ function AdminTranscriptAnalysis() {
     handleBackfillAll,
     handleBackfillEmbeddings,
     handleBackfillEntities,
+    handleBackfillDealHeat,
     stopEmbeddingsBackfill,
     stopNERBackfill,
+    stopDealHeatBackfill,
     handleResetAndReindex,
     stopReindex,
     handleLoadSelection,
@@ -213,12 +219,16 @@ function AdminTranscriptAnalysis() {
             isBackfilling={isBackfilling}
             isBackfillingEmbeddings={isBackfillingEmbeddings}
             isBackfillingEntities={isBackfillingEntities}
+            isBackfillingDealHeat={isBackfillingDealHeat}
             isResetting={isResetting}
             resetProgress={resetProgress}
             embeddingsProgress={embeddingsProgress}
             entitiesProgress={entitiesProgress}
+            dealHeatProgress={dealHeatProgress}
+            missingDealHeatCount={missingDealHeatCount}
             isEmbeddingsStalled={isEmbeddingsJobStalled}
             isNERStalled={isNERJobStalled}
+            isDealHeatStalled={isDealHeatJobStalled}
             isReindexStalled={isReindexJobStalled}
             analysisMode={analysisMode}
             chatOpen={chatOpen}
@@ -231,8 +241,10 @@ function AdminTranscriptAnalysis() {
             onBackfillAll={handleBackfillAll}
             onBackfillEmbeddings={handleBackfillEmbeddings}
             onBackfillEntities={handleBackfillEntities}
+            onBackfillDealHeat={handleBackfillDealHeat}
             onStopEmbeddingsBackfill={stopEmbeddingsBackfill}
             onStopNERBackfill={stopNERBackfill}
+            onStopDealHeatBackfill={stopDealHeatBackfill}
             onResetAndReindex={handleResetAndReindex}
             onStopReindex={stopReindex}
             isSelectingAll={isSelectingAll}
