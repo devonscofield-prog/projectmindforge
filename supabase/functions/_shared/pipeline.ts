@@ -614,6 +614,46 @@ function buildAuditorPrompt(
   return basePrompt;
 }
 
+// Helper to get stage expectations for grading
+function getStageExpectations(callType: string): { summary: string; aGradeCriteria: string; expectedGaps: string[] } {
+  switch (callType) {
+    case 'discovery':
+    case 'full_cycle_sales':
+      return {
+        summary: 'Early stage - Pain and Fit are primary; Budget/Authority may not be explored yet',
+        aGradeCriteria: 'Deep pain uncovery, 3+ high-leverage questions, strong rapport, clear next step',
+        expectedGaps: ['Budget', 'Authority']
+      };
+    case 'reconnect':
+      return {
+        summary: 'Follow-up stage - Should be advancing the deal and closing previous gaps',
+        aGradeCriteria: 'Closes 1+ previous gaps, clear progress, strong next step',
+        expectedGaps: []
+      };
+    case 'group_demo':
+    case 'technical_deep_dive':
+      return {
+        summary: 'Demo stage - Presentation-heavy, extended monologues expected',
+        aGradeCriteria: 'Engaged audience, technical questions answered, champion identified, clear next step',
+        expectedGaps: ['Authority']
+      };
+    case 'executive_alignment':
+    case 'proposal':
+    case 'pricing_negotiation':
+      return {
+        summary: 'Late stage - Budget and Authority must be confirmed',
+        aGradeCriteria: 'All stakeholders aligned, budget confirmed, clear path to signature',
+        expectedGaps: []
+      };
+    default:
+      return {
+        summary: 'Standard sales call - balanced expectations',
+        aGradeCriteria: 'Good discovery, objection handling, clear next step',
+        expectedGaps: []
+      };
+  }
+}
+
 function buildCoachingInputReport(
   metadata: CallMetadata,
   behavior: MergedBehaviorScore,
@@ -627,6 +667,13 @@ function buildCoachingInputReport(
   callClassification?: CallClassification,
   accountHistory?: AccountHistoryContext
 ): string {
+  const stageExpectations = getStageExpectations(callClassification?.detected_call_type || 'full_cycle_sales');
+  
+  // Categorize gaps by severity based on call type
+  const expectedGapCategories = stageExpectations.expectedGaps;
+  const criticalGaps = gaps.critical_gaps?.filter(g => !expectedGapCategories.includes(g.category)) || [];
+  const expectedGaps = gaps.critical_gaps?.filter(g => expectedGapCategories.includes(g.category)) || [];
+  
   const callTypeSection = callClassification ? `
 ### 0. CALL CLASSIFICATION (The Sentinel)
 - Detected Type: ${callClassification.detected_call_type}
@@ -637,7 +684,15 @@ function buildCoachingInputReport(
   - Monologue Tolerance: ${callClassification.scoring_hints.monologue_tolerance}
   - Ideal Talk Ratio: ${callClassification.scoring_hints.talk_ratio_ideal}%
 
-**IMPORTANT**: Calibrate your coaching based on this call type. A "${callClassification.detected_call_type}" call has different success criteria than a standard discovery call.
+### GRADING CONTEXT (CRITICAL - READ THIS FIRST)
+- **Call Type:** ${callClassification.detected_call_type}
+- **Stage Expectations:** ${stageExpectations.summary}
+- **A-Grade Criteria for this call type:** ${stageExpectations.aGradeCriteria}
+- **Gaps to EXCUSE (normal for this stage):** ${expectedGapCategories.length > 0 ? expectedGapCategories.join(', ') : 'None - all gaps should be addressed'}
+- **Critical Gaps (should penalize):** ${criticalGaps.length > 0 ? criticalGaps.map(g => g.category).join(', ') : 'None detected'}
+- **Expected Gaps (do NOT penalize heavily):** ${expectedGaps.length > 0 ? expectedGaps.map(g => g.category).join(', ') : 'None'}
+
+**IMPORTANT**: This is a "${callClassification.detected_call_type}" call. Grade according to the appropriate rubric for this call type. Do NOT apply proposal-stage criteria to a discovery call.
 ` : '';
 
   // Build account history section for Coach
