@@ -5,6 +5,200 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+/**
+ * Handle backfill batch - processes multiple calls missing deal_heat_analysis
+ */
+async function handleBackfillBatch(correlationId: string, batchSize: number): Promise<Response> {
+  console.log(`[${correlationId}] Backfill mode: processing up to ${batchSize} calls`);
+  
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  
+  if (!supabaseUrl || !supabaseServiceKey) {
+    return new Response(
+      JSON.stringify({ error: 'Database not configured' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+  
+  const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
+  
+  // Find calls with completed analysis but missing deal_heat_analysis
+  const { data: callsToProcess, error: fetchError } = await supabaseClient
+    .from('ai_call_analysis')
+    .select(`
+      id,
+      call_id,
+      analysis_strategy,
+      analysis_behavior,
+      analysis_metadata,
+      call_transcripts!inner (
+        id,
+        raw_text,
+        prospect_id
+      )
+    `)
+    .is('deal_heat_analysis', null)
+    .not('analysis_strategy', 'is', null)
+    .limit(batchSize);
+  
+  if (fetchError) {
+    console.error(`[${correlationId}] Failed to fetch calls for backfill:`, fetchError);
+    return new Response(
+      JSON.stringify({ error: 'Failed to fetch calls for backfill' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+  
+  // Count total remaining
+  const { count: totalRemaining } = await supabaseClient
+    .from('ai_call_analysis')
+    .select('id', { count: 'exact', head: true })
+    .is('deal_heat_analysis', null)
+    .not('analysis_strategy', 'is', null);
+  
+  if (!callsToProcess || callsToProcess.length === 0) {
+    return new Response(
+      JSON.stringify({ 
+        processed: 0, 
+        remaining: 0, 
+        total: 0,
+        errors: 0,
+        complete: true 
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+  
+  console.log(`[${correlationId}] Found ${callsToProcess.length} calls to process, ${totalRemaining} total remaining`);
+  
+  const apiKey = Deno.env.get('LOVABLE_API_KEY');
+  if (!apiKey) {
+    return new Response(
+      JSON.stringify({ error: 'AI service not configured' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+  
+  let processed = 0;
+  let errors = 0;
+  
+  for (const call of callsToProcess) {
+    try {
+      // Handle array from join - get first item
+      const transcriptData = Array.isArray(call.call_transcripts) 
+        ? call.call_transcripts[0] 
+        : call.call_transcripts;
+      const transcript = transcriptData?.raw_text;
+      if (!transcript) {
+        console.warn(`[${correlationId}] No transcript for call ${call.call_id}, skipping`);
+        errors++;
+        continue;
+      }
+      
+      const userPrompt = buildUserPrompt(
+        transcript,
+        call.analysis_strategy,
+        call.analysis_behavior,
+        call.analysis_metadata
+      );
+      
+      const response = await fetch(LOVABLE_AI_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-flash', // Use flash for backfill efficiency
+          messages: [
+            { role: 'system', content: ACTUARY_SYSTEM_PROMPT },
+            { role: 'user', content: userPrompt }
+          ],
+          tools: [DEAL_HEAT_TOOL],
+          tool_choice: { type: 'function', function: { name: 'calculate_deal_heat' } },
+          max_tokens: 4096,
+          temperature: 0.2,
+        }),
+      });
+      
+      if (!response.ok) {
+        console.error(`[${correlationId}] AI call failed for ${call.call_id}: ${response.status}`);
+        errors++;
+        continue;
+      }
+      
+      const data = await response.json();
+      const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+      
+      if (!toolCall?.function?.arguments) {
+        console.error(`[${correlationId}] No tool call for ${call.call_id}`);
+        errors++;
+        continue;
+      }
+      
+      const dealHeat = JSON.parse(toolCall.function.arguments);
+      
+      // Apply score cap based on critical gaps
+      if (call.analysis_strategy?.critical_gaps) {
+        const hasBudgetGap = call.analysis_strategy.critical_gaps.some(
+          (g: { category: string }) => g.category === 'Budget'
+        );
+        const hasAuthorityGap = call.analysis_strategy.critical_gaps.some(
+          (g: { category: string }) => g.category === 'Authority'
+        );
+        
+        let scoreCap = 100;
+        if (hasBudgetGap && hasAuthorityGap) scoreCap = 65;
+        else if (hasAuthorityGap) scoreCap = 75;
+        else if (hasBudgetGap) scoreCap = 70;
+        
+        if (dealHeat.heat_score > scoreCap) {
+          dealHeat.heat_score = scoreCap;
+          if (scoreCap < 75 && dealHeat.temperature === 'Hot') {
+            dealHeat.temperature = 'Warm';
+          }
+        }
+      }
+      
+      // Save deal heat
+      await supabaseClient
+        .from('ai_call_analysis')
+        .update({ deal_heat_analysis: dealHeat })
+        .eq('id', call.id);
+      
+      // Update prospect heat_score if applicable
+      const prospectId = transcriptData?.prospect_id;
+      if (prospectId) {
+        await supabaseClient
+          .from('prospects')
+          .update({ heat_score: dealHeat.heat_score })
+          .eq('id', prospectId);
+      }
+      
+      processed++;
+      console.log(`[${correlationId}] Processed ${call.call_id}: ${dealHeat.heat_score} (${dealHeat.temperature})`);
+      
+    } catch (err) {
+      console.error(`[${correlationId}] Error processing ${call.call_id}:`, err);
+      errors++;
+    }
+  }
+  
+  const remaining = (totalRemaining || 0) - processed;
+  
+  return new Response(
+    JSON.stringify({
+      processed,
+      remaining: Math.max(0, remaining),
+      total: totalRemaining || 0,
+      errors,
+      complete: remaining <= 0
+    }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
+}
+
 const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 const DEAL_HEAT_TOOL = {
@@ -140,9 +334,16 @@ Deno.serve(async (req) => {
   console.log(`[${correlationId}] calculate-deal-heat: Starting request`);
 
   try {
-    const { transcript, strategy_data, behavior_data, metadata, call_id } = await req.json();
+    const body = await req.json();
+    const { transcript, strategy_data, behavior_data, metadata, call_id, backfill_batch } = body;
 
-    // Validate inputs
+    // BACKFILL MODE: Process batch of calls missing deal_heat_analysis
+    if (backfill_batch) {
+      const batchSize = body.batch_size || 5;
+      return await handleBackfillBatch(correlationId, batchSize);
+    }
+
+    // Validate inputs for single call processing
     if (!transcript) {
       console.error(`[${correlationId}] Missing transcript`);
       return new Response(

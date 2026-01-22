@@ -89,8 +89,9 @@ export interface NERBatchResult {
   complete?: boolean;
 }
 
-// Timeout for NER batch requests (90 seconds - edge functions can take time)
+// Timeout for batch requests
 const NER_BATCH_TIMEOUT_MS = 90000;
+const DEAL_HEAT_BATCH_TIMEOUT_MS = 120000; // 2 minutes for deal heat (more AI calls)
 
 export async function processNERBatch(
   token: string, 
@@ -122,6 +123,50 @@ export async function processNERBatch(
     clearTimeout(timeoutId);
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error('NER batch request timed out - will retry');
+    }
+    throw error;
+  }
+}
+
+// Process a single batch of Deal Heat calculation (frontend-driven pattern)
+export interface DealHeatBatchResult {
+  processed: number;
+  remaining: number;
+  total: number;
+  errors: number;
+  complete?: boolean;
+}
+
+export async function processDealHeatBatch(
+  token: string,
+  batchSize: number = 3 // Small batches due to AI call time
+): Promise<DealHeatBatchResult> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), DEAL_HEAT_BATCH_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/calculate-deal-heat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ backfill_batch: true, batch_size: batchSize }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`[${response.status}] ${errorText || 'Failed to process Deal Heat batch'}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Deal Heat batch request timed out - will retry');
     }
     throw error;
   }
@@ -169,4 +214,17 @@ export async function startFullReindexJob(token: string): Promise<{ jobId: strin
 
   const result = await response.json();
   return { jobId: result.job_id };
+}
+
+// Fetch count of analyses missing deal heat
+export async function fetchMissingDealHeatCount(): Promise<number> {
+  const { supabase } = await import('@/integrations/supabase/client');
+  const { count, error } = await supabase
+    .from('ai_call_analysis')
+    .select('id', { count: 'exact', head: true })
+    .is('deal_heat_analysis', null)
+    .not('analysis_strategy', 'is', null);
+  
+  if (error) throw error;
+  return count || 0;
 }

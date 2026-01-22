@@ -28,6 +28,7 @@ import {
   RotateCcw,
   Brain,
   Download,
+  Flame,
 } from 'lucide-react';
 import { Transcript } from './constants';
 
@@ -52,13 +53,17 @@ interface TranscriptSelectionBarProps {
   isBackfilling?: boolean;
   isBackfillingEmbeddings?: boolean;
   isBackfillingEntities?: boolean;
+  isBackfillingDealHeat?: boolean;
   isResetting?: boolean;
   isSelectingAll?: boolean;
   resetProgress?: string | null;
   embeddingsProgress?: { processed: number; total: number } | null;
   entitiesProgress?: { processed: number; total: number } | null;
+  dealHeatProgress?: { processed: number; total: number } | null;
+  missingDealHeatCount?: number;
   isEmbeddingsStalled?: boolean;
   isNERStalled?: boolean;
+  isDealHeatStalled?: boolean;
   isReindexStalled?: boolean;
   analysisMode: { label: string; color: string; useRag: boolean };
   chatOpen: boolean;
@@ -71,8 +76,10 @@ interface TranscriptSelectionBarProps {
   onBackfillAll?: () => void;
   onBackfillEmbeddings?: () => void;
   onBackfillEntities?: () => void;
+  onBackfillDealHeat?: () => void;
   onStopEmbeddingsBackfill?: () => void;
   onStopNERBackfill?: () => void;
+  onStopDealHeatBackfill?: () => void;
   onResetAndReindex?: () => void;
   onStopReindex?: () => void;
   onSaveClick: () => void;
@@ -95,13 +102,17 @@ export function TranscriptSelectionBar({
   isBackfilling,
   isBackfillingEmbeddings,
   isBackfillingEntities,
+  isBackfillingDealHeat,
   isResetting,
   isSelectingAll,
   resetProgress,
   embeddingsProgress,
   entitiesProgress,
+  dealHeatProgress,
+  missingDealHeatCount,
   isEmbeddingsStalled,
   isNERStalled,
+  isDealHeatStalled,
   isReindexStalled,
   analysisMode,
   chatOpen,
@@ -114,8 +125,10 @@ export function TranscriptSelectionBar({
   onBackfillAll,
   onBackfillEmbeddings,
   onBackfillEntities,
+  onBackfillDealHeat,
   onStopEmbeddingsBackfill,
   onStopNERBackfill,
+  onStopDealHeatBackfill,
   onResetAndReindex,
   onStopReindex,
   onSaveClick,
@@ -125,16 +138,17 @@ export function TranscriptSelectionBar({
   isDownloading,
 }: TranscriptSelectionBarProps) {
   const hasUnindexed = globalChunkStatus && globalChunkStatus.indexed < globalChunkStatus.total;
-  const isAnyBackfillRunning = isIndexing || isBackfilling || isBackfillingEmbeddings || isBackfillingEntities || isResetting;
+  const isAnyBackfillRunning = isIndexing || isBackfilling || isBackfillingEmbeddings || isBackfillingEntities || isBackfillingDealHeat || isResetting;
   const hasAdminActions = isAdmin && (
     hasUnindexed || 
     (globalChunkStatus?.missingEmbeddings && globalChunkStatus.missingEmbeddings > 0) ||
     (globalChunkStatus?.nerPending && globalChunkStatus.nerPending > 0) ||
-    (globalChunkStatus?.totalChunks && globalChunkStatus.totalChunks > 0)
+    (globalChunkStatus?.totalChunks && globalChunkStatus.totalChunks > 0) ||
+    (missingDealHeatCount && missingDealHeatCount > 0)
   );
 
   // Show progress bars when backfills are running
-  const showProgressBars = isBackfillingEmbeddings || isBackfillingEntities || isResetting;
+  const showProgressBars = isBackfillingEmbeddings || isBackfillingEntities || isBackfillingDealHeat || isResetting;
 
   return (
     <div className="space-y-3">
@@ -169,6 +183,16 @@ export function TranscriptSelectionBar({
               isStalled={isReindexStalled}
               onStop={onStopReindex}
               variant="reindex"
+            />
+          )}
+          {isBackfillingDealHeat && dealHeatProgress && (
+            <BackfillProgressBar
+              label="Deal Heat"
+              processed={dealHeatProgress.processed}
+              total={dealHeatProgress.total}
+              isStalled={isDealHeatStalled}
+              onStop={onStopDealHeatBackfill}
+              variant="embeddings"
             />
           )}
         </div>
@@ -401,6 +425,35 @@ export function TranscriptSelectionBar({
                         {!isBackfillingEntities && globalChunkStatus?.nerPending && (
                           <span className="text-xs text-muted-foreground">
                             {globalChunkStatus.nerPending.toLocaleString()} pending
+                          </span>
+                        )}
+                      </div>
+                    </DropdownMenuItem>
+                  </>
+                )}
+
+                {/* Deal Heat Backfill */}
+                {((missingDealHeatCount && missingDealHeatCount > 0) || isBackfillingDealHeat) && onBackfillDealHeat && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onClick={isBackfillingDealHeat ? onStopDealHeatBackfill : onBackfillDealHeat}
+                      disabled={isIndexing || isBackfilling || isBackfillingEmbeddings || isBackfillingEntities || isResetting}
+                      className="gap-2"
+                    >
+                      <Flame className={cn("h-4 w-4 text-orange-500", isBackfillingDealHeat && "animate-pulse")} />
+                      <div className="flex flex-col">
+                        <span>
+                          {isBackfillingDealHeat 
+                            ? (dealHeatProgress 
+                                ? `Calculating... ${dealHeatProgress.processed}/${dealHeatProgress.total} (click to stop)` 
+                                : 'Starting...')
+                            : 'Backfill Deal Heat'
+                          }
+                        </span>
+                        {!isBackfillingDealHeat && missingDealHeatCount && (
+                          <span className="text-xs text-muted-foreground">
+                            {missingDealHeatCount.toLocaleString()} missing
                           </span>
                         )}
                       </div>
