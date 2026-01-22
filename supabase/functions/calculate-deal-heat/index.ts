@@ -66,36 +66,70 @@ const DEAL_HEAT_TOOL = {
   }
 };
 
-const ACTUARY_SYSTEM_PROMPT = `You are a Deal Desk Actuary. Your job is to calculate the objective probability of this deal closing based on the evidence provided.
+const ACTUARY_SYSTEM_PROMPT = `You are a Deal Desk Actuary. Your job is to calculate the objective probability of this deal closing based on evidence.
 
 **INPUTS TO ANALYZE:**
 1. **The Transcript:** (Raw truth)
-2. **Strategy Audit:** (Look at \`critical_gaps\` - are they deal-killers?)
+2. **Strategy Audit:** (Look at critical_gaps - are they blockers or just unknowns?)
 3. **Behavior Score:** (Did we secure a Next Step?)
 4. **Participants:** (Did we talk to a Decision Maker?)
 
-**SCORING ALGORITHM (Mental Weights):**
-- **Pain (30%):** Is the 'Relevance Map' strong? Is the pain acute or latent?
-- **Power (25%):** Did we speak to a Decision Maker (check metadata)?
-- **Timing (25%):** Is there a specific timeline/compelling event?
-- **Momentum (20%):** Is there a firm Next Step on the calendar?
+**SCORING FRAMEWORK:**
+
+Score the deal on a TRUE 0-100 scale using these weighted factors. ADD UP the scores:
+
+**1. Pain Urgency (30 points max)**
+- 25-30: Acute pain with business impact ("We're losing $X/month", "deadline is Y")
+- 15-24: Clear pain but latent ("would be nice to fix")
+- 5-14: Pain mentioned but vague
+- 0-4: No clear pain articulated
+
+**2. Power/Authority (25 points max)**
+- 20-25: Decision-maker on call with clear authority
+- 12-19: Champion identified with access to decision-maker
+- 5-11: Contact is influencer but path to power unclear
+- 0-4: No path to economic buyer identified
+
+**3. Timing/Compelling Event (25 points max)**
+- 20-25: Hard deadline with consequences ("contract expires Dec 31")
+- 12-19: Soft timeline with internal drivers ("budget cycle in Q1")
+- 5-11: General interest but no urgency
+- 0-4: No timeline discussed
+
+**4. Momentum (20 points max)**
+- 16-20: Firm next step with specific date AND action
+- 10-15: Next step discussed, tentatively agreed
+- 5-9: "Let's talk again soon" type commitment
+- 0-4: No next step or prospect going dark
+
+**SCORING RULES:**
+- ADD UP the scores from each category to get the raw score (0-100)
+- Be HONEST, not conservative. A 75+ deal should have 3+ strong categories
+- A deal can be Hot (75+) even without perfect Budget/Authority IF:
+  - Pain is acute (25+ points) AND compelling event exists (20+ points) AND strong momentum (16+ points)
+- Missing Budget/Authority should reduce the Power category score, NOT automatically cap the total
+
+**TEMPERATURE THRESHOLDS:**
+- Hot (75-100): High probability, multiple strong buying signals
+- Warm (50-74): Genuine interest, some unknowns to resolve
+- Lukewarm (25-49): Early stage or significant blockers
+- Cold (0-24): No clear path forward
+
+**TREND:**
+- Heating Up: New positive signals emerged in this call
+- Cooling Down: Resistance, delays, or concerns surfaced
+- Stagnant: No change in deal dynamics
 
 **TIMEFRAME FORENSICS:**
-Scrutinize the transcript for timing clues to estimate a Closing Timeframe.
-- **Explicit:** "We need to sign by Dec 31st." -> "End of Dec"
-- **Implicit:** "Our contract with X expires in April." -> "March/April"
-- **Project-Based:** "We have a new class starting in two weeks." -> "Within 2 weeks"
-- **Fiscal:** "We need to spend this budget before Q4." -> "End of Q3"
-
-If absolutely NO timing clues exist, return "Unknown" for estimated_close_date.
+Scrutinize the transcript for timing clues:
+- Explicit: "We need to sign by Dec 31st." → "End of Dec"
+- Implicit: "Our contract with X expires in April." → "March/April"
+- Project-Based: "New class starting in two weeks." → "Within 2 weeks"
+- Fiscal: "Need to spend this budget before Q4." → "End of Q3"
+- If NO timing clues exist, return "Unknown" for estimated_close_date.
 
 **OUTPUT:**
-Generate a 0-100 \`heat_score\` and explain the \`key_factors\`.
-- Be Conservative. A "Warm" conversation is not a "Hot" deal.
-- If \`critical_gaps\` contains "Budget" or "Authority", cap the score at 60.
-- Temperature thresholds: Hot >= 75, Warm >= 50, Lukewarm >= 25, Cold < 25
-- Trend: Based on whether momentum indicators are strengthening or weakening
-- Always provide estimated_close_date and close_date_evidence based on timing clues found`;
+Generate the heat_score by ADDING category scores. Explain each factor's contribution in key_factors.`;
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -206,7 +240,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Apply the Budget/Authority cap rule
+    // Apply graduated cap based on critical gaps (less aggressive than before)
     if (strategy_data?.critical_gaps) {
       const hasBudgetGap = strategy_data.critical_gaps.some(
         (g: { category: string }) => g.category === 'Budget'
@@ -215,11 +249,21 @@ Deno.serve(async (req) => {
         (g: { category: string }) => g.category === 'Authority'
       );
       
-      if ((hasBudgetGap || hasAuthorityGap) && dealHeat.heat_score > 60) {
-        console.log(`[${correlationId}] Capping score from ${dealHeat.heat_score} to 60 due to Budget/Authority gap`);
-        dealHeat.heat_score = 60;
-        // Adjust temperature if needed
-        if (dealHeat.temperature === 'Hot') {
+      let scoreCap = 100; // Default: no cap
+      
+      if (hasBudgetGap && hasAuthorityGap) {
+        scoreCap = 65; // Both gaps = significant risk, but not a hard block
+      } else if (hasAuthorityGap) {
+        scoreCap = 75; // Authority alone = can still be warm/hot if verbal buy-in
+      } else if (hasBudgetGap) {
+        scoreCap = 70; // Budget alone = often solvable
+      }
+      
+      if (dealHeat.heat_score > scoreCap) {
+        console.log(`[${correlationId}] Capping score from ${dealHeat.heat_score} to ${scoreCap} due to gaps (Budget: ${hasBudgetGap}, Authority: ${hasAuthorityGap})`);
+        dealHeat.heat_score = scoreCap;
+        // Adjust temperature based on new capped score
+        if (scoreCap < 75 && dealHeat.temperature === 'Hot') {
           dealHeat.temperature = 'Warm';
         }
       }
@@ -312,6 +356,29 @@ Deno.serve(async (req) => {
   }
 });
 
+function getStageExpectation(callType: string): string {
+  switch (callType?.toLowerCase()) {
+    case 'discovery':
+    case 'intro':
+    case 'introduction':
+      return 'Early stage - Pain and Fit are primary focus; Budget/Authority may not be explored yet. Score based on pain clarity and initial interest.';
+    case 'demo':
+    case 'presentation':
+      return 'Mid stage - Should be qualifying Authority and starting Budget discussions. Look for solution fit confirmation.';
+    case 'proposal':
+    case 'quote':
+      return 'Late stage - Budget and Authority should be confirmed. Focus on deal mechanics and timeline.';
+    case 'negotiation':
+    case 'closing':
+      return 'Final stage - Only blockers should be contract terms. High scores expected if still engaged.';
+    case 'follow-up':
+    case 'check-in':
+      return 'Maintenance stage - Score based on continued engagement and pipeline progression.';
+    default:
+      return 'Unknown stage - Score based on all available evidence without stage-specific expectations.';
+  }
+}
+
 function buildUserPrompt(
   transcript: string, 
   strategy_data: any, 
@@ -319,6 +386,12 @@ function buildUserPrompt(
   metadata: any
 ): string {
   let prompt = `Analyze this sales call and calculate the Deal Heat score.\n\n`;
+
+  // Add call type context for stage-aware scoring
+  const callType = metadata?.call_type || 'unknown';
+  prompt += `## CALL CONTEXT:\n`;
+  prompt += `- Call Type: ${callType}\n`;
+  prompt += `- Stage Expectation: ${getStageExpectation(callType)}\n\n`;
 
   // Add transcript (truncate if very long)
   const maxTranscriptLength = 30000;
@@ -347,7 +420,7 @@ function buildUserPrompt(
     }
     
     if (strategy_data.critical_gaps?.length > 0) {
-      prompt += `- Critical Gaps:\n`;
+      prompt += `- Critical Gaps (note: early-stage calls may legitimately have gaps):\n`;
       strategy_data.critical_gaps.forEach((gap: any) => {
         prompt += `  • [${gap.category}] ${gap.description} (Impact: ${gap.impact})\n`;
       });
@@ -376,7 +449,7 @@ function buildUserPrompt(
     prompt += `\n`;
   }
 
-  prompt += `Based on all the above evidence, calculate the deal heat score and provide your analysis.`;
+  prompt += `Based on all the above evidence, calculate the deal heat score using the additive scoring framework. Show your reasoning for each category score.`;
   
   return prompt;
 }
