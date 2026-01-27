@@ -9,6 +9,22 @@ export function LoginCelebration({ onComplete, userName }: LoginCelebrationProps
   const [isVisible, setIsVisible] = useState(true);
   const [isFadingOut, setIsFadingOut] = useState(false);
 
+  // Force Seahawks theme on every login
+  useEffect(() => {
+    const STORAGE_KEY = 'mindforge-color-scheme';
+    const validSchemes = ['electric-blue', 'deep-gold', 'power-red', 'seattle-seahawks', 'pink-rose', 'uw-huskies'];
+    
+    // Update localStorage
+    localStorage.setItem(STORAGE_KEY, 'seattle-seahawks');
+    
+    // Apply theme class immediately
+    const root = document.documentElement;
+    validSchemes.forEach(scheme => {
+      root.classList.remove(`theme-${scheme}`);
+    });
+    root.classList.add('theme-seattle-seahawks');
+  }, []);
+
   // Check for reduced motion preference
   const prefersReducedMotion = typeof window !== 'undefined' 
     && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
