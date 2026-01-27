@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -450,34 +451,39 @@ export default function RoleplaySession() {
 
   if (personaLoading) {
     return (
-      <div className="min-h-screen bg-background p-8">
-        <Skeleton className="h-8 w-64 mb-4" />
-        <Skeleton className="h-96 w-full" />
-      </div>
+      <AppLayout>
+        <div className="min-h-screen bg-background p-8">
+          <Skeleton className="h-8 w-64 mb-4" />
+          <Skeleton className="h-96 w-full" />
+        </div>
+      </AppLayout>
     );
   }
 
   if (!persona) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Card className="p-8 text-center max-w-md">
-          <AlertCircle className="h-12 w-12 mx-auto text-destructive mb-4" />
-          <h2 className="text-xl font-semibold mb-2">Persona Not Found</h2>
-          <p className="text-muted-foreground mb-4">
-            This practice persona is no longer available.
-          </p>
-          <Button onClick={() => navigate('/training')}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Training
-          </Button>
-        </Card>
-      </div>
+      <AppLayout>
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <Card className="p-8 text-center max-w-md">
+            <AlertCircle className="h-12 w-12 mx-auto text-destructive mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Persona Not Found</h2>
+            <p className="text-muted-foreground mb-4">
+              This practice persona is no longer available.
+            </p>
+            <Button onClick={() => navigate('/training')}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Training
+            </Button>
+          </Card>
+        </div>
+      </AppLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-6 max-w-4xl">
+    <AppLayout>
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-4 py-6 max-w-4xl">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <Button 
@@ -766,7 +772,8 @@ export default function RoleplaySession() {
             </div>
           )}
         </div>
+        </div>
       </div>
-    </div>
+    </AppLayout>
   );
 }
