@@ -1,175 +1,86 @@
 
-# Plan: Seahawks Login Celebration & Default Theme
+# Plan: Force Seahawks Theme on Every Login
 
 ## Overview
 
-Add a temporary "GO SEAHAWKS" celebration message when users log in, with a fun celebratory animation, and change the default color scheme from "deep-gold" to "seattle-seahawks" for all users.
+Modify the login flow so that **every time a user logs in**, their color scheme is reset to `seattle-seahawks`. This ensures all existing users (regardless of their previous preference) see the Seahawks theme after login. Users can still change their theme afterward, but the next login will reset it back to Seahawks.
 
 ---
 
-## Implementation Details
+## Implementation Approach
 
-### 1. Create Celebration Overlay Component
+The cleanest approach is to reset the localStorage theme value when the `LoginCelebration` component mounts. This ensures:
+1. The theme is set before the celebration animation plays (so colors match)
+2. It happens exactly once per login
+3. The logic is co-located with the celebration feature
 
-**New File:** `src/components/ui/login-celebration.tsx`
+---
 
-Create a full-screen celebration overlay component that:
-- Displays "GO SEAHAWKS" in large, animated text
-- Uses Seahawks colors (Action Green #69BE28 and Navy #002244)
-- Includes celebratory animations (confetti-style particles, bounce effects)
-- Auto-dismisses after 2-3 seconds with a fade-out transition
-- Can be dismissed early by clicking
+## Files to Modify
 
-```tsx
-// Key features:
-- Full-screen overlay with backdrop blur
-- Large "GO SEAHAWKS" text with bounce animation
-- Football emoji decorations (🏈)
-- Animated gradient background in Seahawks colors
-- Confetti/sparkle particles effect
-- Smooth fade-out after delay
-```
+| File | Changes |
+|------|---------|
+| `src/components/ui/login-celebration.tsx` | Add effect to reset localStorage and apply Seahawks theme on mount |
 
-### 2. Add Confetti Animation CSS
+---
 
-**File:** `src/index.css`
+## Technical Details
 
-Add new keyframe animations for the celebration:
+### LoginCelebration Component Changes
 
-```css
-/* Confetti falling animation */
-@keyframes confetti-fall {
-  0% { transform: translateY(-100vh) rotate(0deg); opacity: 1; }
-  100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
-}
-
-/* Bounce-in text animation */
-@keyframes bounce-in {
-  0% { transform: scale(0); opacity: 0; }
-  50% { transform: scale(1.2); }
-  100% { transform: scale(1); opacity: 1; }
-}
-
-/* Pulse glow effect */
-@keyframes seahawks-glow {
-  0%, 100% { text-shadow: 0 0 20px rgba(105, 190, 40, 0.8); }
-  50% { text-shadow: 0 0 40px rgba(105, 190, 40, 1), 0 0 60px rgba(0, 34, 68, 0.8); }
-}
-```
-
-### 3. Trigger Celebration on Login
-
-**File:** `src/pages/Auth.tsx`
-
-Modify the authentication flow to:
-1. Show the celebration overlay when login completes (before redirect)
-2. Wait for animation to finish before navigating to dashboard
+Add a `useEffect` at the top of the component that:
+1. Sets `localStorage.setItem('mindforge-color-scheme', 'seattle-seahawks')`
+2. Updates the document root class to apply the theme immediately
+3. Removes any other theme classes first
 
 ```tsx
-// Add state
-const [showCelebration, setShowCelebration] = useState(false);
-
-// In the redirect effect - before navigating:
-if (user && role && !isRecoveryMode && !recoveryComplete && !isEnteringOTP && !sessionToken) {
-  setIsFinishingSignIn(false);
-  setShowCelebration(true); // Show celebration first
+// Add this effect near the top of the component
+useEffect(() => {
+  // Force Seahawks theme on every login
+  const STORAGE_KEY = 'mindforge-color-scheme';
+  const validSchemes = ['electric-blue', 'deep-gold', 'power-red', 'seattle-seahawks', 'pink-rose', 'uw-huskies'];
   
-  // Navigate after celebration completes
-  setTimeout(() => {
-    const redirectPath = role === 'admin' ? '/admin' : role === 'manager' ? '/manager' : '/rep';
-    navigate(redirectPath, { replace: true });
-  }, 2500); // Wait for celebration animation
-}
-
-// Render celebration overlay when showCelebration is true
-```
-
-### 4. Change Default Color Scheme to Seattle Seahawks
-
-**File:** `src/hooks/useColorScheme.ts`
-
-Update the default from 'deep-gold' to 'seattle-seahawks':
-
-```tsx
-// Line 89: Change default
-return 'seattle-seahawks'; // Previously: 'deep-gold'
-```
-
-**File:** `src/lib/colorSchemeInit.ts`
-
-Update the initialization default:
-
-```tsx
-// Line 17: Change default theme class
-document.documentElement.classList.add('theme-seattle-seahawks'); // Previously: 'theme-deep-gold'
+  // Update localStorage
+  localStorage.setItem(STORAGE_KEY, 'seattle-seahawks');
+  
+  // Apply theme class immediately
+  const root = document.documentElement;
+  validSchemes.forEach(scheme => {
+    root.classList.remove(`theme-${scheme}`);
+  });
+  root.classList.add('theme-seattle-seahawks');
+}, []); // Only on mount
 ```
 
 ---
 
-## Component Design: LoginCelebration
+## User Experience Flow
 
-```text
-┌────────────────────────────────────────────┐
-│  🏈    ✨    🎉    ✨    🏈                │
-│                                            │
-│         ░░░░░░░░░░░░░░░░░░░░               │
-│         ░  GO SEAHAWKS!  ░                 │
-│         ░░░░░░░░░░░░░░░░░░░░               │
-│          (bouncing, glowing)               │
-│                                            │
-│         Welcome back, [Name]!              │
-│                                            │
-│  🏈    ✨    🎉    ✨    🏈                │
-│                                            │
-│  [Falling confetti in green/navy colors]  │
-└────────────────────────────────────────────┘
-```
+1. User enters credentials and clicks "Sign In"
+2. Auth succeeds, `LoginCelebration` component mounts
+3. **On mount**: localStorage is set to `seattle-seahawks`, theme class is applied
+4. Celebration animation plays with Seahawks colors
+5. User redirects to dashboard with Seahawks theme active
+6. User can change theme in Settings if desired
+7. **Next login**: Theme resets to Seahawks again
 
 ---
 
-## Files to Create/Modify
+## Why This Approach
 
-| File | Action | Description |
-|------|--------|-------------|
-| `src/components/ui/login-celebration.tsx` | Create | New celebration overlay component |
-| `src/index.css` | Modify | Add confetti and bounce animation keyframes |
-| `src/pages/Auth.tsx` | Modify | Trigger celebration on successful login |
-| `src/hooks/useColorScheme.ts` | Modify | Change default to 'seattle-seahawks' |
-| `src/lib/colorSchemeInit.ts` | Modify | Change initialization default |
+- **Minimal code changes**: Single effect in one file
+- **Reliable timing**: Runs before animation, ensuring visual consistency
+- **No side effects**: Only affects logged-in users at login time
+- **Preserves user choice**: Users can still pick their preferred theme after login
+- **Clear intent**: The reset is tied to the celebration, making the connection obvious
 
 ---
 
-## Technical Notes
+## Expected Behavior After Implementation
 
-1. **Animation Duration**: The celebration displays for 2.5 seconds total:
-   - 0.5s bounce-in animation for text
-   - 1.5s display time with glow pulse
-   - 0.5s fade-out
-
-2. **Performance**: 
-   - Use CSS animations (GPU-accelerated) for smooth performance
-   - Limit confetti particles to ~20 elements
-   - Use `will-change` hints for animated elements
-
-3. **Accessibility**:
-   - Respect `prefers-reduced-motion` - skip animations if user prefers
-   - Ensure text remains readable against background
-   - Allow early dismissal via click or Escape key
-
-4. **Existing Users**: 
-   - Users who have already set a color scheme preference will keep their choice
-   - Only new users (no localStorage value) will default to Seahawks
-
----
-
-## Expected Result
-
-When a user logs in:
-1. "Completing sign-in..." spinner shows briefly
-2. Full-screen Seahawks celebration appears with "GO SEAHAWKS!" bouncing into view
-3. Confetti particles fall in Action Green and Navy Blue colors
-4. After 2.5 seconds, celebration fades out
-5. User is redirected to their role-appropriate dashboard
-6. The Seahawks color scheme is applied (green primary, navy accents)
-
-New users will automatically see the Seahawks theme; existing users keep their saved preference.
+| Scenario | Result |
+|----------|--------|
+| Existing user with "deep-gold" theme logs in | Theme resets to Seahawks |
+| New user logs in | Theme is Seahawks (unchanged from current) |
+| User changes to "pink-rose" after login | Theme stays pink-rose until next login |
+| User logs in again | Theme resets to Seahawks |
