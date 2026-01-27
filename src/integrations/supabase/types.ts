@@ -2501,6 +2501,15 @@ export type Database = {
           transcript_id: string
         }[]
       }
+      recover_stuck_roleplay_sessions: {
+        Args: { p_threshold_minutes?: number }
+        Returns: {
+          persona_name: string
+          session_id: string
+          stuck_since: string
+          trainee_name: string
+        }[]
+      }
       soft_delete_record: {
         Args: { p_record_id: string; p_table_name: string }
         Returns: boolean

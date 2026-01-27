@@ -441,13 +441,34 @@ export default function RoleplaySession() {
     }
   };
 
-  // Cleanup on unmount
+  // Cleanup on unmount - also abandon session if still active
   useEffect(() => {
     return () => {
+      // If session is active, mark it as abandoned in the database
+      if (sessionId && status !== 'idle' && status !== 'ended') {
+        // Fire and forget - we're unmounting so can't await
+        supabase.functions.invoke('roleplay-session-manager/abandon-session', {
+          body: { sessionId }
+        }).catch(console.error);
+      }
       cleanup();
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, []);
+  }, [sessionId, status]);
+
+  // Handle browser close/refresh - use sendBeacon for reliability
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (sessionId && status !== 'idle' && status !== 'ended') {
+        // Use sendBeacon for reliability on page unload
+        const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/roleplay-session-manager/abandon-session`;
+        navigator.sendBeacon(url, JSON.stringify({ sessionId }));
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [sessionId, status]);
 
   if (personaLoading) {
     return (
