@@ -1733,6 +1733,7 @@ export type Database = {
           pain_points: Json | null
           persona_type: string
           source_data_refs: Json | null
+          technical_environment: Json | null
           updated_at: string | null
           voice: string | null
         }
@@ -1754,6 +1755,7 @@ export type Database = {
           pain_points?: Json | null
           persona_type: string
           source_data_refs?: Json | null
+          technical_environment?: Json | null
           updated_at?: string | null
           voice?: string | null
         }
@@ -1775,6 +1777,7 @@ export type Database = {
           pain_points?: Json | null
           persona_type?: string
           source_data_refs?: Json | null
+          technical_environment?: Json | null
           updated_at?: string | null
           voice?: string | null
         }
