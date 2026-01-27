@@ -23,6 +23,7 @@ import { SalesAssetsGenerator } from '@/components/calls/SalesAssetsGenerator';
 import { CallAnalysisLayout } from '@/components/calls/CallAnalysisLayout';
 import { TranscriptViewer } from '@/components/calls/TranscriptViewer';
 import { CoachingCard } from '@/components/calls/coaching';
+import { DealHeatCard } from '@/components/calls/DealHeatCard';
 import { SalesCoachChat } from '@/components/prospects/SalesCoachChat';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -507,6 +508,18 @@ function CallDetailPage() {
         )}
         {transcript.analysis_status === 'completed' && analysis?.analysis_coaching && (
           <CoachingCard data={analysis.analysis_coaching} />
+        )}
+
+        {/* Deal Heat Analysis - positioned prominently above products */}
+        {transcript.analysis_status === 'completed' && analysis && (
+          <DealHeatCard
+            transcript={transcript.raw_text}
+            strategyData={analysis.analysis_strategy}
+            behaviorData={analysis.analysis_behavior}
+            metadataData={analysis.analysis_metadata}
+            existingHeatData={analysis.deal_heat_analysis}
+            callId={transcript.id}
+          />
         )}
 
         {/* Products Summary */}

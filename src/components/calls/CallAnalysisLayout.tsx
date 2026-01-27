@@ -49,7 +49,7 @@ import {
   type CallClassification,
   type CoachingSynthesis
 } from '@/utils/analysis-schemas';
-import { DealHeatCard } from './DealHeatCard';
+
 import { ProspectPersonaCard } from './ProspectPersonaCard';
 import { CoachGradeBadge } from '@/components/ui/coach-grade-badge';
 
@@ -279,7 +279,7 @@ export function CallAnalysisLayout({
   isReanalyzing = false,
 }: CallAnalysisLayoutProps) {
   // Defensive JSON parsing with Zod validation
-  const { behaviorData, strategyData, metadataData, dealHeatData, psychologyData, callClassificationData, coachingData, parseError } = useMemo(() => {
+  const { behaviorData, strategyData, metadataData, psychologyData, callClassificationData, coachingData, parseError } = useMemo(() => {
     if (!analysis) {
       return { behaviorData: null, strategyData: null, metadataData: null, dealHeatData: null, psychologyData: null, callClassificationData: null, coachingData: null, parseError: null };
     }
@@ -689,15 +689,6 @@ export function CallAnalysisLayout({
         </div>
       </Card>
 
-      {/* Deal Heat Card - Always Visible */}
-      <DealHeatCard
-        transcript={transcript.raw_text}
-        strategyData={strategyData}
-        behaviorData={behaviorData}
-        metadataData={metadataData}
-        existingHeatData={dealHeatData}
-        callId={transcript.id}
-      />
 
       {/* Tabbed Interface */}
       <Tabs defaultValue="behavior" className="w-full">
