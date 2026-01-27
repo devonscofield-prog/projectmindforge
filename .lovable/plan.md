@@ -1,97 +1,79 @@
 
-# Plan: Move Deal Heat Analysis Above Products Discussed
+
+# Plan: Add Training Navigation for Admins
 
 ## Summary
-Reorder the Call Detail page so that the **Deal Heat Analysis** card appears above the **Products Discussed** section, giving it more prominence in the page hierarchy.
+Add training navigation links to the admin sidebar and mobile bottom nav so admins can easily access the Training Center to manage trainees and optionally practice roleplay themselves.
 
-## Current Layout Order
-1. Breadcrumb Navigation
-2. Header
-3. Call Information card
-4. Recap & Follow-up Email button
-5. Coaching Card (AI coaching synthesis)
-6. **Products Summary** (currently here)
-7. CallAnalysisLayout containing:
-   - Hero Section (scores, summary, participants)
-   - **Deal Heat Card** (currently buried here)
-   - Tabbed Interface (Behavior, Strategy, Hazards)
-8. Legacy Analysis Results
-9. Raw Transcript (collapsible)
-10. Sales Coach Chat
+---
 
-## New Layout Order
-1. Breadcrumb Navigation
-2. Header
-3. Call Information card
-4. Recap & Follow-up Email button
-5. Coaching Card (AI coaching synthesis)
-6. **Deal Heat Analysis** (moved up)
-7. **Products Summary** (moved down)
-8. CallAnalysisLayout (without Deal Heat Card)
-9. Legacy Analysis Results
-10. Raw Transcript (collapsible)
-11. Sales Coach Chat
+## Current State
+- **Routes**: Admins already have access to `/training` and `/manager/training` routes
+- **Sidebar**: Admin navigation groups have NO training links
+- **Mobile**: Admin mobile nav has NO training link (only Home, Accounts, Coaching, Transcripts)
 
 ---
 
 ## Implementation
 
-### Step 1: Render DealHeatCard directly in CallDetailPage.tsx
-**File:** `src/pages/calls/CallDetailPage.tsx`
+### Change 1: Add Training to Admin Sidebar Navigation
+**File:** `src/components/layout/AppLayout.tsx`
 
-Add the DealHeatCard component directly in CallDetailPage, between the CoachingCard and CallProductsSummary:
+Add a new "Training" group to `adminNavGroups` (after the "Coaching" group, around line 81):
 
-```tsx
-// After CoachingCard (line 510)
-{transcript.analysis_status === 'completed' && analysis?.analysis_coaching && (
-  <CoachingCard data={analysis.analysis_coaching} />
-)}
-
-// NEW: Deal Heat Card - rendered before Products
-{transcript.analysis_status === 'completed' && analysis && (
-  <DealHeatCard
-    transcript={transcript.raw_text}
-    strategyData={analysis.analysis_strategy}
-    behaviorData={analysis.analysis_behavior}
-    metadataData={analysis.analysis_metadata}
-    existingHeatData={analysis.deal_heat_analysis}
-    callId={transcript.id}
-  />
-)}
-
-// Products Summary (existing)
-<CallProductsSummary callId={id!} prospectId={transcript.prospect_id} isOwner={isOwner} />
+```typescript
+const adminNavGroups = [
+  // ... existing groups ...
+  {
+    label: 'Coaching',
+    items: [
+      { href: '/admin/coaching', label: 'Coaching Trends', icon: TrendingUp },
+      { href: '/admin/playbook', label: 'Sales Playbook', icon: BookOpen },
+      { href: '/admin/competitors', label: 'Competitor Intel', icon: Swords },
+    ],
+  },
+  // NEW: Training group
+  {
+    label: 'Training',
+    items: [
+      { href: '/manager/training', label: 'Training Center', icon: GraduationCap },
+    ],
+  },
+  // ... rest of groups ...
+];
 ```
 
-Also add the necessary import at the top of the file:
-```tsx
-import { DealHeatCard } from '@/components/calls/DealHeatCard';
+This adds a dedicated "Training" section that links to the Manager Training Dashboard where admins can oversee all trainee progress.
+
+### Change 2: Add Training to Admin Mobile Bottom Nav
+**File:** `src/components/layout/MobileBottomNav.tsx`
+
+Update the admin nav items to include Training (replacing or adding to the 4-item limit):
+
+**Option A - Replace Transcripts with Training:**
+```typescript
+const navItems = role === 'admin' 
+  ? [
+      { href: '/admin', label: 'Home', icon: LayoutDashboard },
+      { href: '/admin/accounts', label: 'Accounts', icon: UserCheck },
+      { href: '/admin/coaching', label: 'Coaching', icon: TrendingUp },
+      { href: '/manager/training', label: 'Training', icon: GraduationCap },
+    ]
 ```
 
-### Step 2: Remove DealHeatCard from CallAnalysisLayout.tsx
-**File:** `src/components/calls/CallAnalysisLayout.tsx`
-
-Remove the DealHeatCard render (lines 692-700) from CallAnalysisLayout since it's now handled at the page level.
-
-Remove these lines:
-```tsx
-{/* Deal Heat Card - Always Visible */}
-<DealHeatCard
-  transcript={transcript.raw_text}
-  strategyData={strategyData}
-  behaviorData={behaviorData}
-  metadataData={metadataData}
-  existingHeatData={dealHeatData}
-  callId={transcript.id}
-/>
+**Option B - Keep existing + add Training (5 items):**
+```typescript
+const navItems = role === 'admin' 
+  ? [
+      { href: '/admin', label: 'Home', icon: LayoutDashboard },
+      { href: '/admin/accounts', label: 'Accounts', icon: UserCheck },
+      { href: '/admin/coaching', label: 'Coaching', icon: TrendingUp },
+      { href: '/admin/transcripts', label: 'Transcripts', icon: FileText },
+      { href: '/manager/training', label: 'Training', icon: GraduationCap },
+    ]
 ```
 
-Also remove the unused import:
-```tsx
-import { DealHeatCard } from './DealHeatCard';
-```
-
-And remove the unused `dealHeatData` from the parsed data since it's no longer used in this component.
+*Recommendation: Option A is cleaner for mobile (4 items fits better), and Transcripts is still accessible via the sidebar. Training is more action-oriented for quick mobile access.*
 
 ---
 
@@ -99,11 +81,15 @@ And remove the unused `dealHeatData` from the parsed data since it's no longer u
 
 | File | Change |
 |------|--------|
-| `src/pages/calls/CallDetailPage.tsx` | Add DealHeatCard import and render it above Products |
-| `src/components/calls/CallAnalysisLayout.tsx` | Remove DealHeatCard render and cleanup unused imports/variables |
+| `src/components/layout/AppLayout.tsx` | Add "Training" group to `adminNavGroups` with link to `/manager/training` |
+| `src/components/layout/MobileBottomNav.tsx` | Add Training link to admin mobile nav items |
 
 ---
 
 ## Result
 
-After this change, the Deal Heat Analysis will appear directly below the Coaching Card and above Products Discussed, giving it the prominent placement it deserves as a key deal health indicator.
+After this change:
+- **Desktop**: Admins will see a "Training" section in the sidebar with a "Training Center" link
+- **Mobile**: Admins will have a Training icon in the bottom nav for quick access
+- Admins can easily oversee trainee progress and manage the roleplay training system
+
