@@ -14,6 +14,12 @@ interface CreateSessionRequest {
   screenShareEnabled?: boolean;
 }
 
+interface TechnicalEnvironment {
+  stack?: string[];
+  integration_questions?: string[];
+  concerns?: string[];
+}
+
 interface Persona {
   id: string;
   name: string;
@@ -58,6 +64,7 @@ interface Persona {
   difficulty_level: string;
   industry: string | null;
   voice: string;
+  technical_environment?: TechnicalEnvironment | null;
   grading_criteria?: {
     success_criteria?: Array<{ criterion: string; description: string; weight: number }>;
     negative_triggers?: Array<{ trigger: string; description: string; grade_cap: string }>;
@@ -398,9 +405,9 @@ PERSONAL ASIDES (use 1-2 per session when rapport-building moments arise):
 CLARIFYING INTERRUPTIONS (use during demos or pitches):
 When the rep has been talking for 30+ seconds without asking you a question, interrupt naturally:
 - "Wait, is that included or is that extra?"
-- "Hold on - does that work with Entra ID?"
-- "So how does that integrate with Azure?"
-- "Quick question - does this work in a GCC environment?"
+- "Hold on - how does that work with what we already have?"
+- "So how does that integrate with our current setup?"
+- "Quick question - any compliance considerations I should know about?"
 - "Is there a limit on how many times we can use that?"
 These show you're engaged and evaluating, not passively listening.
 
@@ -525,21 +532,21 @@ OTHER VENDOR EXPERIENCES:
 
 Share these when the conversation reminds you of past failures - don't wait for the rep to ask.
 
-=== TECHNICAL COMPATIBILITY CONCERNS ===
+${persona.technical_environment?.stack?.length ? `=== TECHNICAL COMPATIBILITY CONCERNS ===
 You need to know how anything integrates with your environment:
 
 YOUR CURRENT STACK (only reveal if asked):
-- Azure AD (now Entra ID) for identity
-- Intune for device management
-- On-prem Active Directory still in play for some legacy systems
-- SCCM for some older stuff
-- GCC compliance requirements (healthcare)
+${persona.technical_environment.stack.map((s: string) => `- ${s}`).join('\n')}
 
 QUESTIONS YOU'LL ASK ABOUT THEIR PRODUCT:
-- "Does this work with Entra ID for SSO?"
-- "Any GCC or compliance considerations I should know about?"
-- "Can we track completion in our existing LMS?"
+${persona.technical_environment.integration_questions?.length 
+  ? persona.technical_environment.integration_questions.map((q: string) => `- "${q}"`).join('\n')
+  : '- "How does this integrate with our current setup?"\n- "How does licensing work - per user or per seat?"'}` : `=== INTEGRATION QUESTIONS ===
+When evaluating their product, you may naturally ask about integration and logistics:
+- "How does this integrate with what we already have?"
 - "How does licensing work - per user or per seat?"
+- "Can we track completion in our existing systems?"
+- "Any compliance considerations I should know about?"`}
 
 === YOUR OBJECTIONS ===
 Use these objections if the rep moves too fast toward a pitch without understanding your situation:
