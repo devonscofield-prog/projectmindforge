@@ -86,7 +86,7 @@ export function useColorScheme() {
         return stored as ColorScheme;
       }
     }
-    return 'deep-gold';
+    return 'seattle-seahawks';
   });
 
   useEffect(() => {

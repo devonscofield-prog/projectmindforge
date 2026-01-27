@@ -1146,3 +1146,40 @@
     @apply text-primary underline hover:text-primary/80;
   }
 }
+
+/* ==========================================
+   LOGIN CELEBRATION ANIMATIONS
+   ========================================== */
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(-100vh) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+@keyframes bounce-in {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes seahawks-glow {
+  0%, 100% {
+    text-shadow: 0 0 20px rgba(105, 190, 40, 0.8), 0 4px 8px rgba(0, 0, 0, 0.3);
+  }
+  50% {
+    text-shadow: 0 0 40px rgba(105, 190, 40, 1), 0 0 60px rgba(0, 34, 68, 0.8), 0 4px 8px rgba(0, 0, 0, 0.3);
+  }
+}
