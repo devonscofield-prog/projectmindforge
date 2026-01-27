@@ -1,79 +1,93 @@
 
+# Plan: Fix Training Navigation and Admin Roleplay Access
 
-# Plan: Add Training Navigation for Admins
+## Problems Identified
 
-## Summary
-Add training navigation links to the admin sidebar and mobile bottom nav so admins can easily access the Training Center to manage trainees and optionally practice roleplay themselves.
-
----
-
-## Current State
-- **Routes**: Admins already have access to `/training` and `/manager/training` routes
-- **Sidebar**: Admin navigation groups have NO training links
-- **Mobile**: Admin mobile nav has NO training link (only Home, Accounts, Coaching, Transcripts)
+1. **ManagerTrainingDashboard has no navigation** - Unlike other training pages, it's missing the `<AppLayout>` wrapper, so there's no sidebar/header for navigation
+2. **RoleplaySession has no way back** - This page is intentionally minimal for immersive calls, but the "Back" button only works when session is idle/ended
+3. **MobileHeader missing training titles** - Routes like `/manager/training` return "StormWind" instead of proper page titles
+4. **No direct "Practice Roleplay" link for admins** - Admins can access `/training` (per route permissions), but there's no sidebar link to practice roleplay themselves
 
 ---
 
 ## Implementation
 
-### Change 1: Add Training to Admin Sidebar Navigation
+### Change 1: Add AppLayout to ManagerTrainingDashboard
+**File:** `src/pages/training/ManagerTrainingDashboard.tsx`
+
+Wrap the entire component in `<AppLayout>` to provide sidebar navigation:
+
+```tsx
+import { AppLayout } from '@/components/layout/AppLayout';
+
+export default function ManagerTrainingDashboard() {
+  // ... existing code ...
+  
+  return (
+    <AppLayout>
+      <div className="min-h-screen bg-background">
+        {/* existing content */}
+      </div>
+    </AppLayout>
+  );
+}
+```
+
+### Change 2: Add AppLayout to RoleplaySession
+**File:** `src/pages/training/RoleplaySession.tsx`
+
+Wrap the component in `<AppLayout>` for consistent navigation. The sidebar can still collapse during the session:
+
+```tsx
+import { AppLayout } from '@/components/layout/AppLayout';
+
+// In the return statement:
+return (
+  <AppLayout>
+    <div className="min-h-screen bg-background">
+      {/* existing content */}
+    </div>
+  </AppLayout>
+);
+```
+
+### Change 3: Add Training Routes to MobileHeader
+**File:** `src/components/layout/MobileHeader.tsx`
+
+Add training route titles to the `routeTitles` map:
+
+```tsx
+const routeTitles: Record<string, string> = {
+  // ... existing routes ...
+  
+  // Training routes
+  '/training': 'Training',
+  '/training/history': 'Training History',
+  '/training/progress': 'My Progress',
+  '/manager/training': 'Training Center',
+};
+```
+
+Also handle dynamic training routes:
+```tsx
+if (pathname.match(/\/training\/roleplay\/[^/]+/)) return 'Practice Session';
+if (pathname.match(/\/training\/session\/[^/]+/)) return 'Session Review';
+```
+
+### Change 4: Add "Practice Roleplay" Link for Admins
 **File:** `src/components/layout/AppLayout.tsx`
 
-Add a new "Training" group to `adminNavGroups` (after the "Coaching" group, around line 81):
+Add a second item to the Training group in `adminNavGroups` for admins to practice themselves:
 
-```typescript
-const adminNavGroups = [
-  // ... existing groups ...
-  {
-    label: 'Coaching',
-    items: [
-      { href: '/admin/coaching', label: 'Coaching Trends', icon: TrendingUp },
-      { href: '/admin/playbook', label: 'Sales Playbook', icon: BookOpen },
-      { href: '/admin/competitors', label: 'Competitor Intel', icon: Swords },
-    ],
-  },
-  // NEW: Training group
-  {
-    label: 'Training',
-    items: [
-      { href: '/manager/training', label: 'Training Center', icon: GraduationCap },
-    ],
-  },
-  // ... rest of groups ...
-];
+```tsx
+{
+  label: 'Training',
+  items: [
+    { href: '/manager/training', label: 'Training Center', icon: GraduationCap },
+    { href: '/training', label: 'Practice Roleplay', icon: Mic },
+  ],
+}
 ```
-
-This adds a dedicated "Training" section that links to the Manager Training Dashboard where admins can oversee all trainee progress.
-
-### Change 2: Add Training to Admin Mobile Bottom Nav
-**File:** `src/components/layout/MobileBottomNav.tsx`
-
-Update the admin nav items to include Training (replacing or adding to the 4-item limit):
-
-**Option A - Replace Transcripts with Training:**
-```typescript
-const navItems = role === 'admin' 
-  ? [
-      { href: '/admin', label: 'Home', icon: LayoutDashboard },
-      { href: '/admin/accounts', label: 'Accounts', icon: UserCheck },
-      { href: '/admin/coaching', label: 'Coaching', icon: TrendingUp },
-      { href: '/manager/training', label: 'Training', icon: GraduationCap },
-    ]
-```
-
-**Option B - Keep existing + add Training (5 items):**
-```typescript
-const navItems = role === 'admin' 
-  ? [
-      { href: '/admin', label: 'Home', icon: LayoutDashboard },
-      { href: '/admin/accounts', label: 'Accounts', icon: UserCheck },
-      { href: '/admin/coaching', label: 'Coaching', icon: TrendingUp },
-      { href: '/admin/transcripts', label: 'Transcripts', icon: FileText },
-      { href: '/manager/training', label: 'Training', icon: GraduationCap },
-    ]
-```
-
-*Recommendation: Option A is cleaner for mobile (4 items fits better), and Transcripts is still accessible via the sidebar. Training is more action-oriented for quick mobile access.*
 
 ---
 
@@ -81,15 +95,17 @@ const navItems = role === 'admin'
 
 | File | Change |
 |------|--------|
-| `src/components/layout/AppLayout.tsx` | Add "Training" group to `adminNavGroups` with link to `/manager/training` |
-| `src/components/layout/MobileBottomNav.tsx` | Add Training link to admin mobile nav items |
+| `src/pages/training/ManagerTrainingDashboard.tsx` | Wrap in `<AppLayout>` for sidebar navigation |
+| `src/pages/training/RoleplaySession.tsx` | Wrap in `<AppLayout>` for consistent navigation |
+| `src/components/layout/MobileHeader.tsx` | Add training route titles and dynamic route handling |
+| `src/components/layout/AppLayout.tsx` | Add "Practice Roleplay" link for admins to the Training group |
 
 ---
 
 ## Result
 
-After this change:
-- **Desktop**: Admins will see a "Training" section in the sidebar with a "Training Center" link
-- **Mobile**: Admins will have a Training icon in the bottom nav for quick access
-- Admins can easily oversee trainee progress and manage the roleplay training system
-
+After these changes:
+- **ManagerTrainingDashboard** will have full sidebar navigation like all other pages
+- **RoleplaySession** will have the sidebar available (collapsed by default during calls)
+- **MobileHeader** will show proper page titles for all training routes
+- **Admins** will see both "Training Center" (to manage trainees) and "Practice Roleplay" (to test the AI agents themselves) in the sidebar
