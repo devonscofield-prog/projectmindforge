@@ -12,6 +12,8 @@ function getPageTitle(pathname: string, role: string | null): string {
   if (pathname.match(/\/prospects\/[^/]+/) || pathname.match(/\/accounts\/[^/]+/)) return 'Account Details';
   if (pathname.match(/\/users\/[^/]+/)) return 'User Details';
   if (pathname.match(/\/rep\/[^/]+/) && pathname.includes('/manager/')) return 'Rep Details';
+  if (pathname.match(/\/training\/roleplay\/[^/]+/)) return 'Practice Session';
+  if (pathname.match(/\/training\/session\/[^/]+/)) return 'Session Review';
 
   // Static routes
   const routeTitles: Record<string, string> = {
@@ -33,6 +35,7 @@ function getPageTitle(pathname: string, role: string | null): string {
     '/manager/accounts': 'Accounts',
     '/manager/transcripts': 'Transcripts',
     '/manager/coaching': 'Coaching',
+    '/manager/training': 'Training Center',
     // Rep routes
     '/rep': 'Submit Call',
     '/rep/history': 'Call History',
@@ -40,6 +43,10 @@ function getPageTitle(pathname: string, role: string | null): string {
     '/rep/coaching': 'My Coaching',
     // Settings
     '/settings': 'Settings',
+    // Training routes
+    '/training': 'Training',
+    '/training/history': 'Training History',
+    '/training/progress': 'My Progress',
   };
 
   return routeTitles[pathname] || 'StormWind';
