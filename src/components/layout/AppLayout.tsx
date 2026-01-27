@@ -80,6 +80,12 @@ const adminNavGroups = [
     ],
   },
   {
+    label: 'Training',
+    items: [
+      { href: '/manager/training', label: 'Training Center', icon: GraduationCap },
+    ],
+  },
+  {
     label: 'Team',
     items: [
       { href: '/admin/users', label: 'Users', icon: Users },
