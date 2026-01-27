@@ -1,86 +1,157 @@
 
-# Plan: Force Seahawks Theme on Every Login
+# Plan: Fix Stuck Roleplay Sessions
 
-## Overview
+## Problem Analysis
 
-Modify the login flow so that **every time a user logs in**, their color scheme is reset to `seattle-seahawks`. This ensures all existing users (regardless of their previous preference) see the Seahawks theme after login. Users can still change their theme afterward, but the next login will reset it back to Seahawks.
+Grant's roleplay session with Steven Green from 4:52 AM is stuck in `in_progress` status. Based on my investigation:
+
+### Session Details
+| Field | Value |
+|-------|-------|
+| Session ID | `1942bd72-aab3-4c55-b5ad-b4e3c633f2ca` |
+| Status | `in_progress` (stuck) |
+| Started | 2026-01-27 04:52:52 UTC |
+| Duration | ~22+ minutes since start (no activity) |
+| Transcript | None saved |
+| Trainee | Grant Kuhlmann |
+| Persona | Steven Green |
+
+### Root Cause
+The session transitioned to `in_progress` when the ephemeral OpenAI token was retrieved, but the `end-session` call was never made. This typically happens when:
+1. User closes the browser tab mid-session
+2. Network disconnection during the call
+3. Browser crash or refresh
+4. The RTC connection failed before the user explicitly ended
+
+The frontend cleanup on unmount calls `cleanup()` but does NOT call `endSession()` or `abandon-session`, leaving the database record orphaned.
 
 ---
 
-## Implementation Approach
+## Two-Part Fix
 
-The cleanest approach is to reset the localStorage theme value when the `LoginCelebration` component mounts. This ensures:
-1. The theme is set before the celebration animation plays (so colors match)
-2. It happens exactly once per login
-3. The logic is co-located with the celebration feature
+### Part 1: Immediate Fix for Grant's Session
 
----
+Create a database function to recover stuck roleplay sessions (similar to `recover_stuck_processing_transcripts`).
 
-## Files to Modify
+**New Database Function:** `recover_stuck_roleplay_sessions`
+```sql
+CREATE OR REPLACE FUNCTION public.recover_stuck_roleplay_sessions(
+  p_threshold_minutes INTEGER DEFAULT 10
+)
+RETURNS TABLE(
+  session_id uuid, 
+  trainee_name text, 
+  persona_name text, 
+  stuck_since timestamp with time zone
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+BEGIN
+  RETURN QUERY
+  UPDATE roleplay_sessions rs
+  SET 
+    status = 'abandoned',
+    ended_at = now(),
+    session_config = rs.session_config || '{"auto_recovered": true}'::jsonb
+  FROM profiles p, roleplay_personas rp
+  WHERE rs.trainee_id = p.id
+    AND rs.persona_id = rp.id
+    AND rs.status = 'in_progress'
+    AND rs.started_at < now() - (p_threshold_minutes || ' minutes')::interval
+  RETURNING 
+    rs.id as session_id,
+    p.name as trainee_name,
+    rp.name as persona_name,
+    rs.started_at as stuck_since;
+END;
+$$;
+```
 
-| File | Changes |
-|------|---------|
-| `src/components/ui/login-celebration.tsx` | Add effect to reset localStorage and apply Seahawks theme on mount |
+### Part 2: Prevent Future Stuck Sessions
 
----
+Update the `RoleplaySession.tsx` cleanup to call `abandon-session` when the component unmounts during an active session.
 
-## Technical Details
+**File:** `src/pages/training/RoleplaySession.tsx`
 
-### LoginCelebration Component Changes
-
-Add a `useEffect` at the top of the component that:
-1. Sets `localStorage.setItem('mindforge-color-scheme', 'seattle-seahawks')`
-2. Updates the document root class to apply the theme immediately
-3. Removes any other theme classes first
-
+Current cleanup (line 444-450):
 ```tsx
-// Add this effect near the top of the component
 useEffect(() => {
-  // Force Seahawks theme on every login
-  const STORAGE_KEY = 'mindforge-color-scheme';
-  const validSchemes = ['electric-blue', 'deep-gold', 'power-red', 'seattle-seahawks', 'pink-rose', 'uw-huskies'];
+  return () => {
+    cleanup();
+    if (timerRef.current) clearInterval(timerRef.current);
+  };
+}, []);
+```
+
+Updated cleanup:
+```tsx
+useEffect(() => {
+  return () => {
+    // If session is active, mark it as abandoned in the database
+    if (sessionId && status !== 'idle' && status !== 'ended') {
+      // Fire and forget - we're unmounting so can't await
+      supabase.functions.invoke('roleplay-session-manager/abandon-session', {
+        body: { sessionId }
+      }).catch(console.error);
+    }
+    cleanup();
+    if (timerRef.current) clearInterval(timerRef.current);
+  };
+}, [sessionId, status]);
+```
+
+Also add a `beforeunload` handler to catch browser close/refresh:
+```tsx
+useEffect(() => {
+  const handleBeforeUnload = () => {
+    if (sessionId && status !== 'idle' && status !== 'ended') {
+      // Use sendBeacon for reliability on page unload
+      navigator.sendBeacon(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/roleplay-session-manager/abandon-session`,
+        JSON.stringify({ sessionId })
+      );
+    }
+  };
   
-  // Update localStorage
-  localStorage.setItem(STORAGE_KEY, 'seattle-seahawks');
-  
-  // Apply theme class immediately
-  const root = document.documentElement;
-  validSchemes.forEach(scheme => {
-    root.classList.remove(`theme-${scheme}`);
-  });
-  root.classList.add('theme-seattle-seahawks');
-}, []); // Only on mount
+  window.addEventListener('beforeunload', handleBeforeUnload);
+  return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+}, [sessionId, status]);
 ```
 
 ---
 
-## User Experience Flow
+## Files to Create/Modify
 
-1. User enters credentials and clicks "Sign In"
-2. Auth succeeds, `LoginCelebration` component mounts
-3. **On mount**: localStorage is set to `seattle-seahawks`, theme class is applied
-4. Celebration animation plays with Seahawks colors
-5. User redirects to dashboard with Seahawks theme active
-6. User can change theme in Settings if desired
-7. **Next login**: Theme resets to Seahawks again
+| File | Action | Description |
+|------|--------|-------------|
+| New migration | Create | Add `recover_stuck_roleplay_sessions` database function |
+| `src/pages/training/RoleplaySession.tsx` | Modify | Add cleanup effect to abandon sessions on unmount + beforeunload handler |
 
 ---
 
-## Why This Approach
+## Execution Steps
 
-- **Minimal code changes**: Single effect in one file
-- **Reliable timing**: Runs before animation, ensuring visual consistency
-- **No side effects**: Only affects logged-in users at login time
-- **Preserves user choice**: Users can still pick their preferred theme after login
-- **Clear intent**: The reset is tied to the celebration, making the connection obvious
+1. **Database Migration**: Create the recovery function
+2. **Run Recovery**: Execute `SELECT * FROM recover_stuck_roleplay_sessions()` to fix Grant's stuck session
+3. **Update Frontend**: Add the cleanup logic to prevent future stuck sessions
 
 ---
 
-## Expected Behavior After Implementation
+## Expected Results
 
-| Scenario | Result |
-|----------|--------|
-| Existing user with "deep-gold" theme logs in | Theme resets to Seahawks |
-| New user logs in | Theme is Seahawks (unchanged from current) |
-| User changes to "pink-rose" after login | Theme stays pink-rose until next login |
-| User logs in again | Theme resets to Seahawks |
+After implementation:
+- Grant's stuck session will be marked as `abandoned`
+- Any future sessions where users close their browser mid-call will auto-abandon
+- A 10-minute threshold gives users time to reconnect if they had a brief network issue
+- The `session_config` will include `{"auto_recovered": true}` flag for auditing
+
+---
+
+## Technical Notes
+
+1. **sendBeacon vs fetch**: `sendBeacon` is reliable during page unload when `fetch` may be cancelled
+2. **Fire-and-forget**: Cleanup effects can't await since the component is unmounting
+3. **Threshold**: 10 minutes balances between giving users time to reconnect vs leaving sessions stuck too long
+4. **Audit Trail**: The `auto_recovered` flag in `session_config` helps identify recovered sessions
