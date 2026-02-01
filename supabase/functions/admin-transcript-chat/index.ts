@@ -33,6 +33,60 @@ setInterval(() => {
   }
 }, 60 * 1000);
 
+// Batched IN query helper to avoid URL length limits with large ID arrays
+// Supabase REST API has ~8KB URL limit; 50 UUIDs per batch stays well under
+async function batchedInQuery<T>(
+  supabase: any,
+  table: string,
+  column: string,
+  ids: string[],
+  selectFields: string,
+  batchSize = 50
+): Promise<{ data: T[] | null; error: any }> {
+  if (ids.length === 0) {
+    return { data: [], error: null };
+  }
+
+  if (ids.length <= batchSize) {
+    // Small enough for single query
+    const { data, error } = await supabase
+      .from(table)
+      .select(selectFields)
+      .in(column, ids);
+    return { data, error };
+  }
+
+  // Split into batches
+  const batches: string[][] = [];
+  for (let i = 0; i < ids.length; i += batchSize) {
+    batches.push(ids.slice(i, i + batchSize));
+  }
+
+  console.log(`[admin-transcript-chat] Batching ${ids.length} IDs into ${batches.length} batches for ${table}.${column}`);
+
+  // Execute batches in parallel (max 5 concurrent to avoid overwhelming DB)
+  const results: T[] = [];
+  const CONCURRENT_LIMIT = 5;
+  
+  for (let i = 0; i < batches.length; i += CONCURRENT_LIMIT) {
+    const batchPromises = batches.slice(i, i + CONCURRENT_LIMIT).map(batch =>
+      supabase.from(table).select(selectFields).in(column, batch)
+    );
+    
+    const batchResults = await Promise.all(batchPromises);
+    
+    for (const { data, error } of batchResults) {
+      if (error) {
+        console.error(`[admin-transcript-chat] Batch query error for ${table}:`, error);
+        return { data: null, error };
+      }
+      if (data) results.push(...data);
+    }
+  }
+
+  return { data: results, error: null };
+}
+
 // CORS: Restrict to production domains
 function getCorsHeaders(origin?: string | null): Record<string, string> {
   const allowedOrigins = ['https://lovable.dev', 'https://www.lovable.dev'];
@@ -1062,10 +1116,20 @@ async function buildRagContext(
   console.log(`[admin-transcript-chat] RAG V2 mode for ${transcriptIds.length} transcripts`);
 
   // First, ensure transcripts are chunked
-  const { data: existingChunks } = await supabase
-    .from('transcript_chunks')
-    .select('transcript_id')
-    .in('transcript_id', transcriptIds);
+  // Use batched query to avoid URL length limits with large transcript selections
+  const { data: existingChunks, error: chunksError } = await batchedInQuery<{ transcript_id: string }>(
+    supabase,
+    'transcript_chunks',
+    'transcript_id',
+    transcriptIds,
+    'transcript_id',
+    50
+  );
+
+  if (chunksError) {
+    console.error('[admin-transcript-chat] Error fetching chunk status:', chunksError);
+    throw new Error(`Failed to check chunk status: ${chunksError.message}`);
+  }
 
   const chunkedIds = new Set((existingChunks || []).map((c: any) => c.transcript_id));
   const unchunkedIds = transcriptIds.filter(id => !chunkedIds.has(id));
@@ -1267,10 +1331,22 @@ async function chunkTranscriptsInline(
   const CHUNK_OVERLAP = 200;
 
   try {
-    const { data: transcripts, error: fetchError } = await supabase
-      .from('call_transcripts')
-      .select('id, call_date, account_name, call_type, raw_text, rep_id')
-      .in('id', transcriptIds);
+    // Use batched query to avoid URL length limits with large transcript selections
+    const { data: transcripts, error: fetchError } = await batchedInQuery<{
+      id: string;
+      call_date: string;
+      account_name: string;
+      call_type: string;
+      raw_text: string;
+      rep_id: string;
+    }>(
+      supabase,
+      'call_transcripts',
+      'id',
+      transcriptIds,
+      'id, call_date, account_name, call_type, raw_text, rep_id',
+      50
+    );
 
     if (fetchError) {
       return { success: false, chunksCreated: 0, error: `Failed to fetch transcripts: ${fetchError.message}` };
