@@ -1194,6 +1194,155 @@ export type Database = {
         }
         Relationships: []
       }
+      ms_calendar_events: {
+        Row: {
+          attendees: Json | null
+          created_at: string | null
+          end_time: string
+          id: string
+          is_online_meeting: boolean | null
+          linked_call_id: string | null
+          location: string | null
+          ms_event_id: string
+          ms_meeting_id: string | null
+          organizer_email: string | null
+          start_time: string
+          subject: string | null
+          transcript_synced: boolean | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          attendees?: Json | null
+          created_at?: string | null
+          end_time: string
+          id?: string
+          is_online_meeting?: boolean | null
+          linked_call_id?: string | null
+          location?: string | null
+          ms_event_id: string
+          ms_meeting_id?: string | null
+          organizer_email?: string | null
+          start_time: string
+          subject?: string | null
+          transcript_synced?: boolean | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          attendees?: Json | null
+          created_at?: string | null
+          end_time?: string
+          id?: string
+          is_online_meeting?: boolean | null
+          linked_call_id?: string | null
+          location?: string | null
+          ms_event_id?: string
+          ms_meeting_id?: string | null
+          organizer_email?: string | null
+          start_time?: string
+          subject?: string | null
+          transcript_synced?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ms_calendar_events_linked_call_id_fkey"
+            columns: ["linked_call_id"]
+            isOneToOne: false
+            referencedRelation: "call_transcripts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ms_graph_connections: {
+        Row: {
+          access_token: string
+          connected_at: string | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          last_error: string | null
+          last_sync_at: string | null
+          ms_display_name: string | null
+          ms_email: string | null
+          ms_user_id: string
+          refresh_token: string
+          scopes: string[]
+          token_expires_at: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          connected_at?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_error?: string | null
+          last_sync_at?: string | null
+          ms_display_name?: string | null
+          ms_email?: string | null
+          ms_user_id: string
+          refresh_token: string
+          scopes: string[]
+          token_expires_at: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          connected_at?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_error?: string | null
+          last_sync_at?: string | null
+          ms_display_name?: string | null
+          ms_email?: string | null
+          ms_user_id?: string
+          refresh_token?: string
+          scopes?: string[]
+          token_expires_at?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ms_graph_sync_log: {
+        Row: {
+          created_at: string | null
+          error_message: string | null
+          id: string
+          items_synced: number | null
+          metadata: Json | null
+          status: string
+          sync_type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          items_synced?: number | null
+          metadata?: Json | null
+          status: string
+          sync_type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          items_synced?: number | null
+          metadata?: Json | null
+          status?: string
+          sync_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       password_reset_otps: {
         Row: {
           created_at: string
