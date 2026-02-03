@@ -53,7 +53,9 @@ export const BehaviorScoreSchema = z.object({
       // Additional metrics from Interrogator agent
       total_sales_questions: z.number().optional().describe("Total number of qualifying sales questions found"),
       yield_ratio: z.number().optional().describe("Calculated ratio: average_answer_length / average_question_length"),
-    }),
+      // Fallback reason when no questions were found
+      no_questions_reason: z.string().optional().describe("Reason if no questions were detected"),
+    }).passthrough(),
     monologue: z.object({
       score: z.number().min(0).max(20),
       longest_turn_word_count: z.number(),
