@@ -1,140 +1,437 @@
 
 
-# Plan: Fix URL Length Limit Issue in RAG Analysis for Large Transcript Selections
+# Minimal-Permission Microsoft Graph Integration Architecture
 
-## Problem Summary
+## Overview
 
-When users select a large number of transcripts (e.g., 499), the RAG analysis fails with:
+This plan outlines a **least-privilege** integration with Microsoft Graph API, requesting only the specific scopes needed for:
+1. **Teams Meeting Transcript Auto-Import** - Eliminating manual transcript pasting
+2. **Calendar Integration** - Pre-call briefings and meeting detection
+
+## Requested Permissions (Minimal Scope)
+
+| Scope | Type | Purpose | Justification |
+|-------|------|---------|---------------|
+| `User.Read` | Delegated | Display name, SSO | Required for any Graph integration |
+| `Calendars.Read` | Delegated | Read calendar events | Pre-call prep, meeting detection |
+| `OnlineMeetings.Read` | Delegated | Read Teams meeting details | Access meeting transcripts |
+| `offline_access` | Delegated | Refresh tokens | Maintain persistent connection |
+
+**What We Explicitly Do NOT Request:**
+- `Mail.Read` - No email access in this minimal scope
+- `Mail.ReadWrite` / `Calendars.ReadWrite` - No write access
+- `Files.Read` - No OneDrive/SharePoint access
+- `Directory.Read.All` - No org-wide directory access
+- Any **Application** permissions - Per-user consent only
+
+---
+
+## Technical Architecture
+
+### Component Overview
+
+```text
++------------------+     +----------------------+     +------------------+
+|   User Browser   |     |   Lovable Cloud      |     |  Microsoft 365   |
+|   (React App)    |     |   (Edge Functions)   |     |  (Graph API)     |
++------------------+     +----------------------+     +------------------+
+        |                         |                          |
+        |  1. Click "Connect"     |                          |
+        +------------------------>|                          |
+        |                         |  2. Generate auth URL    |
+        |<------------------------+                          |
+        |                         |                          |
+        |  3. Redirect to Microsoft login                    |
+        +------------------------------------------------------->
+        |                         |                          |
+        |  4. User consents       |                          |
+        |<-------------------------------------------------------+
+        |                         |                          |
+        |  5. Callback with code  |                          |
+        +------------------------>|                          |
+        |                         |  6. Exchange for tokens  |
+        |                         +------------------------->|
+        |                         |<-------------------------+
+        |                         |  7. Store encrypted      |
+        |                         |                          |
+        |  8. Connection success  |                          |
+        |<------------------------+                          |
 ```
-Error: Failed to index transcripts: Failed to fetch transcripts: TypeError: error sending request
-```
 
-**Root Cause**: Supabase REST API queries with `.in('id', transcriptIds)` create URLs that exceed HTTP URL length limits when the array contains hundreds of UUIDs.
+---
 
-## Affected Code Locations
+## Database Schema
 
-| File | Line | Issue |
-|------|------|-------|
-| `supabase/functions/admin-transcript-chat/index.ts` | 1065-1068 | `transcript_chunks` query with all IDs |
-| `supabase/functions/admin-transcript-chat/index.ts` | 1270-1273 | `call_transcripts` query with all IDs |
+### New Tables
 
-## Solution: Batch Large IN Queries
+#### 1. `ms_graph_connections` - User OAuth Tokens
 
-### Part 1: Create a Batched Query Helper Function
-
-Add a utility function to split large ID arrays into batches of 50 and execute multiple queries:
-
-```typescript
-async function batchedInQuery<T>(
-  supabase: any,
-  table: string,
-  column: string,
-  ids: string[],
-  selectFields: string,
-  batchSize = 50
-): Promise<{ data: T[] | null; error: any }> {
-  if (ids.length <= batchSize) {
-    // Small enough for single query
-    const { data, error } = await supabase
-      .from(table)
-      .select(selectFields)
-      .in(column, ids);
-    return { data, error };
-  }
-
-  // Split into batches
-  const batches: string[][] = [];
-  for (let i = 0; i < ids.length; i += batchSize) {
-    batches.push(ids.slice(i, i + batchSize));
-  }
-
-  // Execute batches in parallel (max 5 concurrent)
-  const results: T[] = [];
-  const CONCURRENT_LIMIT = 5;
+```sql
+CREATE TABLE ms_graph_connections (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   
-  for (let i = 0; i < batches.length; i += CONCURRENT_LIMIT) {
-    const batchPromises = batches.slice(i, i + CONCURRENT_LIMIT).map(batch =>
-      supabase.from(table).select(selectFields).in(column, batch)
-    );
-    
-    const batchResults = await Promise.all(batchPromises);
-    
-    for (const { data, error } of batchResults) {
-      if (error) return { data: null, error };
-      if (data) results.push(...data);
-    }
-  }
-
-  return { data: results, error: null };
-}
-```
-
-### Part 2: Update `buildRagContext` Function (Line 1065-1068)
-
-Replace the single query:
-```typescript
-const { data: existingChunks } = await supabase
-  .from('transcript_chunks')
-  .select('transcript_id')
-  .in('transcript_id', transcriptIds);
-```
-
-With the batched version:
-```typescript
-const { data: existingChunks, error: chunksError } = await batchedInQuery(
-  supabase,
-  'transcript_chunks',
-  'transcript_id',
-  transcriptIds,
-  'transcript_id',
-  50
+  -- Token storage (encrypted at rest by Supabase)
+  access_token TEXT NOT NULL,
+  refresh_token TEXT NOT NULL,
+  token_expires_at TIMESTAMPTZ NOT NULL,
+  
+  -- Microsoft identity
+  ms_user_id TEXT NOT NULL,          -- Microsoft user object ID
+  ms_email TEXT,                      -- Microsoft email for display
+  ms_display_name TEXT,               -- Microsoft display name
+  
+  -- Connection metadata
+  scopes TEXT[] NOT NULL,             -- Granted scopes for audit
+  connected_at TIMESTAMPTZ DEFAULT now(),
+  last_sync_at TIMESTAMPTZ,
+  last_error TEXT,
+  is_active BOOLEAN DEFAULT true,
+  
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  
+  CONSTRAINT unique_user_connection UNIQUE(user_id)
 );
 
-if (chunksError) {
-  console.error('[admin-transcript-chat] Error fetching chunk status:', chunksError);
-  throw new Error(`Failed to check chunk status: ${chunksError.message}`);
-}
+-- RLS: Users can only access their own connection
+ALTER TABLE ms_graph_connections ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own connection"
+  ON ms_graph_connections FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own connection"
+  ON ms_graph_connections FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own connection"
+  ON ms_graph_connections FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own connection"
+  ON ms_graph_connections FOR DELETE
+  USING (auth.uid() = user_id);
 ```
 
-### Part 3: Update `chunkTranscriptsInline` Function (Line 1270-1273)
+#### 2. `ms_calendar_events` - Synced Meeting Metadata
 
-Replace:
-```typescript
-const { data: transcripts, error: fetchError } = await supabase
-  .from('call_transcripts')
-  .select('id, call_date, account_name, call_type, raw_text, rep_id')
-  .in('id', transcriptIds);
-```
-
-With:
-```typescript
-const { data: transcripts, error: fetchError } = await batchedInQuery(
-  supabase,
-  'call_transcripts',
-  'id',
-  transcriptIds,
-  'id, call_date, account_name, call_type, raw_text, rep_id',
-  50
+```sql
+CREATE TABLE ms_calendar_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  
+  -- Microsoft identifiers
+  ms_event_id TEXT NOT NULL,
+  ms_meeting_id TEXT,                 -- Teams meeting ID (if online)
+  
+  -- Event details (metadata only, not full body)
+  subject TEXT,
+  start_time TIMESTAMPTZ NOT NULL,
+  end_time TIMESTAMPTZ NOT NULL,
+  location TEXT,
+  is_online_meeting BOOLEAN DEFAULT false,
+  organizer_email TEXT,
+  attendees JSONB,                    -- [{email, name, response}]
+  
+  -- Transcript sync status
+  transcript_synced BOOLEAN DEFAULT false,
+  linked_call_id UUID REFERENCES call_transcripts(id),
+  
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  
+  CONSTRAINT unique_user_event UNIQUE(user_id, ms_event_id)
 );
+
+-- RLS: Users can only see their own events
+ALTER TABLE ms_calendar_events ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own events"
+  ON ms_calendar_events FOR SELECT
+  USING (auth.uid() = user_id);
+
+-- Index for efficient meeting lookups
+CREATE INDEX idx_ms_calendar_events_user_start 
+  ON ms_calendar_events(user_id, start_time DESC);
+  
+CREATE INDEX idx_ms_calendar_events_meeting_id 
+  ON ms_calendar_events(ms_meeting_id) 
+  WHERE ms_meeting_id IS NOT NULL;
 ```
 
-## Files to Modify
+#### 3. `ms_graph_sync_log` - Audit Trail
 
-| File | Action |
-|------|--------|
-| `supabase/functions/admin-transcript-chat/index.ts` | Add `batchedInQuery` helper and update 2 query locations |
+```sql
+CREATE TABLE ms_graph_sync_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  sync_type TEXT NOT NULL,            -- 'calendar', 'transcript'
+  status TEXT NOT NULL,               -- 'success', 'error', 'partial'
+  items_synced INTEGER DEFAULT 0,
+  error_message TEXT,
+  metadata JSONB,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
 
-## Expected Behavior After Fix
+-- RLS: Users can view their own sync logs
+ALTER TABLE ms_graph_sync_log ENABLE ROW LEVEL SECURITY;
 
-| Scenario | Before | After |
-|----------|--------|-------|
-| 499 transcripts selected | 500 error - URL too long | Works - splits into 10 batches of 50 |
-| 20 transcripts selected | Works | Works (no change) |
-| RAG mode with 100+ transcripts | Fails on chunk check | Works with batched queries |
+CREATE POLICY "Users can view own sync logs"
+  ON ms_graph_sync_log FOR SELECT
+  USING (auth.uid() = user_id);
+```
 
-## Testing Recommendations
+---
 
-1. Select 100+ transcripts and open the analysis chat
-2. Verify RAG mode activates without URL errors
-3. Confirm analysis results return correctly
+## Edge Functions
+
+### 1. `ms-graph-auth` - OAuth Flow Handler
+
+**Purpose:** Handles the OAuth authorization code flow
+
+**Endpoints:**
+- `GET /authorize` - Generate Microsoft login URL
+- `POST /callback` - Exchange code for tokens
+- `DELETE /disconnect` - Revoke and remove connection
+
+```text
+Key Security Features:
+├── State parameter with HMAC signature to prevent CSRF
+├── PKCE (code_verifier/code_challenge) for secure token exchange
+├── Tokens encrypted at rest in database
+└── Immediate token validation after exchange
+```
+
+### 2. `ms-graph-sync` - Data Synchronization
+
+**Purpose:** Fetches calendar events and meeting transcripts
+
+**Operations:**
+- `sync-calendar` - Pull upcoming meetings (next 7 days)
+- `sync-transcript` - Fetch transcript for specific meeting
+- `sync-past-meetings` - Backfill recent meetings (last 30 days)
+
+```text
+Rate Limiting:
+├── 10 requests/minute per user for calendar sync
+├── 5 requests/minute per user for transcript fetch
+└── Exponential backoff on Graph API 429 responses
+```
+
+### 3. `ms-graph-token-refresh` - Token Management
+
+**Purpose:** Background job to refresh expiring tokens
+
+**Schedule:** Runs every 30 minutes via pg_cron
+
+```text
+Token Lifecycle:
+├── Access tokens: 1 hour validity
+├── Refresh tokens: 90 days validity
+├── Auto-refresh when < 10 minutes remaining
+└── Notify user if refresh fails (connection broken)
+```
+
+---
+
+## Frontend Components
+
+### 1. Settings Integration
+
+**Location:** `src/pages/UserSettings.tsx`
+
+New section: "Connected Services"
+
+```text
+┌─────────────────────────────────────────────────┐
+│ Connected Services                              │
+├─────────────────────────────────────────────────┤
+│                                                 │
+│ 🔗 Microsoft 365                                │
+│    ┌──────────────────────────────────────────┐ │
+│    │ ✓ Connected as john.doe@company.com     │ │
+│    │   Last sync: 5 minutes ago               │ │
+│    │                                          │ │
+│    │ [Sync Now]  [Disconnect]                 │ │
+│    └──────────────────────────────────────────┘ │
+│                                                 │
+│ Features enabled:                               │
+│ ✓ Auto-import Teams meeting transcripts         │
+│ ✓ Pre-call calendar briefings                   │
+│                                                 │
+└─────────────────────────────────────────────────┘
+```
+
+### 2. Pre-Call Briefing Widget
+
+**Location:** Rep Dashboard / Prospect Detail
+
+```text
+┌─────────────────────────────────────────────────┐
+│ 📅 Upcoming: Meeting with Acme Corp             │
+│    Today at 2:00 PM (in 45 minutes)             │
+├─────────────────────────────────────────────────┤
+│ Attendees:                                      │
+│ • Sarah Johnson (CTO) - Final DM                │
+│ • Mike Chen (VP Engineering) - Heavy Influencer │
+│                                                 │
+│ Last interaction: Discovery call on Jan 15     │
+│ Heat Score: 72 (Warm)                           │
+│                                                 │
+│ [View Account] [Prepare for Call]               │
+└─────────────────────────────────────────────────┘
+```
+
+### 3. Transcript Import UI
+
+**Location:** Call submission flow
+
+```text
+┌─────────────────────────────────────────────────┐
+│ Submit Call Transcript                          │
+├─────────────────────────────────────────────────┤
+│                                                 │
+│ 📥 Import from Teams Meeting                    │
+│    ┌──────────────────────────────────────────┐ │
+│    │ Recent Teams Meetings:                   │ │
+│    │                                          │ │
+│    │ ○ Acme Corp Discovery - Jan 22, 2:00 PM  │ │
+│    │ ○ Beta Inc Follow-up - Jan 21, 10:00 AM  │ │
+│    │ ○ Gamma LLC Demo - Jan 20, 3:30 PM       │ │
+│    │                                          │ │
+│    │ [Import Selected]                        │ │
+│    └──────────────────────────────────────────┘ │
+│                                                 │
+│ ─── OR ───                                      │
+│                                                 │
+│ 📝 Paste transcript manually                    │
+│                                                 │
+└─────────────────────────────────────────────────┘
+```
+
+---
+
+## Data Flow: Teams Transcript Import
+
+```text
+Step 1: User connects Microsoft 365 (one-time)
+        ├── OAuth flow in popup window
+        ├── Tokens stored encrypted
+        └── Calendar sync triggered
+
+Step 2: User opens "Submit Call" form
+        ├── Frontend queries ms_calendar_events
+        ├── Shows recent Teams meetings with transcripts
+        └── User selects meeting to import
+
+Step 3: Import transcript
+        ├── Edge function calls Graph API
+        │   GET /me/onlineMeetings/{id}/transcripts
+        ├── Fetches transcript content
+        │   GET /me/onlineMeetings/{id}/transcripts/{id}/content
+        ├── Extracts meeting metadata (attendees, duration)
+        └── Pre-fills call submission form
+
+Step 4: User reviews and submits
+        ├── Account name auto-detected from meeting subject
+        ├── Attendees mapped to stakeholders
+        ├── Transcript sent through existing analyze-call pipeline
+        └── ms_calendar_events.transcript_synced = true
+```
+
+---
+
+## Security Measures
+
+### Token Security
+
+| Measure | Implementation |
+|---------|----------------|
+| Encryption at rest | Supabase AES-256 encrypted storage |
+| Token isolation | RLS ensures users only access own tokens |
+| Minimal storage | Only access + refresh tokens stored |
+| Secure transmission | TLS 1.3 for all API calls |
+
+### Access Control
+
+| Measure | Implementation |
+|---------|----------------|
+| Per-user consent | Delegated permissions only |
+| Scope validation | Verify granted scopes match requested |
+| Token validation | Validate JWT signature on each use |
+| Revocation support | Users can disconnect anytime |
+
+### Audit Logging
+
+All Microsoft Graph API calls are logged to `ms_graph_sync_log`:
+- Sync operations (success/failure)
+- Token refreshes
+- Disconnection events
+
+---
+
+## Implementation Phases
+
+### Phase 1: OAuth Foundation (Week 1)
+- [ ] Create `ms_graph_connections` table with RLS
+- [ ] Implement `ms-graph-auth` edge function
+- [ ] Add "Connect Microsoft 365" button in Settings
+- [ ] Token storage and refresh logic
+
+### Phase 2: Calendar Sync (Week 2)
+- [ ] Create `ms_calendar_events` table
+- [ ] Implement `ms-graph-sync` for calendar
+- [ ] Pre-call briefing widget on Rep Dashboard
+- [ ] Upcoming meetings list component
+
+### Phase 3: Transcript Import (Week 3)
+- [ ] Extend `ms-graph-sync` for transcript fetching
+- [ ] Integrate transcript import into call submission
+- [ ] Auto-detect account name from meeting subject
+- [ ] Map attendees to stakeholders
+
+### Phase 4: Polish & Monitoring (Week 4)
+- [ ] Error handling and user notifications
+- [ ] Sync status indicators
+- [ ] Admin visibility into connection health
+- [ ] Performance monitoring integration
+
+---
+
+## Configuration Requirements
+
+### Secrets Needed
+
+| Secret Name | Purpose |
+|-------------|---------|
+| `MS_CLIENT_ID` | Azure AD application client ID |
+| `MS_CLIENT_SECRET` | Azure AD application client secret |
+| `MS_TENANT_ID` | Azure AD tenant ID (or "common" for multi-tenant) |
+
+### Azure AD App Registration
+
+1. Register application in Azure Portal
+2. Add redirect URI: `https://wuquclmippzuejqbcksl.supabase.co/functions/v1/ms-graph-auth/callback`
+3. Configure API permissions (delegated):
+   - `User.Read`
+   - `Calendars.Read`
+   - `OnlineMeetings.Read`
+   - `offline_access`
+4. Generate client secret (store securely)
+
+---
+
+## IT Security Talking Points
+
+When presenting this to IT:
+
+1. **Read-only access** - We cannot modify calendars, send emails, or access files
+2. **Per-user consent** - No admin consent required; each user authorizes individually
+3. **Minimal data storage** - Only calendar metadata stored; transcripts flow through existing pipeline
+4. **Easy revocation** - Users can disconnect at any time; IT can revoke via Azure Portal
+5. **Full audit trail** - All API calls logged with user, timestamp, and operation type
+6. **No email access** - Explicitly excluded from this minimal scope
+
+This architecture provides the two highest-value use cases (transcript auto-import + calendar prep) while maintaining the smallest possible permission footprint.
 
