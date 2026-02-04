@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-    // Clear existing analysis data
+    // Clear existing analysis data including follow-up suggestions
     const { error: clearError } = await adminClient
       .from('ai_call_analysis')
       .update({
@@ -115,6 +115,7 @@ Deno.serve(async (req) => {
         analysis_strategy: null,
         analysis_psychology: null,
         deal_heat_analysis: null,
+        follow_up_suggestions: null, // Clear suggestions so they regenerate
         call_summary: 'Re-analyzing...',
         call_notes: null,
         recap_email_draft: null,
@@ -127,6 +128,12 @@ Deno.serve(async (req) => {
         raw_json: null,
       })
       .eq('call_id', call_id);
+    
+    // Also reset suggestions_reviewed_at so the panel shows again
+    await adminClient
+      .from('call_transcripts')
+      .update({ suggestions_reviewed_at: null })
+      .eq('id', call_id);
 
     if (clearError) {
       console.error(`[reanalyze-call] Error clearing old analysis:`, clearError);
