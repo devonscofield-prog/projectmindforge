@@ -31,7 +31,7 @@ import {
 } from 'lucide-react';
 import { format, isToday, isTomorrow, isPast, parseISO } from 'date-fns';
 import {
-  listAllPendingFollowUpsForRep,
+  listManualPendingFollowUpsForRep,
   type AccountFollowUpWithProspect,
   type FollowUpPriority,
   type FollowUpCategory,
@@ -79,10 +79,10 @@ export function PendingFollowUpsWidget({ repId }: PendingFollowUpsWidgetProps) {
   const isMobile = useIsMobile();
   const [confirmDismissItem, setConfirmDismissItem] = useState<AccountFollowUpWithProspect | null>(null);
 
-  // Fetch follow-ups with React Query
+  // Fetch manual follow-ups only (tasks the rep scheduled themselves)
   const { data: followUps = [], isLoading } = useQuery({
-    queryKey: ['all-follow-ups', repId],
-    queryFn: () => listAllPendingFollowUpsForRep(repId),
+    queryKey: ['manual-follow-ups', repId],
+    queryFn: () => listManualPendingFollowUpsForRep(repId),
     staleTime: 60 * 1000,
   });
 
@@ -128,7 +128,7 @@ export function PendingFollowUpsWidget({ repId }: PendingFollowUpsWidgetProps) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Target className="h-5 w-5 text-primary" />
-            Pending Follow-Ups
+            My Scheduled Tasks
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -144,17 +144,17 @@ export function PendingFollowUpsWidget({ repId }: PendingFollowUpsWidgetProps) {
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2">
             <Target className="h-5 w-5 text-primary" />
-            Pending Follow-Ups
+            My Scheduled Tasks
           </CardTitle>
           <CardDescription>
-            {followUps.length} action{followUps.length !== 1 ? 's' : ''} across your accounts
+            {followUps.length} task{followUps.length !== 1 ? 's' : ''} you've scheduled
           </CardDescription>
         </CardHeader>
         <CardContent>
           {followUps.length === 0 ? (
             <div className="text-center py-8">
               <CheckCircle2 className="h-10 w-10 text-green-500 mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">All caught up! No pending follow-ups.</p>
+              <p className="text-sm text-muted-foreground">No scheduled tasks. Create one from any call analysis.</p>
             </div>
           ) : (
             <ScrollArea className="h-[400px] pr-4">
@@ -270,7 +270,6 @@ function FollowUpRow({
   const priorityKey = (followUp.priority as FollowUpPriority) || 'medium';
   const priority = priorityConfig[priorityKey] || priorityConfig.medium;
   const accountDisplay = followUp.account_name || followUp.prospect_name;
-  const isManual = followUp.source === 'manual';
   
   // Format due date if present
   const dueDateInfo = followUp.due_date ? formatDueDate(followUp.due_date) : null;
@@ -307,11 +306,6 @@ function FollowUpRow({
             <span className="text-[10px] text-muted-foreground">
               {categoryLabels[followUp.category as FollowUpCategory]}
             </span>
-          )}
-          {isManual && (
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-primary/5 text-primary border-primary/20">
-              Personal
-            </Badge>
           )}
           {dueDateInfo && (
             <Badge 
