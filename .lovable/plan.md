@@ -1,139 +1,153 @@
 
 
-# Enhance Custom Task Creation: More Visible, Time Selection, Default Reminder
+# Block Analysis Completion Until Deal Heat & Follow-Ups Are Ready
 
-## Overview
+## Problem Statement
 
-This plan will make the "Add Custom Task" option more prominent, add time-of-day selection for reminders, and default the email reminder to ON.
+Currently, the `analyze-call` function marks the call as `completed` (line 385) **before** triggering Deal Heat and Follow-up Suggestions (lines 394-409). This causes:
 
----
+1. The UI to show "Analysis Complete" before suggestions are available
+2. Users to potentially leave the page before seeing the suggestions panel
+3. A confusing UX where content appears incrementally after "completion"
 
-## Changes Summary
+## Current Flow
 
-### 1. Make "Add Custom Task" More Prominent
-
-**Current State**: The button is at the bottom of the suggestions list, styled as `variant="outline"` with a simple icon.
-
-**New Design**:
-- Move the button to the card header area, next to "Accept All" and "Dismiss All"
-- Also keep a secondary "Add your own" link at the bottom for discoverability
-- Use a more eye-catching style (dashed border card or highlighted button)
-
-### 2. Add Reminder Time Selection
-
-**Current State**: Users can only pick a date. The reminder time comes from their global notification preferences.
-
-**New Design**:
-- Add a time dropdown (using the existing `REMINDER_TIMES` from `notificationPreferences.ts`)
-- When a due date is selected, show a time picker below it
-- If no time is selected, default to the user's global preference (or 9:00 AM)
-- Store the selected time in a new `reminder_time` column on `account_follow_ups`
-
-### 3. Default Email Reminder to ON
-
-**Current State**: `reminderEnabled` defaults to `false`
-
-**New State**: `reminderEnabled` defaults to `true` when a due date is selected
-
----
-
-## Technical Implementation
-
-### Database Migration
-
-Add a `reminder_time` column to `account_follow_ups`:
-
-```sql
-ALTER TABLE public.account_follow_ups 
-ADD COLUMN reminder_time time without time zone DEFAULT '09:00'::time;
-
-COMMENT ON COLUMN public.account_follow_ups.reminder_time IS 
-  'Per-task reminder time override. Falls back to user notification_preferences if null.';
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│                    analyze-call function                        │
+├─────────────────────────────────────────────────────────────────┤
+│  1. Run 7-agent analysis pipeline                               │
+│  2. Save analysis results to ai_call_analysis                   │
+│  3. Set status = 'completed'  ← USER SEES "COMPLETE" HERE       │
+│  4. Fire-and-forget: triggerDealHeatCalculation()               │
+│  5. Fire-and-forget: triggerBackgroundChunking()                │
+│  6. Fire-and-forget: triggerFollowUpSuggestions()               │
+│                                                                 │
+│  Result: User sees "completed" but suggestions arrive 30-60s    │
+│          later, after they may have already left                │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### API Changes
+## Proposed Flow
 
-**File**: `src/api/accountFollowUps.ts`
-
-- Add `reminderTime?: string` to `CreateManualFollowUpParams`
-- Update `createManualFollowUp` to accept and save `reminder_time`
-- Update `AccountFollowUp` interface to include `reminder_time: string | null`
-
-### UI Changes
-
-**File**: `src/components/calls/suggestions/AddCustomTaskDialog.tsx`
-
-1. Add state for `reminderTime` (default: '09:00')
-2. Change `reminderEnabled` default from `false` to `true`
-3. Add time selector dropdown after the date picker (only shows when date is selected)
-4. Move the "Send email reminder" checkbox higher and make it checked by default
-5. Pass `reminderTime` to `createManualFollowUp`
-
-**File**: `src/components/calls/suggestions/PostCallSuggestionsPanel.tsx`
-
-1. Add a prominent "Add Custom Task" button in the card header (next to Accept All)
-2. Style it with a primary variant or dashed border to make it stand out
-3. Keep a subtle "or add your own" text at the bottom as a secondary entry point
-
-### Backend Update (if needed)
-
-**File**: `supabase/functions/send-task-reminders/index.ts`
-
-- When sending reminders, check if the task has a custom `reminder_time`
-- If so, use that instead of the user's global `notification_preferences.reminder_time`
-
----
-
-## UI Mockup
-
-### Card Header (After)
-
-```
-[Sparkles icon] Suggested Follow-Up Actions
-                                    [+ Add Task] [Dismiss All] [Accept All]
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│                    analyze-call function                        │
+├─────────────────────────────────────────────────────────────────┤
+│  1. Run 7-agent analysis pipeline                               │
+│  2. Save analysis results to ai_call_analysis                   │
+│  3. Set status = 'post_processing'  ← NEW INTERMEDIATE STATUS   │
+│  4. AWAIT triggerDealHeatCalculation()                          │
+│  5. Fire-and-forget: triggerBackgroundChunking() (non-critical) │
+│  6. AWAIT triggerFollowUpSuggestions()                          │
+│  7. Set status = 'completed'  ← USER SEES "COMPLETE" NOW        │
+│                                                                 │
+│  Result: User only sees "completed" when everything is ready    │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### Add Custom Task Dialog (After)
+## Implementation Details
 
+### Option A: Add New Status (Recommended)
+
+Add an intermediate status `post_processing` that indicates the main analysis is done but supplementary features are being generated. The UI can show a different message for this state.
+
+**Database Change:**
+Update the `analysis_status` CHECK constraint to include `post_processing` (or no change if using text type without constraints).
+
+**Edge Function Changes (analyze-call/index.ts):**
+
+1. **Line 385**: Change status to `post_processing` instead of `completed`
+2. **Lines 394-409**: Await Deal Heat and Follow-up Suggestions (instead of fire-and-forget)
+3. **After line 409**: Add new status update to `completed`
+
+**UI Updates (CallDetailPage.tsx):**
+- Treat `post_processing` similarly to `processing` - show "Finalizing analysis..." or similar
+
+### Option B: Simple Await (Faster to implement)
+
+Keep the same status flow but await the critical functions before setting `completed`.
+
+**Edge Function Changes Only:**
+
+```typescript
+// Line 385: DON'T set completed yet, keep status as 'processing'
+// (remove the early status update)
+
+// Lines 394-409: Await instead of fire-and-forget
+await triggerDealHeatCalculation(...);  // AWAIT
+await triggerBackgroundChunking(...);   // Keep fire-and-forget (non-critical)
+await triggerFollowUpSuggestions(...);  // AWAIT
+
+// NEW: Only NOW set completed
+await supabaseAdmin.from('call_transcripts')
+  .update({ analysis_status: 'completed', analysis_version: 'v2' })
+  .eq('id', targetCallId);
 ```
-Add Custom Follow-Up Task
-Create a manual task for Acme Corp
 
-Task Title *
-[Schedule follow-up demo with IT team          ]
+## Edge Case Handling
 
-Description (optional)
-[Add any additional context...                 ]
+### Timeout Risk
+Deal Heat + Follow-up Suggestions add ~10-20 seconds to the pipeline. The `EdgeRuntime.waitUntil()` pattern already handles this, so no HTTP timeout issues.
 
-Priority                    Category
-[Medium  v]                 [Discovery  v]
+### Failure Handling
+If Deal Heat or Follow-ups fail, we should still mark as `completed` but log the warning. The analysis itself is still valuable without these supplementary features.
 
-Due Date & Reminder Time
-[Jan 15, 2026        v]     [9:00 AM  v]
+```typescript
+// Attempt post-processing, but don't fail the whole analysis
+let dealHeatSuccess = false;
+let suggestionsSuccess = false;
 
-[x] Send email reminder at this time
-    (You'll receive an email at 9:00 AM on Jan 15)
+try {
+  await triggerDealHeatCalculation(...);
+  dealHeatSuccess = true;
+} catch (e) {
+  console.warn(`[analyze-call] Deal Heat failed for ${targetCallId}:`, e);
+}
 
-                        [Cancel]  [Create Task]
+try {
+  await triggerFollowUpSuggestions(...);
+  suggestionsSuccess = true;
+} catch (e) {
+  console.warn(`[analyze-call] Suggestions failed for ${targetCallId}:`, e);
+}
+
+// Fire-and-forget for non-critical chunking
+triggerBackgroundChunking(...).catch(() => {});
+
+// Mark complete regardless of post-processing results
+await supabaseAdmin.from('call_transcripts')
+  .update({ 
+    analysis_status: 'completed', 
+    analysis_version: 'v2',
+    // Optionally track what succeeded
+  })
+  .eq('id', targetCallId);
+
+console.log(`[analyze-call] ✅ Analysis complete for ${targetCallId} (DealHeat: ${dealHeatSuccess}, Suggestions: ${suggestionsSuccess})`);
 ```
-
----
 
 ## Files to Modify
 
-| File | Changes |
-|------|---------|
-| `src/components/calls/suggestions/PostCallSuggestionsPanel.tsx` | Add prominent "Add Task" button to header |
-| `src/components/calls/suggestions/AddCustomTaskDialog.tsx` | Add time picker, default reminder to ON, reorganize layout |
-| `src/api/accountFollowUps.ts` | Add `reminderTime` parameter and update types |
-| Database migration | Add `reminder_time` column to `account_follow_ups` |
+| File | Change |
+|------|--------|
+| `supabase/functions/analyze-call/index.ts` | Move status=completed to AFTER Deal Heat + Suggestions complete |
 
----
+## UI Consideration
 
-## Edge Cases
+With this change, the UI will continue showing "Analyzing..." for the full duration (including Deal Heat and Suggestions generation). This is actually better UX because:
 
-1. **No date selected**: Time picker hidden, reminder checkbox disabled
-2. **Date selected but no time**: Use default 9:00 AM
-3. **Existing tasks without reminder_time**: Backend falls back to user's global preference
-4. **User hasn't configured notification preferences**: Still works with defaults (9:00 AM ET)
+1. User sees one clear transition: Processing → Complete
+2. When "Complete" appears, ALL content is ready including suggestions
+3. No more "ghost loading" where panels pop in 30-60 seconds after completion
+
+## Summary
+
+This is a small but impactful change to the analyze-call function:
+- Remove the early `completed` status update (line 385)
+- Await Deal Heat and Follow-up Suggestions
+- Set `completed` only after both finish
+- Handle failures gracefully so partial success still completes
+
+The result: users will see the suggestions panel immediately when the analysis shows as "completed".
 
