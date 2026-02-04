@@ -382,31 +382,55 @@ Deno.serve(async (req) => {
           });
         }
 
-        await supabaseAdmin.from('call_transcripts').update({ analysis_status: 'completed', analysis_version: 'v2' }).eq('id', targetCallId);
-
-        console.log(`[analyze-call] ✅ Analysis complete for ${targetCallId}, Grade: ${result.coaching.overall_grade}, Warnings: ${result.warnings.length}`);
+        console.log(`[analyze-call] Analysis pipeline complete for ${targetCallId}, Grade: ${result.coaching.overall_grade}, Warnings: ${result.warnings.length}`);
         
         // Log if many warnings accumulated
         if (result.warnings.length >= 3) {
           console.warn(`[analyze-call] ⚠️ High warning count (${result.warnings.length}) for ${targetCallId}:`, result.warnings);
         }
 
-        // Trigger Deal Heat calculation with analysis results
-        await triggerDealHeatCalculation(
-          targetCallId!,
-          transcript.raw_text,
-          result.strategy,
-          result.behavior,
-          result.metadata,
-          supabaseUrl,
-          supabaseServiceKey
-        );
+        // ========== POST-PROCESSING PHASE ==========
+        // Wait for Deal Heat and Follow-up Suggestions before marking complete.
+        // This ensures users see all content when analysis shows as "completed".
+        console.log(`[analyze-call] Starting post-processing for ${targetCallId}...`);
 
-        // Trigger background chunking for RAG indexing
-        await triggerBackgroundChunking(targetCallId!, supabaseUrl, supabaseServiceKey);
-        
-        // Trigger follow-up suggestions generation ("The Advisor")
-        await triggerFollowUpSuggestions(targetCallId!, supabaseUrl, supabaseServiceKey);
+        let dealHeatSuccess = false;
+        let suggestionsSuccess = false;
+
+        // Trigger Deal Heat calculation with analysis results (AWAIT)
+        try {
+          await triggerDealHeatCalculation(
+            targetCallId!,
+            transcript.raw_text,
+            result.strategy,
+            result.behavior,
+            result.metadata,
+            supabaseUrl,
+            supabaseServiceKey
+          );
+          dealHeatSuccess = true;
+        } catch (e) {
+          console.warn(`[analyze-call] Deal Heat failed for ${targetCallId}:`, e);
+        }
+
+        // Trigger follow-up suggestions generation (AWAIT)
+        try {
+          await triggerFollowUpSuggestions(targetCallId!, supabaseUrl, supabaseServiceKey);
+          suggestionsSuccess = true;
+        } catch (e) {
+          console.warn(`[analyze-call] Suggestions failed for ${targetCallId}:`, e);
+        }
+
+        // Fire-and-forget for non-critical background chunking
+        triggerBackgroundChunking(targetCallId!, supabaseUrl, supabaseServiceKey).catch(() => {});
+
+        // NOW mark as completed - user sees "complete" only when everything is ready
+        await supabaseAdmin.from('call_transcripts').update({ 
+          analysis_status: 'completed', 
+          analysis_version: 'v2' 
+        }).eq('id', targetCallId);
+
+        console.log(`[analyze-call] ✅ Analysis complete for ${targetCallId} (DealHeat: ${dealHeatSuccess}, Suggestions: ${suggestionsSuccess})`);
         
       } catch (bgError) {
         const errorMessage = bgError instanceof Error ? bgError.message : String(bgError);
