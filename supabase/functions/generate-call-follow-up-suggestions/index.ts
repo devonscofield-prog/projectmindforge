@@ -118,12 +118,12 @@ Deno.serve(async (req) => {
 
     console.log(`[advisor] Generating follow-up suggestions for call ${call_id}, trigger: ${trigger_source || 'direct'}`);
 
-    // Fetch call transcript with analysis
+    // Fetch call transcript with analysis - use explicit FK hint to avoid PGRST201 error
     const { data: transcript, error: transcriptError } = await supabaseAdmin
       .from('call_transcripts')
       .select(`
         id, raw_text, account_name, primary_stakeholder_name, call_date, call_type, prospect_id, rep_id,
-        ai_call_analysis (
+        ai_call_analysis!ai_call_analysis_call_id_fkey (
           id, call_summary, analysis_strategy, analysis_behavior, analysis_coaching, analysis_metadata, deal_heat_analysis
         )
       `)
