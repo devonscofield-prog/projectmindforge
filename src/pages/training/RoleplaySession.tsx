@@ -15,7 +15,6 @@ import {
   Phone, 
   PhoneOff, 
   Volume2,
-  
   Bot,
   Loader2,
   ArrowLeft,
@@ -24,6 +23,9 @@ import {
   Monitor,
   MonitorOff
 } from 'lucide-react';
+import { RoleplayBriefing } from '@/components/training/RoleplayBriefing';
+import { RoleplayPostSession } from '@/components/training/RoleplayPostSession';
+import { RoleplayTranscriptPanel } from '@/components/training/RoleplayTranscriptPanel';
 import { cn } from '@/lib/utils';
 import { ScreenCapture } from '@/utils/ScreenCapture';
 
@@ -37,6 +39,9 @@ interface Persona {
   backstory: string | null;
   voice: string;
   communication_style: Record<string, unknown> | null;
+  common_objections?: Array<{ objection: string; category: string; severity: string }>;
+  pain_points?: Array<{ pain: string; severity: string; visible: boolean }>;
+  dos_and_donts?: { dos: string[]; donts: string[] };
 }
 
 interface TranscriptEntry {
@@ -45,14 +50,14 @@ interface TranscriptEntry {
   timestamp: number;
 }
 
-type SessionStatus = 'idle' | 'connecting' | 'connected' | 'speaking' | 'listening' | 'ending' | 'ended';
+type SessionStatus = 'briefing' | 'idle' | 'connecting' | 'connected' | 'speaking' | 'listening' | 'ending' | 'ended';
 
 export default function RoleplaySession() {
   const { personaId } = useParams<{ personaId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
   
-  const [status, setStatus] = useState<SessionStatus>('idle');
+  const [status, setStatus] = useState<SessionStatus>('briefing');
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -71,7 +76,7 @@ export default function RoleplaySession() {
   // Use ref to track current transcript to avoid stale closure in handleDataChannelMessage
   const currentTranscriptRef = useRef('');
 
-  // Fetch persona details
+  // Fetch persona details with extended fields
   const { data: persona, isLoading: personaLoading } = useQuery({
     queryKey: ['roleplay-persona', personaId],
     queryFn: async () => {
@@ -79,7 +84,7 @@ export default function RoleplaySession() {
       
       const { data, error } = await supabase
         .from('roleplay_personas')
-        .select('*')
+        .select('id, name, persona_type, disc_profile, difficulty_level, industry, backstory, voice, communication_style, common_objections, pain_points, dos_and_donts')
         .eq('id', personaId)
         .single();
       
@@ -505,329 +510,341 @@ export default function RoleplaySession() {
     <AppLayout>
       <div className="min-h-screen bg-background">
         <div className="container mx-auto px-4 py-6 max-w-4xl">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <Button 
-            variant="ghost" 
-            onClick={() => status === 'idle' || status === 'ended' ? navigate('/training') : null}
-            disabled={status !== 'idle' && status !== 'ended'}
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </Button>
-          
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Clock className="h-4 w-4" />
-              <span className="font-mono text-lg">{formatTime(elapsedSeconds)}</span>
-            </div>
-            
-            {/* Screen Share Status Badge */}
-            {isScreenSharing && (
-              <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">
-                <Monitor className="h-3 w-3 mr-1" />
-                Screen Visible
-              </Badge>
-            )}
-            
-            <Badge 
-              variant={status === 'connected' || status === 'listening' ? 'default' : 'secondary'}
-              className={cn(
-                status === 'speaking' && 'bg-green-500 animate-pulse',
-                status === 'connecting' && 'bg-amber-500'
-              )}
-            >
-              {status === 'idle' && 'Ready'}
-              {status === 'connecting' && 'Connecting...'}
-              {status === 'connected' && 'Connected'}
-              {status === 'speaking' && 'AI Speaking'}
-              {status === 'listening' && 'Listening'}
-              {status === 'ending' && 'Saving...'}
-              {status === 'ended' && 'Session Ended'}
-            </Badge>
-          </div>
-        </div>
-
-        {/* Persona Info Card */}
-        <Card className="mb-6 bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
-                <Bot className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <CardTitle>{persona.name}</CardTitle>
-                <p className="text-sm text-muted-foreground capitalize">
-                  {persona.persona_type.replace('_', ' ')} • {persona.industry || 'General'} • {persona.difficulty_level} difficulty
-                </p>
-              </div>
-            </div>
-          </CardHeader>
-        </Card>
-
-        {/* Voice Activity Indicator */}
-        <Card className="mb-6 min-h-[400px] max-h-[500px] overflow-hidden flex flex-col">
-          <CardHeader className="border-b pb-3">
-            <CardTitle className="text-base font-medium flex items-center gap-2">
-              <Volume2 className="h-4 w-4" />
-              Voice Call
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 flex items-center justify-center p-4">
-            {/* Idle state - show session type selector */}
-            {status === 'idle' && (
-              <div className="flex flex-col items-center justify-center text-muted-foreground">
-                <div className="w-24 h-24 rounded-full bg-secondary flex items-center justify-center mb-6">
-                  <Bot className="h-12 w-12 text-muted-foreground" />
-                </div>
-                
-                {/* Session Type Selector */}
-                <div className="w-full max-w-sm mb-6">
-                  <p className="text-sm font-medium mb-3 text-center">Select Session Type</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => setSessionType('discovery')}
-                      className={cn(
-                        "p-3 rounded-lg border text-sm font-medium transition-all",
-                        sessionType === 'discovery' 
-                          ? "bg-primary text-primary-foreground border-primary" 
-                          : "bg-secondary/50 border-border hover:bg-secondary"
-                      )}
-                    >
-                      🔍 Discovery
-                    </button>
-                    <button
-                      onClick={() => setSessionType('demo')}
-                      className={cn(
-                        "p-3 rounded-lg border text-sm font-medium transition-all",
-                        sessionType === 'demo' 
-                          ? "bg-primary text-primary-foreground border-primary" 
-                          : "bg-secondary/50 border-border hover:bg-secondary"
-                      )}
-                    >
-                      📺 Demo
-                    </button>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-2 text-center">
-                    {sessionType === 'discovery' 
-                      ? 'Focus on uncovering needs and challenges' 
-                      : 'Practice presenting and handling feature questions'}
-                  </p>
-                </div>
-                
-                <p>Click "Start Call" to begin your practice session</p>
-              </div>
-            )}
-
-            {/* Connecting state */}
-            {status === 'connecting' && (
-              <div className="flex flex-col items-center justify-center">
-                <div className="relative w-24 h-24">
-                  <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
-                  <div className="relative w-24 h-24 rounded-full bg-secondary flex items-center justify-center">
-                    <Loader2 className="h-12 w-12 text-muted-foreground animate-spin" />
-                  </div>
-                </div>
-                <p className="mt-6 text-muted-foreground">Connecting...</p>
-              </div>
-            )}
-            
-            {/* Active call states */}
-            {(status === 'connected' || status === 'speaking' || status === 'listening') && (
-              <div className="flex flex-col items-center justify-center">
-                {/* AI Avatar with animated rings */}
-                <div className="relative">
-                  {/* Pulsing rings when AI is speaking */}
-                  {status === 'speaking' && (
-                    <>
-                      <div 
-                        className="absolute inset-[-12px] rounded-full bg-primary/30 animate-ping" 
-                        style={{ animationDuration: '1.5s' }} 
-                      />
-                      <div 
-                        className="absolute inset-[-24px] rounded-full bg-primary/15 animate-ping" 
-                        style={{ animationDuration: '2s', animationDelay: '0.3s' }} 
-                      />
-                      <div 
-                        className="absolute inset-[-36px] rounded-full bg-primary/10 animate-ping" 
-                        style={{ animationDuration: '2.5s', animationDelay: '0.6s' }} 
-                      />
-                    </>
-                  )}
-                  
-                  {/* Main avatar */}
-                  <div className={cn(
-                    "relative w-28 h-28 rounded-full flex items-center justify-center transition-all duration-300",
-                    status === 'speaking' 
-                      ? 'bg-primary scale-110 shadow-lg shadow-primary/30' 
-                      : 'bg-secondary'
-                  )}>
-                    <Bot className={cn(
-                      "h-14 w-14 transition-colors",
-                      status === 'speaking' ? 'text-primary-foreground' : 'text-muted-foreground'
-                    )} />
-                  </div>
-                </div>
-                
-                {/* Persona name */}
-                <h3 className="mt-8 text-xl font-semibold">{persona.name}</h3>
-                
-                {/* Status text */}
-                <p className={cn(
-                  "mt-2 text-muted-foreground transition-all",
-                  status === 'speaking' && 'text-primary font-medium'
-                )}>
-                  {status === 'speaking' ? 'Speaking...' : 'Listening...'}
-                </p>
-                
-                {/* Visual waveform when speaking */}
-                {status === 'speaking' && (
-                  <div className="flex items-center gap-1 mt-6 h-8">
-                    {[...Array(7)].map((_, i) => (
-                      <div 
-                        key={i}
-                        className="w-1.5 bg-primary rounded-full animate-pulse"
-                        style={{ 
-                          height: `${16 + Math.sin(i * 0.8) * 12}px`,
-                          animationDelay: `${i * 0.1}s`,
-                          animationDuration: '0.6s'
-                        }}
-                      />
-                    ))}
-                  </div>
-                )}
-                
-                {/* Subtle indicator when listening */}
-                {(status === 'connected' || status === 'listening') && (
-                  <div className="flex items-center gap-2 mt-6 text-sm text-muted-foreground">
-                    <Mic className="h-4 w-4" />
-                    <span>Your turn to speak</span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Ending state */}
-            {status === 'ending' && (
-              <div className="flex flex-col items-center justify-center">
-                <div className="w-24 h-24 rounded-full bg-secondary flex items-center justify-center">
-                  <Loader2 className="h-12 w-12 text-muted-foreground animate-spin" />
-                </div>
-                <p className="mt-6 text-muted-foreground">Saving your session...</p>
-              </div>
-            )}
-
-            {/* Ended state */}
-            {status === 'ended' && (
-              <div className="flex flex-col items-center justify-center">
-                <div className="w-24 h-24 rounded-full bg-green-500/20 flex items-center justify-center">
-                  <Phone className="h-12 w-12 text-green-500" />
-                </div>
-                <h3 className="mt-6 text-xl font-semibold">Session Complete!</h3>
-                <p className="mt-2 text-muted-foreground">Your performance is being evaluated</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Controls */}
-        <div className="flex items-center justify-center gap-4">
-          {status === 'idle' && (
+        {/* Header - Only show during active call states */}
+        {status !== 'briefing' && status !== 'ended' && (
+          <div className="flex items-center justify-between mb-6">
             <Button 
-              size="lg" 
-              className="gap-2 px-8"
-              onClick={startSession}
+              variant="ghost" 
+              onClick={() => status === 'idle' ? setStatus('briefing') : null}
+              disabled={status !== 'idle'}
             >
-              <Phone className="h-5 w-5" />
-              Start Call
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
             </Button>
-          )}
-          
-          {(status === 'connecting') && (
-            <Button size="lg" disabled className="gap-2 px-8">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              Connecting...
-            </Button>
-          )}
-          
-          {(status === 'connected' || status === 'speaking' || status === 'listening') && (
-            <>
-              {/* Screen Share Button */}
-              <Button
-                size="lg"
-                variant={isScreenSharing ? 'default' : 'outline'}
+            
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Clock className="h-4 w-4" />
+                <span className="font-mono text-lg">{formatTime(elapsedSeconds)}</span>
+              </div>
+              
+              {/* Screen Share Status Badge */}
+              {isScreenSharing && (
+                <Badge variant="outline" className="bg-success/10 text-success border-success/30">
+                  <Monitor className="h-3 w-3 mr-1" />
+                  Screen Visible
+                </Badge>
+              )}
+              
+              <Badge 
+                variant={status === 'connected' || status === 'listening' ? 'default' : 'secondary'}
                 className={cn(
-                  "gap-2",
-                  isScreenSharing && "bg-green-600 hover:bg-green-700"
+                  status === 'speaking' && 'bg-success animate-pulse',
+                  status === 'connecting' && 'bg-warning'
                 )}
-                onClick={isScreenSharing ? stopScreenShare : startScreenShare}
               >
-                {isScreenSharing ? (
-                  <>
-                    <Monitor className="h-5 w-5" />
-                    Screen Visible
-                  </>
-                ) : (
-                  <>
-                    <MonitorOff className="h-5 w-5" />
-                    Share Screen
-                  </>
-                )}
-              </Button>
-              
-              <Button
-                size="lg"
-                variant={isMuted ? 'destructive' : 'secondary'}
-                className="gap-2"
-                onClick={toggleMute}
-              >
-                {isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-                {isMuted ? 'Unmute' : 'Mute'}
-              </Button>
-              
-              <Button 
-                size="lg" 
-                variant="destructive"
-                className="gap-2 px-8"
-                onClick={endSession}
-              >
-                <PhoneOff className="h-5 w-5" />
-                End Call
-              </Button>
-            </>
-          )}
-          
-          {status === 'ending' && (
-            <Button size="lg" disabled className="gap-2 px-8">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              Saving Session...
-            </Button>
-          )}
-          
-          {status === 'ended' && (
-            <div className="flex gap-4">
-              <Button 
-                size="lg" 
-                variant="outline"
-                onClick={() => navigate('/training')}
-              >
+                {status === 'idle' && 'Ready'}
+                {status === 'connecting' && 'Connecting...'}
+                {status === 'connected' && 'Connected'}
+                {status === 'speaking' && 'AI Speaking'}
+                {status === 'listening' && 'Listening'}
+                {status === 'ending' && 'Saving...'}
+              </Badge>
+            </div>
+          </div>
+        )}
+
+        {/* Briefing Screen */}
+        {status === 'briefing' && (
+          <div className="mb-6">
+            <div className="flex items-center gap-4 mb-6">
+              <Button variant="ghost" onClick={() => navigate('/training')}>
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Back to Training
               </Button>
+            </div>
+            <RoleplayBriefing
+              persona={persona}
+              sessionType={sessionType}
+              onStart={() => setStatus('idle')}
+              onChangeSessionType={setSessionType}
+            />
+          </div>
+        )}
+
+        {/* Pre-call ready state */}
+        {status === 'idle' && (
+          <>
+            {/* Persona Info Card */}
+            <Card className="mb-6 bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
+                    <Bot className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <CardTitle>{persona.name}</CardTitle>
+                    <p className="text-sm text-muted-foreground capitalize">
+                      {persona.persona_type.replace('_', ' ')} • {persona.industry || 'General'} • {sessionType}
+                    </p>
+                  </div>
+                </div>
+              </CardHeader>
+            </Card>
+
+            {/* Ready to start */}
+            <Card className="mb-6 min-h-[300px] flex flex-col">
+              <CardHeader className="border-b pb-3">
+                <CardTitle className="text-base font-medium flex items-center gap-2">
+                  <Volume2 className="h-4 w-4" />
+                  Voice Call
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex-1 flex items-center justify-center p-4">
+                <div className="flex flex-col items-center justify-center text-muted-foreground">
+                  <div className="w-24 h-24 rounded-full bg-secondary flex items-center justify-center mb-6">
+                    <Bot className="h-12 w-12 text-muted-foreground" />
+                  </div>
+                  <p>Ready to start your {sessionType} call</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Controls */}
+            <div className="flex items-center justify-center gap-4">
               <Button 
-                size="lg"
-                onClick={() => {
-                  setStatus('idle');
-                  setTranscript([]);
-                  setElapsedSeconds(0);
-                }}
+                size="lg" 
+                className="gap-2 px-8"
+                onClick={startSession}
               >
-                <Phone className="h-4 w-4 mr-2" />
-                Start New Session
+                <Phone className="h-5 w-5" />
+                Start Call
               </Button>
             </div>
-          )}
-        </div>
+          </>
+        )}
+
+        {/* Active call states */}
+        {(status === 'connecting' || status === 'connected' || status === 'speaking' || status === 'listening' || status === 'ending') && (
+          <>
+            {/* Persona Info Card */}
+            <Card className="mb-6 bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
+                    <Bot className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <CardTitle>{persona.name}</CardTitle>
+                    <p className="text-sm text-muted-foreground capitalize">
+                      {persona.persona_type.replace('_', ' ')} • {persona.industry || 'General'} • {sessionType}
+                    </p>
+                  </div>
+                </div>
+              </CardHeader>
+            </Card>
+
+            {/* Voice Activity Indicator */}
+            <Card className="mb-4 min-h-[350px] max-h-[400px] overflow-hidden flex flex-col">
+              <CardHeader className="border-b pb-3">
+                <CardTitle className="text-base font-medium flex items-center gap-2">
+                  <Volume2 className="h-4 w-4" />
+                  Voice Call
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex-1 flex items-center justify-center p-4">
+                {/* Connecting state */}
+                {status === 'connecting' && (
+                  <div className="flex flex-col items-center justify-center">
+                    <div className="relative w-24 h-24">
+                      <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
+                      <div className="relative w-24 h-24 rounded-full bg-secondary flex items-center justify-center">
+                        <Loader2 className="h-12 w-12 text-muted-foreground animate-spin" />
+                      </div>
+                    </div>
+                    <p className="mt-6 text-muted-foreground">Connecting...</p>
+                  </div>
+                )}
+                
+                {/* Active call */}
+                {(status === 'connected' || status === 'speaking' || status === 'listening') && (
+                  <div className="flex flex-col items-center justify-center">
+                    {/* AI Avatar with animated rings */}
+                    <div className="relative">
+                      {/* Pulsing rings when AI is speaking */}
+                      {status === 'speaking' && (
+                        <>
+                          <div 
+                            className="absolute inset-[-12px] rounded-full bg-primary/30 animate-ping" 
+                            style={{ animationDuration: '1.5s' }} 
+                          />
+                          <div 
+                            className="absolute inset-[-24px] rounded-full bg-primary/15 animate-ping" 
+                            style={{ animationDuration: '2s', animationDelay: '0.3s' }} 
+                          />
+                          <div 
+                            className="absolute inset-[-36px] rounded-full bg-primary/10 animate-ping" 
+                            style={{ animationDuration: '2.5s', animationDelay: '0.6s' }} 
+                          />
+                        </>
+                      )}
+                      
+                      {/* Main avatar */}
+                      <div className={cn(
+                        "relative w-28 h-28 rounded-full flex items-center justify-center transition-all duration-300",
+                        status === 'speaking' 
+                          ? 'bg-primary scale-110 shadow-lg shadow-primary/30' 
+                          : 'bg-secondary'
+                      )}>
+                        <Bot className={cn(
+                          "h-14 w-14 transition-colors",
+                          status === 'speaking' ? 'text-primary-foreground' : 'text-muted-foreground'
+                        )} />
+                      </div>
+                    </div>
+                    
+                    {/* Persona name */}
+                    <h3 className="mt-6 text-xl font-semibold">{persona.name}</h3>
+                    
+                    {/* Status text */}
+                    <p className={cn(
+                      "mt-2 text-muted-foreground transition-all",
+                      status === 'speaking' && 'text-primary font-medium'
+                    )}>
+                      {status === 'speaking' ? 'Speaking...' : 'Listening...'}
+                    </p>
+                    
+                    {/* Visual waveform when speaking */}
+                    {status === 'speaking' && (
+                      <div className="flex items-center gap-1 mt-4 h-8">
+                        {[...Array(7)].map((_, i) => (
+                          <div 
+                            key={i}
+                            className="w-1.5 bg-primary rounded-full animate-pulse"
+                            style={{ 
+                              height: `${16 + Math.sin(i * 0.8) * 12}px`,
+                              animationDelay: `${i * 0.1}s`,
+                              animationDuration: '0.6s'
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                    
+                    {/* Subtle indicator when listening */}
+                    {(status === 'connected' || status === 'listening') && (
+                      <div className="flex items-center gap-2 mt-4 text-sm text-muted-foreground">
+                        <Mic className="h-4 w-4" />
+                        <span>Your turn to speak</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Ending state */}
+                {status === 'ending' && (
+                  <div className="flex flex-col items-center justify-center">
+                    <div className="w-24 h-24 rounded-full bg-secondary flex items-center justify-center">
+                      <Loader2 className="h-12 w-12 text-muted-foreground animate-spin" />
+                    </div>
+                    <p className="mt-6 text-muted-foreground">Saving your session...</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Collapsible Transcript Panel - only during active call */}
+            {(status === 'connected' || status === 'speaking' || status === 'listening') && (
+              <div className="mb-4">
+                <RoleplayTranscriptPanel 
+                  transcript={transcript} 
+                  currentTranscript={currentTranscript}
+                />
+              </div>
+            )}
+
+            {/* Controls */}
+            <div className="flex items-center justify-center gap-4">
+              {status === 'connecting' && (
+                <Button size="lg" disabled className="gap-2 px-8">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Connecting...
+                </Button>
+              )}
+              
+              {(status === 'connected' || status === 'speaking' || status === 'listening') && (
+                <>
+                  {/* Screen Share Button */}
+                  <Button
+                    size="lg"
+                    variant={isScreenSharing ? 'default' : 'outline'}
+                    className={cn(
+                      "gap-2",
+                      isScreenSharing && "bg-success hover:bg-success/90"
+                    )}
+                    onClick={isScreenSharing ? stopScreenShare : startScreenShare}
+                  >
+                    {isScreenSharing ? (
+                      <>
+                        <Monitor className="h-5 w-5" />
+                        Screen Visible
+                      </>
+                    ) : (
+                      <>
+                        <MonitorOff className="h-5 w-5" />
+                        Share Screen
+                      </>
+                    )}
+                  </Button>
+                  
+                  <Button
+                    size="lg"
+                    variant={isMuted ? 'destructive' : 'secondary'}
+                    className="gap-2"
+                    onClick={toggleMute}
+                  >
+                    {isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+                    {isMuted ? 'Unmute' : 'Mute'}
+                  </Button>
+                  
+                  <Button 
+                    size="lg" 
+                    variant="destructive"
+                    className="gap-2 px-8"
+                    onClick={endSession}
+                  >
+                    <PhoneOff className="h-5 w-5" />
+                    End Call
+                  </Button>
+                </>
+              )}
+              
+              {status === 'ending' && (
+                <Button size="lg" disabled className="gap-2 px-8">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Saving Session...
+                </Button>
+              )}
+            </div>
+          </>
+        )}
+        
+        {/* Post-Session Summary */}
+        {status === 'ended' && sessionId && (
+          <RoleplayPostSession
+            sessionId={sessionId}
+            durationSeconds={elapsedSeconds}
+            personaName={persona.name}
+            onViewDetails={() => navigate(`/training/session/${sessionId}`)}
+            onNewSession={() => {
+              setStatus('briefing');
+              setSessionId(null);
+              setTranscript([]);
+              setElapsedSeconds(0);
+            }}
+            onBackToTraining={() => navigate('/training')}
+          />
+        )}
         </div>
       </div>
     </AppLayout>

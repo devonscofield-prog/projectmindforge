@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -7,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { toast } from 'sonner';
 import { 
   ArrowLeft, 
   Clock, 
@@ -19,10 +21,13 @@ import {
   Lightbulb,
   AlertCircle,
   RefreshCw,
-  Lock
+  Lock,
+  RotateCcw,
+  Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { KeyMomentsSection } from '@/components/training/KeyMomentsSection';
 import type { Json } from '@/integrations/supabase/types';
 
 interface TranscriptEntry {
@@ -88,6 +93,8 @@ export default function SessionDetail() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { data: userRole } = useUserRole(user?.id);
+  const queryClient = useQueryClient();
+  const [isRetrying, setIsRetrying] = useState(false);
 
   const { data: session, isLoading, error } = useQuery({
     queryKey: ['session-detail', sessionId],
@@ -193,8 +200,35 @@ export default function SessionDetail() {
   const scores = grade?.scores as Record<string, number> | undefined;
   const feedback = grade?.feedback as Record<string, unknown> | undefined;
   const focusAreas = grade?.focus_areas as string[] | undefined;
+  const keyMoments = Array.isArray(feedback?.key_moments) 
+    ? feedback.key_moments as Array<{ moment: string; assessment: string; suggestion: string }>
+    : [];
   
   const showFullFeedback = canViewFullFeedback(grade?.feedback_visibility ?? null);
+  const canRetryGrade = (userRole === 'admin' || userRole === 'manager') && 
+    session.status === 'completed' && !grade;
+
+  // Retry grading handler
+  const handleRetryGrade = async () => {
+    if (!sessionId) return;
+    setIsRetrying(true);
+    try {
+      const { error } = await supabase.functions.invoke('roleplay-grade-session', {
+        body: { sessionId }
+      });
+      if (error) throw error;
+      toast.success('Grading started. Please wait a moment and refresh.');
+      // Refetch after a delay
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['session-detail', sessionId] });
+      }, 5000);
+    } catch (err) {
+      console.error('Retry grading error:', err);
+      toast.error('Failed to retry grading');
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   // Build score categories from the scores object (supports custom criteria)
   const scoreCategories = scores 
@@ -390,6 +424,11 @@ export default function SessionDetail() {
           </Card>
         )}
 
+        {/* Key Moments - Only show for full visibility */}
+        {showFullFeedback && keyMoments.length > 0 && (
+          <KeyMomentsSection keyMoments={keyMoments} />
+        )}
+
         {/* Detailed Feedback - Only show for full visibility */}
         {showFullFeedback && feedback && (
           <Card className="mb-6">
@@ -508,9 +547,29 @@ export default function SessionDetail() {
             <CardContent className="py-8 text-center">
               <Clock className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
               <p className="font-medium">Grading in Progress</p>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground mb-4">
                 Your session is being evaluated. Check back shortly.
               </p>
+              {canRetryGrade && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRetryGrade}
+                  disabled={isRetrying}
+                >
+                  {isRetrying ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Grading...
+                    </>
+                  ) : (
+                    <>
+                      <RotateCcw className="h-4 w-4 mr-2" />
+                      Retry Grading
+                    </>
+                  )}
+                </Button>
+              )}
             </CardContent>
           </Card>
         )}
