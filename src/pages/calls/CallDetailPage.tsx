@@ -64,7 +64,6 @@ import {
   ChevronDown,
   ScrollText,
   Crown,
-  Mail,
   ChevronRight,
   Download,
   ListTodo
@@ -485,25 +484,23 @@ function CallDetailPage() {
             <Dialog open={isRecapDialogOpen} onOpenChange={setIsRecapDialogOpen}>
               <DialogTrigger asChild>
                 <button className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-card hover:bg-muted/50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring w-full sm:w-auto">
-                  <Mail className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium">Recap & Follow-up Email</span>
+                  <FileText className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">Generate Call Notes</span>
                   <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto" />
                 </button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-2xl md:max-w-3xl lg:max-w-4xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
-                    <Mail className="h-5 w-5 text-primary" />
-                    Recap & Follow-up Email
+                    <FileText className="h-5 w-5 text-primary" />
+                    Call Notes
                   </DialogTitle>
                 </DialogHeader>
                 <SalesAssetsGenerator
                   callId={transcript.id}
                   transcript={transcript.raw_text}
                   strategicContext={analysis.analysis_strategy || null}
-                  psychologyContext={analysis.analysis_psychology || null}
                   existingAssets={analysis.sales_assets || null}
-                  callMetadata={analysis.analysis_metadata || null}
                   accountName={transcript.account_name}
                   stakeholderName={transcript.primary_stakeholder_name}
                 />
