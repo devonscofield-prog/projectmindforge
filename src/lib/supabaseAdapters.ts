@@ -340,6 +340,8 @@ export function toCallAnalysis(row: AiCallAnalysisRow): CallAnalysis {
     // Sales assets fields
     sales_assets: parseJsonField<SalesAssets>(row.sales_assets, isSalesAssets),
     sales_assets_generated_at: row.sales_assets_generated_at ?? null,
+    // Follow-up suggestions from AI Advisor
+    follow_up_suggestions: Array.isArray(row.follow_up_suggestions) ? row.follow_up_suggestions : null,
   };
 }
 

@@ -208,6 +208,8 @@ export interface CallAnalysis {
   // Sales assets fields
   sales_assets: SalesAssets | null;
   sales_assets_generated_at: string | null;
+  // Follow-up suggestions from AI Advisor
+  follow_up_suggestions: unknown[] | null;
 }
 
 // ============= AI SCORE STATS =============
