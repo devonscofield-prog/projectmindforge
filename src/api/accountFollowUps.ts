@@ -267,6 +267,67 @@ export async function listAllPendingFollowUpsForRep(repId: string): Promise<Acco
 }
 
 /**
+ * List pending follow-ups that the rep manually created (not AI-generated)
+ * Used for the Rep Dashboard "My Scheduled Tasks" widget
+ */
+export async function listManualPendingFollowUpsForRep(repId: string): Promise<AccountFollowUpWithProspect[]> {
+  // Get manual pending follow-ups only
+  const { data: followUps, error } = await supabase
+    .from('account_follow_ups')
+    .select('*')
+    .eq('rep_id', repId)
+    .eq('status', 'pending')
+    .eq('source', 'manual')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    log.error('Error fetching manual follow-ups', { repId, error });
+    throw error;
+  }
+
+  if (!followUps || followUps.length === 0) {
+    return [];
+  }
+
+  // Get unique prospect IDs
+  const prospectIds = [...new Set(followUps.map(f => f.prospect_id))];
+
+  // Fetch prospect details
+  const { data: prospects } = await supabase
+    .from('prospects')
+    .select('id, prospect_name, account_name')
+    .in('id', prospectIds);
+
+  const prospectMap = (prospects || []).reduce((acc, p) => {
+    acc[p.id] = p;
+    return acc;
+  }, {} as Record<string, { prospect_name: string; account_name: string | null }>);
+
+  // Sort by priority (high first, then medium, then low), then by due date
+  const priorityOrder: Record<FollowUpPriority, number> = { high: 0, medium: 1, low: 2 };
+  
+  return followUps.map(f => ({
+    ...f,
+    prospect_name: prospectMap[f.prospect_id]?.prospect_name,
+    account_name: prospectMap[f.prospect_id]?.account_name || undefined,
+  })).sort((a, b) => {
+    // First sort by due date (overdue first, then upcoming, then no date)
+    const aHasDue = !!a.due_date;
+    const bHasDue = !!b.due_date;
+    if (aHasDue && !bHasDue) return -1;
+    if (!aHasDue && bHasDue) return 1;
+    if (aHasDue && bHasDue) {
+      const dateDiff = new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime();
+      if (dateDiff !== 0) return dateDiff;
+    }
+    // Then by priority
+    const priorityDiff = priorityOrder[a.priority as FollowUpPriority] - priorityOrder[b.priority as FollowUpPriority];
+    if (priorityDiff !== 0) return priorityDiff;
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  }) as AccountFollowUpWithProspect[];
+}
+
+/**
  * Create a manual follow-up task
  */
 export interface CreateManualFollowUpParams {
