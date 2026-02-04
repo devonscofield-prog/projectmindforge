@@ -326,6 +326,7 @@ export type Database = {
           deleted_by: string | null
           detected_call_type: string | null
           discovery_score: number | null
+          follow_up_suggestions: Json | null
           id: string
           meta_tags: string[] | null
           model_name: string
@@ -367,6 +368,7 @@ export type Database = {
           deleted_by?: string | null
           detected_call_type?: string | null
           discovery_score?: number | null
+          follow_up_suggestions?: Json | null
           id?: string
           meta_tags?: string[] | null
           model_name: string
@@ -408,6 +410,7 @@ export type Database = {
           deleted_by?: string | null
           detected_call_type?: string | null
           discovery_score?: number | null
+          follow_up_suggestions?: Json | null
           id?: string
           meta_tags?: string[] | null
           model_name?: string
@@ -692,6 +695,7 @@ export type Database = {
           rep_id: string
           salesforce_demo_link: string | null
           source: Database["public"]["Enums"]["call_source_type"]
+          suggestions_reviewed_at: string | null
           updated_at: string
         }
         Insert: {
@@ -717,6 +721,7 @@ export type Database = {
           rep_id: string
           salesforce_demo_link?: string | null
           source?: Database["public"]["Enums"]["call_source_type"]
+          suggestions_reviewed_at?: string | null
           updated_at?: string
         }
         Update: {
@@ -742,6 +747,7 @@ export type Database = {
           rep_id?: string
           salesforce_demo_link?: string | null
           source?: Database["public"]["Enums"]["call_source_type"]
+          suggestions_reviewed_at?: string | null
           updated_at?: string
         }
         Relationships: [

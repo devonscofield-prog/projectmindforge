@@ -113,6 +113,33 @@ async function triggerBackgroundChunking(callId: string, supabaseUrl: string, se
   }
 }
 
+/**
+ * Trigger follow-up suggestions generation ("The Advisor")
+ * Runs after analysis completes to generate AI-powered action recommendations
+ */
+async function triggerFollowUpSuggestions(callId: string, supabaseUrl: string, serviceKey: string): Promise<void> {
+  try {
+    const response = await fetch(`${supabaseUrl}/functions/v1/generate-call-follow-up-suggestions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify({ call_id: callId, trigger_source: 'analyze-call' }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.warn(`[analyze-call] Follow-up suggestions generation failed for ${callId}:`, response.status, errorText);
+    } else {
+      const result = await response.json();
+      console.log(`[analyze-call] Follow-up suggestions generated for ${callId}: ${result.count || 0} suggestions`);
+    }
+  } catch (err) {
+    console.warn(`[analyze-call] Failed to trigger follow-up suggestions for ${callId}:`, err);
+  }
+}
+
 Deno.serve(async (req) => {
   const origin = req.headers.get('Origin');
   const corsHeaders = getCorsHeaders(origin);
@@ -377,6 +404,9 @@ Deno.serve(async (req) => {
 
         // Trigger background chunking for RAG indexing
         await triggerBackgroundChunking(targetCallId!, supabaseUrl, supabaseServiceKey);
+        
+        // Trigger follow-up suggestions generation ("The Advisor")
+        await triggerFollowUpSuggestions(targetCallId!, supabaseUrl, supabaseServiceKey);
         
       } catch (bgError) {
         const errorMessage = bgError instanceof Error ? bgError.message : String(bgError);

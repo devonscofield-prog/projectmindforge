@@ -25,6 +25,8 @@ import { TranscriptViewer } from '@/components/calls/TranscriptViewer';
 import { CoachingCard } from '@/components/calls/coaching';
 import { DealHeatCard } from '@/components/calls/DealHeatCard';
 import { SalesCoachChat } from '@/components/prospects/SalesCoachChat';
+import { PostCallSuggestionsPanel, PostCallSuggestionsSkeleton } from '@/components/calls/suggestions';
+import type { FollowUpSuggestion } from '@/components/calls/suggestions';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CallType, callTypeLabels } from '@/constants/callTypes';
@@ -508,6 +510,18 @@ function CallDetailPage() {
         )}
         {transcript.analysis_status === 'completed' && analysis?.analysis_coaching && (
           <CoachingCard data={analysis.analysis_coaching} />
+        )}
+
+        {/* AI-Powered Follow-Up Suggestions - appears after coaching insights */}
+        {transcript.analysis_status === 'completed' && analysis?.follow_up_suggestions && transcript.prospect_id && user?.id && (
+          <PostCallSuggestionsPanel
+            callId={transcript.id}
+            prospectId={transcript.prospect_id}
+            repId={transcript.rep_id}
+            accountName={transcript.account_name}
+            suggestions={analysis.follow_up_suggestions as unknown as FollowUpSuggestion[]}
+            analysisId={analysis.id}
+          />
         )}
 
         {/* Deal Heat Analysis - positioned prominently above products */}

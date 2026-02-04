@@ -33,7 +33,7 @@ import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { SalesAssistantChat } from '@/components/SalesAssistantChat';
-import { PostCallTasksDialog } from '@/components/calls/PostCallTasksDialog';
+// PostCallTasksDialog removed - suggestions now appear on CallDetailPage after analysis
 import {
   Tooltip,
   TooltipContent,
@@ -114,13 +114,6 @@ function RepDashboard() {
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
   
-  // Post-call tasks state
-  const [showPostCallTasks, setShowPostCallTasks] = useState(false);
-  const [submittedCallData, setSubmittedCallData] = useState<{
-    callId: string;
-    prospectId: string;
-    accountName: string;
-  } | null>(null);
 
   // Calculate if form has meaningful content (dirty state)
   const isDirty = useCallback(() => {
@@ -545,17 +538,14 @@ function RepDashboard() {
         { transcript: result.transcript, analysis: null }
       );
 
-      // Show success toast immediately - this confirms the call was saved
-      // regardless of background analysis status
-      toast.success('✅ Call saved successfully!', { description: 'Add follow-up tasks or view your call details.' });
-
-      // Store call data and show post-call tasks dialog
-      setSubmittedCallData({
-        callId: result.transcript.id,
-        prospectId: result.transcript.prospect_id || '',
-        accountName: result.transcript.account_name || accountName.trim(),
+      // Show success toast and navigate directly to call detail page
+      // AI-powered follow-up suggestions will appear there after analysis completes
+      toast.success('✅ Call saved successfully!', { 
+        description: 'AI is analyzing your call. Follow-up suggestions will appear shortly.' 
       });
-      setShowPostCallTasks(true);
+
+      // Navigate directly to the call detail page
+      navigate(`/calls/${result.transcript.id}`);
       setIsSubmitting(false);
     } catch (error) {
       log.error('Error submitting call', { error });
@@ -638,22 +628,6 @@ function RepDashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Post-Call Tasks Dialog */}
-      {submittedCallData && (
-        <PostCallTasksDialog
-          open={showPostCallTasks}
-          callId={submittedCallData.callId}
-          prospectId={submittedCallData.prospectId}
-          repId={user?.id || ''}
-          accountName={submittedCallData.accountName}
-          onClose={() => setShowPostCallTasks(false)}
-          onComplete={() => {
-            setShowPostCallTasks(false);
-            navigate(`/calls/${submittedCallData.callId}`);
-          }}
-        />
-      )}
 
       <div className="space-y-6 md:space-y-8 pb-24 md:pb-0">
         {/* Hero Header */}

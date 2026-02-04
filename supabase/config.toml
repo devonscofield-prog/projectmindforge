@@ -119,3 +119,6 @@ verify_jwt = false
 
 [functions.send-task-reminders]
 verify_jwt = false
+
+[functions.generate-call-follow-up-suggestions]
+verify_jwt = true
