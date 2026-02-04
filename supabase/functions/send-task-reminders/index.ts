@@ -26,6 +26,7 @@ interface UserReminders {
   dueToday: FollowUp[];
   dueTomorrow: FollowUp[];
   prospectNames: Record<string, string>;
+  prospectSalesforceLinks: Record<string, string | null>;
 }
 
 interface UserPreferences {
@@ -50,6 +51,7 @@ interface Prospect {
   id: string;
   account_name: string | null;
   prospect_name: string;
+  salesforce_link: string | null;
 }
 
 interface RequestBody {
@@ -309,18 +311,21 @@ async function sendRemindersToUsers(
     }
   }
 
-  // Get prospect names
+  // Get prospect names and Salesforce links
   const prospectIds = [...new Set(eligibleFollowUps.map(f => f.prospect_id))];
   const { data: prospectsData } = await supabase
     .from("prospects")
-    .select("id, account_name, prospect_name")
+    .select("id, account_name, prospect_name, salesforce_link")
     .in("id", prospectIds);
 
   const prospects = (prospectsData || []) as Prospect[];
   const prospectMap = prospects.reduce((acc, p) => {
-    acc[p.id] = p.account_name || p.prospect_name;
+    acc[p.id] = { 
+      name: p.account_name || p.prospect_name,
+      salesforceLink: p.salesforce_link 
+    };
     return acc;
-  }, {} as Record<string, string>);
+  }, {} as Record<string, { name: string; salesforceLink: string | null }>);
 
   // Group follow-ups by user
   const userReminders: Record<string, UserReminders> = {};
@@ -353,10 +358,13 @@ async function sendRemindersToUsers(
         dueToday: [],
         dueTomorrow: [],
         prospectNames: {},
+        prospectSalesforceLinks: {},
       };
     }
 
-    userReminders[userId].prospectNames[followUp.prospect_id] = prospectMap[followUp.prospect_id] || "Unknown Account";
+    const prospectData = prospectMap[followUp.prospect_id];
+    userReminders[userId].prospectNames[followUp.prospect_id] = prospectData?.name || "Unknown Account";
+    userReminders[userId].prospectSalesforceLinks[followUp.prospect_id] = prospectData?.salesforceLink || null;
 
     // Categorize by due date
     if (followUp.due_date < today && userPrefs.notify_overdue) {
@@ -458,7 +466,7 @@ function buildEmailHtml(reminders: UserReminders, isTestMode = false): string {
     html += `
       <div style="margin-bottom: 24px;">
         <h3 style="color: #dc2626; margin-bottom: 12px;">⚠️ Overdue (${reminders.overdue.length})</h3>
-        ${reminders.overdue.map(f => taskHtml(f, reminders.prospectNames[f.prospect_id], priorityEmoji)).join("")}
+        ${reminders.overdue.map(f => taskHtml(f, reminders.prospectNames[f.prospect_id], reminders.prospectSalesforceLinks[f.prospect_id], priorityEmoji)).join("")}
       </div>
     `;
   }
@@ -468,7 +476,7 @@ function buildEmailHtml(reminders: UserReminders, isTestMode = false): string {
     html += `
       <div style="margin-bottom: 24px;">
         <h3 style="color: #d97706; margin-bottom: 12px;">📅 Due Today (${reminders.dueToday.length})</h3>
-        ${reminders.dueToday.map(f => taskHtml(f, reminders.prospectNames[f.prospect_id], priorityEmoji)).join("")}
+        ${reminders.dueToday.map(f => taskHtml(f, reminders.prospectNames[f.prospect_id], reminders.prospectSalesforceLinks[f.prospect_id], priorityEmoji)).join("")}
       </div>
     `;
   }
@@ -478,7 +486,7 @@ function buildEmailHtml(reminders: UserReminders, isTestMode = false): string {
     html += `
       <div style="margin-bottom: 24px;">
         <h3 style="color: #2563eb; margin-bottom: 12px;">📆 Due Tomorrow (${reminders.dueTomorrow.length})</h3>
-        ${reminders.dueTomorrow.map(f => taskHtml(f, reminders.prospectNames[f.prospect_id], priorityEmoji)).join("")}
+        ${reminders.dueTomorrow.map(f => taskHtml(f, reminders.prospectNames[f.prospect_id], reminders.prospectSalesforceLinks[f.prospect_id], priorityEmoji)).join("")}
       </div>
     `;
   }
@@ -499,12 +507,18 @@ function buildEmailHtml(reminders: UserReminders, isTestMode = false): string {
   return html;
 }
 
-function taskHtml(followUp: FollowUp, accountName: string, priorityEmoji: Record<string, string>): string {
+function taskHtml(followUp: FollowUp, accountName: string, salesforceLink: string | null, priorityEmoji: Record<string, string>): string {
   const emoji = priorityEmoji[followUp.priority] || "🔵";
+  const salesforceLinkHtml = salesforceLink 
+    ? `<a href="${salesforceLink}" target="_blank" style="color: #6366f1; text-decoration: none; font-size: 12px; margin-left: 8px;">Open in Salesforce →</a>`
+    : '';
+  
   return `
     <div style="background: #f9fafb; border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; border-left: 3px solid ${followUp.priority === "high" ? "#dc2626" : followUp.priority === "medium" ? "#d97706" : "#2563eb"};">
       <div style="font-weight: 500;">${emoji} ${followUp.title}</div>
-      <div style="font-size: 13px; color: #666; margin-top: 4px;">Account: ${accountName}</div>
+      <div style="font-size: 13px; color: #666; margin-top: 4px;">
+        Account: ${accountName}${salesforceLinkHtml}
+      </div>
     </div>
   `;
 }
