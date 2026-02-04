@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -5,23 +6,45 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Bell, Mail, Clock, Globe } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Bell, Mail, Clock, Globe, Calendar, Target, Lightbulb } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   getNotificationPreferences,
   upsertNotificationPreferences,
+  detectBrowserTimezone,
+  getTimezoneLabel,
   COMMON_TIMEZONES,
   REMINDER_TIMES,
+  PRIORITY_FILTERS,
   type NotificationPreferencesUpdate,
 } from '@/api/notificationPreferences';
 
 export function NotificationPreferences() {
   const queryClient = useQueryClient();
+  const [detectedTimezone, setDetectedTimezone] = useState<string | null>(null);
+  const [secondaryEnabled, setSecondaryEnabled] = useState(false);
   
   const { data: prefs, isLoading } = useQuery({
     queryKey: ['notification-preferences'],
     queryFn: getNotificationPreferences,
   });
+
+  // Detect browser timezone on mount
+  useEffect(() => {
+    const detected = detectBrowserTimezone();
+    if (detected) {
+      setDetectedTimezone(detected);
+    }
+  }, []);
+
+  // Sync secondary enabled state with prefs
+  useEffect(() => {
+    if (prefs?.secondary_reminder_time) {
+      setSecondaryEnabled(true);
+    }
+  }, [prefs?.secondary_reminder_time]);
 
   const mutation = useMutation({
     mutationFn: upsertNotificationPreferences,
@@ -42,8 +65,28 @@ export function NotificationPreferences() {
       notify_due_today: prefs?.notify_due_today ?? true,
       notify_due_tomorrow: prefs?.notify_due_tomorrow ?? true,
       notify_overdue: prefs?.notify_overdue ?? true,
+      secondary_reminder_time: prefs?.secondary_reminder_time ?? null,
+      exclude_weekends: prefs?.exclude_weekends ?? false,
+      min_priority: prefs?.min_priority ?? null,
       ...updates,
     });
+  };
+
+  const handleSecondaryToggle = (enabled: boolean) => {
+    setSecondaryEnabled(enabled);
+    if (!enabled) {
+      handleUpdate({ secondary_reminder_time: null });
+    } else {
+      // Default to 5 PM if enabling
+      handleUpdate({ secondary_reminder_time: '17:00' });
+    }
+  };
+
+  const handleUseDetectedTimezone = () => {
+    if (detectedTimezone) {
+      handleUpdate({ timezone: detectedTimezone });
+      toast.success(`Timezone set to ${getTimezoneLabel(detectedTimezone)}`);
+    }
   };
 
   if (isLoading) {
@@ -64,10 +107,15 @@ export function NotificationPreferences() {
 
   const emailEnabled = prefs?.email_enabled ?? true;
   const reminderTime = prefs?.reminder_time ?? '09:00';
+  const secondaryReminderTime = prefs?.secondary_reminder_time ?? '17:00';
   const timezone = prefs?.timezone ?? 'America/New_York';
   const notifyDueToday = prefs?.notify_due_today ?? true;
   const notifyDueTomorrow = prefs?.notify_due_tomorrow ?? true;
   const notifyOverdue = prefs?.notify_overdue ?? true;
+  const excludeWeekends = prefs?.exclude_weekends ?? false;
+  const minPriority = prefs?.min_priority ?? '';
+
+  const showTimezoneDetection = detectedTimezone && detectedTimezone !== timezone;
 
   return (
     <Card>
@@ -102,11 +150,11 @@ export function NotificationPreferences() {
 
         {emailEnabled && (
           <>
-            {/* Reminder Time */}
+            {/* Primary Reminder Time */}
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-muted-foreground" />
-                Reminder Time
+                Primary Reminder Time
               </Label>
               <Select
                 value={reminderTime}
@@ -124,6 +172,45 @@ export function NotificationPreferences() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Secondary Reminder Time */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="secondary-enabled" className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    Secondary Reminder Time
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Get a second daily reminder (optional)
+                  </p>
+                </div>
+                <Switch
+                  id="secondary-enabled"
+                  checked={secondaryEnabled}
+                  onCheckedChange={handleSecondaryToggle}
+                  disabled={mutation.isPending}
+                />
+              </div>
+              {secondaryEnabled && (
+                <Select
+                  value={secondaryReminderTime}
+                  onValueChange={(value) => handleUpdate({ secondary_reminder_time: value })}
+                  disabled={mutation.isPending}
+                >
+                  <SelectTrigger className="w-full sm:w-48">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {REMINDER_TIMES.map((time) => (
+                      <SelectItem key={time.value} value={time.value}>
+                        {time.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
 
             {/* Timezone */}
@@ -148,6 +235,45 @@ export function NotificationPreferences() {
                   ))}
                 </SelectContent>
               </Select>
+
+              {/* Timezone Detection Banner */}
+              {showTimezoneDetection && (
+                <Alert className="mt-2">
+                  <Lightbulb className="h-4 w-4" />
+                  <AlertDescription className="flex items-center justify-between gap-2">
+                    <span>
+                      Detected: <strong>{getTimezoneLabel(detectedTimezone)}</strong>. Use this instead?
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleUseDetectedTimezone}
+                      disabled={mutation.isPending}
+                    >
+                      Use Detected
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+
+            {/* Exclude Weekends */}
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="exclude-weekends" className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  Exclude Weekends
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Don't send reminders on Saturday/Sunday
+                </p>
+              </div>
+              <Switch
+                id="exclude-weekends"
+                checked={excludeWeekends}
+                onCheckedChange={(checked) => handleUpdate({ exclude_weekends: checked })}
+                disabled={mutation.isPending}
+              />
             </div>
 
             {/* What to notify about */}
@@ -203,6 +329,33 @@ export function NotificationPreferences() {
                   </Label>
                 </div>
               </div>
+            </div>
+
+            {/* Priority Filter */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Target className="h-4 w-4 text-muted-foreground" />
+                Minimum Priority
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                Only notify for tasks at or above this priority
+              </p>
+              <Select
+                value={minPriority}
+                onValueChange={(value) => handleUpdate({ min_priority: value || null })}
+                disabled={mutation.isPending}
+              >
+                <SelectTrigger className="w-full sm:w-48">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PRIORITY_FILTERS.map((priority) => (
+                    <SelectItem key={priority.value} value={priority.value}>
+                      {priority.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </>
         )}

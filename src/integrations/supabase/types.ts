@@ -1369,11 +1369,14 @@ export type Database = {
         Row: {
           created_at: string | null
           email_enabled: boolean | null
+          exclude_weekends: boolean | null
           id: string
+          min_priority: string | null
           notify_due_today: boolean | null
           notify_due_tomorrow: boolean | null
           notify_overdue: boolean | null
           reminder_time: string | null
+          secondary_reminder_time: string | null
           timezone: string | null
           updated_at: string | null
           user_id: string
@@ -1381,11 +1384,14 @@ export type Database = {
         Insert: {
           created_at?: string | null
           email_enabled?: boolean | null
+          exclude_weekends?: boolean | null
           id?: string
+          min_priority?: string | null
           notify_due_today?: boolean | null
           notify_due_tomorrow?: boolean | null
           notify_overdue?: boolean | null
           reminder_time?: string | null
+          secondary_reminder_time?: string | null
           timezone?: string | null
           updated_at?: string | null
           user_id: string
@@ -1393,11 +1399,14 @@ export type Database = {
         Update: {
           created_at?: string | null
           email_enabled?: boolean | null
+          exclude_weekends?: boolean | null
           id?: string
+          min_priority?: string | null
           notify_due_today?: boolean | null
           notify_due_tomorrow?: boolean | null
           notify_overdue?: boolean | null
           reminder_time?: string | null
+          secondary_reminder_time?: string | null
           timezone?: string | null
           updated_at?: string | null
           user_id?: string

@@ -26,6 +26,21 @@ interface UserReminders {
   prospectNames: Record<string, string>;
 }
 
+interface UserPreferences {
+  user_id: string;
+  reminder_time: string;
+  secondary_reminder_time: string | null;
+  timezone: string;
+  notify_due_today: boolean;
+  notify_due_tomorrow: boolean;
+  notify_overdue: boolean;
+  exclude_weekends: boolean;
+  min_priority: string | null;
+}
+
+// Priority ordering for filtering
+const PRIORITY_ORDER: Record<string, number> = { high: 3, medium: 2, low: 1 };
+
 // Dynamic import for Resend to avoid module resolution issues
 async function sendEmail(to: string, subject: string, html: string): Promise<void> {
   const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
@@ -70,11 +85,10 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`[send-task-reminders] Running at ${now.toISOString()}, UTC hour: ${currentHour}`);
 
-    // Get users with email notifications enabled whose reminder time matches current hour
-    // We run every hour and check if it's the right time for each user based on their timezone
+    // Get users with email notifications enabled
     const { data: prefsData, error: prefsError } = await supabase
       .from("notification_preferences")
-      .select("user_id, reminder_time, timezone, notify_due_today, notify_due_tomorrow, notify_overdue")
+      .select("user_id, reminder_time, secondary_reminder_time, timezone, notify_due_today, notify_due_tomorrow, notify_overdue, exclude_weekends, min_priority")
       .eq("email_enabled", true);
 
     if (prefsError) {
@@ -93,18 +107,30 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    // Filter users whose local time matches their reminder time
+    // Filter users whose local time matches their reminder time (primary or secondary)
     const usersToNotify: string[] = [];
-    for (const pref of prefsData) {
-      const reminderHour = parseInt(pref.reminder_time.split(":")[0], 10);
-      
-      // Convert current UTC time to user's timezone and check if it matches
+    for (const pref of prefsData as UserPreferences[]) {
       try {
+        // Convert current UTC time to user's timezone
         const userLocalTime = new Date(now.toLocaleString("en-US", { timeZone: pref.timezone }));
         const userHour = userLocalTime.getHours();
-        
-        // Allow a 30-minute window (since we run hourly)
-        if (userHour === reminderHour) {
+        const dayOfWeek = userLocalTime.getDay(); // 0 = Sunday, 6 = Saturday
+
+        // Check weekend exclusion
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+        if (pref.exclude_weekends && isWeekend) {
+          console.log(`[send-task-reminders] Skipping user ${pref.user_id} - weekend exclusion enabled`);
+          continue;
+        }
+
+        // Parse reminder hours
+        const primaryHour = parseInt(pref.reminder_time.split(":")[0], 10);
+        const secondaryHour = pref.secondary_reminder_time 
+          ? parseInt(pref.secondary_reminder_time.split(":")[0], 10)
+          : null;
+
+        // Check if current hour matches primary OR secondary reminder time
+        if (userHour === primaryHour || (secondaryHour !== null && userHour === secondaryHour)) {
           usersToNotify.push(pref.user_id);
         }
       } catch {
@@ -198,8 +224,18 @@ const handler = async (req: Request): Promise<Response> => {
       if (!profile) continue;
 
       // Get user's notification preferences
-      const userPrefs = prefsData.find(p => p.user_id === userId);
+      const userPrefs = (prefsData as UserPreferences[]).find(p => p.user_id === userId);
       if (!userPrefs) continue;
+
+      // Apply priority filtering
+      if (userPrefs.min_priority) {
+        const minLevel = PRIORITY_ORDER[userPrefs.min_priority] || 0;
+        const taskLevel = PRIORITY_ORDER[followUp.priority] || 0;
+        if (taskLevel < minLevel) {
+          console.log(`[send-task-reminders] Skipping task ${followUp.id} - below min priority ${userPrefs.min_priority}`);
+          continue;
+        }
+      }
 
       if (!userReminders[userId]) {
         userReminders[userId] = {
@@ -340,7 +376,9 @@ function buildEmailHtml(reminders: UserReminders): string {
         <a href="https://projectmindforge.lovable.app" style="display: inline-block; background: #6366f1; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 500;">View All Tasks →</a>
       </div>
       <p style="margin-top: 32px; color: #666; font-size: 12px;">
-        Manage your notification preferences in Settings.
+        <a href="https://projectmindforge.lovable.app/settings" style="color: #6366f1; text-decoration: underline;">
+          Manage notification preferences
+        </a>
       </p>
     </body>
     </html>
