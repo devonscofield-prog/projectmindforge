@@ -17,14 +17,21 @@ import {
   Star,
   BarChart3,
   Calendar,
+  Flame,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Json } from '@/integrations/supabase/types';
+import { ProgressTrendChart } from '@/components/training/ProgressTrendChart';
+import { PersonaBreakdownCard } from '@/components/training/PersonaBreakdownCard';
+import { startOfWeek, isWithinInterval, endOfWeek } from 'date-fns';
 
 interface SessionWithGrade {
   id: string;
   created_at: string;
   duration_seconds: number | null;
+  persona_id: string | null;
+  session_type: string | null;
+  roleplay_personas?: { name: string } | null;
   roleplay_grades: Array<{
     overall_grade: string | null;
     scores: Json;
@@ -64,6 +71,9 @@ export default function TrainingProgress() {
           id,
           created_at,
           duration_seconds,
+          persona_id,
+          session_type,
+          roleplay_personas (name),
           roleplay_grades (
             overall_grade,
             scores
@@ -78,6 +88,50 @@ export default function TrainingProgress() {
     },
     enabled: !!user?.id,
   });
+
+  // Calculate sessions this week and streak
+  const weeklyStats = sessions ? (() => {
+    const now = new Date();
+    const weekStart = startOfWeek(now);
+    const weekEnd = endOfWeek(now);
+    
+    const sessionsThisWeek = sessions.filter(s => 
+      isWithinInterval(new Date(s.created_at), { start: weekStart, end: weekEnd })
+    ).length;
+
+    // Calculate streak (consecutive days with sessions)
+    let streak = 0;
+    const sortedByDate = [...sessions].sort((a, b) => 
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+    
+    if (sortedByDate.length > 0) {
+      let currentDate = new Date();
+      const sessionDates = new Set(sortedByDate.map(s => 
+        new Date(s.created_at).toDateString()
+      ));
+
+      // Check if practiced today or yesterday
+      if (sessionDates.has(currentDate.toDateString())) {
+        streak = 1;
+      } else {
+        currentDate.setDate(currentDate.getDate() - 1);
+        if (sessionDates.has(currentDate.toDateString())) {
+          streak = 1;
+        }
+      }
+
+      if (streak > 0) {
+        currentDate.setDate(currentDate.getDate() - 1);
+        while (sessionDates.has(currentDate.toDateString())) {
+          streak++;
+          currentDate.setDate(currentDate.getDate() - 1);
+        }
+      }
+    }
+
+    return { sessionsThisWeek, streak };
+  })() : { sessionsThisWeek: 0, streak: 0 };
 
   const stats: ProgressStats | null = sessions ? (() => {
     const gradedSessions = sessions.filter(s => s.roleplay_grades?.[0]?.scores);
@@ -214,7 +268,7 @@ export default function TrainingProgress() {
           </div>
 
           {/* Overview Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
             <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
@@ -264,7 +318,36 @@ export default function TrainingProgress() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Weekly Stats */}
+            <Card className="bg-gradient-to-br from-orange-500/5 to-orange-500/10 border-orange-500/20">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">This Week</p>
+                    <p className="text-3xl font-bold">{weeklyStats.sessionsThisWeek}</p>
+                  </div>
+                  <Flame className="h-10 w-10 text-orange-500/60" />
+                </div>
+                {weeklyStats.streak > 0 && (
+                  <p className="text-xs text-orange-600 mt-2 flex items-center gap-1">
+                    <Flame className="h-3 w-3" />
+                    {weeklyStats.streak} day streak!
+                  </p>
+                )}
+              </CardContent>
+            </Card>
           </div>
+
+          {/* Score Trend Chart */}
+          {sessions && sessions.length >= 2 && (
+            <ProgressTrendChart sessions={sessions} />
+          )}
+
+          {/* Persona & Type Breakdown */}
+          {sessions && sessions.length > 0 && (
+            <PersonaBreakdownCard sessions={sessions} />
+          )}
 
           {/* Trend Indicator */}
           {stats?.recentTrend && stats.completedSessions >= 6 && (

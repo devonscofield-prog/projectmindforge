@@ -18,9 +18,7 @@ import {
 } from '@/components/ui/table';
 import { 
   Users, 
-  TrendingUp, 
   Clock, 
-  Award,
   ChevronRight,
   GraduationCap,
   BarChart3,
@@ -29,6 +27,8 @@ import {
 import { format, formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
+import { TraineesNeedingAttention } from '@/components/training/TraineesNeedingAttention';
+import { TeamPerformanceChart } from '@/components/training/TeamPerformanceChart';
 
 interface TraineeStats {
   trainee_id: string;
@@ -42,30 +42,12 @@ interface TraineeStats {
   total_practice_minutes: number;
 }
 
-interface RecentSession {
-  id: string;
-  trainee_id: string;
-  trainee_name: string;
-  persona_name: string;
-  session_type: string;
-  status: string;
-  duration_seconds: number | null;
-  created_at: string;
-  overall_grade: string | null;
-}
-
 function gradeToColor(grade: string | null): string {
   if (!grade) return 'text-muted-foreground';
   if (grade.startsWith('A')) return 'text-green-600';
   if (grade === 'B') return 'text-blue-600';
   if (grade === 'C') return 'text-amber-600';
   return 'text-red-600';
-}
-
-function gradeToScore(grade: string | null): number | null {
-  if (!grade) return null;
-  const map: Record<string, number> = { 'A+': 98, 'A': 90, 'B': 77, 'C': 62, 'D': 47, 'F': 30 };
-  return map[grade] || null;
 }
 
 export default function ManagerTrainingDashboard() {
@@ -303,11 +285,42 @@ export default function ManagerTrainingDashboard() {
           </Card>
         </div>
 
+        {/* Trainees Needing Attention */}
+        {traineeStats && traineeStats.length > 0 && (
+          <TraineesNeedingAttention traineeStats={traineeStats} />
+        )}
+
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-4">
             <TabsTrigger value="overview">Trainee Overview</TabsTrigger>
+            <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="recent">Recent Sessions</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="analytics">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {recentSessions && recentSessions.length > 0 && (
+                <>
+                  <TeamPerformanceChart 
+                    sessions={recentSessions} 
+                    chartType="persona" 
+                  />
+                  <TeamPerformanceChart 
+                    sessions={recentSessions} 
+                    chartType="type" 
+                  />
+                </>
+              )}
+              {(!recentSessions || recentSessions.length === 0) && (
+                <Card className="col-span-2">
+                  <CardContent className="p-12 text-center text-muted-foreground">
+                    <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No session data available for analytics</p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </TabsContent>
 
           <TabsContent value="overview">
             <Card>
