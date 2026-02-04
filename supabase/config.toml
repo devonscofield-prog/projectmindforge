@@ -116,3 +116,6 @@ verify_jwt = true
 
 [functions.submit-call-transcript]
 verify_jwt = false
+
+[functions.send-task-reminders]
+verify_jwt = false

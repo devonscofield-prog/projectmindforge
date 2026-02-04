@@ -4,7 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 interface FollowUp {
@@ -40,7 +40,7 @@ async function sendEmail(to: string, subject: string, html: string): Promise<voi
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: "MindForge <noreply@projectmindforge.lovable.app>",
+      from: "MindForge <onboarding@resend.dev>",
       to: [to],
       subject,
       html,
@@ -247,6 +247,8 @@ const handler = async (req: Request): Promise<Response> => {
         [...reminders.overdue, ...reminders.dueToday, ...reminders.dueTomorrow].forEach(f => {
           followUpIdsToUpdate.push(f.id);
         });
+        // Rate limit protection - small delay between emails
+        await new Promise(resolve => setTimeout(resolve, 100));
       } catch (emailError) {
         console.error(`[send-task-reminders] Failed to send email to ${reminders.email}:`, emailError);
       }
