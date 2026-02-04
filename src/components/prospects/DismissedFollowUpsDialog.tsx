@@ -73,7 +73,8 @@ export function DismissedFollowUpsDialog({
           <ScrollArea className="max-h-[400px] pr-4">
             <div className="space-y-3">
               {dismissedFollowUps.map((followUp) => {
-                const priority = priorityConfig[followUp.priority] || priorityConfig.medium;
+                const priorityKey = (followUp.priority as FollowUpPriority) || 'medium';
+                const priority = priorityConfig[priorityKey] || priorityConfig.medium;
                 
                 return (
                   <div
@@ -87,9 +88,9 @@ export function DismissedFollowUpsDialog({
                           <Badge variant="secondary" className={`${priority.className} opacity-70`}>
                             {priority.label}
                           </Badge>
-                          {followUp.category && (
+                          {followUp.category && categoryLabels[followUp.category as FollowUpCategory] && (
                             <Badge variant="outline" className="opacity-70">
-                              {categoryLabels[followUp.category]}
+                              {categoryLabels[followUp.category as FollowUpCategory]}
                             </Badge>
                           )}
                         </div>

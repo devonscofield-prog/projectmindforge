@@ -267,7 +267,8 @@ function FollowUpRow({
   onSwipeComplete,
   onSwipeDismiss,
 }: FollowUpRowProps) {
-  const priority = priorityConfig[followUp.priority] || priorityConfig.medium;
+  const priorityKey = (followUp.priority as FollowUpPriority) || 'medium';
+  const priority = priorityConfig[priorityKey] || priorityConfig.medium;
   const accountDisplay = followUp.account_name || followUp.prospect_name;
   const isManual = followUp.source === 'manual';
   
@@ -302,9 +303,9 @@ function FollowUpRow({
           <Badge variant="secondary" className={`${priority.className} text-[10px] px-1.5 py-0`}>
             {priority.label}
           </Badge>
-          {followUp.category && (
+          {followUp.category && categoryLabels[followUp.category as FollowUpCategory] && (
             <span className="text-[10px] text-muted-foreground">
-              {categoryLabels[followUp.category]}
+              {categoryLabels[followUp.category as FollowUpCategory]}
             </span>
           )}
           {isManual && (

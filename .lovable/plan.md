@@ -227,10 +227,10 @@ The email hardcodes `https://projectmindforge.lovable.app` which works for produ
 ## Deployment Checklist
 
 Before publishing:
-- [ ] Add `send-task-reminders` to `config.toml`
-- [ ] Fix email sender to use verified domain or `onboarding@resend.dev`
-- [ ] Run cron.schedule SQL to set up hourly job
-- [ ] Deploy edge function
+- [x] Add `send-task-reminders` to `config.toml`
+- [x] Fix email sender to use verified domain or `onboarding@resend.dev`
+- [x] Run cron.schedule SQL to set up hourly job
+- [x] Deploy edge function
 - [ ] Test notification preferences UI in settings
 - [ ] Test post-call task dialog
 - [ ] Verify email delivery (manual trigger of edge function)

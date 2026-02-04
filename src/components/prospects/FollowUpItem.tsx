@@ -81,8 +81,10 @@ export function FollowUpItem({ followUp, onComplete, onDismiss, isCompleting, is
   const [showDismissConfirm, setShowDismissConfirm] = useState(false);
   const isMobile = useIsMobile();
 
-  const priority = priorityConfig[followUp.priority] || priorityConfig.medium;
-  const category = followUp.category ? categoryConfig[followUp.category] : null;
+  const priorityKey = (followUp.priority as FollowUpPriority) || 'medium';
+  const priority = priorityConfig[priorityKey] || priorityConfig.medium;
+  const categoryKey = followUp.category as FollowUpCategory | null;
+  const category = categoryKey ? categoryConfig[categoryKey] : null;
   const CategoryIcon = category?.icon || Target;
   const isManual = followUp.source === 'manual';
   const dueDateInfo = followUp.due_date ? formatDueDate(followUp.due_date) : null;
