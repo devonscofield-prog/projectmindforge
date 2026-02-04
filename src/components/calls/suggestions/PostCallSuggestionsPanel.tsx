@@ -204,7 +204,17 @@ export function PostCallSuggestionsPanel({
                 </CardDescription>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              {/* Prominent Add Task Button */}
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowAddTaskDialog(true)}
+                className="bg-primary/10 hover:bg-primary/20 text-primary border-primary/30 border"
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Add Task
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"
@@ -243,15 +253,14 @@ export function PostCallSuggestionsPanel({
             />
           ))}
 
-          {/* Add Custom Task Button */}
-          <Button
-            variant="outline"
-            className="w-full"
+          {/* Secondary entry point at bottom */}
+          <button
             onClick={() => setShowAddTaskDialog(true)}
+            className="w-full text-center text-sm text-muted-foreground hover:text-primary transition-colors py-2"
           >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Custom Task
-          </Button>
+            <Plus className="h-3 w-3 inline mr-1" />
+            or add your own task
+          </button>
         </CardContent>
       </Card>
 

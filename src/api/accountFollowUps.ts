@@ -23,6 +23,7 @@ export interface AccountFollowUp {
   source: FollowUpSource | string | null;
   due_date: string | null;
   reminder_enabled: boolean | null;
+  reminder_time: string | null;
   reminder_sent_at: string | null;
   source_call_id: string | null;
   created_at: string;
@@ -277,6 +278,7 @@ export interface CreateManualFollowUpParams {
   category?: FollowUpCategory;
   dueDate?: string;
   reminderEnabled?: boolean;
+  reminderTime?: string;
   sourceCallId?: string;
 }
 
@@ -292,7 +294,8 @@ export async function createManualFollowUp(params: CreateManualFollowUpParams): 
       category: params.category || null,
       source: 'manual',
       due_date: params.dueDate || null,
-      reminder_enabled: params.reminderEnabled || false,
+      reminder_enabled: params.reminderEnabled ?? false,
+      reminder_time: params.reminderTime || null,
       source_call_id: params.sourceCallId || null,
       status: 'pending',
     })
@@ -322,7 +325,8 @@ export async function createManualFollowUps(tasks: CreateManualFollowUpParams[])
     category: params.category || null,
     source: 'manual' as const,
     due_date: params.dueDate || null,
-    reminder_enabled: params.reminderEnabled || false,
+    reminder_enabled: params.reminderEnabled ?? false,
+    reminder_time: params.reminderTime || null,
     source_call_id: params.sourceCallId || null,
     status: 'pending' as const,
   }));
