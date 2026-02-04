@@ -1,125 +1,115 @@
 
-
-# Add MindForge Account Links to Reminder Emails
+# Add DRIP Email Strategy Prompt to Sales Coach
 
 ## Overview
 
-Add a link to each task in the reminder emails that takes the user directly to the Account page in MindForge. This allows users to:
-1. Click directly to the account
-2. Use the Sales Coach to generate a recap email
-3. Complete the task quickly
-
-Currently, the email shows "Account: {name}" with an optional Salesforce link. We'll add a second link to open the account in MindForge.
+Add a prominent, easy-to-see recommended prompt that helps users figure out which DRIP email makes the most sense to send based on the account's context and stage in the sales cycle.
 
 ---
 
-## Current State
+## Placement Strategy
 
-The `taskHtml` function currently generates:
-```html
-<div style="...">
-  <div style="font-weight: 500;">🔴 Call John about pricing</div>
-  <div style="font-size: 13px; color: #666; margin-top: 4px;">
-    Account: Acme Corp <a href="salesforce-link">Open in Salesforce →</a>
-  </div>
-</div>
+The prompt should be highly visible and positioned prominently. I'll add it as a **featured recommendation card** above the existing Quick Actions grid. This card will have a distinct visual treatment to draw attention and make it clear this is a recommended action.
+
+---
+
+## Visual Design
+
+A highlighted card with:
+- Gradient background to stand out from other elements
+- Sparkle/Zap icon to indicate it's a smart recommendation
+- Clear headline: "DRIP Email Strategy"
+- Brief description explaining what it does
+- Subtle "Recommended" badge
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  ⚡ DRIP Email Strategy                    Recommended  │
+│  Get AI guidance on which DRIP email to send next       │
+│  based on where this account is in the sales cycle.     │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Proposed Change
+## The Prompt
 
-Add a MindForge account link alongside the existing Salesforce link:
+The prompt will ask the Sales Coach to analyze the account context and recommend which DRIP email strategy makes sense:
 
-```html
-<div style="...">
-  <div style="font-weight: 500;">🔴 Call John about pricing</div>
-  <div style="font-size: 13px; color: #666; margin-top: 4px;">
-    Account: <a href="https://projectmindforge.lovable.app/rep/prospects/abc123">Acme Corp</a>
-    <a href="salesforce-link">Open in Salesforce →</a>
-  </div>
-</div>
 ```
-
-The account name itself becomes a clickable link that opens the MindForge account page, making it intuitive and easy to find.
+"Based on this account's current status, engagement history, and where they are in the sales cycle, help me figure out which DRIP email I should send next. Consider their heat score, recent interactions, any pending follow-ups, and stakeholder engagement. Recommend a specific type of DRIP email (nurture, value-add, case study, check-in, etc.) and explain why it's the right choice for this moment. Then help me draft it."
+```
 
 ---
 
 ## Implementation
 
-### File: `supabase/functions/send-task-reminders/index.ts`
+### File: `src/components/prospects/SalesCoachChat.tsx`
 
-**1. Update `taskHtml` function signature**
+**1. Add the DRIP Strategy Prompt Constant**
 
-Add `prospectId` parameter to the function:
+Add a new constant for the featured DRIP recommendation:
 
 ```typescript
-function taskHtml(
-  followUp: FollowUp, 
-  accountName: string, 
-  prospectId: string,  // NEW
-  salesforceLink: string | null, 
-  priorityEmoji: Record<string, string>
-): string
+const DRIP_STRATEGY_PROMPT = {
+  id: 'drip-strategy',
+  label: 'DRIP Email Strategy',
+  description: 'Get AI guidance on which DRIP email to send next',
+  prompt: "Based on this account's current status, engagement history, and where they are in the sales cycle, help me figure out which DRIP email I should send next. Consider their heat score, recent interactions, any pending follow-ups, and stakeholder engagement. Recommend a specific type of DRIP email (nurture, value-add, case study, check-in, re-engagement, etc.) and explain why it's the right choice for this moment. Then help me draft it.",
+};
 ```
 
-**2. Update `taskHtml` function body**
+**2. Add Featured Recommendation Card**
 
-Add the MindForge account link:
+Insert a new card component between the Account Pulse card and the Quick Actions grid (around line 759):
 
-```typescript
-function taskHtml(followUp: FollowUp, accountName: string, prospectId: string, salesforceLink: string | null, priorityEmoji: Record<string, string>): string {
-  const emoji = priorityEmoji[followUp.priority] || "🔵";
-  
-  // MindForge account link - always available since prospect_id is required
-  const mindforgeAccountUrl = `https://projectmindforge.lovable.app/rep/prospects/${prospectId}`;
-  const accountNameHtml = `<a href="${mindforgeAccountUrl}" target="_blank" style="color: #6366f1; text-decoration: none; font-weight: 500;">${accountName}</a>`;
-  
-  const salesforceLinkHtml = salesforceLink 
-    ? `<a href="${salesforceLink}" target="_blank" style="color: #6366f1; text-decoration: none; font-size: 12px; margin-left: 8px;">Open in Salesforce →</a>`
-    : '';
-  
-  return `
-    <div style="background: #f9fafb; border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; border-left: 3px solid ${followUp.priority === "high" ? "#dc2626" : followUp.priority === "medium" ? "#d97706" : "#2563eb"};">
-      <div style="font-weight: 500;">${emoji} ${followUp.title}</div>
-      <div style="font-size: 13px; color: #666; margin-top: 4px;">
-        Account: ${accountNameHtml}${salesforceLinkHtml}
-      </div>
+```tsx
+{/* Featured DRIP Email Strategy Recommendation */}
+<button
+  className="w-full text-left relative overflow-hidden rounded-xl bg-gradient-to-br from-primary/10 via-accent/10 to-primary/15 border border-primary/30 p-4 hover:border-primary/50 hover:from-primary/15 hover:via-accent/15 hover:to-primary/20 hover:scale-[1.01] hover:shadow-lg hover:shadow-primary/10 transition-all duration-200 group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+  onClick={() => { setInput(DRIP_STRATEGY_PROMPT.prompt); inputRef.current?.focus(); }}
+  disabled={isLoading || isRateLimited}
+>
+  <div className="flex items-start gap-3">
+    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shrink-0 shadow-md group-hover:shadow-lg group-hover:scale-105 transition-all duration-200">
+      <Zap className="h-5 w-5 text-primary-foreground" />
     </div>
-  `;
-}
-```
-
-**3. Update all calls to `taskHtml`**
-
-Update the three places where `taskHtml` is called (overdue, dueToday, dueTomorrow sections) to pass the `prospect_id`:
-
-```typescript
-// Before:
-${reminders.overdue.map(f => taskHtml(f, reminders.prospectNames[f.prospect_id], reminders.prospectSalesforceLinks[f.prospect_id], priorityEmoji)).join("")}
-
-// After:
-${reminders.overdue.map(f => taskHtml(f, reminders.prospectNames[f.prospect_id], f.prospect_id, reminders.prospectSalesforceLinks[f.prospect_id], priorityEmoji)).join("")}
+    <div className="flex-1 min-w-0">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="font-semibold text-foreground">{DRIP_STRATEGY_PROMPT.label}</span>
+        <Badge variant="secondary" className="text-[10px] bg-primary/15 text-primary border-0 px-1.5 py-0">
+          Recommended
+        </Badge>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        {DRIP_STRATEGY_PROMPT.description} based on where this account is in the sales cycle.
+      </p>
+    </div>
+  </div>
+</button>
 ```
 
 ---
 
-## Email Visual Preview
+## UI Layout After Change
 
-### Before:
 ```
-🔴 Call John about pricing follow-up
-Account: Acme Corp  Open in Salesforce →
+┌───────────────────────────────────────────┐
+│  Account Pulse Card (if data available)  │
+├───────────────────────────────────────────┤
+│  ⚡ DRIP Email Strategy [Recommended]     │  ← NEW
+│  Get AI guidance on which DRIP email...   │
+├───────────────────────────────────────────┤
+│  [Prep for Call]    [Draft Email]         │
+│  [Next Steps]       [Deal Status]         │
+├───────────────────────────────────────────┤
+│  [▼ Recap Emails dropdown]                │
+├───────────────────────────────────────────┤
+│  Recently Asked: ...                      │
+├───────────────────────────────────────────┤
+│  Welcome message with categories...       │
+└───────────────────────────────────────────┘
 ```
-
-### After:
-```
-🔴 Call John about pricing follow-up
-Account: Acme Corp  Open in Salesforce →
-         ↑ (clickable, opens MindForge)
-```
-
-The account name "Acme Corp" becomes a link to `/rep/prospects/{id}` styled in the primary brand color, making it clear it's clickable while keeping the layout clean.
 
 ---
 
@@ -127,15 +117,15 @@ The account name "Acme Corp" becomes a link to `/rep/prospects/{id}` styled in t
 
 | File | Changes |
 |------|---------|
-| `supabase/functions/send-task-reminders/index.ts` | Update `taskHtml` function to add MindForge account link, update all three call sites |
+| `src/components/prospects/SalesCoachChat.tsx` | Add `DRIP_STRATEGY_PROMPT` constant, add featured recommendation card UI above Quick Actions grid |
 
 ---
 
 ## Result
 
-1. **Direct account access** - Click the account name to go directly to the MindForge account page
-2. **Sales Coach ready** - Land on the account page where Sales Coach is available to generate emails
-3. **Both links available** - Salesforce link remains for CRM actions, MindForge link for AI-assisted follow-up
-4. **Clean design** - Account name itself is the link, keeping the email uncluttered
-5. **Rep-focused URL** - Uses `/rep/prospects/:id` since reminders go to reps
+1. **Highly visible** - Gradient card with distinct styling stands out immediately
+2. **Clear purpose** - Label and description make it obvious what this does
+3. **Recommended badge** - Signals this is a smart, suggested action
+4. **Context-aware prompt** - The AI will analyze heat score, engagement history, and pending tasks to recommend the right DRIP email type
+5. **End-to-end workflow** - Recommends the email type AND offers to draft it
 
