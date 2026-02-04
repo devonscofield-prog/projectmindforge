@@ -1,186 +1,139 @@
 
 
-# Fix: AI Advisor Follow-Up Suggestions Not Appearing After Call Submission
+# Enhance Custom Task Creation: More Visible, Time Selection, Default Reminder
 
-## Root Cause Analysis
+## Overview
 
-I traced through the entire data flow from call submission to UI rendering and identified **two critical bugs** in the realtime subscription logic that explain why you never see the suggestions panel.
-
-### Timeline of what happened with your call (4b9f1227):
-
-| Time | Event |
-|------|-------|
-| 06:00:42 | Call created |
-| 06:00:45 | analyze-call started |
-| **06:02:43-49** | **UI queries returned `[]` - analysis not saved yet** |
-| 06:03:56 | Analysis saved, status → `completed` |
-| **06:03:56** | **Realtime subscription torn down** (enabled=false) |
-| 06:04:21 | Deal Heat saved (UPDATE to ai_call_analysis) - **no one listening!** |
-| 06:04:50 | Suggestions saved (UPDATE to ai_call_analysis) - **no one listening!** |
-
-### Bug #1: Missing INSERT Event
-
-The realtime hook only subscribes to `UPDATE` events on `ai_call_analysis`:
-
-```typescript
-// Line 98 in useCallAnalysisRealtime.ts
-event: 'UPDATE',  // ❌ Doesn't catch INSERT when analysis is first created
-```
-
-But when analysis is created for the first time, it's an **INSERT** event.
-
-### Bug #2: Subscription Disabled Too Early
-
-The realtime hook is controlled by `shouldPoll`, which becomes `false` immediately when `analysis_status = 'completed'`:
-
-```typescript
-// CallDetailPage.tsx lines 87-97
-const shouldPoll = useMemo(() => {
-  const status = callData.transcript.analysis_status;
-  return status === 'pending' || status === 'processing';  // false when completed!
-}, [callData?.transcript]);
-
-useCallAnalysisRealtime(id, shouldPoll);  // Subscription torn down when shouldPoll=false
-```
-
-**The Problem**: Deal Heat and Suggestions are saved 30-60 seconds **after** status becomes `completed`. By then, the subscription no longer exists.
+This plan will make the "Add Custom Task" option more prominent, add time-of-day selection for reminders, and default the email reminder to ON.
 
 ---
 
-## Solution
+## Changes Summary
 
-### Part 1: Subscribe to INSERT + UPDATE Events
+### 1. Make "Add Custom Task" More Prominent
 
-Change the ai_call_analysis subscription to catch both INSERT and UPDATE:
+**Current State**: The button is at the bottom of the suggestions list, styled as `variant="outline"` with a simple icon.
 
-```typescript
-// useCallAnalysisRealtime.ts
-.on(
-  'postgres_changes',
-  {
-    event: '*',  // ✅ Catches INSERT, UPDATE, DELETE
-    // OR: event: ['INSERT', 'UPDATE'],
-    schema: 'public',
-    table: 'ai_call_analysis',
-    filter: `call_id=eq.${callId}`,
-  },
-  // handler...
-)
+**New Design**:
+- Move the button to the card header area, next to "Accept All" and "Dismiss All"
+- Also keep a secondary "Add your own" link at the bottom for discoverability
+- Use a more eye-catching style (dashed border card or highlighted button)
+
+### 2. Add Reminder Time Selection
+
+**Current State**: Users can only pick a date. The reminder time comes from their global notification preferences.
+
+**New Design**:
+- Add a time dropdown (using the existing `REMINDER_TIMES` from `notificationPreferences.ts`)
+- When a due date is selected, show a time picker below it
+- If no time is selected, default to the user's global preference (or 9:00 AM)
+- Store the selected time in a new `reminder_time` column on `account_follow_ups`
+
+### 3. Default Email Reminder to ON
+
+**Current State**: `reminderEnabled` defaults to `false`
+
+**New State**: `reminderEnabled` defaults to `true` when a due date is selected
+
+---
+
+## Technical Implementation
+
+### Database Migration
+
+Add a `reminder_time` column to `account_follow_ups`:
+
+```sql
+ALTER TABLE public.account_follow_ups 
+ADD COLUMN reminder_time time without time zone DEFAULT '09:00'::time;
+
+COMMENT ON COLUMN public.account_follow_ups.reminder_time IS 
+  'Per-task reminder time override. Falls back to user notification_preferences if null.';
 ```
 
-### Part 2: Keep Subscription Active Until Suggestions Arrive
+### API Changes
 
-Instead of using `shouldPoll` (which turns off at completion), we need a separate condition that stays active until we've received suggestions. The hook needs to know when to stop listening.
+**File**: `src/api/accountFollowUps.ts`
 
-**New Logic:**
+- Add `reminderTime?: string` to `CreateManualFollowUpParams`
+- Update `createManualFollowUp` to accept and save `reminder_time`
+- Update `AccountFollowUp` interface to include `reminder_time: string | null`
 
-```typescript
-// Keep listening until:
-// 1. analysis_status is 'completed' AND
-// 2. We've received follow_up_suggestions OR
-// 3. A timeout has passed (e.g., 90 seconds after completion)
+### UI Changes
+
+**File**: `src/components/calls/suggestions/AddCustomTaskDialog.tsx`
+
+1. Add state for `reminderTime` (default: '09:00')
+2. Change `reminderEnabled` default from `false` to `true`
+3. Add time selector dropdown after the date picker (only shows when date is selected)
+4. Move the "Send email reminder" checkbox higher and make it checked by default
+5. Pass `reminderTime` to `createManualFollowUp`
+
+**File**: `src/components/calls/suggestions/PostCallSuggestionsPanel.tsx`
+
+1. Add a prominent "Add Custom Task" button in the card header (next to Accept All)
+2. Style it with a primary variant or dashed border to make it stand out
+3. Keep a subtle "or add your own" text at the bottom as a secondary entry point
+
+### Backend Update (if needed)
+
+**File**: `supabase/functions/send-task-reminders/index.ts`
+
+- When sending reminders, check if the task has a custom `reminder_time`
+- If so, use that instead of the user's global `notification_preferences.reminder_time`
+
+---
+
+## UI Mockup
+
+### Card Header (After)
+
+```
+[Sparkles icon] Suggested Follow-Up Actions
+                                    [+ Add Task] [Dismiss All] [Accept All]
 ```
 
-**Implementation Approach:**
+### Add Custom Task Dialog (After)
 
-1. Add a new parameter to the hook: `analysisHasSuggestions: boolean`
-2. Modify `enabled` condition in CallDetailPage:
-   ```typescript
-   const shouldListenForUpdates = useMemo(() => {
-     // Keep listening if:
-     // - Analysis is pending/processing, OR
-     // - Analysis is completed but suggestions haven't arrived yet
-     if (!callData?.transcript) return false;
-     const status = callData.transcript.analysis_status;
-     if (status === 'pending' || status === 'processing') return true;
-     
-     // If completed, keep listening until we have suggestions
-     const hasSuggestions = Array.isArray(analysis?.follow_up_suggestions) && 
-                            analysis.follow_up_suggestions.length > 0;
-     return status === 'completed' && !hasSuggestions;
-   }, [callData?.transcript, analysis?.follow_up_suggestions]);
-   
-   useCallAnalysisRealtime(id, shouldListenForUpdates);
-   ```
+```
+Add Custom Follow-Up Task
+Create a manual task for Acme Corp
+
+Task Title *
+[Schedule follow-up demo with IT team          ]
+
+Description (optional)
+[Add any additional context...                 ]
+
+Priority                    Category
+[Medium  v]                 [Discovery  v]
+
+Due Date & Reminder Time
+[Jan 15, 2026        v]     [9:00 AM  v]
+
+[x] Send email reminder at this time
+    (You'll receive an email at 9:00 AM on Jan 15)
+
+                        [Cancel]  [Create Task]
+```
 
 ---
 
 ## Files to Modify
 
-| File | Change |
-|------|--------|
-| `src/hooks/useCallAnalysisRealtime.ts` | Change event from `'UPDATE'` to `'*'` for ai_call_analysis subscription |
-| `src/pages/calls/CallDetailPage.tsx` | Update `shouldPoll` logic to stay active until suggestions arrive |
+| File | Changes |
+|------|---------|
+| `src/components/calls/suggestions/PostCallSuggestionsPanel.tsx` | Add prominent "Add Task" button to header |
+| `src/components/calls/suggestions/AddCustomTaskDialog.tsx` | Add time picker, default reminder to ON, reorganize layout |
+| `src/api/accountFollowUps.ts` | Add `reminderTime` parameter and update types |
+| Database migration | Add `reminder_time` column to `account_follow_ups` |
 
 ---
 
-## Technical Details
+## Edge Cases
 
-### useCallAnalysisRealtime.ts Changes:
-
-```typescript
-// Line 95-102: Change event type
-.on(
-  'postgres_changes',
-  {
-    event: '*',  // Was 'UPDATE', now catches all events
-    schema: 'public',
-    table: 'ai_call_analysis',
-    filter: `call_id=eq.${callId}`,
-  },
-  // ...handler
-)
-```
-
-### CallDetailPage.tsx Changes:
-
-```typescript
-// Replace shouldPoll with shouldListenForUpdates
-const shouldListenForUpdates = useMemo(() => {
-  if (!callData?.transcript) return false;
-  const status = callData.transcript.analysis_status;
-  
-  // Always listen during pending/processing
-  if (status === 'pending' || status === 'processing') return true;
-  
-  // After completion, keep listening until suggestions arrive
-  if (status === 'completed') {
-    const hasSuggestions = Array.isArray(analysis?.follow_up_suggestions) && 
-                           analysis.follow_up_suggestions.length > 0;
-    const hasDealHeat = !!analysis?.deal_heat_analysis;
-    
-    // Keep listening until we have both, or just suggestions at minimum
-    return !hasSuggestions;
-  }
-  
-  return false;
-}, [callData?.transcript, analysis?.follow_up_suggestions, analysis?.deal_heat_analysis]);
-
-// Use for realtime but keep polling behavior as-is
-useCallAnalysisRealtime(id, shouldListenForUpdates);
-```
-
----
-
-## After Implementation
-
-When a new call is submitted:
-
-1. User navigates to call detail → realtime subscription starts
-2. Analysis completes → UI refetches and shows coaching insights
-3. **Subscription stays active** because suggestions haven't arrived
-4. Deal Heat saved → realtime event fires → UI refetches and shows Deal Heat
-5. Suggestions saved → realtime event fires → UI refetches and shows suggestions panel
-6. **Now** subscription can be torn down (or stay active for future edits)
-
----
-
-## Why This Wasn't Caught Before
-
-The database audit confirmed:
-- Data IS being saved correctly (5 suggestions, Deal Heat score 65)
-- Realtime publication IS configured correctly
-- RLS policies ARE correct (rep can see their own data)
-
-The issue was purely timing: the subscription was being torn down before the post-analysis data was saved.
+1. **No date selected**: Time picker hidden, reminder checkbox disabled
+2. **Date selected but no time**: Use default 9:00 AM
+3. **Existing tasks without reminder_time**: Backend falls back to user's global preference
+4. **User hasn't configured notification preferences**: Still works with defaults (9:00 AM ET)
 
