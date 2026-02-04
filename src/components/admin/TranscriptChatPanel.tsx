@@ -54,7 +54,7 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
   
   const queryClient = useQueryClient();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Custom hooks for state management
   const {

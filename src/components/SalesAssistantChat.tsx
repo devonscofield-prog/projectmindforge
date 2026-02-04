@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -96,7 +96,16 @@ export function SalesAssistantChat() {
   const [allSessions, setAllSessions] = useState<AssistantSession[]>([]);
   const [showHistorySheet, setShowHistorySheet] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-resize textarea based on content
+  useEffect(() => {
+    const textarea = inputRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
+    }
+  }, [input]);
   const { secondsRemaining, isRateLimited, startCountdown } = useRateLimitCountdown(60);
 
   // Load session when sheet opens
@@ -489,16 +498,23 @@ export function SalesAssistantChat() {
 
             {/* Input Area */}
             <div className="p-4 border-t bg-background/80 backdrop-blur-sm shrink-0">
-              <form onSubmit={handleSubmit} className="flex gap-2">
-                <Input
+              <form onSubmit={handleSubmit} className="flex gap-2 items-end">
+                <Textarea
                   ref={inputRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSubmit(e);
+                    }
+                  }}
                   placeholder="Ask about your pipeline..."
                   disabled={isLoading || isRateLimited}
-                  className="flex-1 bg-muted/50 border-muted-foreground/20"
+                  rows={1}
+                  className="flex-1 min-h-[40px] max-h-[120px] bg-muted/50 border-muted-foreground/20 resize-none py-2.5"
                 />
-                <Button 
+                <Button
                   type="submit" 
                   size="icon"
                   disabled={!input.trim() || isLoading || isRateLimited}
