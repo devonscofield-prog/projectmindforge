@@ -1,201 +1,253 @@
 
 
-# Notification/Reminder System - Complete Audit Report
+# Enhanced Notification Preferences Implementation
 
-## Executive Summary
+## Overview
 
-The notification/reminder system has been fully audited. **All critical issues from the previous audit have been resolved.** The system is **production-ready** with only a few minor improvements to consider.
-
----
-
-## Audit Checklist
-
-### 1. Edge Function Configuration
-
-| Check | Status | Details |
-|-------|--------|---------|
-| Function registered in `config.toml` | ✅ Pass | Line 120-121: `verify_jwt = false` (correct for cron) |
-| Function file exists | ✅ Pass | `supabase/functions/send-task-reminders/index.ts` |
-| CORS headers complete | ✅ Pass | All 9 required headers included |
-| Rate limit protection | ✅ Pass | 100ms delay between emails (line 251) |
-| Error handling | ✅ Pass | Try/catch with proper error responses |
-| Service role key usage | ✅ Pass | Uses `SUPABASE_SERVICE_ROLE_KEY` to bypass RLS |
-
-### 2. Email Configuration
-
-| Check | Status | Details |
-|-------|--------|---------|
-| Resend API key configured | ✅ Pass | `RESEND_API_KEY` secret exists |
-| Sender domain verified | ✅ Pass | `reminders@mindforgenotifications.com` |
-| Email HTML well-formed | ✅ Pass | Responsive, styled HTML template |
-| Unsubscribe info | ⚠️ Minor | No unsubscribe link (see improvements) |
-
-### 3. Cron Job Configuration
-
-| Check | Status | Details |
-|-------|--------|---------|
-| Cron job exists | ✅ Pass | `send-task-reminders-hourly` |
-| Schedule correct | ✅ Pass | `0 * * * *` (every hour at :00) |
-| Job active | ✅ Pass | `active: true` |
-| Uses anon key | ✅ Pass | Correct authorization header |
-
-### 4. Database Schema
-
-| Check | Status | Details |
-|-------|--------|---------|
-| `notification_preferences` table | ✅ Pass | All columns present with defaults |
-| `account_follow_ups` extensions | ✅ Pass | `due_date`, `reminder_enabled`, `reminder_sent_at`, `source_call_id` |
-| Column defaults | ✅ Pass | Sensible defaults (e.g., `email_enabled: true`, `reminder_time: 09:00`) |
-| Unique constraint on user_id | ✅ Pass | `unique_user_notification_prefs` index |
-| Updated_at trigger | ✅ Pass | Both tables have `update_updated_at_column` trigger |
-
-### 5. RLS Policies
-
-| Table | SELECT | INSERT | UPDATE | DELETE | Status |
-|-------|--------|--------|--------|--------|--------|
-| notification_preferences | ✅ Own | ✅ Own | ✅ Own | ✅ Own | **Secure** |
-| account_follow_ups (rep) | ✅ Own | ✅ Own | ✅ Own | ✅ Own | **Secure** |
-| account_follow_ups (manager) | ✅ Team | ❌ | ❌ | ❌ | **Correct** |
-| account_follow_ups (admin) | ✅ All | ✅ All | ✅ All | ✅ All | **Correct** |
-
-RLS is **enabled** on both tables.
-
-### 6. Indexes
-
-| Index | Purpose | Status |
-|-------|---------|--------|
-| `idx_notification_preferences_user_id` | Quick lookup by user | ✅ Good |
-| `unique_user_notification_prefs` | Prevent duplicate prefs | ✅ Good |
-| `idx_follow_ups_due_reminders` | Optimize reminder query | ✅ Good (partial index) |
-| `idx_follow_ups_source_call` | Link to source call | ✅ Good |
-
-### 7. Frontend Implementation
-
-| Component | Status | Notes |
-|-----------|--------|-------|
-| `NotificationPreferences.tsx` | ✅ Complete | All fields, loading states, error handling |
-| `PostCallTasksDialog.tsx` | ✅ Complete | Due date, reminder toggle, max 5 tasks |
-| `PendingFollowUpsWidget.tsx` | ✅ Complete | Shows due dates, priority handling |
-| `FollowUpItem.tsx` | ✅ Complete | Due date badges, swipe gestures |
-| Integration in `UserSettings.tsx` | ✅ Complete | Component rendered at line 178 |
-
-### 8. API Layer
-
-| File | Status | Notes |
-|------|--------|-------|
-| `notificationPreferences.ts` | ✅ Complete | Get/upsert, timezone list, time options |
-| `accountFollowUps.ts` | ✅ Complete | Create/update reminder, bulk create |
-
-### 9. Type Safety
-
-| Check | Status | Details |
-|-------|--------|---------|
-| Interface matches DB schema | ✅ Pass | `AccountFollowUp` has all fields |
-| Nullable types handled | ✅ Pass | `priority: FollowUpPriority \| string \| null` |
-| Fallback values in UI | ✅ Pass | `priorityKey = (followUp.priority as FollowUpPriority) \|\| 'medium'` |
-| Supabase types generated | ✅ Pass | `notification_preferences` in types.ts |
-
-### 10. Edge Function Logic Validation
-
-| Logic | Status | Details |
-|-------|--------|---------|
-| Timezone conversion | ✅ Correct | Uses `toLocaleString()` with timezone |
-| Hour matching | ✅ Correct | Matches user's local hour to reminder time |
-| Duplicate prevention | ✅ Correct | Checks `reminder_sent_at` < today |
-| User preference respect | ✅ Correct | Filters by `notify_overdue`, `notify_due_today`, `notify_due_tomorrow` |
-| Grouping by user | ✅ Correct | Single email per user with all tasks |
+Add comprehensive flexibility to the notification system with expanded time slots, secondary reminder times, browser timezone detection, and priority-based filtering for digest emails.
 
 ---
 
-## Live Test Results
+## Changes Summary
 
-**Edge Function Manual Trigger:**
-```json
-{
-  "message": "No users to notify",
-  "sent": 0
+### 1. Database Schema Update
+
+Add new columns to `notification_preferences` table:
+
+| Column | Type | Default | Purpose |
+|--------|------|---------|---------|
+| `secondary_reminder_time` | `time` | `NULL` | Optional second daily reminder |
+| `exclude_weekends` | `boolean` | `false` | Skip reminders on Sat/Sun |
+| `min_priority` | `text` | `NULL` | Only notify for this priority or higher (NULL = all) |
+
+---
+
+### 2. API Layer Updates
+
+**File: `src/api/notificationPreferences.ts`**
+
+**Expand REMINDER_TIMES** (add 11:00 AM - 4:30 PM):
+```typescript
+{ value: '10:30', label: '10:30 AM' },
+{ value: '11:00', label: '11:00 AM' },
+{ value: '11:30', label: '11:30 AM' },
+{ value: '12:00', label: '12:00 PM' },
+{ value: '12:30', label: '12:30 PM' },
+{ value: '13:00', label: '1:00 PM' },
+{ value: '13:30', label: '1:30 PM' },
+{ value: '14:00', label: '2:00 PM' },
+{ value: '14:30', label: '2:30 PM' },
+{ value: '15:00', label: '3:00 PM' },
+{ value: '15:30', label: '3:30 PM' },
+{ value: '16:00', label: '4:00 PM' },
+{ value: '16:30', label: '4:30 PM' },
+```
+
+**Expand COMMON_TIMEZONES** (add 7 more):
+```typescript
+{ value: 'America/Toronto', label: 'Toronto (ET)' },
+{ value: 'America/Sao_Paulo', label: 'Sao Paulo (BRT)' },
+{ value: 'Europe/Berlin', label: 'Berlin (CET)' },
+{ value: 'Asia/Dubai', label: 'Dubai (GST)' },
+{ value: 'Asia/Mumbai', label: 'India (IST)' },
+{ value: 'Africa/Johannesburg', label: 'South Africa (SAST)' },
+{ value: 'Pacific/Auckland', label: 'New Zealand (NZST)' },
+```
+
+**Add priority options constant:**
+```typescript
+export const PRIORITY_FILTERS = [
+  { value: '', label: 'All priorities' },
+  { value: 'low', label: 'Low and above' },
+  { value: 'medium', label: 'Medium and above' },
+  { value: 'high', label: 'High priority only' },
+];
+```
+
+**Update interfaces** to include new fields.
+
+---
+
+### 3. UI Component Updates
+
+**File: `src/components/settings/NotificationPreferences.tsx`**
+
+**Add browser timezone detection** on component mount:
+```typescript
+useEffect(() => {
+  if (!prefs && !isLoading) {
+    const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (COMMON_TIMEZONES.find(tz => tz.value === detected)) {
+      setDetectedTimezone(detected);
+    }
+  }
+}, [prefs, isLoading]);
+```
+
+**Add new UI sections:**
+
+1. **Secondary Reminder Time** (optional toggle + time select)
+   - Switch to enable/disable
+   - Time dropdown (same options as primary)
+
+2. **Exclude Weekends** toggle
+   - Simple switch with descriptive label
+
+3. **Priority Filter** dropdown
+   - Select minimum priority level for notifications
+
+4. **Timezone detection banner**
+   - Show when detected timezone differs from saved
+   - "Use detected timezone" button
+
+---
+
+### 4. Edge Function Updates
+
+**File: `supabase/functions/send-task-reminders/index.ts`**
+
+**Add weekend check:**
+```typescript
+const dayOfWeek = now.getDay(); // 0 = Sunday, 6 = Saturday
+const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+if (pref.exclude_weekends && isWeekend) {
+  continue; // Skip this user
 }
 ```
-Status: **Working correctly** - No users have configured notification preferences yet, which is expected.
+
+**Add secondary reminder time matching:**
+```typescript
+// Check if current hour matches primary OR secondary time
+const primaryHour = parseInt(pref.reminder_time.split(":")[0], 10);
+const secondaryHour = pref.secondary_reminder_time 
+  ? parseInt(pref.secondary_reminder_time.split(":")[0], 10)
+  : null;
+
+if (userHour === primaryHour || userHour === secondaryHour) {
+  usersToNotify.push(pref.user_id);
+}
+```
+
+**Add priority filtering:**
+```typescript
+const PRIORITY_ORDER = { high: 3, medium: 2, low: 1 };
+
+// Filter follow-ups by minimum priority
+if (userPrefs.min_priority) {
+  const minLevel = PRIORITY_ORDER[userPrefs.min_priority] || 0;
+  if (PRIORITY_ORDER[followUp.priority] < minLevel) {
+    continue; // Skip this follow-up
+  }
+}
+```
+
+**Add direct settings link to email:**
+```typescript
+<p style="margin-top: 32px; color: #666; font-size: 12px;">
+  <a href="https://projectmindforge.lovable.app/settings" style="color: #6366f1;">
+    Manage notification preferences
+  </a>
+</p>
+```
 
 ---
 
-## Minor Improvements (Optional)
+## Files to Modify
 
-These are not blockers but could enhance the system:
-
-### 1. Missing Unsubscribe Link in Email
-The email template doesn't include an unsubscribe link, which is a best practice for email deliverability.
-
-**Current:** Footer just says "Manage your notification preferences in Settings."
-
-**Suggested:** Add a direct link to settings page.
-
-### 2. No Afternoon Reminder Times
-The `REMINDER_TIMES` array jumps from 10:00 AM to 5:00 PM. Some users may want afternoon reminders.
-
-**Consider adding:** 12:00 PM, 1:00 PM, 2:00 PM, 3:00 PM, 4:00 PM
-
-### 3. Timezone Select Could Use Browser Detection
-Currently defaults to `America/New_York`. Could auto-detect user's timezone on first visit.
-
-### 4. Edge Function Timeout Not Configured
-If there are many users, the function could timeout. Consider:
-- Adding a timeout_milliseconds to the cron job
-- Batching users if list grows large
-
-### 5. No Monitoring/Alerting
-Consider logging to an external service or setting up alerts if email sending fails consistently.
+| File | Changes |
+|------|---------|
+| `src/api/notificationPreferences.ts` | Expand time/timezone arrays, add priority filter constant, update interfaces |
+| `src/components/settings/NotificationPreferences.tsx` | Add timezone detection, secondary time, weekend toggle, priority filter UI |
+| `supabase/functions/send-task-reminders/index.ts` | Support secondary time, weekend exclusion, priority filtering, settings link |
+| Database migration | Add 3 new columns to `notification_preferences` |
 
 ---
 
-## Security Assessment
+## New UI Layout
 
-| Area | Status | Notes |
-|------|--------|-------|
-| RLS on notification_preferences | ✅ Secure | Users can only access own data |
-| RLS on account_follow_ups | ✅ Secure | Proper role-based policies |
-| Edge function auth | ✅ Correct | Uses service role for cron bypass |
-| Email injection prevention | ✅ Safe | Email comes from verified profile |
-| XSS in email content | ✅ Safe | Task titles are text, not HTML |
-| API key exposure | ✅ Safe | RESEND_API_KEY in secrets vault |
+```text
+┌─────────────────────────────────────────────────────────────┐
+│ 🔔 Notification Preferences                                │
+│ Configure how and when you receive follow-up task reminders│
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│ 📧 Email Reminders                              [Toggle ON] │
+│ Receive daily digest of due and overdue tasks               │
+│                                                             │
+│ ─────────────────────────────────────────────────────────── │
+│                                                             │
+│ 🕐 Primary Reminder Time        [▼ 9:00 AM              ]  │
+│                                                             │
+│ 🕐 Secondary Reminder Time                      [Toggle OFF]│
+│    Get a second daily reminder (optional)                   │
+│    [▼ 5:00 PM              ] (shown when enabled)          │
+│                                                             │
+│ 🌍 Timezone                     [▼ Eastern Time (ET)    ]  │
+│    ┌──────────────────────────────────────────────────┐    │
+│    │ 💡 Detected: Pacific Time (PT). Use this instead?│    │
+│    │                              [Use Detected]       │    │
+│    └──────────────────────────────────────────────────┘    │
+│                                                             │
+│ 📅 Exclude Weekends                             [Toggle OFF]│
+│    Don't send reminders on Saturday/Sunday                  │
+│                                                             │
+│ ─────────────────────────────────────────────────────────── │
+│                                                             │
+│ Remind me about:                                            │
+│ ☑ Overdue tasks                                             │
+│ ☑ Tasks due today                                           │
+│ ☑ Tasks due tomorrow                                        │
+│                                                             │
+│ 🎯 Minimum Priority             [▼ All priorities       ]  │
+│    Only notify for tasks at or above this priority          │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## Database Linter Results
+## Technical Notes
 
-Only 1 warning (unrelated to this feature):
-- `WARN: Extension in Public` - This is a general project warning about extensions being in public schema, not a security issue for this feature.
+### Timezone Detection Logic
+
+```typescript
+const detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+// Only suggest if it's in our supported list
+const isSupported = COMMON_TIMEZONES.some(tz => tz.value === detectedTimezone);
+```
+
+### Priority Filtering Order
+
+| min_priority | Includes |
+|--------------|----------|
+| `null` | All (high, medium, low) |
+| `low` | All (high, medium, low) |
+| `medium` | High and medium only |
+| `high` | High only |
+
+### Edge Function Time Matching
+
+The function runs hourly and checks:
+1. Is it the user's primary reminder hour? OR
+2. Is it the user's secondary reminder hour?
+3. If either matches AND not a weekend (if excluded), send email
 
 ---
 
-## Files Reviewed
+## Migration SQL
 
-| File | Lines | Status |
-|------|-------|--------|
-| `supabase/functions/send-task-reminders/index.ts` | 362 | ✅ Complete |
-| `supabase/config.toml` | 121 | ✅ Function registered |
-| `src/api/notificationPreferences.ts` | 113 | ✅ Complete |
-| `src/api/accountFollowUps.ts` | 368 | ✅ Complete |
-| `src/components/settings/NotificationPreferences.tsx` | 212 | ✅ Complete |
-| `src/components/calls/PostCallTasksDialog.tsx` | 307 | ✅ Complete |
-| `src/components/dashboard/PendingFollowUpsWidget.tsx` | 377 | ✅ Complete |
-| `src/components/prospects/FollowUpItem.tsx` | 276 | ✅ Complete |
-| `src/pages/UserSettings.tsx` | 263 | ✅ Integrated |
+```sql
+ALTER TABLE notification_preferences
+ADD COLUMN secondary_reminder_time TIME DEFAULT NULL,
+ADD COLUMN exclude_weekends BOOLEAN DEFAULT FALSE,
+ADD COLUMN min_priority TEXT DEFAULT NULL;
 
----
-
-## Conclusion
-
-**The notification/reminder system is PRODUCTION READY.**
-
-All critical items from the previous audit have been addressed:
-- Edge function is registered in config.toml with correct JWT settings
-- Custom email domain is configured (`reminders@mindforgenotifications.com`)
-- Hourly cron job is active and running
-- CORS headers are complete
-- Type safety issues have been fixed
-- RLS policies are properly configured
-
-The optional improvements listed above can be implemented later as enhancements but are not required for launch.
+COMMENT ON COLUMN notification_preferences.secondary_reminder_time 
+  IS 'Optional second daily reminder time';
+COMMENT ON COLUMN notification_preferences.exclude_weekends 
+  IS 'Skip reminders on Saturday and Sunday';
+COMMENT ON COLUMN notification_preferences.min_priority 
+  IS 'Minimum priority level to include (null = all, low/medium/high)';
+```
 
