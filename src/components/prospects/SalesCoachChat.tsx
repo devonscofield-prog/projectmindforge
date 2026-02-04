@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -271,7 +271,16 @@ export function SalesCoachChat({ prospectId, accountName, heatScore, lastContact
   const [showHistorySheet, setShowHistorySheet] = useState(false);
   const [recentQuestions, setRecentQuestions] = useState<string[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-resize textarea based on content
+  useEffect(() => {
+    const textarea = inputRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
+    }
+  }, [input]);
   const { secondsRemaining, isRateLimited, startCountdown } = useRateLimitCountdown(60);
 
   // Load recent questions from localStorage
@@ -533,11 +542,12 @@ export function SalesCoachChat({ prospectId, accountName, heatScore, lastContact
     sendMessage(input);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage(input);
     }
+    // Shift+Enter allows new line (default textarea behavior)
   };
 
   const archivedSessions = allSessions.filter(s => !s.is_active);
@@ -884,15 +894,16 @@ export function SalesCoachChat({ prospectId, accountName, heatScore, lastContact
                 </div>
               )}
               <form onSubmit={handleSubmit} className="p-4">
-                <div className="flex gap-2.5 items-center bg-muted/30 rounded-xl p-1.5 ring-1 ring-border/50 focus-within:ring-2 focus-within:ring-primary/30 transition-all duration-200 shadow-sm">
-                  <Input
+                <div className="flex gap-2.5 items-end bg-muted/30 rounded-xl p-1.5 ring-1 ring-border/50 focus-within:ring-2 focus-within:ring-primary/30 transition-all duration-200 shadow-sm">
+                  <Textarea
                     ref={inputRef}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder={isRateLimited ? "Please wait..." : "Ask your sales coach..."}
                     disabled={isLoading || isRateLimited || isLoadingHistory}
-                    className="flex-1 border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/60"
+                    rows={1}
+                    className="flex-1 min-h-[40px] max-h-[120px] border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/60 resize-none py-2.5"
                   />
                   <Button 
                     type="submit" 
