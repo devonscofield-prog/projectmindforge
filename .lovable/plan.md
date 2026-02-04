@@ -1,155 +1,186 @@
 
 
-# Comprehensive Audit: AI Advisor Follow-Up Suggestions System
+# Fix: AI Advisor Follow-Up Suggestions Not Appearing After Call Submission
 
-## Executive Summary
+## Root Cause Analysis
 
-I've audited the entire follow-up suggestions system from backend to frontend. The implementation is **mostly complete**, but I discovered **one critical issue** that will prevent real-time updates from working for the `ai_call_analysis` table.
+I traced through the entire data flow from call submission to UI rendering and identified **two critical bugs** in the realtime subscription logic that explain why you never see the suggestions panel.
 
----
+### Timeline of what happened with your call (4b9f1227):
 
-## Audit Findings
+| Time | Event |
+|------|-------|
+| 06:00:42 | Call created |
+| 06:00:45 | analyze-call started |
+| **06:02:43-49** | **UI queries returned `[]` - analysis not saved yet** |
+| 06:03:56 | Analysis saved, status → `completed` |
+| **06:03:56** | **Realtime subscription torn down** (enabled=false) |
+| 06:04:21 | Deal Heat saved (UPDATE to ai_call_analysis) - **no one listening!** |
+| 06:04:50 | Suggestions saved (UPDATE to ai_call_analysis) - **no one listening!** |
 
-### Backend: Edge Function `generate-call-follow-up-suggestions`
+### Bug #1: Missing INSERT Event
 
-| Aspect | Status | Notes |
-|--------|--------|-------|
-| Model configuration | PASS | Uses `google/gemini-3-pro-preview` |
-| System prompt quality | PASS | Detailed 20-year veteran persona with clear prioritization rules |
-| Tool/schema definition | PASS | Defines all 8 fields with proper types and constraints |
-| Context gathering | PASS | Fetches previous calls, stakeholders, email logs, existing follow-ups |
-| Avoids duplicates | PASS | Lists existing pending follow-ups in prompt |
-| Error handling | PASS | Returns gracefully on failures |
-| Saves to DB | PASS | Updates `ai_call_analysis.follow_up_suggestions` |
-| Triggered after analysis | PASS | Called from `analyze-call/index.ts` line 409 |
+The realtime hook only subscribes to `UPDATE` events on `ai_call_analysis`:
 
-### Backend: `reanalyze-call` Function
-
-| Aspect | Status | Notes |
-|--------|--------|-------|
-| Clears old suggestions | PASS | Sets `follow_up_suggestions: null` |
-| Resets review timestamp | PASS | Sets `suggestions_reviewed_at: null` |
-| Triggers new analysis | PASS | Invokes `analyze-call` which triggers Advisor |
-
-### Database Schema
-
-| Table | Column | Type | Status |
-|-------|--------|------|--------|
-| `ai_call_analysis` | `follow_up_suggestions` | JSONB | PASS - exists |
-| `ai_call_analysis` | `deal_heat_analysis` | JSONB | PASS - exists |
-| `account_follow_ups` | `source_call_id` | UUID | PASS - links tasks to source call |
-| `account_follow_ups` | `due_date` | DATE | PASS - for reminders |
-| `account_follow_ups` | `reminder_enabled` | BOOLEAN | PASS - for notifications |
-
-### Frontend: Type Definitions
-
-| File | Status | Notes |
-|------|--------|-------|
-| `src/api/aiCallAnalysis/types.ts` | PASS | `follow_up_suggestions: unknown[] \| null` at line 212 |
-| `src/components/calls/suggestions/types.ts` | PASS | Full `FollowUpSuggestion` interface with all fields |
-
-### Frontend: Data Adapter
-
-| File | Status | Notes |
-|------|--------|-------|
-| `src/lib/supabaseAdapters.ts` | PASS | Line 344 maps `follow_up_suggestions` |
-
-### Frontend: Real-time Subscription
-
-| Aspect | Status | Issue |
-|--------|--------|-------|
-| Listens to `call_transcripts` | PASS | Line 39-92 |
-| Listens to `ai_call_analysis` | PARTIAL | Code exists (lines 94-131) BUT table is **not in realtime publication** |
-| Shows toast for suggestions | PASS | Line 127 |
-
-### Frontend: UI Components
-
-| Component | Status | Notes |
-|-----------|--------|-------|
-| `PostCallSuggestionsPanel` | PASS | Full implementation with Accept/Dismiss/Add Custom |
-| `SuggestionCard` | PASS | Shows priority, category, due timing, AI reasoning |
-| `AddCustomTaskDialog` | PASS | Full form with priority, category, due date, reminder toggle |
-| `PostCallSuggestionsSkeleton` | PASS | Loading state |
-
-### Frontend: Page Integration
-
-| Aspect | Status | Notes |
-|--------|--------|-------|
-| Renders panel | PASS | Line 516-525 in `CallDetailPage.tsx` |
-| Guards for `prospect_id` | PASS | Won't render if call isn't linked to account |
-| Position in page | PASS | Right after CoachingCard, before DealHeatCard |
-
----
-
-## Critical Issue Found
-
-### Real-time Subscription for `ai_call_analysis` Won't Work
-
-**Problem**: The `ai_call_analysis` table is **NOT** in the `supabase_realtime` publication.
-
-```sql
--- Current publication tables:
-call_transcripts     -- IN publication
-performance_metrics  -- IN publication
-user_activity_logs   -- IN publication
-ai_call_analysis     -- NOT IN PUBLICATION ❌
+```typescript
+// Line 98 in useCallAnalysisRealtime.ts
+event: 'UPDATE',  // ❌ Doesn't catch INSERT when analysis is first created
 ```
 
-Additionally, `ai_call_analysis` has `REPLICA IDENTITY = DEFAULT` (`d`), whereas `call_transcripts` has `REPLICA IDENTITY = FULL` (`f`). For real-time updates to properly include the old/new values, we need `FULL`.
+But when analysis is created for the first time, it's an **INSERT** event.
 
-**Impact**: The realtime code in `useCallAnalysisRealtime.ts` (lines 94-131) subscribes to `ai_call_analysis` updates, but these updates will never be received because the table isn't in the publication.
+### Bug #2: Subscription Disabled Too Early
 
-**Result**: Users won't see Deal Heat or suggestions automatically appear after analysis completes. They'll need to manually refresh.
+The realtime hook is controlled by `shouldPoll`, which becomes `false` immediately when `analysis_status = 'completed'`:
+
+```typescript
+// CallDetailPage.tsx lines 87-97
+const shouldPoll = useMemo(() => {
+  const status = callData.transcript.analysis_status;
+  return status === 'pending' || status === 'processing';  // false when completed!
+}, [callData?.transcript]);
+
+useCallAnalysisRealtime(id, shouldPoll);  // Subscription torn down when shouldPoll=false
+```
+
+**The Problem**: Deal Heat and Suggestions are saved 30-60 seconds **after** status becomes `completed`. By then, the subscription no longer exists.
 
 ---
 
-## Required Fix
+## Solution
 
-### Database Migration Needed
+### Part 1: Subscribe to INSERT + UPDATE Events
 
-```sql
--- Add ai_call_analysis to realtime publication
-ALTER PUBLICATION supabase_realtime ADD TABLE public.ai_call_analysis;
+Change the ai_call_analysis subscription to catch both INSERT and UPDATE:
 
--- Set REPLICA IDENTITY to FULL for complete payload in realtime events
-ALTER TABLE public.ai_call_analysis REPLICA IDENTITY FULL;
+```typescript
+// useCallAnalysisRealtime.ts
+.on(
+  'postgres_changes',
+  {
+    event: '*',  // ✅ Catches INSERT, UPDATE, DELETE
+    // OR: event: ['INSERT', 'UPDATE'],
+    schema: 'public',
+    table: 'ai_call_analysis',
+    filter: `call_id=eq.${callId}`,
+  },
+  // handler...
+)
+```
+
+### Part 2: Keep Subscription Active Until Suggestions Arrive
+
+Instead of using `shouldPoll` (which turns off at completion), we need a separate condition that stays active until we've received suggestions. The hook needs to know when to stop listening.
+
+**New Logic:**
+
+```typescript
+// Keep listening until:
+// 1. analysis_status is 'completed' AND
+// 2. We've received follow_up_suggestions OR
+// 3. A timeout has passed (e.g., 90 seconds after completion)
+```
+
+**Implementation Approach:**
+
+1. Add a new parameter to the hook: `analysisHasSuggestions: boolean`
+2. Modify `enabled` condition in CallDetailPage:
+   ```typescript
+   const shouldListenForUpdates = useMemo(() => {
+     // Keep listening if:
+     // - Analysis is pending/processing, OR
+     // - Analysis is completed but suggestions haven't arrived yet
+     if (!callData?.transcript) return false;
+     const status = callData.transcript.analysis_status;
+     if (status === 'pending' || status === 'processing') return true;
+     
+     // If completed, keep listening until we have suggestions
+     const hasSuggestions = Array.isArray(analysis?.follow_up_suggestions) && 
+                            analysis.follow_up_suggestions.length > 0;
+     return status === 'completed' && !hasSuggestions;
+   }, [callData?.transcript, analysis?.follow_up_suggestions]);
+   
+   useCallAnalysisRealtime(id, shouldListenForUpdates);
+   ```
+
+---
+
+## Files to Modify
+
+| File | Change |
+|------|--------|
+| `src/hooks/useCallAnalysisRealtime.ts` | Change event from `'UPDATE'` to `'*'` for ai_call_analysis subscription |
+| `src/pages/calls/CallDetailPage.tsx` | Update `shouldPoll` logic to stay active until suggestions arrive |
+
+---
+
+## Technical Details
+
+### useCallAnalysisRealtime.ts Changes:
+
+```typescript
+// Line 95-102: Change event type
+.on(
+  'postgres_changes',
+  {
+    event: '*',  // Was 'UPDATE', now catches all events
+    schema: 'public',
+    table: 'ai_call_analysis',
+    filter: `call_id=eq.${callId}`,
+  },
+  // ...handler
+)
+```
+
+### CallDetailPage.tsx Changes:
+
+```typescript
+// Replace shouldPoll with shouldListenForUpdates
+const shouldListenForUpdates = useMemo(() => {
+  if (!callData?.transcript) return false;
+  const status = callData.transcript.analysis_status;
+  
+  // Always listen during pending/processing
+  if (status === 'pending' || status === 'processing') return true;
+  
+  // After completion, keep listening until suggestions arrive
+  if (status === 'completed') {
+    const hasSuggestions = Array.isArray(analysis?.follow_up_suggestions) && 
+                           analysis.follow_up_suggestions.length > 0;
+    const hasDealHeat = !!analysis?.deal_heat_analysis;
+    
+    // Keep listening until we have both, or just suggestions at minimum
+    return !hasSuggestions;
+  }
+  
+  return false;
+}, [callData?.transcript, analysis?.follow_up_suggestions, analysis?.deal_heat_analysis]);
+
+// Use for realtime but keep polling behavior as-is
+useCallAnalysisRealtime(id, shouldListenForUpdates);
 ```
 
 ---
 
-## Everything Else is Complete
+## After Implementation
 
-Once the realtime publication issue is fixed:
+When a new call is submitted:
 
-1. User submits call → `analyze-call` runs
-2. Analysis completes → `call_transcripts.analysis_status` changes to `completed`
-3. Real-time fires → UI refetches → Shows coaching insights
-4. Post-analysis triggers → Deal Heat + Advisor run (seconds later)
-5. `ai_call_analysis` updates → Real-time fires → UI refetches again
-6. User sees Deal Heat + Suggestions panel automatically
-7. User can Accept/Dismiss suggestions or Add Custom tasks
-8. Accepted tasks create `account_follow_ups` with due dates and reminder settings
-9. Email reminders sent via `send-task-reminders` cron job
+1. User navigates to call detail → realtime subscription starts
+2. Analysis completes → UI refetches and shows coaching insights
+3. **Subscription stays active** because suggestions haven't arrived
+4. Deal Heat saved → realtime event fires → UI refetches and shows Deal Heat
+5. Suggestions saved → realtime event fires → UI refetches and shows suggestions panel
+6. **Now** subscription can be torn down (or stay active for future edits)
 
 ---
 
-## Implementation Plan
+## Why This Wasn't Caught Before
 
-### Step 1: Database Migration
+The database audit confirmed:
+- Data IS being saved correctly (5 suggestions, Deal Heat score 65)
+- Realtime publication IS configured correctly
+- RLS policies ARE correct (rep can see their own data)
 
-Run SQL to add `ai_call_analysis` to realtime publication and set REPLICA IDENTITY to FULL.
-
-### Step 2: Verify
-
-Submit a new test call and verify:
-- Deal Heat appears automatically
-- Suggestions panel appears automatically
-- "Follow-up suggestions ready" toast displays
-- Accept/Dismiss/Add Custom all work
-
----
-
-## Technical Details for Implementation
-
-No code changes needed - only a database migration to enable realtime for the `ai_call_analysis` table.
+The issue was purely timing: the subscription was being torn down before the post-analysis data was saved.
 
