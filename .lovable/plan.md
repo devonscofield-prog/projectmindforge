@@ -1,437 +1,355 @@
 
-
-# Minimal-Permission Microsoft Graph Integration Architecture
+# Self-Assigned Follow-Up Tasks with Notifications
 
 ## Overview
 
-This plan outlines a **least-privilege** integration with Microsoft Graph API, requesting only the specific scopes needed for:
-1. **Teams Meeting Transcript Auto-Import** - Eliminating manual transcript pasting
-2. **Calendar Integration** - Pre-call briefings and meeting detection
+This plan adds the ability for sales reps to create personal accountability tasks immediately after submitting a call, with optional email reminders. These complement the existing AI-generated follow-ups by giving reps direct control over their commitments.
 
-## Requested Permissions (Minimal Scope)
+## Key User Experience
 
-| Scope | Type | Purpose | Justification |
-|-------|------|---------|---------------|
-| `User.Read` | Delegated | Display name, SSO | Required for any Graph integration |
-| `Calendars.Read` | Delegated | Read calendar events | Pre-call prep, meeting detection |
-| `OnlineMeetings.Read` | Delegated | Read Teams meeting details | Access meeting transcripts |
-| `offline_access` | Delegated | Refresh tokens | Maintain persistent connection |
-
-**What We Explicitly Do NOT Request:**
-- `Mail.Read` - No email access in this minimal scope
-- `Mail.ReadWrite` / `Calendars.ReadWrite` - No write access
-- `Files.Read` - No OneDrive/SharePoint access
-- `Directory.Read.All` - No org-wide directory access
-- Any **Application** permissions - Per-user consent only
-
----
-
-## Technical Architecture
-
-### Component Overview
+After submitting a call, reps see a new step in the success flow:
 
 ```text
-+------------------+     +----------------------+     +------------------+
-|   User Browser   |     |   Lovable Cloud      |     |  Microsoft 365   |
-|   (React App)    |     |   (Edge Functions)   |     |  (Graph API)     |
-+------------------+     +----------------------+     +------------------+
-        |                         |                          |
-        |  1. Click "Connect"     |                          |
-        +------------------------>|                          |
-        |                         |  2. Generate auth URL    |
-        |<------------------------+                          |
-        |                         |                          |
-        |  3. Redirect to Microsoft login                    |
-        +------------------------------------------------------->
-        |                         |                          |
-        |  4. User consents       |                          |
-        |<-------------------------------------------------------+
-        |                         |                          |
-        |  5. Callback with code  |                          |
-        +------------------------>|                          |
-        |                         |  6. Exchange for tokens  |
-        |                         +------------------------->|
-        |                         |<-------------------------+
-        |                         |  7. Store encrypted      |
-        |                         |                          |
-        |  8. Connection success  |                          |
-        |<------------------------+                          |
+┌─────────────────────────────────────────────────┐
+│ ✅ Call submitted successfully!                 │
+│                                                 │
+│ ┌─────────────────────────────────────────────┐ │
+│ │ 📝 Add Follow-Up Reminders (optional)       │ │
+│ │                                             │ │
+│ │ What do you need to do next?                │ │
+│ │ ┌─────────────────────────────────────────┐ │ │
+│ │ │ Send proposal by Friday              [x] │ │ │
+│ │ │ Due: [Feb 7, 2026 ▼]  ⏰ Email reminder │ │ │
+│ │ └─────────────────────────────────────────┘ │ │
+│ │                                             │ │
+│ │ [+ Add another task]                        │ │
+│ │                                             │ │
+│ │ [Skip]            [Save & View Call]        │ │
+│ └─────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────┘
 ```
+
+## Implementation Approach
+
+### Option A: Extend Existing Follow-Ups (Recommended)
+Enhance the existing `account_follow_ups` table with manual task capabilities:
+- Add `source` field: `'ai'` or `'manual'`
+- Add `due_date` for time-sensitive tasks
+- Add `reminder_enabled` flag
+- Add `reminder_sent_at` timestamp
+
+**Pros:** 
+- Single unified view of all follow-ups
+- Existing UI components work with minimal changes
+- Dashboard widget shows both AI and manual tasks
+
+### Option B: Separate Tasks Table
+Create a new `rep_tasks` table specifically for self-assigned work.
+
+**Cons:**
+- Duplicates functionality
+- Two places to track follow-ups
+- More UI complexity
 
 ---
 
-## Database Schema
+## Database Changes
 
-### New Tables
-
-#### 1. `ms_graph_connections` - User OAuth Tokens
+### Extend `account_follow_ups` Table
 
 ```sql
-CREATE TABLE ms_graph_connections (
+ALTER TABLE account_follow_ups 
+  ADD COLUMN source TEXT DEFAULT 'ai' CHECK (source IN ('ai', 'manual')),
+  ADD COLUMN due_date DATE,
+  ADD COLUMN reminder_enabled BOOLEAN DEFAULT false,
+  ADD COLUMN reminder_sent_at TIMESTAMPTZ,
+  ADD COLUMN source_call_id UUID REFERENCES call_transcripts(id);
+
+-- Index for reminder scheduling
+CREATE INDEX idx_follow_ups_due_reminders 
+  ON account_follow_ups(due_date, reminder_enabled) 
+  WHERE status = 'pending' AND reminder_enabled = true AND reminder_sent_at IS NULL;
+```
+
+### New Table: `notification_preferences`
+
+Store user preferences for notification delivery:
+
+```sql
+CREATE TABLE notification_preferences (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   
-  -- Token storage (encrypted at rest by Supabase)
-  access_token TEXT NOT NULL,
-  refresh_token TEXT NOT NULL,
-  token_expires_at TIMESTAMPTZ NOT NULL,
+  -- Notification channels
+  email_enabled BOOLEAN DEFAULT true,
   
-  -- Microsoft identity
-  ms_user_id TEXT NOT NULL,          -- Microsoft user object ID
-  ms_email TEXT,                      -- Microsoft email for display
-  ms_display_name TEXT,               -- Microsoft display name
+  -- Timing preferences  
+  reminder_time TIME DEFAULT '09:00',  -- When to send daily reminders
+  timezone TEXT DEFAULT 'America/New_York',
   
-  -- Connection metadata
-  scopes TEXT[] NOT NULL,             -- Granted scopes for audit
-  connected_at TIMESTAMPTZ DEFAULT now(),
-  last_sync_at TIMESTAMPTZ,
-  last_error TEXT,
-  is_active BOOLEAN DEFAULT true,
+  -- What to notify about
+  notify_due_today BOOLEAN DEFAULT true,
+  notify_due_tomorrow BOOLEAN DEFAULT true,
+  notify_overdue BOOLEAN DEFAULT true,
   
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
   
-  CONSTRAINT unique_user_connection UNIQUE(user_id)
+  CONSTRAINT unique_user_prefs UNIQUE(user_id)
 );
 
--- RLS: Users can only access their own connection
-ALTER TABLE ms_graph_connections ENABLE ROW LEVEL SECURITY;
+-- RLS
+ALTER TABLE notification_preferences ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can view own connection"
-  ON ms_graph_connections FOR SELECT
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert own connection"
-  ON ms_graph_connections FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update own connection"
-  ON ms_graph_connections FOR UPDATE
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete own connection"
-  ON ms_graph_connections FOR DELETE
+CREATE POLICY "Users can manage own preferences"
+  ON notification_preferences FOR ALL
   USING (auth.uid() = user_id);
 ```
 
-#### 2. `ms_calendar_events` - Synced Meeting Metadata
+---
 
+## Backend Functions
+
+### 1. `send-task-reminders` Edge Function
+
+Scheduled to run daily, sends email reminders for due tasks:
+
+```text
+Trigger: Scheduled (daily at each user's preferred time)
+Logic:
+├── Query users with notification_preferences.email_enabled = true
+├── For each user, find follow-ups where:
+│   ├── due_date = today OR due_date < today (overdue)
+│   ├── reminder_enabled = true
+│   ├── reminder_sent_at IS NULL (not already sent today)
+│   └── status = 'pending'
+├── Group by user and send single digest email
+└── Update reminder_sent_at to prevent duplicate sends
+```
+
+Email template example:
+```text
+Subject: 📋 MindForge: 3 follow-ups due today
+
+Hi Sarah,
+
+You have 3 follow-up tasks due today:
+
+🔴 HIGH: Send proposal to Acme Corp
+   Account: Acme Corporation
+   Due: Today
+   
+🟡 MED: Schedule demo with Beta Inc CFO
+   Account: Beta Inc
+   Due: Today
+
+🔵 LOW: Send case study link
+   Account: Gamma LLC
+   Due: Yesterday (overdue)
+
+[View All Tasks →]
+
+---
+Manage notification preferences in Settings
+```
+
+### 2. Enhance Existing Call Submission Flow
+
+After successful call creation, the frontend presents the task creation dialog.
+
+---
+
+## Frontend Changes
+
+### 1. Post-Submission Task Dialog
+
+New component: `src/components/calls/PostCallTasksDialog.tsx`
+
+```text
+Props:
+├── callId: string
+├── prospectId: string
+├── accountName: string
+├── onClose: () => void
+└── onComplete: () => void
+
+Features:
+├── Add up to 5 tasks
+├── Each task has: title, due date, reminder toggle
+├── Quick-add suggestions based on call type
+└── Skip option to proceed without tasks
+```
+
+### 2. Settings: Notification Preferences
+
+Add to `src/pages/UserSettings.tsx`:
+
+```text
+┌─────────────────────────────────────────────────┐
+│ 🔔 Notification Preferences                    │
+├─────────────────────────────────────────────────┤
+│                                                 │
+│ Email Reminders                                 │
+│ ○ Enabled  ● Disabled                          │
+│                                                 │
+│ Remind me about:                                │
+│ ☑ Tasks due today                              │
+│ ☑ Tasks due tomorrow                           │
+│ ☑ Overdue tasks                                │
+│                                                 │
+│ Preferred reminder time: [9:00 AM ▼]            │
+│ Timezone: [America/New_York ▼]                  │
+│                                                 │
+└─────────────────────────────────────────────────┘
+```
+
+### 3. Dashboard Widget Enhancement
+
+Update `PendingFollowUpsWidget` to:
+- Show due dates when present
+- Highlight overdue tasks
+- Differentiate AI vs manual tasks (subtle visual cue)
+
+### 4. Prospect Detail Enhancement
+
+Update `ProspectFollowUps` component to:
+- Allow adding manual tasks inline
+- Show due dates
+- Sort by due date when present
+
+---
+
+## API Layer
+
+### New Functions in `src/api/accountFollowUps.ts`
+
+```typescript
+// Create a manual follow-up task
+export async function createManualFollowUp(params: {
+  prospectId: string;
+  title: string;
+  description?: string;
+  priority?: FollowUpPriority;
+  dueDate?: string;
+  reminderEnabled?: boolean;
+  sourceCallId?: string;
+}): Promise<AccountFollowUp>
+
+// Update due date and reminder settings
+export async function updateFollowUpReminder(
+  followUpId: string, 
+  dueDate: string | null,
+  reminderEnabled: boolean
+): Promise<AccountFollowUp>
+
+// Get user's notification preferences
+export async function getNotificationPreferences(
+  userId: string
+): Promise<NotificationPreferences | null>
+
+// Update notification preferences
+export async function updateNotificationPreferences(
+  userId: string,
+  prefs: Partial<NotificationPreferences>
+): Promise<NotificationPreferences>
+```
+
+---
+
+## Technical Details
+
+### Email Delivery
+
+Uses the existing Resend integration (`RESEND_API_KEY` is already configured):
+- Leverages patterns from `send-performance-alert` function
+- Professional HTML email template matching existing MindForge branding
+
+### Scheduling
+
+Two approaches for the daily reminder job:
+
+**Option 1: Supabase pg_cron (Simpler)**
 ```sql
-CREATE TABLE ms_calendar_events (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  
-  -- Microsoft identifiers
-  ms_event_id TEXT NOT NULL,
-  ms_meeting_id TEXT,                 -- Teams meeting ID (if online)
-  
-  -- Event details (metadata only, not full body)
-  subject TEXT,
-  start_time TIMESTAMPTZ NOT NULL,
-  end_time TIMESTAMPTZ NOT NULL,
-  location TEXT,
-  is_online_meeting BOOLEAN DEFAULT false,
-  organizer_email TEXT,
-  attendees JSONB,                    -- [{email, name, response}]
-  
-  -- Transcript sync status
-  transcript_synced BOOLEAN DEFAULT false,
-  linked_call_id UUID REFERENCES call_transcripts(id),
-  
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  
-  CONSTRAINT unique_user_event UNIQUE(user_id, ms_event_id)
+SELECT cron.schedule(
+  'send-task-reminders',
+  '0 * * * *',  -- Run every hour, function checks user timezones
+  $$SELECT net.http_post(
+    'https://[project].supabase.co/functions/v1/send-task-reminders',
+    headers := '{"Authorization": "Bearer [service_key]"}'
+  )$$
 );
-
--- RLS: Users can only see their own events
-ALTER TABLE ms_calendar_events ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can view own events"
-  ON ms_calendar_events FOR SELECT
-  USING (auth.uid() = user_id);
-
--- Index for efficient meeting lookups
-CREATE INDEX idx_ms_calendar_events_user_start 
-  ON ms_calendar_events(user_id, start_time DESC);
-  
-CREATE INDEX idx_ms_calendar_events_meeting_id 
-  ON ms_calendar_events(ms_meeting_id) 
-  WHERE ms_meeting_id IS NOT NULL;
 ```
 
-#### 3. `ms_graph_sync_log` - Audit Trail
+**Option 2: External Scheduler**
+Use an external service to trigger the edge function at specific times per timezone.
 
-```sql
-CREATE TABLE ms_graph_sync_log (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  sync_type TEXT NOT NULL,            -- 'calendar', 'transcript'
-  status TEXT NOT NULL,               -- 'success', 'error', 'partial'
-  items_synced INTEGER DEFAULT 0,
-  error_message TEXT,
-  metadata JSONB,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
+### Performance Considerations
 
--- RLS: Users can view their own sync logs
-ALTER TABLE ms_graph_sync_log ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can view own sync logs"
-  ON ms_graph_sync_log FOR SELECT
-  USING (auth.uid() = user_id);
-```
-
----
-
-## Edge Functions
-
-### 1. `ms-graph-auth` - OAuth Flow Handler
-
-**Purpose:** Handles the OAuth authorization code flow
-
-**Endpoints:**
-- `GET /authorize` - Generate Microsoft login URL
-- `POST /callback` - Exchange code for tokens
-- `DELETE /disconnect` - Revoke and remove connection
-
-```text
-Key Security Features:
-├── State parameter with HMAC signature to prevent CSRF
-├── PKCE (code_verifier/code_challenge) for secure token exchange
-├── Tokens encrypted at rest in database
-└── Immediate token validation after exchange
-```
-
-### 2. `ms-graph-sync` - Data Synchronization
-
-**Purpose:** Fetches calendar events and meeting transcripts
-
-**Operations:**
-- `sync-calendar` - Pull upcoming meetings (next 7 days)
-- `sync-transcript` - Fetch transcript for specific meeting
-- `sync-past-meetings` - Backfill recent meetings (last 30 days)
-
-```text
-Rate Limiting:
-├── 10 requests/minute per user for calendar sync
-├── 5 requests/minute per user for transcript fetch
-└── Exponential backoff on Graph API 429 responses
-```
-
-### 3. `ms-graph-token-refresh` - Token Management
-
-**Purpose:** Background job to refresh expiring tokens
-
-**Schedule:** Runs every 30 minutes via pg_cron
-
-```text
-Token Lifecycle:
-├── Access tokens: 1 hour validity
-├── Refresh tokens: 90 days validity
-├── Auto-refresh when < 10 minutes remaining
-└── Notify user if refresh fails (connection broken)
-```
-
----
-
-## Frontend Components
-
-### 1. Settings Integration
-
-**Location:** `src/pages/UserSettings.tsx`
-
-New section: "Connected Services"
-
-```text
-┌─────────────────────────────────────────────────┐
-│ Connected Services                              │
-├─────────────────────────────────────────────────┤
-│                                                 │
-│ 🔗 Microsoft 365                                │
-│    ┌──────────────────────────────────────────┐ │
-│    │ ✓ Connected as john.doe@company.com     │ │
-│    │   Last sync: 5 minutes ago               │ │
-│    │                                          │ │
-│    │ [Sync Now]  [Disconnect]                 │ │
-│    └──────────────────────────────────────────┘ │
-│                                                 │
-│ Features enabled:                               │
-│ ✓ Auto-import Teams meeting transcripts         │
-│ ✓ Pre-call calendar briefings                   │
-│                                                 │
-└─────────────────────────────────────────────────┘
-```
-
-### 2. Pre-Call Briefing Widget
-
-**Location:** Rep Dashboard / Prospect Detail
-
-```text
-┌─────────────────────────────────────────────────┐
-│ 📅 Upcoming: Meeting with Acme Corp             │
-│    Today at 2:00 PM (in 45 minutes)             │
-├─────────────────────────────────────────────────┤
-│ Attendees:                                      │
-│ • Sarah Johnson (CTO) - Final DM                │
-│ • Mike Chen (VP Engineering) - Heavy Influencer │
-│                                                 │
-│ Last interaction: Discovery call on Jan 15     │
-│ Heat Score: 72 (Warm)                           │
-│                                                 │
-│ [View Account] [Prepare for Call]               │
-└─────────────────────────────────────────────────┘
-```
-
-### 3. Transcript Import UI
-
-**Location:** Call submission flow
-
-```text
-┌─────────────────────────────────────────────────┐
-│ Submit Call Transcript                          │
-├─────────────────────────────────────────────────┤
-│                                                 │
-│ 📥 Import from Teams Meeting                    │
-│    ┌──────────────────────────────────────────┐ │
-│    │ Recent Teams Meetings:                   │ │
-│    │                                          │ │
-│    │ ○ Acme Corp Discovery - Jan 22, 2:00 PM  │ │
-│    │ ○ Beta Inc Follow-up - Jan 21, 10:00 AM  │ │
-│    │ ○ Gamma LLC Demo - Jan 20, 3:30 PM       │ │
-│    │                                          │ │
-│    │ [Import Selected]                        │ │
-│    └──────────────────────────────────────────┘ │
-│                                                 │
-│ ─── OR ───                                      │
-│                                                 │
-│ 📝 Paste transcript manually                    │
-│                                                 │
-└─────────────────────────────────────────────────┘
-```
-
----
-
-## Data Flow: Teams Transcript Import
-
-```text
-Step 1: User connects Microsoft 365 (one-time)
-        ├── OAuth flow in popup window
-        ├── Tokens stored encrypted
-        └── Calendar sync triggered
-
-Step 2: User opens "Submit Call" form
-        ├── Frontend queries ms_calendar_events
-        ├── Shows recent Teams meetings with transcripts
-        └── User selects meeting to import
-
-Step 3: Import transcript
-        ├── Edge function calls Graph API
-        │   GET /me/onlineMeetings/{id}/transcripts
-        ├── Fetches transcript content
-        │   GET /me/onlineMeetings/{id}/transcripts/{id}/content
-        ├── Extracts meeting metadata (attendees, duration)
-        └── Pre-fills call submission form
-
-Step 4: User reviews and submits
-        ├── Account name auto-detected from meeting subject
-        ├── Attendees mapped to stakeholders
-        ├── Transcript sent through existing analyze-call pipeline
-        └── ms_calendar_events.transcript_synced = true
-```
-
----
-
-## Security Measures
-
-### Token Security
-
-| Measure | Implementation |
-|---------|----------------|
-| Encryption at rest | Supabase AES-256 encrypted storage |
-| Token isolation | RLS ensures users only access own tokens |
-| Minimal storage | Only access + refresh tokens stored |
-| Secure transmission | TLS 1.3 for all API calls |
-
-### Access Control
-
-| Measure | Implementation |
-|---------|----------------|
-| Per-user consent | Delegated permissions only |
-| Scope validation | Verify granted scopes match requested |
-| Token validation | Validate JWT signature on each use |
-| Revocation support | Users can disconnect anytime |
-
-### Audit Logging
-
-All Microsoft Graph API calls are logged to `ms_graph_sync_log`:
-- Sync operations (success/failure)
-- Token refreshes
-- Disconnection events
+- Indexed query for finding due reminders
+- Batch email sends (one digest per user, not per task)
+- `reminder_sent_at` prevents duplicate sends
 
 ---
 
 ## Implementation Phases
 
-### Phase 1: OAuth Foundation (Week 1)
-- [ ] Create `ms_graph_connections` table with RLS
-- [ ] Implement `ms-graph-auth` edge function
-- [ ] Add "Connect Microsoft 365" button in Settings
-- [ ] Token storage and refresh logic
+### Phase 1: Core Task Creation (Week 1)
+- [ ] Database migration: extend `account_follow_ups` table
+- [ ] API functions for creating manual follow-ups
+- [ ] Post-call task dialog component
+- [ ] Integration with RepDashboard submission flow
 
-### Phase 2: Calendar Sync (Week 2)
-- [ ] Create `ms_calendar_events` table
-- [ ] Implement `ms-graph-sync` for calendar
-- [ ] Pre-call briefing widget on Rep Dashboard
-- [ ] Upcoming meetings list component
+### Phase 2: Notification Infrastructure (Week 2)
+- [ ] Create `notification_preferences` table
+- [ ] Build `send-task-reminders` edge function
+- [ ] Add notification settings to UserSettings page
+- [ ] Schedule daily reminder job
 
-### Phase 3: Transcript Import (Week 3)
-- [ ] Extend `ms-graph-sync` for transcript fetching
-- [ ] Integrate transcript import into call submission
-- [ ] Auto-detect account name from meeting subject
-- [ ] Map attendees to stakeholders
+### Phase 3: UI Enhancements (Week 3)
+- [ ] Update PendingFollowUpsWidget with due dates
+- [ ] Update ProspectFollowUps with inline task creation
+- [ ] Add overdue indicators and sorting
+- [ ] Mobile-responsive task entry
 
-### Phase 4: Polish & Monitoring (Week 4)
-- [ ] Error handling and user notifications
-- [ ] Sync status indicators
-- [ ] Admin visibility into connection health
-- [ ] Performance monitoring integration
-
----
-
-## Configuration Requirements
-
-### Secrets Needed
-
-| Secret Name | Purpose |
-|-------------|---------|
-| `MS_CLIENT_ID` | Azure AD application client ID |
-| `MS_CLIENT_SECRET` | Azure AD application client secret |
-| `MS_TENANT_ID` | Azure AD tenant ID (or "common" for multi-tenant) |
-
-### Azure AD App Registration
-
-1. Register application in Azure Portal
-2. Add redirect URI: `https://wuquclmippzuejqbcksl.supabase.co/functions/v1/ms-graph-auth/callback`
-3. Configure API permissions (delegated):
-   - `User.Read`
-   - `Calendars.Read`
-   - `OnlineMeetings.Read`
-   - `offline_access`
-4. Generate client secret (store securely)
+### Phase 4: Polish (Week 4)
+- [ ] Email template refinement
+- [ ] Quick-add suggestions based on call type
+- [ ] Keyboard shortcuts for rapid task entry
+- [ ] Analytics: track task completion rates
 
 ---
 
-## IT Security Talking Points
+## Files to Create/Modify
 
-When presenting this to IT:
+### New Files
+- `src/components/calls/PostCallTasksDialog.tsx` - Task creation after call submission
+- `src/components/settings/NotificationPreferences.tsx` - Settings section
+- `src/api/notificationPreferences.ts` - Preferences API
+- `supabase/functions/send-task-reminders/index.ts` - Email reminder function
 
-1. **Read-only access** - We cannot modify calendars, send emails, or access files
-2. **Per-user consent** - No admin consent required; each user authorizes individually
-3. **Minimal data storage** - Only calendar metadata stored; transcripts flow through existing pipeline
-4. **Easy revocation** - Users can disconnect at any time; IT can revoke via Azure Portal
-5. **Full audit trail** - All API calls logged with user, timestamp, and operation type
-6. **No email access** - Explicitly excluded from this minimal scope
+### Modified Files
+- `src/api/accountFollowUps.ts` - Add manual task creation functions
+- `src/pages/rep/RepDashboard.tsx` - Show post-call dialog after submission
+- `src/pages/UserSettings.tsx` - Add notification preferences section
+- `src/components/dashboard/PendingFollowUpsWidget.tsx` - Show due dates
+- `src/components/prospects/detail/ProspectFollowUps.tsx` - Inline task creation
+- `src/hooks/prospect/useProspectFollowUps.ts` - Add manual task mutations
 
-This architecture provides the two highest-value use cases (transcript auto-import + calendar prep) while maintaining the smallest possible permission footprint.
+---
 
+## Security Considerations
+
+- RLS policies ensure users only see/edit their own tasks and preferences
+- Email reminders only sent to verified user emails from profiles table
+- Rate limiting on task creation (max 20 tasks per prospect)
+- Timezone validation to prevent injection
+
+---
+
+## Future Enhancements
+
+- Push notifications (browser/mobile)
+- Slack integration for reminders
+- Manager visibility into team task completion
+- Recurring tasks for regular check-ins
+- Calendar sync (ties into planned MS Graph integration)
