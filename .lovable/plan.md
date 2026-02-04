@@ -118,43 +118,39 @@ After a comprehensive audit of the Practice Roleplay system, I've identified 15 
 
 ---
 
-## Priority 3: Analytics & Tracking
+## ✅ Phase 3: Analytics & Tracking (COMPLETED)
 
-### 3.1 Limited Progress Metrics
+### ✅ 3.1 Enhanced Progress Metrics - DONE
 
-**Solution:**
-- Add line chart showing score trends over last 10 sessions
-- Add comparison to team average (for trainees)
-- Add "sessions this week" goal tracking
-- Show streak/consistency metrics
-
-**Files to modify:**
-- `src/pages/training/TrainingProgress.tsx` (add charts, enhanced metrics)
+**Implemented:**
+- Created `src/components/training/ProgressTrendChart.tsx` - Line chart showing score trends
+- Added weekly session count and streak tracking
+- Shows "sessions this week" card with flame icon for streaks
 
 ---
 
-### 3.2 No Persona-Specific Performance Tracking
+### ✅ 3.2 Persona & Session Type Breakdown - DONE
 
-**Solution:**
-- Add breakdown by persona in progress page
-- Add breakdown by session type
-- Show which persona/type combos need more practice
-
-**Files to modify:**
-- `src/pages/training/TrainingProgress.tsx` (add persona/type breakdown)
+**Implemented:**
+- Created `src/components/training/PersonaBreakdownCard.tsx` component
+- Shows performance breakdown by persona (sessions count, avg score)
+- Shows performance breakdown by session type
+- Uses progress bars for visual score display
 
 ---
 
-### 3.3 Manager Dashboard Missing Key Insights
+### ✅ 3.3 Manager Dashboard Analytics - DONE
 
-**Solution:**
-- Add "trainees needing attention" section (those with declining scores or low activity)
-- Add average score by persona/type charts
-- Add ability to assign practice goals to trainees
-- Add drill-down to view individual trainee transcripts
-
-**Files to modify:**
-- `src/pages/training/ManagerTrainingDashboard.tsx` (enhance analytics)
+**Implemented:**
+- Created `src/components/training/TraineesNeedingAttention.tsx` - Alerts for:
+  - Declining performance trends
+  - Inactive trainees (7+ days since last practice)
+  - Low grades (below 60)
+  - No practice sessions
+- Created `src/components/training/TeamPerformanceChart.tsx` - Bar charts for:
+  - Team average scores by persona
+  - Team average scores by session type
+- Added new "Analytics" tab to ManagerTrainingDashboard
 
 ---
 
@@ -200,5 +196,5 @@ After a comprehensive audit of the Practice Roleplay system, I've identified 15 
 |-------|--------|-------|
 | Phase 1 - Critical | ✅ COMPLETE | Admin Persona UI, Stuck Sessions CRON, sendBeacon Fix, Session Type Selector |
 | Phase 2 - UX Polish | ✅ COMPLETE | Pre-call briefing, Post-session summary, Key moments, Retry grading, Collapsible transcript |
-| Phase 3 - Analytics | ⏳ PENDING | Progress charts, Persona breakdown, Manager insights |
+| Phase 3 - Analytics | ✅ COMPLETE | Progress trend chart, Weekly/streak tracking, Persona breakdown, Trainees needing attention, Team performance charts |
 | Phase 4 - Features | ⏳ PENDING | Custom scenarios, Sales Coach integration, Product Knowledge integration |
