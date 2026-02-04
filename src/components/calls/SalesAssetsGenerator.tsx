@@ -234,6 +234,7 @@ export function SalesAssetsGenerator({
     }
   };
 
+  // If notes already exist (from analysis pipeline), skip the generate CTA
   if (!hasGenerated) {
     return (
       <Card className="border-dashed border-2 border-muted-foreground/25 hover:border-primary/50 transition-colors">

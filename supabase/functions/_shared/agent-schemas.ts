@@ -266,6 +266,13 @@ export type CoachOutput = z.infer<typeof CoachSchema>;
 export type SpeakerLabelerOutput = z.infer<typeof SpeakerLabelerSchema>;
 export type SentinelOutput = z.infer<typeof SentinelSchema>;
 
+// The Scribe - CRM-ready call notes
+export const ScribeSchema = z.object({
+  internal_notes_markdown: z.string().describe("CRM-ready internal notes in markdown format"),
+});
+
+export type ScribeOutput = z.infer<typeof ScribeSchema>;
+
 // ============= COMBINED TYPES FOR BACKWARD COMPATIBILITY =============
 
 // Merged metadata (Census + Historian)

@@ -31,6 +31,7 @@ import {
   CoachOutput,
   SpeakerLabelerOutput,
   SentinelOutput,
+  ScribeOutput,
   CallMetadata,
   MergedBehaviorScore,
   StrategyAudit,
@@ -81,6 +82,7 @@ export interface PipelineResult {
   psychology: ProfilerOutput;
   pricing: AuditorOutput;
   coaching: CoachOutput;
+  salesAssets: ScribeOutput;
   callClassification?: CallClassification;
   warnings: string[];
   phase1DurationMs: number;
@@ -654,6 +656,59 @@ function getStageExpectations(callType: string): { summary: string; aGradeCriter
   }
 }
 
+// ============= SCRIBE INPUT BUILDER =============
+
+function buildScribeInput(
+  historian: HistorianOutput,
+  skeptic: SkepticOutput,
+  spy: SpyOutput,
+  referee: RefereeOutput,
+  speakerContext?: SpeakerContext,
+  transcriptExcerpt?: string
+): string {
+  const accountName = speakerContext?.accountName || 'Unknown Account';
+  const stakeholderName = speakerContext?.stakeholderName || 'Unknown';
+  
+  const gapsSection = skeptic.critical_gaps?.length
+    ? skeptic.critical_gaps.map(g => `- [${g.impact}] ${g.category}: ${g.description}`).join('\n')
+    : '- None identified';
+    
+  const competitorsSection = spy.competitive_intel?.length
+    ? spy.competitive_intel.map(c => `- ${c.competitor_name}: ${c.usage_status}`).join('\n')
+    : '- None mentioned';
+  
+  const nextStepsText = referee.metrics?.next_steps?.secured
+    ? `SECURED: ${referee.metrics.next_steps.details || 'Yes'}`
+    : `NOT SECURED: ${referee.metrics?.next_steps?.details || 'No clear next steps'}`;
+  
+  // Include a transcript excerpt for additional context (first 5000 chars)
+  const excerpt = transcriptExcerpt 
+    ? transcriptExcerpt.substring(0, 5000)
+    : '';
+  
+  return `## CALL ANALYSIS SUMMARY
+
+**Account:** ${accountName}
+**Primary Contact:** ${stakeholderName}
+
+**Call Summary:** ${historian.summary}
+
+**Key Topics:** ${historian.key_topics?.join(', ') || 'Not extracted'}
+
+**Next Steps:** ${nextStepsText}
+
+**Critical Gaps:**
+${gapsSection}
+
+**Competitors Mentioned:**
+${competitorsSection}
+
+---
+
+**Transcript Excerpt (for additional context):**
+${excerpt}`;
+}
+
 function buildCoachingInputReport(
   metadata: CallMetadata,
   behavior: MergedBehaviorScore,
@@ -1158,15 +1213,17 @@ export async function runAnalysisPipeline(
 
   console.log(`[Pipeline] Scores - Behavior: ${behavior.overall_score} (base: ${referee.overall_score}, questions: ${interrogator.score}), Threading: ${strategy.strategic_threading.score}, Critical Gaps: ${strategy.critical_gaps.length}, Pricing: ${auditor.pricing_score}`);
 
-  // ============= PHASE 2: The Coach =============
+  // ============= PHASE 2: The Coach + The Scribe =============
   
-  // Check if we've exceeded the hard limit - if so, skip Coach and return partial results
-  const elapsedBeforeCoach = performance.now() - pipelineStart;
-  if (elapsedBeforeCoach > PIPELINE_HARD_LIMIT_MS) {
-    console.warn(`[Pipeline] ⚠️ Pipeline exceeded ${PIPELINE_HARD_LIMIT_MS}ms (${Math.round(elapsedBeforeCoach)}ms), skipping Coach phase`);
-    warnings.push(`Pipeline timeout (${Math.round(elapsedBeforeCoach)}ms) - coaching skipped, using defaults`);
+  // Check if we've exceeded the hard limit - if so, skip Phase 2 and return partial results
+  const elapsedBeforePhase2 = performance.now() - pipelineStart;
+  if (elapsedBeforePhase2 > PIPELINE_HARD_LIMIT_MS) {
+    console.warn(`[Pipeline] ⚠️ Pipeline exceeded ${PIPELINE_HARD_LIMIT_MS}ms (${Math.round(elapsedBeforePhase2)}ms), skipping Phase 2`);
+    warnings.push(`Pipeline timeout (${Math.round(elapsedBeforePhase2)}ms) - Phase 2 skipped, using defaults`);
     
     const coachDefault = coachConfig.default as CoachOutput;
+    const scribeConfig = getAgent('scribe')!;
+    const scribeDefault = scribeConfig.default as ScribeOutput;
     return {
       metadata,
       behavior,
@@ -1174,15 +1231,16 @@ export async function runAnalysisPipeline(
       psychology: profiler,
       pricing: auditor,
       coaching: coachDefault,
+      salesAssets: scribeDefault,
       callClassification,
       warnings,
       phase1DurationMs: phase1Duration,
       phase2DurationMs: 0,
-      totalDurationMs: elapsedBeforeCoach,
+      totalDurationMs: elapsedBeforePhase2,
     };
   }
   
-  console.log('[Pipeline] Phase 2: Running The Coach (synthesis agent)...');
+  console.log('[Pipeline] Phase 2: Running The Coach + The Scribe (parallel)...');
   const phase2Start = performance.now();
 
   // Build coaching input report
@@ -1200,11 +1258,29 @@ export async function runAnalysisPipeline(
     accountHistory
   );
 
-  // Use multi-model consensus for Coach - runs on GPT-5.2 AND Gemini 3 Pro, then reconciles
-  const coachResult = await executeCoachWithConsensus(coachConfig, coachingReport, supabase, callId);
+  // Build Scribe input from Phase 1 outputs
+  const scribeInput = buildScribeInput(
+    historian,
+    skeptic,
+    spy,
+    referee,
+    speakerContext,
+    processedTranscript
+  );
+
+  const scribeConfig = getAgent('scribe')!;
+
+  // Run Coach and Scribe in parallel - Coach uses consensus, Scribe uses single model
+  const [coachResult, scribeResult] = await Promise.all([
+    executeCoachWithConsensus(coachConfig, coachingReport, supabase, callId),
+    executeAgentWithPrompt(scribeConfig, scribeInput, supabase, callId),
+  ]);
   
   if (!coachResult.success) {
     warnings.push(`Coaching synthesis failed: ${coachResult.error}`);
+  }
+  if (!scribeResult.success) {
+    warnings.push(`CRM notes generation failed: ${scribeResult.error}`);
   }
 
   const phase2Duration = performance.now() - phase2Start;
@@ -1220,6 +1296,7 @@ export async function runAnalysisPipeline(
     psychology: profiler,
     pricing: auditor,
     coaching: coachResult.data,
+    salesAssets: scribeResult.data as ScribeOutput,
     callClassification,
     warnings,
     phase1DurationMs: phase1Duration,

@@ -66,7 +66,8 @@ import {
   Crown,
   ChevronRight,
   Download,
-  ListTodo
+  ListTodo,
+  Check
 } from 'lucide-react';
 
 function CallDetailPage() {
@@ -484,15 +485,22 @@ function CallDetailPage() {
             <Dialog open={isRecapDialogOpen} onOpenChange={setIsRecapDialogOpen}>
               <DialogTrigger asChild>
                 <button className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-card hover:bg-muted/50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring w-full sm:w-auto">
-                  <FileText className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium">Generate Call Notes</span>
+                  <ScrollText className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">
+                    {analysis?.sales_assets ? 'View Call Notes' : 'Generate Call Notes'}
+                  </span>
+                  {analysis?.sales_assets && (
+                    <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                      <Check className="h-3 w-3" />
+                    </Badge>
+                  )}
                   <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto" />
                 </button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-2xl md:max-w-3xl lg:max-w-4xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5 text-primary" />
+                    <ScrollText className="h-5 w-5 text-primary" />
                     Call Notes
                   </DialogTitle>
                 </DialogHeader>
