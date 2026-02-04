@@ -93,12 +93,31 @@ function CallDetailPage() {
   // Poll for analysis when needed (fallback for real-time)
   const { data: polledAnalysis } = useAnalysisPolling(id, shouldPoll);
 
-  // Real-time subscription for instant updates when analysis completes
-  useCallAnalysisRealtime(id, shouldPoll);
-
   // Use polled analysis if available, otherwise use initial analysis
   const transcript = callData?.transcript;
   const analysis = polledAnalysis || callData?.analysis || null;
+
+  // Determine if we should listen for real-time updates
+  // Keep listening until suggestions arrive (they come ~30-60s after analysis completes)
+  const shouldListenForUpdates = useMemo(() => {
+    if (!callData?.transcript) return false;
+    const status = callData.transcript.analysis_status;
+    
+    // Always listen during pending/processing
+    if (status === 'pending' || status === 'processing') return true;
+    
+    // After completion, keep listening until suggestions arrive
+    if (status === 'completed') {
+      const hasSuggestions = Array.isArray(analysis?.follow_up_suggestions) && 
+                             analysis.follow_up_suggestions.length > 0;
+      return !hasSuggestions;
+    }
+    
+    return false;
+  }, [callData?.transcript, analysis?.follow_up_suggestions]);
+
+  // Real-time subscription for instant updates when analysis completes AND for post-analysis data
+  useCallAnalysisRealtime(id, shouldListenForUpdates);
 
   const isOwner = transcript?.rep_id === user?.id;
   const isManager = role === 'manager' || role === 'admin';
