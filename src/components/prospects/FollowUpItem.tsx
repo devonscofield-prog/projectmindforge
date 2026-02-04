@@ -22,12 +22,10 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
-  Target,
-  Users,
+  Phone,
+  Mail,
   MessageSquare,
-  FileText,
-  Heart,
-  Swords,
+  Send,
   Loader2,
   X,
 } from 'lucide-react';
@@ -49,12 +47,10 @@ const priorityConfig: Record<FollowUpPriority, { label: string; className: strin
 };
 
 const categoryConfig: Record<FollowUpCategory, { label: string; icon: React.ElementType; className: string }> = {
-  discovery: { label: 'Discovery', icon: Target, className: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' },
-  stakeholder: { label: 'Stakeholder', icon: Users, className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
-  objection: { label: 'Objection', icon: MessageSquare, className: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' },
-  proposal: { label: 'Proposal', icon: FileText, className: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
-  relationship: { label: 'Relationship', icon: Heart, className: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400' },
-  competitive: { label: 'Competitive', icon: Swords, className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
+  phone_call: { label: 'Phone Call', icon: Phone, className: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
+  drip_email: { label: 'DRIP Email', icon: Mail, className: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' },
+  text_message: { label: 'Text Message', icon: MessageSquare, className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+  follow_up_email: { label: 'Follow Up Email', icon: Send, className: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' },
 };
 
 function formatDueDate(dueDate: string): { text: string; isOverdue: boolean; isDueToday: boolean } {
@@ -85,7 +81,7 @@ export function FollowUpItem({ followUp, onComplete, onDismiss, isCompleting, is
   const priority = priorityConfig[priorityKey] || priorityConfig.medium;
   const categoryKey = followUp.category as FollowUpCategory | null;
   const category = categoryKey ? categoryConfig[categoryKey] : null;
-  const CategoryIcon = category?.icon || Target;
+  const CategoryIcon = category?.icon || Phone;
   const isManual = followUp.source === 'manual';
   const dueDateInfo = followUp.due_date ? formatDueDate(followUp.due_date) : null;
 

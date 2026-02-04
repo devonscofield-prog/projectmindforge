@@ -43,12 +43,10 @@ const quickDueDates = [
 ];
 
 const categoryOptions: { value: FollowUpCategory; label: string }[] = [
-  { value: 'discovery', label: 'Discovery' },
-  { value: 'stakeholder', label: 'Stakeholder' },
-  { value: 'objection', label: 'Objection' },
-  { value: 'proposal', label: 'Proposal' },
-  { value: 'relationship', label: 'Relationship' },
-  { value: 'competitive', label: 'Competitive' },
+  { value: 'phone_call', label: 'Phone Call' },
+  { value: 'drip_email', label: 'DRIP Email' },
+  { value: 'text_message', label: 'Text Message' },
+  { value: 'follow_up_email', label: 'Follow Up Email' },
 ];
 
 const DEFAULT_REMINDER_TIME = '09:00';
@@ -65,7 +63,7 @@ export function AddCustomTaskDialog({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<FollowUpPriority>('medium');
-  const [category, setCategory] = useState<FollowUpCategory>('discovery');
+  const [category, setCategory] = useState<FollowUpCategory>('phone_call');
   const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
   const [reminderTime, setReminderTime] = useState(DEFAULT_REMINDER_TIME);
   const [reminderEnabled, setReminderEnabled] = useState(true); // Default ON
@@ -82,7 +80,7 @@ export function AddCustomTaskDialog({
     setTitle('');
     setDescription('');
     setPriority('medium');
-    setCategory('discovery');
+    setCategory('phone_call');
     setDueDate(undefined);
     setReminderTime(DEFAULT_REMINDER_TIME);
     setReminderEnabled(true);

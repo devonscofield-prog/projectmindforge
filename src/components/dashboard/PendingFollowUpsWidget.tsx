@@ -48,12 +48,10 @@ const priorityConfig: Record<FollowUpPriority, { label: string; className: strin
 };
 
 const categoryLabels: Record<FollowUpCategory, string> = {
-  discovery: 'Discovery',
-  stakeholder: 'Stakeholder',
-  objection: 'Objection',
-  proposal: 'Proposal',
-  relationship: 'Relationship',
-  competitive: 'Competitive',
+  phone_call: 'Phone Call',
+  drip_email: 'DRIP Email',
+  text_message: 'Text Message',
+  follow_up_email: 'Follow Up Email',
 };
 
 function formatDueDate(dueDate: string): { text: string; isOverdue: boolean; isDueToday: boolean } {
