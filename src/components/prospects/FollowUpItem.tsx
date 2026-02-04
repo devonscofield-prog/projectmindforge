@@ -31,6 +31,7 @@ import {
   Loader2,
   X,
 } from 'lucide-react';
+import { format, isToday, isTomorrow, isPast, parseISO } from 'date-fns';
 import type { AccountFollowUp, FollowUpCategory, FollowUpPriority } from '@/api/accountFollowUps';
 
 interface FollowUpItemProps {
@@ -56,6 +57,23 @@ const categoryConfig: Record<FollowUpCategory, { label: string; icon: React.Elem
   competitive: { label: 'Competitive', icon: Swords, className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
 };
 
+function formatDueDate(dueDate: string): { text: string; isOverdue: boolean; isDueToday: boolean } {
+  const date = parseISO(dueDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  if (isPast(date) && !isToday(date)) {
+    return { text: 'Overdue', isOverdue: true, isDueToday: false };
+  }
+  if (isToday(date)) {
+    return { text: 'Due today', isOverdue: false, isDueToday: true };
+  }
+  if (isTomorrow(date)) {
+    return { text: 'Due tomorrow', isOverdue: false, isDueToday: false };
+  }
+  return { text: `Due ${format(date, 'MMM d')}`, isOverdue: false, isDueToday: false };
+}
+
 export function FollowUpItem({ followUp, onComplete, onDismiss, isCompleting, isDismissing }: FollowUpItemProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoadingComplete, setIsLoadingComplete] = useState(false);
@@ -66,6 +84,8 @@ export function FollowUpItem({ followUp, onComplete, onDismiss, isCompleting, is
   const priority = priorityConfig[followUp.priority] || priorityConfig.medium;
   const category = followUp.category ? categoryConfig[followUp.category] : null;
   const CategoryIcon = category?.icon || Target;
+  const isManual = followUp.source === 'manual';
+  const dueDateInfo = followUp.due_date ? formatDueDate(followUp.due_date) : null;
 
   const handleComplete = async () => {
     setIsLoadingComplete(true);
@@ -110,6 +130,25 @@ export function FollowUpItem({ followUp, onComplete, onDismiss, isCompleting, is
               <Badge variant="secondary" className={category.className}>
                 <CategoryIcon className="h-3 w-3 mr-1" />
                 {category.label}
+              </Badge>
+            )}
+            {isManual && (
+              <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
+                Personal
+              </Badge>
+            )}
+            {dueDateInfo && (
+              <Badge 
+                variant="outline" 
+                className={`${
+                  dueDateInfo.isOverdue 
+                    ? 'bg-destructive/10 text-destructive border-destructive/20' 
+                    : dueDateInfo.isDueToday 
+                      ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200' 
+                      : 'bg-muted text-muted-foreground'
+                }`}
+              >
+                {dueDateInfo.text}
               </Badge>
             )}
           </div>
