@@ -14,29 +14,6 @@ function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Links that MUST be included in every email
-const REQUIRED_LINKS = {
-  stormwind_ranges: {
-    url: 'https://info.stormwind.com/ranges',
-    text: 'Ranges',
-    context: 'Hands-on lab environments'
-  },
-  course_samples: {
-    url: 'https://info.stormwind.com/training-samples',
-    text: 'Course Samples',
-    context: 'Sample training content'
-  }
-};
-
-// Optional links - include when contextually relevant
-const OPTIONAL_LINKS = {
-  skill_assessments: {
-    url: 'https://info.stormwind.com/skills-assessments',
-    text: 'Skills Assessments',
-    context: 'When discussing skill gaps, assessments, or baseline measurement'
-  }
-};
-
 // Input validation schema
 const MAX_TRANSCRIPT_LENGTH = 500_000;
 
@@ -45,8 +22,8 @@ function sanitizeUserInput(input: string): string {
   return input.replace(/\0/g, '').replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '[REMOVED]').trim();
 }
 
-const generateSalesAssetsSchema = z.object({
-  call_id: z.string().uuid().optional(), // Optional call_id to save assets to DB
+const generateCallNotesSchema = z.object({
+  call_id: z.string().uuid().optional(),
   transcript: z.string()
     .min(100, "Transcript too short")
     .max(MAX_TRANSCRIPT_LENGTH, `Transcript too long (max ${MAX_TRANSCRIPT_LENGTH} chars)`)
@@ -59,7 +36,6 @@ const generateSalesAssetsSchema = z.object({
         is_relevant: z.boolean(),
         reasoning: z.string().max(1500)
       })).max(50).optional(),
-      // Accept both legacy strings and new structured objects
       missed_opportunities: z.array(z.union([
         z.string().max(1000),
         z.object({
@@ -77,55 +53,18 @@ const generateSalesAssetsSchema = z.object({
       suggested_question: z.string().max(500)
     })).max(20).optional()
   }).optional(),
-  psychology_context: z.object({
-    prospect_persona: z.string().max(500).optional(),
-    disc_profile: z.string().max(100).optional(),
-    communication_style: z.object({
-      tone: z.string().max(500).optional(),
-      preference: z.string().max(1000).optional()
-    }).optional(),
-    dos_and_donts: z.object({
-      do: z.array(z.string().max(500)).max(10).optional(),
-      dont: z.array(z.string().max(500)).max(10).optional()
-    }).optional()
-  }).optional().transform((ctx) => {
-    // Truncate overly long dos_and_donts strings as a fallback
-    if (ctx?.dos_and_donts) {
-      if (ctx.dos_and_donts.do) {
-        ctx.dos_and_donts.do = ctx.dos_and_donts.do.map(s => s.length > 500 ? s.substring(0, 497) + '...' : s);
-      }
-      if (ctx.dos_and_donts.dont) {
-        ctx.dos_and_donts.dont = ctx.dos_and_donts.dont.map(s => s.length > 500 ? s.substring(0, 497) + '...' : s);
-      }
-    }
-    return ctx;
-  }),
   account_name: z.string().max(200).transform(sanitizeUserInput).optional(),
   stakeholder_name: z.string().max(200).transform(sanitizeUserInput).optional()
 });
 
-const SALES_ASSETS_TOOL = {
+const CALL_NOTES_TOOL = {
   type: "function",
   function: {
-    name: "generate_sales_assets",
-    description: "Generate a follow-up recap email and internal CRM notes based on the call transcript and strategic context",
+    name: "generate_call_notes",
+    description: "Generate internal CRM notes based on the call transcript and strategic context",
     parameters: {
       type: "object",
       properties: {
-        recap_email: {
-          type: "object",
-          properties: {
-            subject_line: { 
-              type: "string", 
-              description: "Professional email subject line. Use {{ProspectFirstName}} placeholder if referencing the prospect." 
-            },
-            body_markdown: { 
-              type: "string", 
-              description: "Email body in Markdown format with proper paragraphs, bold text, and markdown links. Must include required StormWind links." 
-            }
-          },
-          required: ["subject_line", "body_markdown"]
-        },
         internal_notes_markdown: {
           type: "string",
           description: `CRM-ready internal notes in markdown format. MUST use this exact structure with bold section headers and bullet points:
@@ -152,97 +91,57 @@ const SALES_ASSETS_TOOL = {
 * Current deal temperature (Hot/Warm/Cold) and reasoning`
         }
       },
-      required: ["recap_email", "internal_notes_markdown"]
+      required: ["internal_notes_markdown"]
     }
   }
 };
 
-const COPYWRITER_SYSTEM_PROMPT = `You are an expert Enterprise Sales Copywriter for StormWind Studios.
+const CRM_NOTES_SYSTEM_PROMPT = `You are an expert Enterprise Sales professional creating internal CRM notes.
 
-**YOUR TASK:** Write a professional, personalized post-call recap email AND internal CRM notes.
+**YOUR TASK:** Create comprehensive, CRM-ready internal notes from the call transcript.
 
-**EMAIL TONE:**
-- Professional and polished, but warm and personable
-- Match the formality level to how the call actually went
-- Confident without being pushy
+**NOTES STRUCTURE (use exactly):**
+Use **bold headers** and bullet points for each section:
 
-**STRUCTURE:**
-- Opening: 1-2 sentences max
-- Body: 2-3 short outcome-focused sections with **bold titles**
-  - Each section: ONE sentence only, focused on business value
-- Closing: 1-2 sentences with next step
-- **TOTAL LENGTH: 100-200 words** (shorter is better)
+**Call Summary**
+- One clear sentence on purpose and outcome
 
-**CRITICAL - DO NOT:**
-- ❌ Create a "your needs" bullet list followed by a "our solutions" bullet list
-- ❌ Use phrases like "To recap your needs..." or "Here are resources that address..."
-- ❌ Map every pain point to a feature in a 1:1 list format
-- ❌ Sound like a proposal template or marketing brochure
-- ❌ Generic openers like "Thank you for taking the time to meet"
-- ❌ Long explanatory paragraphs - keep sections to ONE sentence
-- ❌ More than 3 body sections - prioritize the most important points
+**Key Discussion Points**
+- What topics were actually discussed
+- Pain points mentioned
+- Solutions proposed
 
-**DO:**
-- ✅ Use bold outcome-focused headers (e.g., "**Risk Mitigation (Sandboxes):**")
-- ✅ Keep each section to 1-2 sentences focused on their specific situation
-- ✅ Reference specific details from the call (team size, concerns mentioned, etc.)
-- ✅ Include clear next steps with dates when available
+**Next Steps**
+- Specific action items with owners
+- Deadlines when mentioned
+- Follow-up commitments
 
-**REQUIRED LINKS (must include both):**
-- [Ranges](https://info.stormwind.com/ranges) - hands-on lab environments
-- [Course Samples](https://info.stormwind.com/training-samples) - training content preview
+**Critical Gaps/Unknowns**
+- Information still needed to progress the deal
+- Questions that need answers
+- Missing stakeholders or approvals
 
-**OPTIONAL LINKS (include only when relevant):**
-- [Skills Assessments](https://info.stormwind.com/skills-assessments) - use when discussing skill gaps, baselining, or measuring progress
+**Competitor Intel**
+- Any competitors mentioned by name
+- Context of the mention (pricing comparison, feature comparison, etc.)
+- Write "None mentioned" if no competitors came up
 
-**EXAMPLE OF GOOD EMAIL:**
----
-{{ProspectFirstName}},
+**Deal Health**
+- Temperature: Hot/Warm/Cold
+- Brief reasoning based on engagement, timeline, budget signals
 
-Great connecting with you. Given your concerns about training becoming "shelfware" at {{CompanyName}}, here's how we're structuring this to ensure adoption:
-
-**Risk-Free Practice:** Your team can break/fix environments in our [Ranges](https://info.stormwind.com/ranges) instead of production.
-
-**Targeted Skill Building:** Practical 20-30 hour/year plans with [Course Samples](https://info.stormwind.com/training-samples) that fit real schedules.
-
-**Quick Answers:** Storm AI provides instant troubleshooting help from verified documentation.
-
-I've attached the Executive Brief for your leadership. Quote is in PandaDoc - just need a signature to get started with Net30 terms.
-
-Looking forward to our follow-up on the 30th.
----
-
-**PLACEHOLDERS:**
-- Use {{ProspectFirstName}} and {{CompanyName}} where names aren't available
-- Do NOT include a signature block
-
-**INTERNAL CRM NOTES:**
-Use this structure with **bold headers** and bullet points:
-- **Call Summary** - One sentence on purpose/outcome
-- **Key Discussion Points** - What was actually discussed
-- **Next Steps** - Who does what by when
-- **Critical Gaps** - What info is still needed
-- **Competitor Intel** - Any mentions (or "None")
-- **Deal Health** - Hot/Warm/Cold with brief reasoning`;
+**GUIDELINES:**
+- Be specific and factual - use details from the call
+- Include names, numbers, dates when available
+- Focus on information useful for sales progression
+- Keep each bullet concise but complete
+- Use markdown formatting (bold, bullets)`;
 
 interface CriticalGap {
   category: string;
   description: string;
   impact: string;
   suggested_question: string;
-}
-
-interface PsychologyContext {
-  prospect_persona?: string;
-  disc_profile?: string;
-  communication_style?: {
-    tone?: string;
-    preference?: string;
-  };
-  dos_and_donts?: {
-    do?: string[];
-    dont?: string[];
-  };
 }
 
 interface MissedOpportunityObject {
@@ -263,38 +162,6 @@ interface StrategicContext {
     missed_opportunities?: Array<string | MissedOpportunityObject>;
   };
   critical_gaps?: CriticalGap[];
-}
-
-// Validate that the email contains required links (Ranges and Course Samples only)
-function validateEmailLinks(emailBody: string): { valid: boolean; missing: string[] } {
-  const missing: string[] = [];
-  
-  if (!emailBody.includes(REQUIRED_LINKS.stormwind_ranges.url)) {
-    missing.push('StormWind Ranges link');
-  }
-  if (!emailBody.includes(REQUIRED_LINKS.course_samples.url)) {
-    missing.push('Course Samples link');
-  }
-  
-  return { valid: missing.length === 0, missing };
-}
-
-// Validate email quality
-function validateEmailQuality(emailBody: string): { valid: boolean; warnings: string[] } {
-  const warnings: string[] = [];
-  const wordCount = emailBody.split(/\s+/).filter(Boolean).length;
-  
-  if (wordCount < 75) {
-    warnings.push(`Email too short (${wordCount} words, minimum 75)`);
-  }
-  // Removed upper word limit - we want substantive emails
-  
-  // Check for placeholder integrity (shouldn't have hallucinated names)
-  if (emailBody.match(/\bDear\s+[A-Z][a-z]+\b/) && !emailBody.includes('{{ProspectFirstName}}')) {
-    warnings.push('Email may contain hallucinated name instead of placeholder');
-  }
-  
-  return { valid: warnings.length === 0, warnings };
 }
 
 Deno.serve(async (req) => {
@@ -342,7 +209,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const validation = generateSalesAssetsSchema.safeParse(body);
+    const validation = generateCallNotesSchema.safeParse(body);
     if (!validation.success) {
       const errors = validation.error.errors.map(err => ({
         path: err.path.join('.'),
@@ -355,9 +222,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { call_id, transcript, strategic_context, psychology_context, account_name, stakeholder_name } = validation.data;
+    const { call_id, transcript, strategic_context, account_name, stakeholder_name } = validation.data;
 
-    console.log(`[generate-sales-assets] Generating assets for user ${user.id}${call_id ? `, call ${call_id}` : ''}`);
+    console.log(`[generate-sales-assets] Generating call notes for user ${user.id}${call_id ? `, call ${call_id}` : ''}`);
 
     // Build the context for the AI
     let contextSection = '';
@@ -375,14 +242,10 @@ Deno.serve(async (req) => {
       if (sc.strategic_threading?.missed_opportunities && sc.strategic_threading.missed_opportunities.length > 0) {
         contextSection += '\n**MISSED OPPORTUNITIES (Pains not addressed):**\n';
         for (const missed of sc.strategic_threading.missed_opportunities) {
-          // Handle both string and object formats
           if (typeof missed === 'string') {
             contextSection += `- ${missed}\n`;
           } else {
             contextSection += `- [${missed.severity}] ${missed.pain}\n`;
-            if (missed.talk_track) {
-              contextSection += `  → Suggested talk track: "${missed.talk_track}"\n`;
-            }
           }
         }
       }
@@ -391,43 +254,21 @@ Deno.serve(async (req) => {
         contextSection += '\n**CRITICAL GAPS (Information missing from this deal):**\n';
         for (const gap of sc.critical_gaps) {
           contextSection += `- [${gap.impact} Impact] ${gap.category}: ${gap.description}\n`;
-          contextSection += `  → Suggested question: "${gap.suggested_question}"\n`;
         }
       }
     }
 
-    // Add psychology context if available
-    let psychologySection = '';
-    if (psychology_context) {
-      const pc = psychology_context as PsychologyContext;
-      psychologySection = `\n\n**PROSPECT PSYCHOLOGY:**
-- **Persona:** ${pc.prospect_persona || 'Unknown'}
-- **DISC Profile:** ${pc.disc_profile || 'Unknown'}
-- **Preferred Tone:** ${pc.communication_style?.tone || 'Unknown'}
-- **Communication Preference:** ${pc.communication_style?.preference || 'Unknown'}
-- **DO:** ${pc.dos_and_donts?.do?.join('; ') || 'No specific guidance'}
-- **DON'T:** ${pc.dos_and_donts?.dont?.join('; ') || 'No specific guidance'}`;
-    }
-
-    const userPrompt = `Generate a professional follow-up email and internal CRM notes for this sales call.
+    const userPrompt = `Generate comprehensive internal CRM notes for this sales call.
 
 ${account_name ? `**Account:** ${account_name}` : ''}
 ${stakeholder_name ? `**Primary Contact:** ${stakeholder_name}` : ''}
 ${contextSection}
-${psychologySection}
-
-**REMINDERS:** 
-- Use {{ProspectFirstName}}, {{CompanyName}} placeholders where names aren't in the transcript
-- Weave in all three required links naturally within the prose - NO separate resource section
-- Write ONE flowing narrative, NOT a needs list followed by a solutions list
-- No signature block needed
-- Format in Markdown
 
 **CALL TRANSCRIPT:**
 ${transcript.substring(0, 30000)}`;
 
-    // Retry logic for handling transient AI failures (e.g., MALFORMED_FUNCTION_CALL)
-    let salesAssets;
+    // Retry logic for handling transient AI failures
+    let callNotes;
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt <= MAX_AI_RETRIES; attempt++) {
@@ -445,12 +286,12 @@ ${transcript.substring(0, 30000)}`;
         body: JSON.stringify({
           model: 'google/gemini-2.5-flash',
           messages: [
-            { role: 'system', content: COPYWRITER_SYSTEM_PROMPT },
+            { role: 'system', content: CRM_NOTES_SYSTEM_PROMPT },
             { role: 'user', content: userPrompt }
           ],
-          tools: [SALES_ASSETS_TOOL],
-          tool_choice: { type: 'function', function: { name: 'generate_sales_assets' } },
-          max_tokens: 8192,
+          tools: [CALL_NOTES_TOOL],
+          tool_choice: { type: 'function', function: { name: 'generate_call_notes' } },
+          max_tokens: 4096,
           temperature: 0.5,
         }),
       });
@@ -483,17 +324,17 @@ ${transcript.substring(0, 30000)}`;
       if (finishReason === 'length') {
         console.warn(`[generate-sales-assets] Attempt ${attempt + 1}: Response truncated due to token limit`);
         lastError = new Error(`Response truncated (attempt ${attempt + 1})`);
-        continue; // Try again
+        continue;
       }
 
       // Check for malformed function call - retry if this occurs
       if (finishReason === 'MALFORMED_FUNCTION_CALL' || !toolCall) {
         console.warn(`[generate-sales-assets] Attempt ${attempt + 1}: Malformed response, finish_reason=${finishReason}`);
         lastError = new Error(`Malformed AI response (attempt ${attempt + 1})`);
-        continue; // Try again
+        continue;
       }
 
-      if (toolCall.function?.name !== 'generate_sales_assets') {
+      if (toolCall.function?.name !== 'generate_call_notes') {
         console.error('[generate-sales-assets] Unexpected tool call:', toolCall.function?.name);
         lastError = new Error('Unexpected tool call from AI');
         continue;
@@ -501,8 +342,8 @@ ${transcript.substring(0, 30000)}`;
 
       // Success - parse and break out of retry loop
       try {
-        salesAssets = JSON.parse(toolCall.function.arguments);
-        break; // Success!
+        callNotes = JSON.parse(toolCall.function.arguments);
+        break;
       } catch (parseError) {
         console.error('[generate-sales-assets] Failed to parse tool arguments:', parseError);
         lastError = new Error('Failed to parse AI response');
@@ -510,53 +351,34 @@ ${transcript.substring(0, 30000)}`;
       }
     }
 
-    if (!salesAssets) {
-      throw lastError || new Error('Failed to generate sales assets after all retries');
-    }
-    
-    // Validate the generated email
-    const emailBody = salesAssets.recap_email?.body_markdown || salesAssets.recap_email?.body_html || '';
-    const linkValidation = validateEmailLinks(emailBody);
-    const qualityValidation = validateEmailQuality(emailBody);
-    
-    // Log warnings but don't fail
-    if (!linkValidation.valid) {
-      console.warn('[generate-sales-assets] Missing required links:', linkValidation.missing);
-      salesAssets.validation_warnings = salesAssets.validation_warnings || [];
-      salesAssets.validation_warnings.push(...linkValidation.missing.map(m => `Missing: ${m}`));
-    }
-    
-    if (!qualityValidation.valid) {
-      console.warn('[generate-sales-assets] Quality warnings:', qualityValidation.warnings);
-      salesAssets.validation_warnings = salesAssets.validation_warnings || [];
-      salesAssets.validation_warnings.push(...qualityValidation.warnings);
+    if (!callNotes) {
+      throw lastError || new Error('Failed to generate call notes after all retries');
     }
 
     // Save to database if call_id is provided
     if (call_id) {
-      console.log(`[generate-sales-assets] Saving assets to database for call ${call_id}`);
+      console.log(`[generate-sales-assets] Saving notes to database for call ${call_id}`);
       
       const { error: updateError } = await supabase
         .from('ai_call_analysis')
         .update({
-          sales_assets: salesAssets,
+          sales_assets: { internal_notes_markdown: callNotes.internal_notes_markdown },
           sales_assets_generated_at: new Date().toISOString()
         })
         .eq('call_id', call_id);
 
       if (updateError) {
-        console.error('[generate-sales-assets] Failed to save assets to database:', updateError);
-        // Don't fail the request, just log the error
-        salesAssets.save_error = 'Failed to persist assets to database';
+        console.error('[generate-sales-assets] Failed to save notes to database:', updateError);
+        callNotes.save_error = 'Failed to persist notes to database';
       } else {
-        console.log('[generate-sales-assets] Assets saved to database successfully');
-        salesAssets.saved = true;
+        console.log('[generate-sales-assets] Notes saved to database successfully');
+        callNotes.saved = true;
       }
     }
     
-    console.log('[generate-sales-assets] Successfully generated sales assets');
+    console.log('[generate-sales-assets] Successfully generated call notes');
 
-    return new Response(JSON.stringify(salesAssets), {
+    return new Response(JSON.stringify(callNotes), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
