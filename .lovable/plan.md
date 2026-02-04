@@ -1,97 +1,172 @@
 
 
-# Fix Invite Flow to Prompt Password Creation
+# Add File Upload to Product Knowledge Base
 
-## Problem
+## Overview
 
-Currently, when a new user clicks their invite link:
-1. They get logged in immediately (via magic link)
-2. They go straight to MFA enrollment
-3. **They never get to set their own password** - the account has a random UUID as the password
-
-This happens because the invite function generates a `magiclink` instead of an `invite` or `recovery` link.
+Add the ability for admins to upload documents (PDFs, Word docs, text files) directly to the Product Knowledge Base, in addition to the existing web scraping functionality. These uploaded documents will be processed into chunks with embeddings so the Sales Coach and Sales Assistant can reference them when providing recommendations.
 
 ---
 
-## Solution
+## Current System
 
-Change the link type from `magiclink` to `invite`. Supabase's invite link type is specifically designed for new user onboarding and will prompt the user to set a password when they click it.
+The Product Knowledge Base currently:
+- **Scrapes websites** using Firecrawl to get markdown content
+- **Stores content** in `product_knowledge` table (source_url, raw_markdown, title, page_type)
+- **Chunks content** into `product_knowledge_chunks` with embeddings for vector search
+- **Provides context** to Sales Coach and Sales Assistant via the `find_product_knowledge` function
 
 ---
 
-## Implementation
+## Implementation Approach
 
-### File: `supabase/functions/invite-user/index.ts`
+### 1. Create Storage Bucket for Document Uploads
 
-**1. Change link type from `magiclink` to `invite`**
+Create a new Supabase storage bucket called `product-documents` for storing uploaded files:
 
-```typescript
-// Before (line 179-185):
-const { data: resetData, error: resetError } = await supabaseAdmin.auth.admin.generateLink({
-  type: 'magiclink',
-  email,
-  options: {
-    redirectTo: redirectTo || undefined
-  }
-});
+```sql
+-- Create storage bucket for product knowledge documents
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('product-documents', 'product-documents', false);
 
-// After:
-const { data: resetData, error: resetError } = await supabaseAdmin.auth.admin.generateLink({
-  type: 'invite',
-  email,
-  options: {
-    redirectTo: redirectTo || `https://projectmindforge.lovable.app/auth`
-  }
-});
+-- RLS: Admins can upload/manage files
+CREATE POLICY "Admins can manage product documents"
+ON storage.objects
+FOR ALL
+USING (bucket_id = 'product-documents' AND has_role(auth.uid(), 'admin'::user_role))
+WITH CHECK (bucket_id = 'product-documents' AND has_role(auth.uid(), 'admin'::user_role));
 ```
 
-**2. Update the email copy to match the new flow**
+### 2. Extend `product_knowledge` Table
 
-The "What's next?" section should reflect that users will set their password first, then set up MFA:
+Add a column to distinguish between scraped and uploaded content:
 
-```html
-<div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;">
-  <p style="margin: 0; font-size: 14px; color: #666;">
-    <strong>What's next?</strong><br>
-    1. Click the link to create your password<br>
-    2. Set up two-factor authentication (2FA) for security<br>
-    Have an authenticator app ready (like Google Authenticator or Authy).
-  </p>
-</div>
+```sql
+ALTER TABLE public.product_knowledge 
+ADD COLUMN source_type TEXT DEFAULT 'scraped' CHECK (source_type IN ('scraped', 'uploaded'));
+
+-- source_url will store the storage file path for uploads: storage://product-documents/filename.pdf
 ```
+
+### 3. Create Edge Function: `upload-product-knowledge`
+
+A new edge function that:
+1. Accepts file uploads (PDF, DOCX, TXT, MD)
+2. Stores the file in Supabase storage
+3. Extracts text content using appropriate parsers
+4. Saves to `product_knowledge` table with `source_type = 'uploaded'`
+5. Triggers the existing `process-product-knowledge` function for chunking/embedding
+
+**Supported file types:**
+- **PDF**: Extract text using a PDF parsing library
+- **TXT/MD**: Direct text content
+- **DOCX**: Extract using mammoth or similar
+
+### 4. Update Admin Knowledge Base UI
+
+Add an "Upload Documents" section to `AdminKnowledgeBase.tsx`:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  📤 Upload Documents                                     │
+│  ─────────────────────────────────────────────────────  │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │  Drop files here or click to browse             │    │
+│  │  Supported: PDF, DOCX, TXT, MD                  │    │
+│  └─────────────────────────────────────────────────┘    │
+│                                                          │
+│  [Document Title: ______________]                        │
+│  [Page Type: ▼ Product / Feature / Pricing / Docs ]     │
+│                                                          │
+│  [Upload Document]                                       │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 5. Update Stats & Pages Table
+
+- Add filter/badge to distinguish "Scraped" vs "Uploaded" sources
+- Show file icon for uploaded documents vs globe icon for scraped pages
 
 ---
 
 ## Technical Details
 
-**Why `type: 'invite'` works:**
-- Supabase's invite link type is designed for admin-created users
-- When clicked, it triggers a password recovery flow that lets users set their password
-- After setting the password, they're logged in and will proceed to MFA enrollment
-- The existing Auth.tsx already handles the `PASSWORD_RECOVERY` event properly
+### Database Changes
 
-**Flow after fix:**
-1. Admin invites user → user created with random password
-2. User receives email with invite link
-3. User clicks link → **prompted to set password**
-4. User sets password → logged in
-5. MFA enrollment screen appears
-6. User sets up 2FA → done!
+| Change | Description |
+|--------|-------------|
+| Add `source_type` column | Distinguishes scraped vs uploaded content |
+| Create storage bucket | Secure storage for uploaded files |
+| Storage RLS policies | Admins only can upload/manage |
+
+### New Edge Function: `upload-product-knowledge`
+
+```typescript
+// Accepts: FormData with file + metadata (title, page_type)
+// 1. Upload file to storage bucket
+// 2. Extract text based on file type:
+//    - PDF: pdf-parse or similar
+//    - DOCX: mammoth  
+//    - TXT/MD: direct read
+// 3. Insert into product_knowledge with source_type = 'uploaded'
+// 4. Trigger process-product-knowledge for chunking
+```
+
+### API Changes
+
+Add new functions to `src/api/productKnowledge.ts`:
+
+```typescript
+export async function uploadProductDocument(
+  file: File,
+  metadata: { title: string; pageType: string }
+): Promise<{ success: boolean; id?: string; error?: string }>
+```
+
+### UI Components
+
+| Component | Changes |
+|-----------|---------|
+| `AdminKnowledgeBase.tsx` | Add upload dialog, file drop zone, title/type inputs |
+| Status badges | Show "Uploaded" vs "Scraped" badges |
+| Table display | File icon for uploads, view/download link for original file |
 
 ---
+
+## Files to Create
+
+| File | Purpose |
+|------|---------|
+| `supabase/functions/upload-product-knowledge/index.ts` | Edge function to handle file uploads and text extraction |
 
 ## Files to Modify
 
 | File | Changes |
 |------|---------|
-| `supabase/functions/invite-user/index.ts` | Change `type: 'magiclink'` to `type: 'invite'`, update email copy to reflect password creation step |
+| `src/pages/admin/AdminKnowledgeBase.tsx` | Add upload dialog, file drop zone, distinguish source types in table |
+| `src/api/productKnowledge.ts` | Add `uploadProductDocument()` function |
+| Database migration | Add `source_type` column, create storage bucket with RLS |
+
+---
+
+## User Flow
+
+1. **Admin navigates** to `/admin/knowledge-base`
+2. **Clicks "Upload Document"** button (new, alongside "Scrape Website")
+3. **Selects or drops file** (PDF, DOCX, TXT, MD)
+4. **Enters title and page type** in the dialog
+5. **Clicks "Upload"** → file is stored, text extracted, and processing begins
+6. **Document appears** in the table with "Uploaded" badge
+7. **After processing** → chunks with embeddings are available for RAG search
+8. **Sales Coach & Assistant** can now reference the uploaded content
 
 ---
 
 ## Result
 
-1. **Complete onboarding flow** - Users set their own password before MFA
-2. **Secure accounts** - No random UUID passwords left on accounts
-3. **Clear instructions** - Email explains the 2-step process (password → MFA)
-4. **Works with existing code** - Auth.tsx already handles password recovery events
+1. **Flexible content sources** - Both web scraping AND manual document uploads
+2. **Support for common formats** - PDF, Word docs, plain text files
+3. **Same RAG pipeline** - Uploaded docs go through identical chunking/embedding process
+4. **Unified search** - `find_product_knowledge` returns both scraped and uploaded content seamlessly
+5. **Admin control** - Easy to manage, delete, or replace uploaded documents
 
