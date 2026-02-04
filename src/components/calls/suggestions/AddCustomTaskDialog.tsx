@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,9 +17,10 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { format, addDays } from 'date-fns';
-import { CalendarIcon, Loader2, Bell } from 'lucide-react';
+import { CalendarIcon, Loader2, Bell, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createManualFollowUp, type FollowUpPriority, type FollowUpCategory } from '@/api/accountFollowUps';
+import { REMINDER_TIMES } from '@/api/notificationPreferences';
 import { createLogger } from '@/lib/logger';
 
 const log = createLogger('AddCustomTaskDialog');
@@ -50,6 +51,8 @@ const categoryOptions: { value: FollowUpCategory; label: string }[] = [
   { value: 'competitive', label: 'Competitive' },
 ];
 
+const DEFAULT_REMINDER_TIME = '09:00';
+
 export function AddCustomTaskDialog({
   open,
   onOpenChange,
@@ -64,8 +67,16 @@ export function AddCustomTaskDialog({
   const [priority, setPriority] = useState<FollowUpPriority>('medium');
   const [category, setCategory] = useState<FollowUpCategory>('discovery');
   const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
-  const [reminderEnabled, setReminderEnabled] = useState(false);
+  const [reminderTime, setReminderTime] = useState(DEFAULT_REMINDER_TIME);
+  const [reminderEnabled, setReminderEnabled] = useState(true); // Default ON
   const [isSaving, setIsSaving] = useState(false);
+
+  // When due date is selected, ensure reminder is enabled by default
+  useEffect(() => {
+    if (dueDate && !reminderEnabled) {
+      setReminderEnabled(true);
+    }
+  }, [dueDate]);
 
   const resetForm = () => {
     setTitle('');
@@ -73,7 +84,8 @@ export function AddCustomTaskDialog({
     setPriority('medium');
     setCategory('discovery');
     setDueDate(undefined);
-    setReminderEnabled(false);
+    setReminderTime(DEFAULT_REMINDER_TIME);
+    setReminderEnabled(true);
   };
 
   const handleSave = async () => {
@@ -97,7 +109,8 @@ export function AddCustomTaskDialog({
         priority,
         category,
         dueDate: dueDate ? format(dueDate, 'yyyy-MM-dd') : undefined,
-        reminderEnabled,
+        reminderEnabled: dueDate ? reminderEnabled : false,
+        reminderTime: dueDate && reminderEnabled ? reminderTime : undefined,
         sourceCallId: callId,
       });
 
@@ -116,6 +129,10 @@ export function AddCustomTaskDialog({
   const handleClose = () => {
     resetForm();
     onOpenChange(false);
+  };
+
+  const getReminderTimeLabel = (value: string) => {
+    return REMINDER_TIMES.find(t => t.value === value)?.label ?? value;
   };
 
   return (
@@ -182,64 +199,93 @@ export function AddCustomTaskDialog({
             </div>
           </div>
 
-          {/* Due Date */}
+          {/* Due Date and Reminder Time */}
           <div className="space-y-2">
-            <Label>Due Date</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    'w-full justify-start text-left font-normal',
-                    !dueDate && 'text-muted-foreground'
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {dueDate ? format(dueDate, 'PPP') : 'Pick a date'}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <div className="p-2 border-b">
-                  <div className="flex flex-wrap gap-1">
-                    {quickDueDates.map((q) => (
-                      <Button
-                        key={q.days}
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 text-xs"
-                        onClick={() => setDueDate(addDays(new Date(), q.days))}
-                      >
-                        {q.label}
-                      </Button>
-                    ))}
+            <Label>Due Date & Reminder Time</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {/* Date Picker */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      'w-full justify-start text-left font-normal',
+                      !dueDate && 'text-muted-foreground'
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dueDate ? format(dueDate, 'MMM d, yyyy') : 'Pick a date'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <div className="p-2 border-b">
+                    <div className="flex flex-wrap gap-1">
+                      {quickDueDates.map((q) => (
+                        <Button
+                          key={q.days}
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => setDueDate(addDays(new Date(), q.days))}
+                        >
+                          {q.label}
+                        </Button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-                <Calendar
-                  mode="single"
-                  selected={dueDate}
-                  onSelect={setDueDate}
-                  disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
+                  <Calendar
+                    mode="single"
+                    selected={dueDate}
+                    onSelect={setDueDate}
+                    disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+
+              {/* Time Picker - only enabled when date is selected */}
+              <Select
+                value={reminderTime}
+                onValueChange={setReminderTime}
+                disabled={!dueDate}
+              >
+                <SelectTrigger className={cn(!dueDate && 'text-muted-foreground')}>
+                  <Clock className="mr-2 h-4 w-4" />
+                  <SelectValue placeholder="Time" />
+                </SelectTrigger>
+                <SelectContent>
+                  {REMINDER_TIMES.map((time) => (
+                    <SelectItem key={time.value} value={time.value}>
+                      {time.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          {/* Reminder Toggle */}
+          {/* Reminder Toggle - only show when date is selected */}
           {dueDate && (
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="reminder-enabled"
-                checked={reminderEnabled}
-                onCheckedChange={(checked) => setReminderEnabled(checked === true)}
-              />
-              <Label
-                htmlFor="reminder-enabled"
-                className="text-sm text-muted-foreground flex items-center gap-1 cursor-pointer"
-              >
-                <Bell className="h-4 w-4" />
-                Send email reminder when due
-              </Label>
+            <div className="rounded-lg border bg-muted/50 p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="reminder-enabled"
+                  checked={reminderEnabled}
+                  onCheckedChange={(checked) => setReminderEnabled(checked === true)}
+                />
+                <Label
+                  htmlFor="reminder-enabled"
+                  className="text-sm font-medium flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Bell className="h-4 w-4" />
+                  Send email reminder
+                </Label>
+              </div>
+              {reminderEnabled && (
+                <p className="text-xs text-muted-foreground pl-6">
+                  You'll receive an email at {getReminderTimeLabel(reminderTime)} on {format(dueDate, 'MMMM d, yyyy')}
+                </p>
+              )}
             </div>
           )}
         </div>

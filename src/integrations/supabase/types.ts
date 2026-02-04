@@ -28,6 +28,7 @@ export type Database = {
           prospect_id: string
           reminder_enabled: boolean | null
           reminder_sent_at: string | null
+          reminder_time: string | null
           rep_id: string
           source: string | null
           source_call_id: string | null
@@ -48,6 +49,7 @@ export type Database = {
           prospect_id: string
           reminder_enabled?: boolean | null
           reminder_sent_at?: string | null
+          reminder_time?: string | null
           rep_id: string
           source?: string | null
           source_call_id?: string | null
@@ -68,6 +70,7 @@ export type Database = {
           prospect_id?: string
           reminder_enabled?: boolean | null
           reminder_sent_at?: string | null
+          reminder_time?: string | null
           rep_id?: string
           source?: string | null
           source_call_id?: string | null
