@@ -1537,39 +1537,48 @@ export type Database = {
       product_knowledge: {
         Row: {
           created_at: string | null
+          file_path: string | null
           id: string
           metadata: Json | null
+          original_filename: string | null
           page_type: string | null
           raw_markdown: string
           scrape_error: string | null
           scrape_status: string | null
           scraped_at: string | null
+          source_type: string | null
           source_url: string
           title: string | null
           updated_at: string | null
         }
         Insert: {
           created_at?: string | null
+          file_path?: string | null
           id?: string
           metadata?: Json | null
+          original_filename?: string | null
           page_type?: string | null
           raw_markdown: string
           scrape_error?: string | null
           scrape_status?: string | null
           scraped_at?: string | null
+          source_type?: string | null
           source_url: string
           title?: string | null
           updated_at?: string | null
         }
         Update: {
           created_at?: string | null
+          file_path?: string | null
           id?: string
           metadata?: Json | null
+          original_filename?: string | null
           page_type?: string | null
           raw_markdown?: string
           scrape_error?: string | null
           scrape_status?: string | null
           scraped_at?: string | null
+          source_type?: string | null
           source_url?: string
           title?: string | null
           updated_at?: string | null

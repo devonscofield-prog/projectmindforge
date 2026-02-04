@@ -12,7 +12,8 @@ import {
   FileText,
   Layers,
   BookOpen,
-  Globe
+  Globe,
+  FileUp
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -54,6 +55,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { PaginationControls } from '@/components/ui/pagination-controls';
+import { UploadDocumentDialog } from '@/components/admin/UploadDocumentDialog';
 
 import {
   getProductKnowledgeStats,
@@ -161,6 +163,7 @@ export default function AdminKnowledgeBase() {
   const queryClient = useQueryClient();
   const [currentPage, setCurrentPage] = useState(1);
   const [scrapeDialogOpen, setScrapeDialogOpen] = useState(false);
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [scrapeMode, setScrapeMode] = useState<'entire' | 'specific'>('entire');
   const [domain, setDomain] = useState('stormwindstudios.com');
   const [specificUrls, setSpecificUrls] = useState('');
@@ -249,6 +252,13 @@ export default function AdminKnowledgeBase() {
                 <Layers className="h-4 w-4 mr-2" />
               )}
               Process Chunks
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setUploadDialogOpen(true)}
+            >
+              <FileUp className="h-4 w-4 mr-2" />
+              Upload Document
             </Button>
             <Dialog open={scrapeDialogOpen} onOpenChange={setScrapeDialogOpen}>
               <DialogTrigger asChild>
@@ -394,7 +404,7 @@ export default function AdminKnowledgeBase() {
               </div>
             ) : !pagesData?.pages.length ? (
               <div className="py-8 text-center text-muted-foreground">
-                No pages scraped yet. Click "Scrape Website" to get started.
+                No pages yet. Click "Scrape Website" or "Upload Document" to get started.
               </div>
             ) : (
               <>
@@ -402,9 +412,10 @@ export default function AdminKnowledgeBase() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Title</TableHead>
+                      <TableHead>Source</TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Scraped At</TableHead>
+                      <TableHead>Added</TableHead>
                       <TableHead className="w-[100px]">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -413,21 +424,46 @@ export default function AdminKnowledgeBase() {
                       <TableRow key={page.id}>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <span className="font-medium truncate max-w-[300px]" title={page.title || page.source_url}>
-                              {page.title || 'Untitled'}
+                            {page.source_type === 'uploaded' ? (
+                              <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            ) : (
+                              <Globe className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            )}
+                            <span className="font-medium truncate max-w-[250px]" title={page.title || page.source_url}>
+                              {page.title || page.original_filename || 'Untitled'}
                             </span>
-                            <a 
-                              href={page.source_url} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="text-muted-foreground hover:text-foreground"
-                            >
-                              <ExternalLink className="h-3 w-3" />
-                            </a>
+                            {page.source_type !== 'uploaded' && (
+                              <a 
+                                href={page.source_url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-muted-foreground hover:text-foreground"
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            )}
                           </div>
                           {page.scrape_error && (
                             <p className="text-xs text-destructive mt-1">{page.scrape_error}</p>
                           )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant={page.source_type === 'uploaded' ? 'secondary' : 'outline'}
+                            className="text-xs"
+                          >
+                            {page.source_type === 'uploaded' ? (
+                              <>
+                                <FileUp className="h-3 w-3 mr-1" />
+                                Uploaded
+                              </>
+                            ) : (
+                              <>
+                                <Globe className="h-3 w-3 mr-1" />
+                                Scraped
+                              </>
+                            )}
+                          </Badge>
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline">{page.page_type || 'unknown'}</Badge>
@@ -485,6 +521,11 @@ export default function AdminKnowledgeBase() {
             )}
           </CardContent>
         </Card>
+
+        <UploadDocumentDialog 
+          open={uploadDialogOpen} 
+          onOpenChange={setUploadDialogOpen} 
+        />
       </div>
     </AppLayout>
   );

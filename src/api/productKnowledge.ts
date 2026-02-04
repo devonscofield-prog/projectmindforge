@@ -27,6 +27,8 @@ export interface ProductKnowledgePage {
   scrape_error: string | null;
   scraped_at: string;
   created_at: string;
+  source_type?: string;
+  original_filename?: string;
 }
 
 export interface ScrapeResult {
@@ -64,7 +66,7 @@ export async function listProductKnowledgePages(
 ): Promise<{ pages: ProductKnowledgePage[]; total: number }> {
   const { data, error, count } = await supabase
     .from('product_knowledge')
-    .select('id, source_url, page_type, title, scrape_status, scrape_error, scraped_at, created_at', { count: 'exact' })
+    .select('id, source_url, page_type, title, scrape_status, scrape_error, scraped_at, created_at, source_type, original_filename', { count: 'exact' })
     .order('scraped_at', { ascending: false })
     .range(offset, offset + limit - 1);
 
@@ -77,6 +79,37 @@ export async function listProductKnowledgePages(
     pages: (data || []) as ProductKnowledgePage[], 
     total: count || 0 
   };
+}
+
+export interface UploadDocumentResult {
+  success: boolean;
+  id?: string;
+  message?: string;
+  error?: string;
+}
+
+/**
+ * Upload a document to the product knowledge base
+ */
+export async function uploadProductDocument(
+  file: File,
+  metadata: { title: string; pageType: string }
+): Promise<UploadDocumentResult> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('title', metadata.title);
+  formData.append('page_type', metadata.pageType);
+
+  const { data, error } = await supabase.functions.invoke('upload-product-knowledge', {
+    body: formData,
+  });
+
+  if (error) {
+    console.error('[productKnowledge] Upload error:', error);
+    return { success: false, error: error.message };
+  }
+
+  return data as UploadDocumentResult;
 }
 
 /**
