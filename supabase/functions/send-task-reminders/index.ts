@@ -466,7 +466,7 @@ function buildEmailHtml(reminders: UserReminders, isTestMode = false): string {
     html += `
       <div style="margin-bottom: 24px;">
         <h3 style="color: #dc2626; margin-bottom: 12px;">⚠️ Overdue (${reminders.overdue.length})</h3>
-        ${reminders.overdue.map(f => taskHtml(f, reminders.prospectNames[f.prospect_id], reminders.prospectSalesforceLinks[f.prospect_id], priorityEmoji)).join("")}
+        ${reminders.overdue.map(f => taskHtml(f, reminders.prospectNames[f.prospect_id], f.prospect_id, reminders.prospectSalesforceLinks[f.prospect_id], priorityEmoji)).join("")}
       </div>
     `;
   }
@@ -476,7 +476,7 @@ function buildEmailHtml(reminders: UserReminders, isTestMode = false): string {
     html += `
       <div style="margin-bottom: 24px;">
         <h3 style="color: #d97706; margin-bottom: 12px;">📅 Due Today (${reminders.dueToday.length})</h3>
-        ${reminders.dueToday.map(f => taskHtml(f, reminders.prospectNames[f.prospect_id], reminders.prospectSalesforceLinks[f.prospect_id], priorityEmoji)).join("")}
+        ${reminders.dueToday.map(f => taskHtml(f, reminders.prospectNames[f.prospect_id], f.prospect_id, reminders.prospectSalesforceLinks[f.prospect_id], priorityEmoji)).join("")}
       </div>
     `;
   }
@@ -486,7 +486,7 @@ function buildEmailHtml(reminders: UserReminders, isTestMode = false): string {
     html += `
       <div style="margin-bottom: 24px;">
         <h3 style="color: #2563eb; margin-bottom: 12px;">📆 Due Tomorrow (${reminders.dueTomorrow.length})</h3>
-        ${reminders.dueTomorrow.map(f => taskHtml(f, reminders.prospectNames[f.prospect_id], reminders.prospectSalesforceLinks[f.prospect_id], priorityEmoji)).join("")}
+        ${reminders.dueTomorrow.map(f => taskHtml(f, reminders.prospectNames[f.prospect_id], f.prospect_id, reminders.prospectSalesforceLinks[f.prospect_id], priorityEmoji)).join("")}
       </div>
     `;
   }
@@ -507,8 +507,13 @@ function buildEmailHtml(reminders: UserReminders, isTestMode = false): string {
   return html;
 }
 
-function taskHtml(followUp: FollowUp, accountName: string, salesforceLink: string | null, priorityEmoji: Record<string, string>): string {
+function taskHtml(followUp: FollowUp, accountName: string, prospectId: string, salesforceLink: string | null, priorityEmoji: Record<string, string>): string {
   const emoji = priorityEmoji[followUp.priority] || "🔵";
+  
+  // MindForge account link - always available since prospect_id is required
+  const mindforgeAccountUrl = `https://projectmindforge.lovable.app/rep/prospects/${prospectId}`;
+  const accountNameHtml = `<a href="${mindforgeAccountUrl}" target="_blank" style="color: #6366f1; text-decoration: none; font-weight: 500;">${accountName}</a>`;
+  
   const salesforceLinkHtml = salesforceLink 
     ? `<a href="${salesforceLink}" target="_blank" style="color: #6366f1; text-decoration: none; font-size: 12px; margin-left: 8px;">Open in Salesforce →</a>`
     : '';
@@ -517,7 +522,7 @@ function taskHtml(followUp: FollowUp, accountName: string, salesforceLink: strin
     <div style="background: #f9fafb; border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; border-left: 3px solid ${followUp.priority === "high" ? "#dc2626" : followUp.priority === "medium" ? "#d97706" : "#2563eb"};">
       <div style="font-weight: 500;">${emoji} ${followUp.title}</div>
       <div style="font-size: 13px; color: #666; margin-top: 4px;">
-        Account: ${accountName}${salesforceLinkHtml}
+        Account: ${accountNameHtml}${salesforceLinkHtml}
       </div>
     </div>
   `;
