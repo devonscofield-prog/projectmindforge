@@ -59,73 +59,62 @@ After a comprehensive audit of the Practice Roleplay system, I've identified 15 
 
 ---
 
-## Priority 2: UX Improvements (NEXT)
+## ✅ Phase 2: UX Improvements (COMPLETED)
 
-### 2.1 Pre-Call Briefing Screen
+### ✅ 2.1 Pre-Call Briefing Screen - DONE
 
-**Issue:** Users jump straight into the call without understanding the persona's background, likely objections, or session goals.
-
-**Solution:**
-- Add a "briefing" screen before starting the call that shows:
-  - Persona name, role, industry, DISC profile
-  - Key challenges to uncover
-  - Common objections to expect
-  - Session tips based on type
-  - A "Start Call" button to proceed
-
-**Files to modify:**
-- `src/pages/training/RoleplaySession.tsx` (add briefing state/component)
+**Implemented:**
+- Created `src/components/training/RoleplayBriefing.tsx` component
+- Shows persona profile (name, role, industry, DISC profile, backstory)
+- Displays session type selector with descriptions
+- Shows communication tips based on DISC profile
+- Lists challenges to uncover (visible pain points with hints about hidden ones)
+- Shows expected objections with severity badges
+- Added 'briefing' state to session flow - users see briefing before starting
 
 ---
 
-### 2.2 Post-Session Summary
+### ✅ 2.2 Post-Session Summary - DONE
 
-**Issue:** When the session ends, users see "Session Complete!" but no immediate summary.
-
-**Solution:**
-- Fetch and display the grade inline after session ends
-- Show quick stats: grade, duration, top strength, top improvement
-- Provide "View Full Feedback" button to go to details
-
-**Files to modify:**
-- `src/pages/training/RoleplaySession.tsx` (add post-session summary component)
+**Implemented:**
+- Created `src/components/training/RoleplayPostSession.tsx` component
+- Shows duration and overall grade with color-coded badge
+- Polls for grade with refetch interval until available
+- Displays quick feedback (top strength, focus area, focus tags)
+- Handles restricted feedback visibility gracefully
+- Provides actions: Back to Training, Practice Again, View Full Feedback
 
 ---
 
-### 2.3 Key Moments Display
+### ✅ 2.3 Key Moments Display - DONE
 
-**Issue:** The grading system returns `key_moments` array with specific transcript moments, but SessionDetail doesn't display them.
-
-**Solution:**
-- Add "Key Moments" section to SessionDetail showing the AI-highlighted moments with assessments
-
-**Files to modify:**
-- `src/pages/training/SessionDetail.tsx` (add key moments display)
-
----
-
-### 2.4 Retry Grading Option
-
-**Issue:** If grading fails, there's no way to retry.
-
-**Solution:**
-- Add "Retry Grading" button on SessionDetail for admins/managers when a completed session has no grade
-
-**Files to modify:**
-- `src/pages/training/SessionDetail.tsx` (add retry button)
+**Implemented:**
+- Created `src/components/training/KeyMomentsSection.tsx` component
+- Displays AI-highlighted moments with transcript quotes
+- Shows assessment (positive/negative) with appropriate styling
+- Includes coaching suggestion for each moment
+- Integrated into `SessionDetail.tsx`
 
 ---
 
-### 2.5 Collapsible Transcript During Call
+### ✅ 2.4 Retry Grading Option - DONE
 
-**Issue:** The current UI shows only a voice activity indicator during calls.
+**Implemented:**
+- Added retry grading button to SessionDetail for admins/managers
+- Only shows when session is completed but has no grade
+- Calls `roleplay-grade-session` edge function
+- Shows loading state and invalidates query after 5 seconds
 
-**Solution:**
-- Add a collapsible/expandable transcript panel that users can toggle during calls
-- Keep it collapsed by default to maintain current UX
+---
 
-**Files to modify:**
-- `src/pages/training/RoleplaySession.tsx` (add collapsible transcript component)
+### ✅ 2.5 Collapsible Transcript During Call - DONE
+
+**Implemented:**
+- Created `src/components/training/RoleplayTranscriptPanel.tsx` component
+- Collapsible panel that shows live transcript during calls
+- Collapsed by default to maintain focus on voice activity
+- Shows message count badge
+- Displays streaming text with typing indicator
 
 ---
 
@@ -210,6 +199,6 @@ After a comprehensive audit of the Practice Roleplay system, I've identified 15 
 | Phase | Status | Items |
 |-------|--------|-------|
 | Phase 1 - Critical | ✅ COMPLETE | Admin Persona UI, Stuck Sessions CRON, sendBeacon Fix, Session Type Selector |
-| Phase 2 - UX Polish | ⏳ PENDING | Pre-call briefing, Post-session summary, Key moments, Retry grading, Collapsible transcript |
+| Phase 2 - UX Polish | ✅ COMPLETE | Pre-call briefing, Post-session summary, Key moments, Retry grading, Collapsible transcript |
 | Phase 3 - Analytics | ⏳ PENDING | Progress charts, Persona breakdown, Manager insights |
 | Phase 4 - Features | ⏳ PENDING | Custom scenarios, Sales Coach integration, Product Knowledge integration |
