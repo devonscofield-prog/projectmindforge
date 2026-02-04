@@ -275,7 +275,8 @@ export function SalesAssistantChat() {
   };
 
   const handleQuickAction = (action: QuickAction) => {
-    sendMessage(action.prompt);
+    setInput(action.prompt);
+    inputRef.current?.focus();
   };
 
   const floatingButton = (

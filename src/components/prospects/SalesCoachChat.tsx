@@ -700,7 +700,7 @@ export function SalesCoachChat({ prospectId, accountName, heatScore, lastContact
                               key={action.id}
                               variant="outline"
                               className="h-auto py-4 flex-col gap-2 bg-card/50 backdrop-blur-sm border-border/50 hover:bg-gradient-to-br hover:from-primary/5 hover:to-primary/10 hover:border-primary/30 hover:scale-[1.02] hover:shadow-md transition-all duration-200 group"
-                              onClick={() => sendMessage(action.prompt)}
+                              onClick={() => { setInput(action.prompt); inputRef.current?.focus(); }}
                               disabled={isLoading || isRateLimited}
                             >
                               <div className="w-9 h-9 rounded-full bg-muted/80 flex items-center justify-center group-hover:bg-primary/15 group-hover:text-primary transition-all duration-200">
@@ -725,7 +725,7 @@ export function SalesCoachChat({ prospectId, accountName, heatScore, lastContact
                                   variant="secondary"
                                   size="sm"
                                   className="text-xs h-auto py-2 px-3 text-left justify-start font-normal bg-muted/50 hover:bg-primary/10 hover:text-primary border border-transparent hover:border-primary/20 transition-all duration-200 max-w-full rounded-full"
-                                  onClick={() => sendMessage(q)}
+                                  onClick={() => { setInput(q); inputRef.current?.focus(); }}
                                   disabled={isLoading || isRateLimited}
                                 >
                                   <span className="truncate">{q.length > 40 ? `${q.slice(0, 40)}...` : q}</span>
@@ -778,7 +778,7 @@ export function SalesCoachChat({ prospectId, accountName, heatScore, lastContact
                                       variant="ghost"
                                       size="sm"
                                       className="text-xs h-auto py-1.5 px-3 text-left justify-start font-normal text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full transition-all duration-200"
-                                      onClick={() => sendMessage(q)}
+                                      onClick={() => { setInput(q); inputRef.current?.focus(); }}
                                       disabled={isLoading || isRateLimited}
                                     >
                                       {q}
