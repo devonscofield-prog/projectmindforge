@@ -689,6 +689,44 @@ serve(async (req) => {
       const selectedVoice = getVoiceForPersona(persona as Persona);
       console.log(`Selected voice for ${persona.disc_profile} profile: ${selectedVoice}`);
 
+      // Fetch product knowledge for demo sessions
+      let productKnowledgeContext = '';
+      if (sessionType === 'demo') {
+        try {
+          console.log('Fetching product knowledge for demo session...');
+          const { data: productChunks, error: pkError } = await supabaseClient.rpc('find_product_knowledge', {
+            query_text: persona.industry ? `${persona.industry} training IT certification` : 'IT training certification Azure',
+            match_count: 8,
+          });
+          
+          if (!pkError && productChunks?.length) {
+            productKnowledgeContext = `\n\n=== PRODUCT KNOWLEDGE (What the rep is selling) ===
+You are being shown a product demo. Here is information about what they're selling so you can ask relevant questions:
+
+`;
+            for (const chunk of productChunks.slice(0, 8)) {
+              productKnowledgeContext += `${chunk.chunk_text}\n\n`;
+            }
+            productKnowledgeContext += `
+Use this knowledge to:
+- Ask specific questions about features mentioned ("So the Azure Range - does that include Kubernetes or just basic compute?")
+- Challenge claims with realistic follow-ups ("You said hands-on practice - how long does each lab take?")
+- Connect features to YOUR pain points ("Okay, but how does this solve my single-point-of-failure problem with Marcus?")
+- Express skepticism if something sounds too good ("That sounds great on paper, but our team is already stretched thin")
+
+Do NOT:
+- Recite this information back to the rep
+- Act like you already know about their specific product
+- Ask questions you already know the answer to from this context
+=== END PRODUCT KNOWLEDGE ===\n`;
+            console.log(`Injected ${productChunks.length} product knowledge chunks for demo session`);
+          }
+        } catch (pkErr) {
+          console.warn('Product knowledge fetch warning:', pkErr);
+          // Continue without product knowledge
+        }
+      }
+
       // Create the session record
       const { data: session, error: sessionError } = await supabaseClient
         .from('roleplay_sessions')
@@ -703,6 +741,7 @@ serve(async (req) => {
             voice: selectedVoice,
             disc_profile: persona.disc_profile,
             screenShareEnabled,
+            hasProductKnowledge: productKnowledgeContext.length > 0,
           },
         })
         .select()
@@ -715,13 +754,13 @@ serve(async (req) => {
 
       console.log(`Created session: ${session.id}`);
 
-      // Build the system prompt
+      // Build the system prompt with product knowledge for demos
       const systemPrompt = buildPersonaSystemPrompt(
         persona as Persona,
         sessionType,
         scenarioPrompt,
         screenShareEnabled
-      );
+      ) + productKnowledgeContext;
 
       // Request ephemeral token from OpenAI Realtime API with latest model
       console.log('Requesting ephemeral token from OpenAI with latest realtime model...');

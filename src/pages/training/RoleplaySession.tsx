@@ -26,6 +26,7 @@ import {
 import { RoleplayBriefing } from '@/components/training/RoleplayBriefing';
 import { RoleplayPostSession } from '@/components/training/RoleplayPostSession';
 import { RoleplayTranscriptPanel } from '@/components/training/RoleplayTranscriptPanel';
+import { RoleplayScenarioSelector } from '@/components/training/RoleplayScenarioSelector';
 import { cn } from '@/lib/utils';
 import { ScreenCapture } from '@/utils/ScreenCapture';
 
@@ -65,6 +66,7 @@ export default function RoleplaySession() {
   const [currentTranscript, setCurrentTranscript] = useState('');
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [sessionType, setSessionType] = useState<'discovery' | 'demo'>('discovery');
+  const [scenarioPrompt, setScenarioPrompt] = useState('');
   
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
@@ -208,7 +210,12 @@ export default function RoleplaySession() {
       const { data: sessionData, error: sessionError } = await supabase.functions.invoke(
         'roleplay-session-manager/create-session',
         {
-          body: { personaId, sessionType, screenShareEnabled: isScreenSharing }
+          body: { 
+            personaId, 
+            sessionType, 
+            screenShareEnabled: isScreenSharing,
+            scenarioPrompt: scenarioPrompt.trim() || undefined
+          }
         }
       );
 
@@ -569,6 +576,14 @@ export default function RoleplaySession() {
               onStart={() => setStatus('idle')}
               onChangeSessionType={setSessionType}
             />
+            
+            {/* Custom Scenario Selector */}
+            <div className="mt-6">
+              <RoleplayScenarioSelector
+                scenarioPrompt={scenarioPrompt}
+                onScenarioChange={setScenarioPrompt}
+              />
+            </div>
           </div>
         )}
 
