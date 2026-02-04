@@ -1,113 +1,153 @@
 
 
-# Improve Chat Input Fields for Longer Prompts
+# Add Recap Email Dropdown to Sales Coach
 
 ## Overview
 
-Currently, all three chat components use a single-line `<Input>` component that only shows about one line of text at a time. This makes it difficult to see what you've typed, especially for longer prompts loaded from suggestions.
-
-The solution is to replace the `<Input>` components with auto-expanding `<Textarea>` components that:
-- Start at a single line height (similar to current behavior)
-- Automatically expand as you type more content (up to a maximum height)
-- Support Shift+Enter for new lines
-- Submit on Enter (without Shift)
+Add a new "Recap Emails" dropdown menu in the Sales Coach chat that provides specialized prompts for generating post-call recap emails. These emails leverage the full context of the recent call and are tailored for different audiences and purposes.
 
 ---
 
-## Implementation Plan
+## Recap Email Types
 
-### 1. Sales Coach Chat
+I'll include the two you requested plus additional useful options:
 
-**File**: `src/components/prospects/SalesCoachChat.tsx`
+### 1. Executive Summary Recap
+**For**: Prospect to share with leadership
+**Purpose**: Short, impactful summary the prospect can forward to their executives to build internal buy-in
 
-Changes needed:
-- Import `Textarea` instead of/alongside `Input`
-- Replace the `<Input>` with a `<Textarea>`
-- Add auto-resize logic using a `useEffect` or `useCallback`
-- Update the ref type from `HTMLInputElement` to `HTMLTextAreaElement`
-- Adjust container styling to accommodate multi-line input
+```
+"Write a post-call recap email for my prospect that includes a brief Executive Summary they can forward to their leadership team. Keep it professional and focused on the business value and outcomes we discussed."
+```
 
-The textarea will:
-- Start at ~40px height (single line)
-- Expand automatically up to ~120px (about 4-5 lines)
-- Use `resize-none` to prevent manual resizing
-- Have `rows={1}` as the initial row count
+### 2. Decision Maker Recap
+**For**: Direct communication with decision makers/executives
+**Purpose**: Concise, ROI-focused email that respects their time and speaks to strategic priorities
 
-### 2. Sales Assistant Chat
+```
+"Draft a recap email specifically for a decision maker or executive at this account. Keep it concise, lead with ROI and business outcomes, and include a clear next step. Executives are busy - make every word count."
+```
 
-**File**: `src/components/SalesAssistantChat.tsx`
+### 3. Champion Enablement Recap
+**For**: Your internal champion
+**Purpose**: Arms your champion with talking points to sell internally
 
-Same changes:
-- Replace `<Input>` with auto-expanding `<Textarea>`
-- Update ref type
-- Adjust container for flex alignment
+```
+"Create a recap email for my champion at this account that includes key talking points they can use to advocate for us internally. Include a quick-reference summary of benefits and answers to likely objections from their colleagues."
+```
 
-### 3. Transcript Chat Input (for consistency)
+### 4. Technical Stakeholder Recap
+**For**: Technical buyers, IT, implementation teams
+**Purpose**: Focuses on technical details, integration, and implementation discussed
 
-**File**: `src/components/admin/transcript-chat/ChatInput.tsx`
+```
+"Write a recap email tailored for technical stakeholders at this account. Focus on the technical requirements, integration details, and implementation considerations we discussed. Include any technical next steps."
+```
 
-Same pattern:
-- Replace `<Input>` with auto-expanding `<Textarea>`
-- Update the `inputRef` prop type in the interface
+### 5. Multi-Thread Recap
+**For**: Multiple stakeholders (CC several people)
+**Purpose**: Comprehensive recap suitable for a broader audience with different interests
+
+```
+"Draft a comprehensive recap email that I can send to multiple stakeholders at this account. Structure it so different readers (executives, technical team, end users) can each find the information relevant to them. Include a clear summary at the top."
+```
+
+### 6. Next Steps Focused Recap
+**For**: Driving action and accountability
+**Purpose**: Short, action-oriented email that emphasizes commitments and deadlines
+
+```
+"Write a brief, action-focused recap email that emphasizes the specific next steps we agreed on, who owns each action item, and the timeline. Keep it short and scannable with a clear list of commitments from both sides."
+```
 
 ---
 
-## Technical Details
+## UI Design
 
-### Auto-Resize Logic
+### Placement
+Add the Recap Emails dropdown alongside the existing Quick Action buttons, appearing as a special button with a dropdown arrow. It will be positioned in the Quick Actions grid area but styled distinctively.
 
-Each textarea will use a simple auto-resize pattern:
+### Visual Design
+- Button with `Mail` icon and "Recap Emails" label with a `ChevronDown` indicator
+- Uses existing `DropdownMenu` component from Radix UI
+- Each menu item shows a brief label and a subtle description
+- Clicking a menu item loads the prompt into the input field (consistent with recently updated behavior)
 
-```typescript
-const textareaRef = useRef<HTMLTextAreaElement>(null);
+---
 
-// Auto-resize on input change
-useEffect(() => {
-  const textarea = textareaRef.current;
-  if (textarea) {
-    textarea.style.height = 'auto';
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
-  }
-}, [input]);
-```
+## Implementation
 
-### Keyboard Handling
+### File: `src/components/prospects/SalesCoachChat.tsx`
 
-The existing `handleKeyDown` logic already handles Enter to submit. We need to add Shift+Enter support for new lines:
+**1. Add Recap Email Prompts Constant**
 
 ```typescript
-const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    handleSubmit(e);
-  }
-  // Shift+Enter allows new line (default textarea behavior)
-};
+interface RecapEmailOption {
+  id: string;
+  label: string;
+  description: string;
+  prompt: string;
+}
+
+const RECAP_EMAIL_OPTIONS: RecapEmailOption[] = [
+  {
+    id: 'executive-summary',
+    label: 'Executive Summary',
+    description: 'For prospect to share with leadership',
+    prompt: 'Write a post-call recap email for my prospect that includes a brief Executive Summary they can forward to their leadership team. Keep it professional and focused on the business value and outcomes we discussed.',
+  },
+  {
+    id: 'decision-maker',
+    label: 'Decision Maker',
+    description: 'Concise email for C-suite/executives',
+    prompt: 'Draft a recap email specifically for a decision maker or executive at this account. Keep it concise, lead with ROI and business outcomes, and include a clear next step. Executives are busy - make every word count.',
+  },
+  // ... additional options
+];
 ```
 
-### Textarea Styling
+**2. Add Dropdown in Quick Actions Area**
+
+Modify the Quick Actions grid section (around line 707) to include the Recap Emails dropdown:
 
 ```tsx
-<Textarea
-  ref={textareaRef}
-  value={input}
-  onChange={(e) => setInput(e.target.value)}
-  onKeyDown={handleKeyDown}
-  placeholder="Ask your sales coach..."
-  disabled={isLoading || isRateLimited}
-  rows={1}
-  className="flex-1 min-h-[40px] max-h-[120px] border-0 bg-transparent 
-             focus-visible:ring-0 focus-visible:ring-offset-0 
-             placeholder:text-muted-foreground/60 resize-none py-2.5"
-/>
-```
-
-### Container Adjustment
-
-Change the flex container from `items-center` to `items-end` so the send button aligns to the bottom as the textarea expands:
-
-```tsx
-<div className="flex gap-2.5 items-end bg-muted/30 rounded-xl p-1.5 ...">
+{/* Quick Action Buttons + Recap Dropdown */}
+<div className="space-y-2.5">
+  <div className="grid grid-cols-2 gap-2.5">
+    {QUICK_ACTIONS.map((action) => (
+      // ... existing quick action buttons
+    ))}
+  </div>
+  
+  {/* Recap Emails Dropdown */}
+  <DropdownMenu>
+    <DropdownMenuTrigger asChild>
+      <Button
+        variant="outline"
+        className="w-full h-auto py-3 justify-between bg-gradient-to-r from-blue-500/5 to-purple-500/5 border-primary/20 hover:border-primary/40 hover:bg-gradient-to-r hover:from-blue-500/10 hover:to-purple-500/10"
+        disabled={isLoading || isRateLimited}
+      >
+        <span className="flex items-center gap-2">
+          <Mail className="h-4 w-4 text-primary" />
+          <span className="font-medium">Recap Emails</span>
+        </span>
+        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+      </Button>
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align="start" className="w-80">
+      {RECAP_EMAIL_OPTIONS.map((option) => (
+        <DropdownMenuItem
+          key={option.id}
+          className="flex flex-col items-start gap-0.5 py-2.5 cursor-pointer"
+          onClick={() => { setInput(option.prompt); inputRef.current?.focus(); }}
+        >
+          <span className="font-medium text-sm">{option.label}</span>
+          <span className="text-xs text-muted-foreground">{option.description}</span>
+        </DropdownMenuItem>
+      ))}
+    </DropdownMenuContent>
+  </DropdownMenu>
+</div>
 ```
 
 ---
@@ -116,32 +156,15 @@ Change the flex container from `items-center` to `items-end` so the send button 
 
 | File | Changes |
 |------|---------|
-| `src/components/prospects/SalesCoachChat.tsx` | Replace Input with auto-expanding Textarea, update ref type, add resize logic |
-| `src/components/SalesAssistantChat.tsx` | Replace Input with auto-expanding Textarea, update ref type, add resize logic |
-| `src/components/admin/transcript-chat/ChatInput.tsx` | Replace Input with auto-expanding Textarea, update prop types |
-
----
-
-## User Experience
-
-**Before:**
-- Single-line input that scrolls horizontally
-- Hard to see full prompt content
-- Can't add line breaks
-
-**After:**
-- Multi-line textarea that grows with content
-- See up to 4-5 lines at once
-- Shift+Enter creates new lines
-- Enter still submits the message
-- Better visibility of loaded suggestion prompts
+| `src/components/prospects/SalesCoachChat.tsx` | Add `RECAP_EMAIL_OPTIONS` constant, add Recap Emails dropdown in Quick Actions area |
 
 ---
 
 ## Result
 
-1. **Better visibility** - Users can see up to 4-5 lines of their prompt at once
-2. **Multi-line support** - Shift+Enter allows line breaks for structured prompts
-3. **Consistent behavior** - All three chat components work the same way
-4. **Maintained aesthetics** - Same premium styling, just taller when needed
+1. **Dedicated recap section** - Clear, visible dropdown for post-call recap emails
+2. **Audience-targeted options** - Six specialized recap types for different stakeholders
+3. **Consistent behavior** - Prompts load into input field for review/editing before sending
+4. **Context-aware** - Sales Coach has full call history and account context to generate relevant recaps
+5. **Professional templates** - Prompts are designed to generate polished, purpose-driven emails
 
