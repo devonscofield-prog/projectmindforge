@@ -1365,6 +1365,45 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_preferences: {
+        Row: {
+          created_at: string | null
+          email_enabled: boolean | null
+          id: string
+          notify_due_today: boolean | null
+          notify_due_tomorrow: boolean | null
+          notify_overdue: boolean | null
+          reminder_time: string | null
+          timezone: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          email_enabled?: boolean | null
+          id?: string
+          notify_due_today?: boolean | null
+          notify_due_tomorrow?: boolean | null
+          notify_overdue?: boolean | null
+          reminder_time?: string | null
+          timezone?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          email_enabled?: boolean | null
+          id?: string
+          notify_due_today?: boolean | null
+          notify_due_tomorrow?: boolean | null
+          notify_overdue?: boolean | null
+          reminder_time?: string | null
+          timezone?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       password_reset_otps: {
         Row: {
           created_at: string
