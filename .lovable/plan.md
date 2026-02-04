@@ -154,39 +154,42 @@ After a comprehensive audit of the Practice Roleplay system, I've identified 15 
 
 ---
 
-## Priority 4: Feature Additions
+## ✅ Phase 4: Feature Additions (COMPLETED)
 
-### 4.1 No Coaching Integration
+### ✅ 4.1 Sales Coach Integration - DONE
 
-**Solution:**
-- Add "Discuss with Sales Coach" button in SessionDetail that pre-populates context about the session
-- Store roleplay coaching_prescription in a way the Sales Coach can reference
-
-**Files to modify:**
-- `src/pages/training/SessionDetail.tsx` (add button to open coach with context)
-- `supabase/functions/sales-coach-chat/index.ts` (accept roleplay context)
+**Implemented:**
+- Added "Discuss with Coach" button to SessionDetail.tsx
+- Button appears when viewing session with full feedback access
+- Pre-populates context with coaching_prescription and focus areas
+- Navigates to training page with coach context for follow-up discussion
 
 ---
 
-### 4.2 No Custom Scenarios
+### ✅ 4.2 Custom Scenarios - DONE
 
-**Solution:**
-- Add optional "Custom Scenario" input when starting a session
-- Provide scenario templates (e.g., "Price objection focus", "Technical deep-dive", "Executive stakeholder")
-
-**Files to modify:**
-- `src/pages/training/RoleplaySession.tsx` (add scenario input)
+**Implemented:**
+- Created `src/components/training/RoleplayScenarioSelector.tsx` component
+- 5 pre-built scenario templates:
+  - Price Objection Focus
+  - Technical Deep-Dive
+  - Executive Stakeholder
+  - Competitor Evaluation
+  - Burned by Past Vendor
+- Custom text input for user-defined scenarios
+- Integrated into RoleplaySession.tsx briefing screen
+- Scenario prompt passed to edge function and injected into persona context
 
 ---
 
-### 4.3 No Demo Mode with Product Knowledge Integration
+### ✅ 4.3 Demo Mode with Product Knowledge Integration - DONE
 
-**Solution:**
-- When starting a demo session, inject relevant product knowledge into the persona's context
-- Allow persona to ask realistic product questions based on scraped/uploaded knowledge
-
-**Files to modify:**
-- `supabase/functions/roleplay-session-manager/index.ts` (fetch and inject product knowledge for demo sessions)
+**Implemented:**
+- Modified `supabase/functions/roleplay-session-manager/index.ts`
+- For demo sessions, fetches up to 8 relevant product knowledge chunks
+- Injects product context into persona system prompt
+- Persona can ask realistic product questions based on scraped knowledge
+- Guides persona to challenge claims and connect features to pain points
 
 ---
 
@@ -197,4 +200,4 @@ After a comprehensive audit of the Practice Roleplay system, I've identified 15 
 | Phase 1 - Critical | ✅ COMPLETE | Admin Persona UI, Stuck Sessions CRON, sendBeacon Fix, Session Type Selector |
 | Phase 2 - UX Polish | ✅ COMPLETE | Pre-call briefing, Post-session summary, Key moments, Retry grading, Collapsible transcript |
 | Phase 3 - Analytics | ✅ COMPLETE | Progress trend chart, Weekly/streak tracking, Persona breakdown, Trainees needing attention, Team performance charts |
-| Phase 4 - Features | ⏳ PENDING | Custom scenarios, Sales Coach integration, Product Knowledge integration |
+| Phase 4 - Features | ✅ COMPLETE | Custom scenarios, Sales Coach integration, Product Knowledge integration |

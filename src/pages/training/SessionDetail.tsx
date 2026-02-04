@@ -23,7 +23,8 @@ import {
   RefreshCw,
   Lock,
   RotateCcw,
-  Loader2
+  Loader2,
+  Sparkles
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -260,15 +261,36 @@ export default function SessionDetail() {
               {session.roleplay_personas?.name || 'Unknown Persona'}
             </p>
           </div>
-          {session.roleplay_personas && (
-            <Button 
-              variant="outline"
-              onClick={() => navigate(`/training/roleplay/${session.persona_id}`)}
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Practice Again
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {/* Discuss with Sales Coach Button */}
+            {showFullFeedback && grade?.coaching_prescription && (
+              <Button 
+                variant="secondary"
+                onClick={() => {
+                  // Build context message about the roleplay session
+                  const contextMessage = `I just completed a roleplay training session with ${session.roleplay_personas?.name || 'an AI persona'}. Here's my coaching feedback: "${grade.coaching_prescription}". ${focusAreas?.length ? `Focus areas identified: ${focusAreas.join(', ')}.` : ''} Can you help me practice and improve on this?`;
+                  
+                  // Navigate to an account page with coach context
+                  // Since roleplay isn't tied to a specific account, we'll use a query param to pre-populate
+                  navigate(`/training?coachContext=${encodeURIComponent(contextMessage)}`);
+                  toast.info('Opening Sales Coach with your roleplay feedback...');
+                }}
+              >
+                <Sparkles className="h-4 w-4 mr-2" />
+                Discuss with Coach
+              </Button>
+            )}
+            
+            {session.roleplay_personas && (
+              <Button 
+                variant="outline"
+                onClick={() => navigate(`/training/roleplay/${session.persona_id}`)}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Practice Again
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Session Overview */}
