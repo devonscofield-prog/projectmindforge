@@ -1,355 +1,237 @@
 
-# Self-Assigned Follow-Up Tasks with Notifications
 
-## Overview
+# Notifications System Audit Report
 
-This plan adds the ability for sales reps to create personal accountability tasks immediately after submitting a call, with optional email reminders. These complement the existing AI-generated follow-ups by giving reps direct control over their commitments.
+## Executive Summary
 
-## Key User Experience
-
-After submitting a call, reps see a new step in the success flow:
-
-```text
-┌─────────────────────────────────────────────────┐
-│ ✅ Call submitted successfully!                 │
-│                                                 │
-│ ┌─────────────────────────────────────────────┐ │
-│ │ 📝 Add Follow-Up Reminders (optional)       │ │
-│ │                                             │ │
-│ │ What do you need to do next?                │ │
-│ │ ┌─────────────────────────────────────────┐ │ │
-│ │ │ Send proposal by Friday              [x] │ │ │
-│ │ │ Due: [Feb 7, 2026 ▼]  ⏰ Email reminder │ │ │
-│ │ └─────────────────────────────────────────┘ │ │
-│ │                                             │ │
-│ │ [+ Add another task]                        │ │
-│ │                                             │ │
-│ │ [Skip]            [Save & View Call]        │ │
-│ └─────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────┘
-```
-
-## Implementation Approach
-
-### Option A: Extend Existing Follow-Ups (Recommended)
-Enhance the existing `account_follow_ups` table with manual task capabilities:
-- Add `source` field: `'ai'` or `'manual'`
-- Add `due_date` for time-sensitive tasks
-- Add `reminder_enabled` flag
-- Add `reminder_sent_at` timestamp
-
-**Pros:** 
-- Single unified view of all follow-ups
-- Existing UI components work with minimal changes
-- Dashboard widget shows both AI and manual tasks
-
-### Option B: Separate Tasks Table
-Create a new `rep_tasks` table specifically for self-assigned work.
-
-**Cons:**
-- Duplicates functionality
-- Two places to track follow-ups
-- More UI complexity
+I've completed a comprehensive audit of the new self-assigned follow-up tasks and notifications system (Phase 1 & 2). The implementation is **mostly solid** but has **3 critical issues** and **4 moderate issues** that need to be addressed before publishing.
 
 ---
 
-## Database Changes
+## Critical Issues (Must Fix)
 
-### Extend `account_follow_ups` Table
+### 1. Missing Edge Function Configuration in `config.toml`
 
-```sql
-ALTER TABLE account_follow_ups 
-  ADD COLUMN source TEXT DEFAULT 'ai' CHECK (source IN ('ai', 'manual')),
-  ADD COLUMN due_date DATE,
-  ADD COLUMN reminder_enabled BOOLEAN DEFAULT false,
-  ADD COLUMN reminder_sent_at TIMESTAMPTZ,
-  ADD COLUMN source_call_id UUID REFERENCES call_transcripts(id);
+**Severity:** CRITICAL - Function will fail to deploy/run
 
--- Index for reminder scheduling
-CREATE INDEX idx_follow_ups_due_reminders 
-  ON account_follow_ups(due_date, reminder_enabled) 
-  WHERE status = 'pending' AND reminder_enabled = true AND reminder_sent_at IS NULL;
+The `send-task-reminders` edge function is created but **not registered** in `supabase/config.toml`. This means:
+- The function may not deploy correctly
+- JWT verification settings are not configured
+
+**Fix Required:**
+Add to `supabase/config.toml`:
+```toml
+[functions.send-task-reminders]
+verify_jwt = false
 ```
 
-### New Table: `notification_preferences`
-
-Store user preferences for notification delivery:
-
-```sql
-CREATE TABLE notification_preferences (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  
-  -- Notification channels
-  email_enabled BOOLEAN DEFAULT true,
-  
-  -- Timing preferences  
-  reminder_time TIME DEFAULT '09:00',  -- When to send daily reminders
-  timezone TEXT DEFAULT 'America/New_York',
-  
-  -- What to notify about
-  notify_due_today BOOLEAN DEFAULT true,
-  notify_due_tomorrow BOOLEAN DEFAULT true,
-  notify_overdue BOOLEAN DEFAULT true,
-  
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  
-  CONSTRAINT unique_user_prefs UNIQUE(user_id)
-);
-
--- RLS
-ALTER TABLE notification_preferences ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can manage own preferences"
-  ON notification_preferences FOR ALL
-  USING (auth.uid() = user_id);
-```
+Setting `verify_jwt = false` is correct here because this function is called by a cron job (no user JWT available).
 
 ---
 
-## Backend Functions
+### 2. Email Sender Domain Not Verified with Resend
 
-### 1. `send-task-reminders` Edge Function
+**Severity:** CRITICAL - Emails will fail to send
 
-Scheduled to run daily, sends email reminders for due tasks:
-
-```text
-Trigger: Scheduled (daily at each user's preferred time)
-Logic:
-├── Query users with notification_preferences.email_enabled = true
-├── For each user, find follow-ups where:
-│   ├── due_date = today OR due_date < today (overdue)
-│   ├── reminder_enabled = true
-│   ├── reminder_sent_at IS NULL (not already sent today)
-│   └── status = 'pending'
-├── Group by user and send single digest email
-└── Update reminder_sent_at to prevent duplicate sends
-```
-
-Email template example:
-```text
-Subject: 📋 MindForge: 3 follow-ups due today
-
-Hi Sarah,
-
-You have 3 follow-up tasks due today:
-
-🔴 HIGH: Send proposal to Acme Corp
-   Account: Acme Corporation
-   Due: Today
-   
-🟡 MED: Schedule demo with Beta Inc CFO
-   Account: Beta Inc
-   Due: Today
-
-🔵 LOW: Send case study link
-   Account: Gamma LLC
-   Due: Yesterday (overdue)
-
-[View All Tasks →]
-
----
-Manage notification preferences in Settings
-```
-
-### 2. Enhance Existing Call Submission Flow
-
-After successful call creation, the frontend presents the task creation dialog.
-
----
-
-## Frontend Changes
-
-### 1. Post-Submission Task Dialog
-
-New component: `src/components/calls/PostCallTasksDialog.tsx`
-
-```text
-Props:
-├── callId: string
-├── prospectId: string
-├── accountName: string
-├── onClose: () => void
-└── onComplete: () => void
-
-Features:
-├── Add up to 5 tasks
-├── Each task has: title, due date, reminder toggle
-├── Quick-add suggestions based on call type
-└── Skip option to proceed without tasks
-```
-
-### 2. Settings: Notification Preferences
-
-Add to `src/pages/UserSettings.tsx`:
-
-```text
-┌─────────────────────────────────────────────────┐
-│ 🔔 Notification Preferences                    │
-├─────────────────────────────────────────────────┤
-│                                                 │
-│ Email Reminders                                 │
-│ ○ Enabled  ● Disabled                          │
-│                                                 │
-│ Remind me about:                                │
-│ ☑ Tasks due today                              │
-│ ☑ Tasks due tomorrow                           │
-│ ☑ Overdue tasks                                │
-│                                                 │
-│ Preferred reminder time: [9:00 AM ▼]            │
-│ Timezone: [America/New_York ▼]                  │
-│                                                 │
-└─────────────────────────────────────────────────┘
-```
-
-### 3. Dashboard Widget Enhancement
-
-Update `PendingFollowUpsWidget` to:
-- Show due dates when present
-- Highlight overdue tasks
-- Differentiate AI vs manual tasks (subtle visual cue)
-
-### 4. Prospect Detail Enhancement
-
-Update `ProspectFollowUps` component to:
-- Allow adding manual tasks inline
-- Show due dates
-- Sort by due date when present
-
----
-
-## API Layer
-
-### New Functions in `src/api/accountFollowUps.ts`
-
+The edge function uses:
 ```typescript
-// Create a manual follow-up task
-export async function createManualFollowUp(params: {
-  prospectId: string;
-  title: string;
-  description?: string;
-  priority?: FollowUpPriority;
-  dueDate?: string;
-  reminderEnabled?: boolean;
-  sourceCallId?: string;
-}): Promise<AccountFollowUp>
-
-// Update due date and reminder settings
-export async function updateFollowUpReminder(
-  followUpId: string, 
-  dueDate: string | null,
-  reminderEnabled: boolean
-): Promise<AccountFollowUp>
-
-// Get user's notification preferences
-export async function getNotificationPreferences(
-  userId: string
-): Promise<NotificationPreferences | null>
-
-// Update notification preferences
-export async function updateNotificationPreferences(
-  userId: string,
-  prefs: Partial<NotificationPreferences>
-): Promise<NotificationPreferences>
+from: "MindForge <noreply@projectmindforge.lovable.app>"
 ```
+
+However, Resend requires domain verification. Looking at existing working email functions like `send-performance-alert`, they use:
+```typescript
+from: "Performance Monitor <onboarding@resend.dev>"
+```
+
+The `projectmindforge.lovable.app` domain is unlikely to be verified with Resend.
+
+**Fix Required:**
+Either:
+1. Verify `projectmindforge.lovable.app` domain in Resend dashboard, OR
+2. Use Resend's test sender: `from: "MindForge <onboarding@resend.dev>"`
 
 ---
 
-## Technical Details
+### 3. No Cron Job Scheduled
 
-### Email Delivery
+**Severity:** CRITICAL - Reminders will never be sent
 
-Uses the existing Resend integration (`RESEND_API_KEY` is already configured):
-- Leverages patterns from `send-performance-alert` function
-- Professional HTML email template matching existing MindForge branding
+The migration file creates the notification_preferences table, but **no cron job** was set up to call the `send-task-reminders` function hourly.
 
-### Scheduling
-
-Two approaches for the daily reminder job:
-
-**Option 1: Supabase pg_cron (Simpler)**
+**Fix Required:**
+Run this SQL via the insert tool (not migrations, since it contains project-specific data):
 ```sql
 SELECT cron.schedule(
-  'send-task-reminders',
-  '0 * * * *',  -- Run every hour, function checks user timezones
-  $$SELECT net.http_post(
-    'https://[project].supabase.co/functions/v1/send-task-reminders',
-    headers := '{"Authorization": "Bearer [service_key]"}'
-  )$$
+  'send-task-reminders-hourly',
+  '0 * * * *',
+  $$
+  SELECT net.http_post(
+    url := 'https://wuquclmippzuejqbcksl.supabase.co/functions/v1/send-task-reminders',
+    headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind1cXVjbG1pcHB6dWVqcWJja3NsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQyMzUxMjUsImV4cCI6MjA3OTgxMTEyNX0.Aq-zlkfS6wpzpgpjO2zYPS5GMK_5iGRTbIyw_qRIQOI"}'::jsonb,
+    body := '{}'::jsonb
+  ) AS request_id;
+  $$
 );
 ```
 
-**Option 2: External Scheduler**
-Use an external service to trigger the edge function at specific times per timezone.
+---
 
-### Performance Considerations
+## Moderate Issues (Should Fix)
 
-- Indexed query for finding due reminders
-- Batch email sends (one digest per user, not per task)
-- `reminder_sent_at` prevents duplicate sends
+### 4. Edge Function Missing Extended CORS Headers
+
+**Severity:** MODERATE - May cause issues if called from browser
+
+The current CORS headers:
+```typescript
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+```
+
+Should include all standard headers:
+```typescript
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
+```
+
+This is less critical since the function is called by cron, not browser.
 
 ---
 
-## Implementation Phases
+### 5. Nullable Type Mismatch in API Layer
 
-### Phase 1: Core Task Creation (Week 1)
-- [ ] Database migration: extend `account_follow_ups` table
-- [ ] API functions for creating manual follow-ups
-- [ ] Post-call task dialog component
-- [ ] Integration with RepDashboard submission flow
+**Severity:** MODERATE - Could cause TypeScript errors
 
-### Phase 2: Notification Infrastructure (Week 2)
-- [ ] Create `notification_preferences` table
-- [ ] Build `send-task-reminders` edge function
-- [ ] Add notification settings to UserSettings page
-- [ ] Schedule daily reminder job
+In `src/api/accountFollowUps.ts`, the interface defines:
+```typescript
+source: FollowUpSource;  // Non-nullable
+reminder_enabled: boolean;  // Non-nullable
+```
 
-### Phase 3: UI Enhancements (Week 3)
-- [ ] Update PendingFollowUpsWidget with due dates
-- [ ] Update ProspectFollowUps with inline task creation
-- [ ] Add overdue indicators and sorting
-- [ ] Mobile-responsive task entry
+But in `src/integrations/supabase/types.ts` (generated from DB):
+```typescript
+source: string | null
+reminder_enabled: boolean | null
+```
 
-### Phase 4: Polish (Week 4)
-- [ ] Email template refinement
-- [ ] Quick-add suggestions based on call type
-- [ ] Keyboard shortcuts for rapid task entry
-- [ ] Analytics: track task completion rates
+The database column defaults handle this, but TypeScript type casting could fail if the values are null.
 
----
+**Fix:** The API interface should use optional/nullable types:
+```typescript
+source: FollowUpSource | null;
+reminder_enabled: boolean | null;
+```
 
-## Files to Create/Modify
-
-### New Files
-- `src/components/calls/PostCallTasksDialog.tsx` - Task creation after call submission
-- `src/components/settings/NotificationPreferences.tsx` - Settings section
-- `src/api/notificationPreferences.ts` - Preferences API
-- `supabase/functions/send-task-reminders/index.ts` - Email reminder function
-
-### Modified Files
-- `src/api/accountFollowUps.ts` - Add manual task creation functions
-- `src/pages/rep/RepDashboard.tsx` - Show post-call dialog after submission
-- `src/pages/UserSettings.tsx` - Add notification preferences section
-- `src/components/dashboard/PendingFollowUpsWidget.tsx` - Show due dates
-- `src/components/prospects/detail/ProspectFollowUps.tsx` - Inline task creation
-- `src/hooks/prospect/useProspectFollowUps.ts` - Add manual task mutations
+Or add explicit null checks when consuming the data.
 
 ---
 
-## Security Considerations
+### 6. Missing RLS Policy for Edge Function Updates
 
-- RLS policies ensure users only see/edit their own tasks and preferences
-- Email reminders only sent to verified user emails from profiles table
-- Rate limiting on task creation (max 20 tasks per prospect)
-- Timezone validation to prevent injection
+**Severity:** MODERATE - Edge function uses service role, but worth noting
+
+The `send-task-reminders` function updates `reminder_sent_at` using the service role key:
+```typescript
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
+```
+
+This bypasses RLS (intentionally), but there's no explicit INSERT policy on `notification_preferences` for edge functions. The existing policies are:
+- Users can view/insert/update/delete their own preferences
+
+This is fine since the edge function only reads preferences and updates `account_follow_ups.reminder_sent_at`.
 
 ---
 
-## Future Enhancements
+### 7. Potential Rate Limit on Resend API
 
-- Push notifications (browser/mobile)
-- Slack integration for reminders
-- Manager visibility into team task completion
-- Recurring tasks for regular check-ins
-- Calendar sync (ties into planned MS Graph integration)
+**Severity:** LOW - Edge case
+
+If many users have the same reminder time, the function could hit Resend's rate limits. The current implementation sends emails sequentially without rate limiting.
+
+**Suggestion:** Add a small delay between emails:
+```typescript
+await new Promise(resolve => setTimeout(resolve, 100));
+```
+
+---
+
+## Minor Issues / Improvements
+
+### 8. Timezone Validation in Frontend
+
+The `COMMON_TIMEZONES` list is hardcoded. If a user somehow has a timezone not in this list (from previous data), the Select component may show empty.
+
+### 9. Missing Error Toast in NotificationPreferences
+
+When the mutation fails, only a generic "Failed to save preferences" is shown. Consider including the error message.
+
+### 10. Dashboard Link in Email
+
+The email hardcodes `https://projectmindforge.lovable.app` which works for production but could be parameterized for different environments.
+
+---
+
+## Security Assessment
+
+| Area | Status | Notes |
+|------|--------|-------|
+| RLS on notification_preferences | ✅ Good | Users can only access their own |
+| RLS on account_follow_ups | ✅ Good | Existing policies apply |
+| Edge function auth | ✅ Good | Uses service role for cron |
+| Email injection | ✅ Good | Email comes from verified profile |
+| XSS in email content | ✅ Good | Task titles are plain text in template |
+
+---
+
+## Database Schema Assessment
+
+| Table | Status | Notes |
+|-------|--------|-------|
+| notification_preferences | ✅ Good | Proper constraints, RLS, indexes |
+| account_follow_ups extensions | ✅ Good | New columns with defaults, index for reminders |
+
+---
+
+## Files Reviewed
+
+| File | Status |
+|------|--------|
+| `supabase/functions/send-task-reminders/index.ts` | Needs CORS fix |
+| `supabase/config.toml` | **Missing function config** |
+| `src/api/notificationPreferences.ts` | ✅ Good |
+| `src/api/accountFollowUps.ts` | Type mismatch (minor) |
+| `src/components/settings/NotificationPreferences.tsx` | ✅ Good |
+| `src/components/calls/PostCallTasksDialog.tsx` | ✅ Good |
+| `src/pages/rep/RepDashboard.tsx` | ✅ Good |
+| `src/components/dashboard/PendingFollowUpsWidget.tsx` | ✅ Good |
+| `src/components/prospects/FollowUpItem.tsx` | ✅ Good |
+| Migration for account_follow_ups | ✅ Good |
+| Migration for notification_preferences | ✅ Good |
+
+---
+
+## Recommended Fix Order
+
+1. **Add function to config.toml** (Critical)
+2. **Fix email sender domain** (Critical)
+3. **Schedule cron job** (Critical)
+4. **Extend CORS headers** (Moderate)
+5. **Fix nullable types** (Moderate)
+
+---
+
+## Deployment Checklist
+
+Before publishing:
+- [ ] Add `send-task-reminders` to `config.toml`
+- [ ] Fix email sender to use verified domain or `onboarding@resend.dev`
+- [ ] Run cron.schedule SQL to set up hourly job
+- [ ] Deploy edge function
+- [ ] Test notification preferences UI in settings
+- [ ] Test post-call task dialog
+- [ ] Verify email delivery (manual trigger of edge function)
+
