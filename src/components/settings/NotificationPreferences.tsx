@@ -8,11 +8,12 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Bell, Mail, Clock, Globe, Calendar, Target, Lightbulb } from 'lucide-react';
+import { Bell, Mail, Clock, Globe, Calendar, Target, Lightbulb, Send, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   getNotificationPreferences,
   upsertNotificationPreferences,
+  sendTestReminderEmail,
   detectBrowserTimezone,
   getTimezoneLabel,
   COMMON_TIMEZONES,
@@ -57,6 +58,20 @@ export function NotificationPreferences() {
     },
   });
 
+  const testEmailMutation = useMutation({
+    mutationFn: sendTestReminderEmail,
+    onSuccess: (data) => {
+      if (data.sent && data.sent > 0) {
+        toast.success('Test email sent! Check your inbox.');
+      } else {
+        toast.info(data.message || 'No tasks to include in test email. Create a task with reminders enabled first.');
+      }
+    },
+    onError: (error: Error) => {
+      toast.error('Failed to send test email', { description: error.message });
+    },
+  });
+
   const handleUpdate = (updates: NotificationPreferencesUpdate) => {
     mutation.mutate({
       email_enabled: prefs?.email_enabled ?? true,
@@ -89,6 +104,15 @@ export function NotificationPreferences() {
     }
   };
 
+  const handlePriorityChange = (value: string) => {
+    // Convert 'all' back to null for the database
+    handleUpdate({ min_priority: value === 'all' ? null : value });
+  };
+
+  const handleSendTestEmail = () => {
+    testEmailMutation.mutate();
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -113,7 +137,8 @@ export function NotificationPreferences() {
   const notifyDueTomorrow = prefs?.notify_due_tomorrow ?? true;
   const notifyOverdue = prefs?.notify_overdue ?? true;
   const excludeWeekends = prefs?.exclude_weekends ?? false;
-  const minPriority = prefs?.min_priority ?? '';
+  // Map null to 'all' for display
+  const minPriority = prefs?.min_priority ?? 'all';
 
   const showTimezoneDetection = detectedTimezone && detectedTimezone !== timezone;
 
@@ -342,7 +367,7 @@ export function NotificationPreferences() {
               </p>
               <Select
                 value={minPriority}
-                onValueChange={(value) => handleUpdate({ min_priority: value || null })}
+                onValueChange={handlePriorityChange}
                 disabled={mutation.isPending}
               >
                 <SelectTrigger className="w-full sm:w-48">
@@ -356,6 +381,30 @@ export function NotificationPreferences() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Send Test Email */}
+            <div className="pt-4 border-t">
+              <Button
+                variant="outline"
+                onClick={handleSendTestEmail}
+                disabled={testEmailMutation.isPending}
+              >
+                {testEmailMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Send className="mr-2 h-4 w-4" />
+                    Send Test Email
+                  </>
+                )}
+              </Button>
+              <p className="text-sm text-muted-foreground mt-2">
+                Sends a test reminder digest to your email address
+              </p>
             </div>
           </>
         )}
