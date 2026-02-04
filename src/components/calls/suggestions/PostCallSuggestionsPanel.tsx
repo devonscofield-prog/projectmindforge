@@ -3,14 +3,16 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
-import { Sparkles, CheckCheck, X, Plus } from 'lucide-react';
+import { Sparkles, CheckCheck, X, Plus, ChevronDown } from 'lucide-react';
 import { SuggestionCard } from './SuggestionCard';
 import { AddCustomTaskDialog } from './AddCustomTaskDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { createManualFollowUp, type FollowUpPriority, type FollowUpCategory } from '@/api/accountFollowUps';
 import { addDays, format } from 'date-fns';
 import { createLogger } from '@/lib/logger';
+import { cn } from '@/lib/utils';
 import type { FollowUpSuggestion } from './types';
 
 const log = createLogger('PostCallSuggestionsPanel');
@@ -40,6 +42,7 @@ export function PostCallSuggestionsPanel({
   const [isAcceptingAll, setIsAcceptingAll] = useState(false);
   const [isDismissingAll, setIsDismissingAll] = useState(false);
   const [showAddTaskDialog, setShowAddTaskDialog] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
 
   // Filter to only show pending suggestions
   const pendingSuggestions = useMemo(() => 
@@ -191,77 +194,94 @@ export function PostCallSuggestionsPanel({
   return (
     <>
       <Card className="border-primary/20 shadow-lg">
-        <CardHeader className="pb-3">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Sparkles className="h-4 w-4 text-primary" />
+        <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+          <CardHeader className="pb-3">
+            <CollapsibleTrigger asChild>
+              <button className="flex items-start justify-between gap-4 w-full text-left group">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      Suggested Follow-Up Actions
+                      <span className="text-sm font-normal text-muted-foreground">
+                        ({pendingSuggestions.length})
+                      </span>
+                    </CardTitle>
+                    <CardDescription>
+                      AI-generated based on your call with {accountName || 'this account'}
+                    </CardDescription>
+                  </div>
+                </div>
+                <ChevronDown className={cn(
+                  "h-5 w-5 text-muted-foreground transition-transform duration-200 mt-1",
+                  isOpen && "rotate-180"
+                )} />
+              </button>
+            </CollapsibleTrigger>
+          </CardHeader>
+          <CollapsibleContent>
+            <CardContent className="space-y-3 pt-0">
+              {/* Action buttons */}
+              <div className="flex items-center gap-2 flex-wrap justify-end pb-2 border-b border-border/50">
+                {/* Prominent Add Task Button */}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setShowAddTaskDialog(true)}
+                  className="bg-primary/10 hover:bg-primary/20 text-primary border-primary/30 border"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Task
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleDismissAll}
+                  disabled={isAcceptingAll || isDismissingAll}
+                >
+                  <X className="h-4 w-4 mr-1" />
+                  Dismiss All
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleAcceptAll}
+                  disabled={isAcceptingAll || isDismissingAll}
+                >
+                  {isAcceptingAll ? (
+                    <span className="animate-pulse">Creating...</span>
+                  ) : (
+                    <>
+                      <CheckCheck className="h-4 w-4 mr-1" />
+                      Accept All
+                    </>
+                  )}
+                </Button>
               </div>
-              <div>
-                <CardTitle className="text-lg">Suggested Follow-Up Actions</CardTitle>
-                <CardDescription>
-                  AI-generated based on your call with {accountName || 'this account'}
-                </CardDescription>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap justify-end">
-              {/* Prominent Add Task Button */}
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setShowAddTaskDialog(true)}
-                className="bg-primary/10 hover:bg-primary/20 text-primary border-primary/30 border"
-              >
-                <Plus className="h-4 w-4 mr-1" />
-                Add Task
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleDismissAll}
-                disabled={isAcceptingAll || isDismissingAll}
-              >
-                <X className="h-4 w-4 mr-1" />
-                Dismiss All
-              </Button>
-              <Button
-                variant="default"
-                size="sm"
-                onClick={handleAcceptAll}
-                disabled={isAcceptingAll || isDismissingAll}
-              >
-                {isAcceptingAll ? (
-                  <span className="animate-pulse">Creating...</span>
-                ) : (
-                  <>
-                    <CheckCheck className="h-4 w-4 mr-1" />
-                    Accept All
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {pendingSuggestions.map(suggestion => (
-            <SuggestionCard
-              key={suggestion.id}
-              suggestion={suggestion}
-              onAccept={handleAccept}
-              onDismiss={handleDismiss}
-              isAccepting={acceptingId === suggestion.id}
-            />
-          ))}
 
-          {/* Secondary entry point at bottom */}
-          <button
-            onClick={() => setShowAddTaskDialog(true)}
-            className="w-full text-center text-sm text-muted-foreground hover:text-primary transition-colors py-2"
-          >
-            <Plus className="h-3 w-3 inline mr-1" />
-            or add your own task
-          </button>
-        </CardContent>
+              {pendingSuggestions.map(suggestion => (
+                <SuggestionCard
+                  key={suggestion.id}
+                  suggestion={suggestion}
+                  onAccept={handleAccept}
+                  onDismiss={handleDismiss}
+                  isAccepting={acceptingId === suggestion.id}
+                />
+              ))}
+
+              {/* Secondary entry point at bottom */}
+              <button
+                onClick={() => setShowAddTaskDialog(true)}
+                className="w-full text-center text-sm text-muted-foreground hover:text-primary transition-colors py-2"
+              >
+                <Plus className="h-3 w-3 inline mr-1" />
+                or add your own task
+              </button>
+            </CardContent>
+          </CollapsibleContent>
+        </Collapsible>
       </Card>
 
       {/* Add Custom Task Dialog */}
