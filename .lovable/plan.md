@@ -1,164 +1,64 @@
 
 
-# Auto-Create Notification Preferences + Add "Send Test Email" Button
+# Change "Recap & Follow-up Email" to "Generate Call Notes" Only
 
-## Problem Summary
+## Overview
 
-Two issues need to be addressed:
-
-1. **Settings Page Crash**: The error `A <Select.Item /> must have a value prop that is not an empty string` is caused by `PRIORITY_FILTERS` having an empty string value (`''`) for the "All priorities" option. Radix UI's Select component doesn't allow empty string values.
-
-2. **Missing Notification Preferences**: New users have no row in `notification_preferences`, so the reminder system skips them entirely. Users shouldn't have to manually create preferences.
-
-3. **No Way to Test Emails**: There's no way to verify email deliverability without waiting for the cron job.
+The current button generates both a recap email AND internal CRM notes. Since users don't use the email feature (they use the Sales Coach instead), we'll simplify this to only generate call notes. This will:
+- Speed up generation (simpler AI task)
+- Simplify the UI (no email editing complexity)
+- Focus on what users actually use
 
 ---
 
 ## Implementation Plan
 
-### 1. Fix the Select.Item Empty Value Error
+### 1. Update the Button Label and Icon
 
-**File**: `src/api/notificationPreferences.ts`
+**File**: `src/pages/calls/CallDetailPage.tsx`
 
-Change `PRIORITY_FILTERS` to use a non-empty placeholder value:
+Change the button from:
+- **Icon**: `Mail` → `FileText`
+- **Label**: "Recap & Follow-up Email" → "Generate Call Notes"
+- **Dialog title**: "Recap & Follow-up Email" → "Call Notes"
 
-```typescript
-export const PRIORITY_FILTERS = [
-  { value: 'all', label: 'All priorities' },  // Changed from '' to 'all'
-  { value: 'low', label: 'Low and above' },
-  { value: 'medium', label: 'Medium and above' },
-  { value: 'high', label: 'High priority only' },
-];
-```
+### 2. Refactor the SalesAssetsGenerator Component
 
-**File**: `src/components/settings/NotificationPreferences.tsx`
+**File**: `src/components/calls/SalesAssetsGenerator.tsx`
 
-Update the handling of `min_priority`:
-- When displaying: treat `null` as `'all'`
-- When saving: convert `'all'` back to `null` for the database
+**Remove entirely:**
+- All email-related state: `subjectLine`, `emailBody`, `copiedEmail`, `copiedSubject`, `emailViewMode`, `editInstructions`, `isEditing`
+- Email validation logic: `missingLinks`, `unreplacedPlaceholders`, `REQUIRED_LINKS`, `PLACEHOLDERS`
+- AI email editor: `handleAIEdit`, `quickSuggestions`, `editRecapEmail` import
+- Email formatting utilities: `formatForOutlook`, `REP_PLACEHOLDERS`
+- The entire "Recap Email" Card UI section
+- The "Copy Email Body" button and related copy functions
 
----
+**Keep and simplify:**
+- Internal notes state: `internalNotes`, `copiedNotes`
+- Notes generation from API
+- Notes edit/preview tabs
+- Notes copy functionality
 
-### 2. Auto-Create Notification Preferences on First Load
+**Update the initial CTA:**
+- Change title: "Generate Follow-Up Assets" → "Generate Call Notes"
+- Change description: Remove email mention
+- Change button text: "Generate Recap Email & Notes" → "Generate Call Notes"
 
-**File**: `src/api/notificationPreferences.ts`
+### 3. Update the Edge Function
 
-Modify `getNotificationPreferences()` to automatically create a row with sensible defaults if none exists:
+**File**: `supabase/functions/generate-sales-assets/index.ts`
 
-```typescript
-export async function getNotificationPreferences(): Promise<NotificationPreferences> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
+**Option A (Minimal Change)**: Keep the edge function generating both, but only use the notes in the frontend. The email will still be generated but ignored.
 
-  const { data, error } = await supabase
-    .from('notification_preferences')
-    .select('*')
-    .eq('user_id', user.id)
-    .maybeSingle();
+**Option B (Cleaner - Recommended)**: Update the edge function to only generate notes:
+- Update `SALES_ASSETS_TOOL` to remove `recap_email` from properties and required
+- Update `COPYWRITER_SYSTEM_PROMPT` to focus only on CRM notes (remove all email instructions)
+- Remove email validation functions: `validateEmailLinks`, `validateEmailQuality`
+- Remove `REQUIRED_LINKS` and `OPTIONAL_LINKS` constants
+- Update the response structure to return only `internal_notes_markdown`
 
-  if (error) throw error;
-
-  // Auto-create with defaults if no preferences exist
-  if (!data) {
-    const defaults = {
-      email_enabled: true,
-      reminder_time: '09:00',
-      timezone: detectBrowserTimezone() || 'America/New_York',
-      notify_due_today: true,
-      notify_due_tomorrow: true,
-      notify_overdue: true,
-      secondary_reminder_time: null,
-      exclude_weekends: false,
-      min_priority: null,
-    };
-    return await upsertNotificationPreferences(defaults);
-  }
-
-  return data as NotificationPreferences;
-}
-```
-
-**Benefits**:
-- Users automatically have preferences without any action
-- Email reminders work out-of-the-box
-- Browser timezone is auto-detected on first creation
-
----
-
-### 3. Add "Send Test Email" Button
-
-**File**: `supabase/functions/send-task-reminders/index.ts`
-
-Add support for a `test` mode that:
-- Accepts an optional `userId` in the request body
-- Skips time-window and day-of-week checks
-- Sends to just that user immediately
-- Returns detailed feedback about what was sent
-
-```typescript
-// At the start of handler, check for test mode
-const body = await req.json().catch(() => ({}));
-const isTestMode = body.test === true;
-const testUserId = body.userId;
-
-if (isTestMode && testUserId) {
-  // Skip time matching - send immediately to this user
-  // ... special test handling logic
-}
-```
-
-**File**: `src/api/notificationPreferences.ts`
-
-Add a new function:
-
-```typescript
-export async function sendTestReminderEmail(): Promise<{ success: boolean; message: string }> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
-
-  const { data, error } = await supabase.functions.invoke('send-task-reminders', {
-    body: { test: true, userId: user.id },
-  });
-
-  if (error) throw error;
-  return data;
-}
-```
-
-**File**: `src/components/settings/NotificationPreferences.tsx`
-
-Add a "Send Test Email" button to the card footer:
-
-```tsx
-<CardContent>
-  {/* ...existing content... */}
-  
-  {emailEnabled && (
-    <div className="pt-4 border-t">
-      <Button 
-        variant="outline" 
-        onClick={handleSendTestEmail}
-        disabled={testEmailMutation.isPending}
-      >
-        {testEmailMutation.isPending ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Sending...
-          </>
-        ) : (
-          <>
-            <Send className="mr-2 h-4 w-4" />
-            Send Test Email
-          </>
-        )}
-      </Button>
-      <p className="text-sm text-muted-foreground mt-2">
-        Sends a test reminder to your email address
-      </p>
-    </div>
-  )}
-</CardContent>
-```
+I recommend **Option B** as it reduces AI token usage, speeds up generation, and keeps the codebase clean.
 
 ---
 
@@ -166,15 +66,74 @@ Add a "Send Test Email" button to the card footer:
 
 | File | Changes |
 |------|---------|
-| `src/api/notificationPreferences.ts` | Fix `PRIORITY_FILTERS` empty value, auto-create prefs, add `sendTestReminderEmail()` |
-| `src/components/settings/NotificationPreferences.tsx` | Handle 'all' priority value, add test email button |
-| `supabase/functions/send-task-reminders/index.ts` | Add test mode support |
+| `src/pages/calls/CallDetailPage.tsx` | Update button icon (Mail → FileText), label, and dialog title |
+| `src/components/calls/SalesAssetsGenerator.tsx` | Remove ~300 lines of email-related code, simplify to notes-only UI |
+| `supabase/functions/generate-sales-assets/index.ts` | Remove email generation from AI prompt and tool schema |
+
+---
+
+## Technical Details
+
+### Updated SalesAssetsGenerator Structure (Simplified)
+
+The component will have a cleaner structure:
+
+```text
+┌────────────────────────────────────────────┐
+│  "Generate Call Notes" Button (Initial)    │
+│  - Icon: Sparkles                          │
+│  - CTA to trigger generation               │
+└────────────────────────────────────────────┘
+          ↓ After generation
+┌────────────────────────────────────────────┐
+│  Internal CRM Notes Card                   │
+│  ├─ Re-generate button                     │
+│  ├─ Edit/Preview Tabs                      │
+│  ├─ Textarea (Edit mode)                   │
+│  ├─ Markdown preview (Preview mode)        │
+│  ├─ "Copy Notes (Rich Text)" button        │
+│  └─ "Save Changes" button (if modified)    │
+└────────────────────────────────────────────┘
+```
+
+### Updated AI Tool Schema
+
+```javascript
+const CALL_NOTES_TOOL = {
+  type: "function",
+  function: {
+    name: "generate_call_notes",
+    description: "Generate internal CRM notes based on the call transcript",
+    parameters: {
+      type: "object",
+      properties: {
+        internal_notes_markdown: {
+          type: "string",
+          description: "CRM-ready internal notes in markdown format..."
+        }
+      },
+      required: ["internal_notes_markdown"]
+    }
+  }
+};
+```
+
+### Updated System Prompt Focus
+
+Remove all email instructions and focus entirely on generating comprehensive CRM notes with:
+- Call Summary
+- Key Discussion Points
+- Next Steps
+- Critical Gaps/Unknowns
+- Competitor Intel
+- Deal Health
 
 ---
 
 ## Result
 
-1. **Settings page loads without errors** - the empty string Select.Item bug is fixed
-2. **Users are automatically enrolled in reminders** - no manual setup required
-3. **Test email button** allows verifying the email system works end-to-end
+1. **Faster generation** - AI only needs to generate notes, not email + notes
+2. **Simpler UI** - No email editing, validation warnings, or AI editor
+3. **Cleaner codebase** - Remove ~300 lines of unused email code
+4. **Better UX** - Users get exactly what they need without distractions
 
