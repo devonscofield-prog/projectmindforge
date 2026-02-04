@@ -92,10 +92,11 @@ export function useCallAnalysisRealtime(
         }
       )
       // Subscribe to ai_call_analysis for Deal Heat + suggestions updates
+      // Use '*' to catch both INSERT (first creation) and UPDATE (subsequent updates)
       .on(
         'postgres_changes',
         {
-          event: 'UPDATE',
+          event: '*',
           schema: 'public',
           table: 'ai_call_analysis',
           filter: `call_id=eq.${callId}`,
