@@ -32,11 +32,12 @@ export interface NotificationPreferencesUpdate {
 }
 
 /**
- * Get notification preferences for the current user
+ * Get notification preferences for the current user.
+ * Auto-creates with sensible defaults if none exist.
  */
-export async function getNotificationPreferences(): Promise<NotificationPreferences | null> {
+export async function getNotificationPreferences(): Promise<NotificationPreferences> {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  if (!user) throw new Error('Not authenticated');
 
   const { data, error } = await supabase
     .from('notification_preferences')
@@ -49,7 +50,24 @@ export async function getNotificationPreferences(): Promise<NotificationPreferen
     throw error;
   }
 
-  return data as NotificationPreferences | null;
+  // Auto-create with defaults if no preferences exist
+  if (!data) {
+    log.info('No notification preferences found, creating defaults');
+    const defaults: NotificationPreferencesUpdate = {
+      email_enabled: true,
+      reminder_time: '09:00',
+      timezone: detectBrowserTimezone() || 'America/New_York',
+      notify_due_today: true,
+      notify_due_tomorrow: true,
+      notify_overdue: true,
+      secondary_reminder_time: null,
+      exclude_weekends: false,
+      min_priority: null,
+    };
+    return await upsertNotificationPreferences(defaults);
+  }
+
+  return data as NotificationPreferences;
 }
 
 /**
@@ -147,13 +165,33 @@ export const REMINDER_TIMES = [
 
 /**
  * Priority filter options for digest emails
+ * Note: 'all' maps to null in the database
  */
 export const PRIORITY_FILTERS = [
-  { value: '', label: 'All priorities' },
+  { value: 'all', label: 'All priorities' },
   { value: 'low', label: 'Low and above' },
   { value: 'medium', label: 'Medium and above' },
   { value: 'high', label: 'High priority only' },
 ];
+
+/**
+ * Send a test reminder email to the current user
+ */
+export async function sendTestReminderEmail(): Promise<{ success: boolean; message: string; sent?: number }> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase.functions.invoke('send-task-reminders', {
+    body: { test: true, userId: user.id },
+  });
+
+  if (error) {
+    log.error('Error sending test email', { error });
+    throw error;
+  }
+
+  return data;
+}
 
 /**
  * Detect the user's browser timezone

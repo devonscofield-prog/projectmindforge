@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,6 +14,8 @@ interface FollowUp {
   priority: string;
   due_date: string;
   prospect_id: string;
+  rep_id: string;
+  reminder_sent_at: string | null;
 }
 
 interface UserReminders {
@@ -36,6 +38,23 @@ interface UserPreferences {
   notify_overdue: boolean;
   exclude_weekends: boolean;
   min_priority: string | null;
+}
+
+interface Profile {
+  id: string;
+  name: string;
+  email: string;
+}
+
+interface Prospect {
+  id: string;
+  account_name: string | null;
+  prospect_name: string;
+}
+
+interface RequestBody {
+  test?: boolean;
+  userId?: string;
 }
 
 // Priority ordering for filtering
@@ -70,6 +89,9 @@ async function sendEmail(to: string, subject: string, html: string): Promise<voi
   await response.text(); // Consume response body
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnySupabaseClient = SupabaseClient<any, any, any>;
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -80,10 +102,21 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Check for test mode
+    const body: RequestBody = await req.json().catch(() => ({}));
+    const isTestMode = body.test === true;
+    const testUserId = body.userId;
+
     const now = new Date();
     const currentHour = now.getUTCHours();
 
-    console.log(`[send-task-reminders] Running at ${now.toISOString()}, UTC hour: ${currentHour}`);
+    console.log(`[send-task-reminders] Running at ${now.toISOString()}, UTC hour: ${currentHour}, testMode: ${isTestMode}`);
+
+    // In test mode, we target a specific user
+    if (isTestMode && testUserId) {
+      console.log(`[send-task-reminders] Test mode for user: ${testUserId}`);
+      return await handleTestMode(supabase, testUserId, now);
+    }
 
     // Get users with email notifications enabled
     const { data: prefsData, error: prefsError } = await supabase
@@ -148,167 +181,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`[send-task-reminders] ${usersToNotify.length} users to notify`);
 
-    // Get user profiles
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, name, email")
-      .in("id", usersToNotify);
-
-    const profileMap = (profiles || []).reduce((acc, p) => {
-      acc[p.id] = { name: p.name, email: p.email };
-      return acc;
-    }, {} as Record<string, { name: string; email: string }>);
-
-    // Get follow-ups with reminder_enabled and due dates
-    const today = now.toISOString().split("T")[0];
-    const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-
-    const { data: followUps, error: followUpsError } = await supabase
-      .from("account_follow_ups")
-      .select("id, title, description, priority, due_date, prospect_id, rep_id, reminder_sent_at")
-      .in("rep_id", usersToNotify)
-      .eq("status", "pending")
-      .eq("reminder_enabled", true)
-      .not("due_date", "is", null)
-      .lte("due_date", tomorrow);
-
-    if (followUpsError) {
-      console.error("[send-task-reminders] Error fetching follow-ups:", followUpsError);
-      return new Response(JSON.stringify({ error: followUpsError.message }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    if (!followUps || followUps.length === 0) {
-      console.log("[send-task-reminders] No follow-ups to remind about");
-      return new Response(JSON.stringify({ message: "No follow-ups to remind about", sent: 0 }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Filter out already-sent reminders for today
-    const todayStart = new Date(today).toISOString();
-    const eligibleFollowUps = followUps.filter(f => {
-      if (!f.reminder_sent_at) return true;
-      return new Date(f.reminder_sent_at) < new Date(todayStart);
-    });
-
-    if (eligibleFollowUps.length === 0) {
-      console.log("[send-task-reminders] All reminders already sent today");
-      return new Response(JSON.stringify({ message: "All reminders already sent today", sent: 0 }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Get prospect names
-    const prospectIds = [...new Set(eligibleFollowUps.map(f => f.prospect_id))];
-    const { data: prospects } = await supabase
-      .from("prospects")
-      .select("id, account_name, prospect_name")
-      .in("id", prospectIds);
-
-    const prospectMap = (prospects || []).reduce((acc, p) => {
-      acc[p.id] = p.account_name || p.prospect_name;
-      return acc;
-    }, {} as Record<string, string>);
-
-    // Group follow-ups by user
-    const userReminders: Record<string, UserReminders> = {};
-    
-    for (const followUp of eligibleFollowUps) {
-      const userId = followUp.rep_id;
-      const profile = profileMap[userId];
-      if (!profile) continue;
-
-      // Get user's notification preferences
-      const userPrefs = (prefsData as UserPreferences[]).find(p => p.user_id === userId);
-      if (!userPrefs) continue;
-
-      // Apply priority filtering
-      if (userPrefs.min_priority) {
-        const minLevel = PRIORITY_ORDER[userPrefs.min_priority] || 0;
-        const taskLevel = PRIORITY_ORDER[followUp.priority] || 0;
-        if (taskLevel < minLevel) {
-          console.log(`[send-task-reminders] Skipping task ${followUp.id} - below min priority ${userPrefs.min_priority}`);
-          continue;
-        }
-      }
-
-      if (!userReminders[userId]) {
-        userReminders[userId] = {
-          userId,
-          email: profile.email,
-          name: profile.name,
-          overdue: [],
-          dueToday: [],
-          dueTomorrow: [],
-          prospectNames: {},
-        };
-      }
-
-      userReminders[userId].prospectNames[followUp.prospect_id] = prospectMap[followUp.prospect_id] || "Unknown Account";
-
-      // Categorize by due date
-      if (followUp.due_date < today && userPrefs.notify_overdue) {
-        userReminders[userId].overdue.push(followUp);
-      } else if (followUp.due_date === today && userPrefs.notify_due_today) {
-        userReminders[userId].dueToday.push(followUp);
-      } else if (followUp.due_date === tomorrow && userPrefs.notify_due_tomorrow) {
-        userReminders[userId].dueTomorrow.push(followUp);
-      }
-    }
-
-    // Send emails
-    let sentCount = 0;
-    const followUpIdsToUpdate: string[] = [];
-
-    for (const [_userId, reminders] of Object.entries(userReminders)) {
-      const totalTasks = reminders.overdue.length + reminders.dueToday.length + reminders.dueTomorrow.length;
-      if (totalTasks === 0) continue;
-
-      // Build email HTML
-      const emailHtml = buildEmailHtml(reminders);
-      const subject = `📋 MindForge: ${totalTasks} follow-up${totalTasks > 1 ? "s" : ""} need your attention`;
-
-      try {
-        await sendEmail(reminders.email, subject, emailHtml);
-
-        console.log(`[send-task-reminders] Email sent to ${reminders.email} with ${totalTasks} tasks`);
-        sentCount++;
-
-        // Collect follow-up IDs to mark as sent
-        [...reminders.overdue, ...reminders.dueToday, ...reminders.dueTomorrow].forEach(f => {
-          followUpIdsToUpdate.push(f.id);
-        });
-        // Rate limit protection - small delay between emails
-        await new Promise(resolve => setTimeout(resolve, 100));
-      } catch (emailError) {
-        console.error(`[send-task-reminders] Failed to send email to ${reminders.email}:`, emailError);
-      }
-    }
-
-    // Update reminder_sent_at for sent reminders
-    if (followUpIdsToUpdate.length > 0) {
-      const { error: updateError } = await supabase
-        .from("account_follow_ups")
-        .update({ reminder_sent_at: now.toISOString() })
-        .in("id", followUpIdsToUpdate);
-
-      if (updateError) {
-        console.error("[send-task-reminders] Error updating reminder_sent_at:", updateError);
-      }
-    }
-
-    return new Response(
-      JSON.stringify({ success: true, sent: sentCount, tasksNotified: followUpIdsToUpdate.length }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    return await sendRemindersToUsers(supabase, usersToNotify, prefsData as UserPreferences[], now, false);
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error("[send-task-reminders] Unexpected error:", error);
@@ -322,12 +195,250 @@ const handler = async (req: Request): Promise<Response> => {
   }
 };
 
-function buildEmailHtml(reminders: UserReminders): string {
+/**
+ * Handle test mode - send immediately to a specific user, ignoring time checks
+ */
+async function handleTestMode(
+  supabase: AnySupabaseClient,
+  userId: string,
+  now: Date
+): Promise<Response> {
+  // Get user's preferences (or use defaults if not set)
+  const { data: prefData } = await supabase
+    .from("notification_preferences")
+    .select("*")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  const userPrefs: UserPreferences = prefData ? {
+    user_id: prefData.user_id,
+    reminder_time: prefData.reminder_time || "09:00",
+    secondary_reminder_time: prefData.secondary_reminder_time,
+    timezone: prefData.timezone || "America/New_York",
+    notify_due_today: prefData.notify_due_today ?? true,
+    notify_due_tomorrow: prefData.notify_due_tomorrow ?? true,
+    notify_overdue: prefData.notify_overdue ?? true,
+    exclude_weekends: prefData.exclude_weekends ?? false,
+    min_priority: prefData.min_priority,
+  } : {
+    user_id: userId,
+    reminder_time: "09:00",
+    secondary_reminder_time: null,
+    timezone: "America/New_York",
+    notify_due_today: true,
+    notify_due_tomorrow: true,
+    notify_overdue: true,
+    exclude_weekends: false,
+    min_priority: null,
+  };
+
+  return await sendRemindersToUsers(supabase, [userId], [userPrefs], now, true);
+}
+
+/**
+ * Core logic to send reminders to specified users
+ */
+async function sendRemindersToUsers(
+  supabase: AnySupabaseClient,
+  userIds: string[],
+  prefsData: UserPreferences[],
+  now: Date,
+  isTestMode: boolean
+): Promise<Response> {
+  // Get user profiles
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, name, email")
+    .in("id", userIds);
+
+  const profileMap = ((profiles || []) as Profile[]).reduce((acc, p) => {
+    acc[p.id] = { name: p.name, email: p.email };
+    return acc;
+  }, {} as Record<string, { name: string; email: string }>);
+
+  // Get follow-ups with reminder_enabled and due dates
+  const today = now.toISOString().split("T")[0];
+  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+  const { data: followUpsData, error: followUpsError } = await supabase
+    .from("account_follow_ups")
+    .select("id, title, description, priority, due_date, prospect_id, rep_id, reminder_sent_at")
+    .in("rep_id", userIds)
+    .eq("status", "pending")
+    .eq("reminder_enabled", true)
+    .not("due_date", "is", null)
+    .lte("due_date", tomorrow);
+
+  if (followUpsError) {
+    console.error("[send-task-reminders] Error fetching follow-ups:", followUpsError);
+    return new Response(JSON.stringify({ error: followUpsError.message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const followUps = (followUpsData || []) as FollowUp[];
+
+  if (followUps.length === 0) {
+    console.log("[send-task-reminders] No follow-ups to remind about");
+    return new Response(JSON.stringify({ 
+      success: true,
+      message: "No follow-ups with reminders enabled found. Create a task with a due date and reminders enabled.", 
+      sent: 0 
+    }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  // In test mode, skip the "already sent today" check
+  let eligibleFollowUps = followUps;
+  if (!isTestMode) {
+    const todayStart = new Date(today).toISOString();
+    eligibleFollowUps = followUps.filter(f => {
+      if (!f.reminder_sent_at) return true;
+      return new Date(f.reminder_sent_at) < new Date(todayStart);
+    });
+
+    if (eligibleFollowUps.length === 0) {
+      console.log("[send-task-reminders] All reminders already sent today");
+      return new Response(JSON.stringify({ message: "All reminders already sent today", sent: 0 }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+  }
+
+  // Get prospect names
+  const prospectIds = [...new Set(eligibleFollowUps.map(f => f.prospect_id))];
+  const { data: prospectsData } = await supabase
+    .from("prospects")
+    .select("id, account_name, prospect_name")
+    .in("id", prospectIds);
+
+  const prospects = (prospectsData || []) as Prospect[];
+  const prospectMap = prospects.reduce((acc, p) => {
+    acc[p.id] = p.account_name || p.prospect_name;
+    return acc;
+  }, {} as Record<string, string>);
+
+  // Group follow-ups by user
+  const userReminders: Record<string, UserReminders> = {};
+  
+  for (const followUp of eligibleFollowUps) {
+    const userId = followUp.rep_id;
+    const profile = profileMap[userId];
+    if (!profile) continue;
+
+    // Get user's notification preferences
+    const userPrefs = prefsData.find(p => p.user_id === userId);
+    if (!userPrefs) continue;
+
+    // Apply priority filtering
+    if (userPrefs.min_priority) {
+      const minLevel = PRIORITY_ORDER[userPrefs.min_priority] || 0;
+      const taskLevel = PRIORITY_ORDER[followUp.priority] || 0;
+      if (taskLevel < minLevel) {
+        console.log(`[send-task-reminders] Skipping task ${followUp.id} - below min priority ${userPrefs.min_priority}`);
+        continue;
+      }
+    }
+
+    if (!userReminders[userId]) {
+      userReminders[userId] = {
+        userId,
+        email: profile.email,
+        name: profile.name,
+        overdue: [],
+        dueToday: [],
+        dueTomorrow: [],
+        prospectNames: {},
+      };
+    }
+
+    userReminders[userId].prospectNames[followUp.prospect_id] = prospectMap[followUp.prospect_id] || "Unknown Account";
+
+    // Categorize by due date
+    if (followUp.due_date < today && userPrefs.notify_overdue) {
+      userReminders[userId].overdue.push(followUp);
+    } else if (followUp.due_date === today && userPrefs.notify_due_today) {
+      userReminders[userId].dueToday.push(followUp);
+    } else if (followUp.due_date === tomorrow && userPrefs.notify_due_tomorrow) {
+      userReminders[userId].dueTomorrow.push(followUp);
+    }
+  }
+
+  // Send emails
+  let sentCount = 0;
+  const followUpIdsToUpdate: string[] = [];
+
+  for (const [_userId, reminders] of Object.entries(userReminders)) {
+    const totalTasks = reminders.overdue.length + reminders.dueToday.length + reminders.dueTomorrow.length;
+    if (totalTasks === 0) continue;
+
+    // Build email HTML
+    const emailHtml = buildEmailHtml(reminders, isTestMode);
+    const subject = isTestMode 
+      ? `🧪 [TEST] MindForge: ${totalTasks} follow-up${totalTasks > 1 ? "s" : ""} need your attention`
+      : `📋 MindForge: ${totalTasks} follow-up${totalTasks > 1 ? "s" : ""} need your attention`;
+
+    try {
+      await sendEmail(reminders.email, subject, emailHtml);
+
+      console.log(`[send-task-reminders] Email sent to ${reminders.email} with ${totalTasks} tasks`);
+      sentCount++;
+
+      // Collect follow-up IDs to mark as sent (skip in test mode)
+      if (!isTestMode) {
+        [...reminders.overdue, ...reminders.dueToday, ...reminders.dueTomorrow].forEach(f => {
+          followUpIdsToUpdate.push(f.id);
+        });
+      }
+      // Rate limit protection - small delay between emails
+      await new Promise(resolve => setTimeout(resolve, 100));
+    } catch (emailError) {
+      console.error(`[send-task-reminders] Failed to send email to ${reminders.email}:`, emailError);
+    }
+  }
+
+  // Update reminder_sent_at for sent reminders (skip in test mode)
+  if (!isTestMode && followUpIdsToUpdate.length > 0) {
+    const { error: updateError } = await supabase
+      .from("account_follow_ups")
+      .update({ reminder_sent_at: now.toISOString() })
+      .in("id", followUpIdsToUpdate);
+
+    if (updateError) {
+      console.error("[send-task-reminders] Error updating reminder_sent_at:", updateError);
+    }
+  }
+
+  return new Response(
+    JSON.stringify({ 
+      success: true, 
+      sent: sentCount, 
+      tasksNotified: followUpIdsToUpdate.length,
+      message: sentCount > 0 ? `Email sent with ${followUpIdsToUpdate.length || Object.values(userReminders).reduce((sum, r) => sum + r.overdue.length + r.dueToday.length + r.dueTomorrow.length, 0)} tasks` : "No emails sent"
+    }),
+    {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    }
+  );
+}
+
+function buildEmailHtml(reminders: UserReminders, isTestMode = false): string {
   const priorityEmoji: Record<string, string> = {
     high: "🔴",
     medium: "🟡",
     low: "🔵",
   };
+
+  const testBanner = isTestMode ? `
+    <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 12px 16px; margin-bottom: 24px;">
+      <strong>🧪 This is a test email</strong> — Your reminder system is working correctly!
+    </div>
+  ` : '';
 
   let html = `
     <!DOCTYPE html>
@@ -337,6 +448,7 @@ function buildEmailHtml(reminders: UserReminders): string {
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
     </head>
     <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+      ${testBanner}
       <h1 style="color: #1a1a2e; margin-bottom: 24px;">Hi ${reminders.name.split(" ")[0]},</h1>
       <p style="margin-bottom: 24px;">Here are your follow-up tasks that need attention:</p>
   `;
