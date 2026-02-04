@@ -40,7 +40,7 @@ async function sendEmail(to: string, subject: string, html: string): Promise<voi
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: "MindForge <onboarding@resend.dev>",
+      from: "MindForge Reminders <reminders@mindforgenotifications.com>",
       to: [to],
       subject,
       html,
