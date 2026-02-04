@@ -1,153 +1,95 @@
 
+# Filter Pending Follow-Ups Widget to Manual Tasks Only
 
-# Block Analysis Completion Until Deal Heat & Follow-Ups Are Ready
+## Overview
 
-## Problem Statement
+The "Pending Follow-Ups" widget on the Rep Dashboard currently shows all pending follow-ups (both AI-generated and manually-created). You want it to only display tasks that the rep intentionally scheduled themselves.
 
-Currently, the `analyze-call` function marks the call as `completed` (line 385) **before** triggering Deal Heat and Follow-up Suggestions (lines 394-409). This causes:
+---
 
-1. The UI to show "Analysis Complete" before suggestions are available
-2. Users to potentially leave the page before seeing the suggestions panel
-3. A confusing UX where content appears incrementally after "completion"
+## Current Behavior
 
-## Current Flow
+The widget calls `listAllPendingFollowUpsForRep(repId)` which fetches all follow-ups where:
+- `rep_id = repId`
+- `status = 'pending'`
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                    analyze-call function                        │
-├─────────────────────────────────────────────────────────────────┤
-│  1. Run 7-agent analysis pipeline                               │
-│  2. Save analysis results to ai_call_analysis                   │
-│  3. Set status = 'completed'  ← USER SEES "COMPLETE" HERE       │
-│  4. Fire-and-forget: triggerDealHeatCalculation()               │
-│  5. Fire-and-forget: triggerBackgroundChunking()                │
-│  6. Fire-and-forget: triggerFollowUpSuggestions()               │
-│                                                                 │
-│  Result: User sees "completed" but suggestions arrive 30-60s    │
-│          later, after they may have already left                │
-└─────────────────────────────────────────────────────────────────┘
-```
+This includes:
+- **AI-generated suggestions** (`source = 'ai'`) that were accepted from the AI Advisor
+- **Manual tasks** (`source = 'manual'`) that the rep created via "Add Custom Task"
 
-## Proposed Flow
+---
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                    analyze-call function                        │
-├─────────────────────────────────────────────────────────────────┤
-│  1. Run 7-agent analysis pipeline                               │
-│  2. Save analysis results to ai_call_analysis                   │
-│  3. Set status = 'post_processing'  ← NEW INTERMEDIATE STATUS   │
-│  4. AWAIT triggerDealHeatCalculation()                          │
-│  5. Fire-and-forget: triggerBackgroundChunking() (non-critical) │
-│  6. AWAIT triggerFollowUpSuggestions()                          │
-│  7. Set status = 'completed'  ← USER SEES "COMPLETE" NOW        │
-│                                                                 │
-│  Result: User only sees "completed" when everything is ready    │
-└─────────────────────────────────────────────────────────────────┘
-```
+## Proposed Change
 
-## Implementation Details
+Add a `source` filter to the API function and update the widget to only fetch manual tasks.
 
-### Option A: Add New Status (Recommended)
+### Option A: Create New Function (Recommended)
 
-Add an intermediate status `post_processing` that indicates the main analysis is done but supplementary features are being generated. The UI can show a different message for this state.
+Create a dedicated function `listManualPendingFollowUpsForRep` that only returns manual tasks. This keeps the existing function available for other use cases.
 
-**Database Change:**
-Update the `analysis_status` CHECK constraint to include `post_processing` (or no change if using text type without constraints).
+### Option B: Add Parameter to Existing Function
 
-**Edge Function Changes (analyze-call/index.ts):**
+Add an optional `sourceFilter` parameter to `listAllPendingFollowUpsForRep`. Less intrusive but slightly more complex.
 
-1. **Line 385**: Change status to `post_processing` instead of `completed`
-2. **Lines 394-409**: Await Deal Heat and Follow-up Suggestions (instead of fire-and-forget)
-3. **After line 409**: Add new status update to `completed`
+**Recommendation**: Option A is cleaner and more explicit.
 
-**UI Updates (CallDetailPage.tsx):**
-- Treat `post_processing` similarly to `processing` - show "Finalizing analysis..." or similar
+---
 
-### Option B: Simple Await (Faster to implement)
+## Implementation
 
-Keep the same status flow but await the critical functions before setting `completed`.
+### File: `src/api/accountFollowUps.ts`
 
-**Edge Function Changes Only:**
+Add a new function:
 
 ```typescript
-// Line 385: DON'T set completed yet, keep status as 'processing'
-// (remove the early status update)
+/**
+ * List pending follow-ups that the rep manually created (not AI-generated)
+ */
+export async function listManualPendingFollowUpsForRep(repId: string): Promise<AccountFollowUpWithProspect[]> {
+  const { data: followUps, error } = await supabase
+    .from('account_follow_ups')
+    .select('*')
+    .eq('rep_id', repId)
+    .eq('status', 'pending')
+    .eq('source', 'manual')  // Only manual tasks
+    .order('created_at', { ascending: false });
 
-// Lines 394-409: Await instead of fire-and-forget
-await triggerDealHeatCalculation(...);  // AWAIT
-await triggerBackgroundChunking(...);   // Keep fire-and-forget (non-critical)
-await triggerFollowUpSuggestions(...);  // AWAIT
-
-// NEW: Only NOW set completed
-await supabaseAdmin.from('call_transcripts')
-  .update({ analysis_status: 'completed', analysis_version: 'v2' })
-  .eq('id', targetCallId);
+  // ... rest of logic (same as listAllPendingFollowUpsForRep)
+}
 ```
 
-## Edge Case Handling
+### File: `src/components/dashboard/PendingFollowUpsWidget.tsx`
 
-### Timeout Risk
-Deal Heat + Follow-up Suggestions add ~10-20 seconds to the pipeline. The `EdgeRuntime.waitUntil()` pattern already handles this, so no HTTP timeout issues.
+1. Import the new function instead of `listAllPendingFollowUpsForRep`
+2. Update the query key to reflect the filter (e.g., `['manual-follow-ups', repId]`)
+3. Update the widget title/description to clarify these are "scheduled tasks"
+4. Remove the "Personal" badge since all tasks are now personal by definition
 
-### Failure Handling
-If Deal Heat or Follow-ups fail, we should still mark as `completed` but log the warning. The analysis itself is still valuable without these supplementary features.
+---
 
-```typescript
-// Attempt post-processing, but don't fail the whole analysis
-let dealHeatSuccess = false;
-let suggestionsSuccess = false;
+## UI Copy Updates
 
-try {
-  await triggerDealHeatCalculation(...);
-  dealHeatSuccess = true;
-} catch (e) {
-  console.warn(`[analyze-call] Deal Heat failed for ${targetCallId}:`, e);
-}
+| Current | Proposed |
+|---------|----------|
+| "Pending Follow-Ups" | "My Scheduled Tasks" |
+| "{n} actions across your accounts" | "{n} task(s) you've scheduled" |
+| "All caught up! No pending follow-ups." | "No scheduled tasks. Create one from any call analysis." |
 
-try {
-  await triggerFollowUpSuggestions(...);
-  suggestionsSuccess = true;
-} catch (e) {
-  console.warn(`[analyze-call] Suggestions failed for ${targetCallId}:`, e);
-}
-
-// Fire-and-forget for non-critical chunking
-triggerBackgroundChunking(...).catch(() => {});
-
-// Mark complete regardless of post-processing results
-await supabaseAdmin.from('call_transcripts')
-  .update({ 
-    analysis_status: 'completed', 
-    analysis_version: 'v2',
-    // Optionally track what succeeded
-  })
-  .eq('id', targetCallId);
-
-console.log(`[analyze-call] ✅ Analysis complete for ${targetCallId} (DealHeat: ${dealHeatSuccess}, Suggestions: ${suggestionsSuccess})`);
-```
+---
 
 ## Files to Modify
 
 | File | Change |
 |------|--------|
-| `supabase/functions/analyze-call/index.ts` | Move status=completed to AFTER Deal Heat + Suggestions complete |
+| `src/api/accountFollowUps.ts` | Add `listManualPendingFollowUpsForRep` function |
+| `src/components/dashboard/PendingFollowUpsWidget.tsx` | Use new function, update copy, remove "Personal" badge |
 
-## UI Consideration
+---
 
-With this change, the UI will continue showing "Analyzing..." for the full duration (including Deal Heat and Suggestions generation). This is actually better UX because:
+## Result
 
-1. User sees one clear transition: Processing → Complete
-2. When "Complete" appears, ALL content is ready including suggestions
-3. No more "ghost loading" where panels pop in 30-60 seconds after completion
-
-## Summary
-
-This is a small but impactful change to the analyze-call function:
-- Remove the early `completed` status update (line 385)
-- Await Deal Heat and Follow-up Suggestions
-- Set `completed` only after both finish
-- Handle failures gracefully so partial success still completes
-
-The result: users will see the suggestions panel immediately when the analysis shows as "completed".
-
+When the rep views the dashboard:
+- They only see tasks they've intentionally created
+- Each task represents a personal commitment/reminder
+- AI-generated follow-ups remain visible on the Account Detail page (ProspectFollowUps section)
+- Cleaner, more focused task list that serves as their personal accountability tool
