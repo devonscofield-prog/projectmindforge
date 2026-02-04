@@ -1,132 +1,155 @@
 
-## What’s actually happening (based on backend + database evidence)
 
-For the call you’re on (`/calls/43337453-375d-4e35-8d8d-6a534a11226c`):
+# Comprehensive Audit: AI Advisor Follow-Up Suggestions System
 
-- The backend **did** complete analysis (`analysis_status = completed`).
-- The backend **did** calculate Deal Heat and save it (DB has `heat_score = 39`).
-- The backend **did** generate and save Advisor suggestions (DB has `5` suggestions).
+## Executive Summary
 
-So the issue is not “functions didn’t run”—it’s **the UI isn’t reliably refetching after the post-analysis jobs finish**.
-
-There are two concrete frontend gaps causing what you’re seeing:
-
-1) **The analysis adapter doesn’t expose `follow_up_suggestions`**
-   - `ai_call_analysis.follow_up_suggestions` exists in the database and is returned by `.select('*')`,
-   - but `toCallAnalysis()` in `src/lib/supabaseAdapters.ts` currently **does not map** `follow_up_suggestions` into the `CallAnalysis` object.
-   - Result: even if the data is fetched, the UI never sees it.
-
-2) **Refetch timing: call “completed” updates arrive before Deal Heat + suggestions**
-   - `useCallAnalysisRealtime()` listens only to updates on `call_transcripts.analysis_status`.
-   - When status flips to `completed`, we invalidate and refetch once.
-   - **Deal Heat + Advisor suggestions are saved after that** (seconds later) into `ai_call_analysis`.
-   - Since we do not subscribe to `ai_call_analysis` updates and we have a 30s staleTime, the page often won’t refetch again, so it looks like Deal Heat/suggestions “didn’t run”.
-
-This matches your symptoms perfectly: “analysis finished, but no Deal Heat and no reminder options.”
+I've audited the entire follow-up suggestions system from backend to frontend. The implementation is **mostly complete**, but I discovered **one critical issue** that will prevent real-time updates from working for the `ai_call_analysis` table.
 
 ---
 
-## Fix goals
+## Audit Findings
 
-1) Ensure `follow_up_suggestions` is part of the `CallAnalysis` domain object so the UI can render the panel.
-2) Ensure the Call Detail page refreshes automatically when post-analysis artifacts are written:
-   - Deal Heat saved to `ai_call_analysis.deal_heat_analysis`
-   - Advisor saved to `ai_call_analysis.follow_up_suggestions`
+### Backend: Edge Function `generate-call-follow-up-suggestions`
 
----
+| Aspect | Status | Notes |
+|--------|--------|-------|
+| Model configuration | PASS | Uses `google/gemini-3-pro-preview` |
+| System prompt quality | PASS | Detailed 20-year veteran persona with clear prioritization rules |
+| Tool/schema definition | PASS | Defines all 8 fields with proper types and constraints |
+| Context gathering | PASS | Fetches previous calls, stakeholders, email logs, existing follow-ups |
+| Avoids duplicates | PASS | Lists existing pending follow-ups in prompt |
+| Error handling | PASS | Returns gracefully on failures |
+| Saves to DB | PASS | Updates `ai_call_analysis.follow_up_suggestions` |
+| Triggered after analysis | PASS | Called from `analyze-call/index.ts` line 409 |
 
-## Changes to implement
+### Backend: `reanalyze-call` Function
 
-### A) Add `follow_up_suggestions` to frontend types + adapter (required)
+| Aspect | Status | Notes |
+|--------|--------|-------|
+| Clears old suggestions | PASS | Sets `follow_up_suggestions: null` |
+| Resets review timestamp | PASS | Sets `suggestions_reviewed_at: null` |
+| Triggers new analysis | PASS | Invokes `analyze-call` which triggers Advisor |
 
-**Files**
-- `src/api/aiCallAnalysis/types.ts`
-  - Add: `follow_up_suggestions: unknown[] | null` (or a typed `FollowUpSuggestion[] | null` if we want stronger typing)
-- `src/lib/supabaseAdapters.ts`
-  - In `toCallAnalysis(row)`, map:
-    - `follow_up_suggestions: row.follow_up_suggestions` (using `parseJsonField` if you want validation; otherwise pass-through as JSON)
+### Database Schema
 
-**Why this matters**
-- `CallDetailPage` already checks `analysis?.follow_up_suggestions` before rendering `PostCallSuggestionsPanel`.
-- Right now that property never exists on the analysis object, so the panel never appears.
+| Table | Column | Type | Status |
+|-------|--------|------|--------|
+| `ai_call_analysis` | `follow_up_suggestions` | JSONB | PASS - exists |
+| `ai_call_analysis` | `deal_heat_analysis` | JSONB | PASS - exists |
+| `account_follow_ups` | `source_call_id` | UUID | PASS - links tasks to source call |
+| `account_follow_ups` | `due_date` | DATE | PASS - for reminders |
+| `account_follow_ups` | `reminder_enabled` | BOOLEAN | PASS - for notifications |
 
----
+### Frontend: Type Definitions
 
-### B) Add realtime subscription (or short polling) to catch Deal Heat + Advisor writes (required)
+| File | Status | Notes |
+|------|--------|-------|
+| `src/api/aiCallAnalysis/types.ts` | PASS | `follow_up_suggestions: unknown[] \| null` at line 212 |
+| `src/components/calls/suggestions/types.ts` | PASS | Full `FollowUpSuggestion` interface with all fields |
 
-#### Option 1 (preferred): Realtime subscribe to `ai_call_analysis` updates
-Update `useCallAnalysisRealtime()` to also subscribe to:
+### Frontend: Data Adapter
 
-- `postgres_changes` on `public.ai_call_analysis`
-- filter `call_id=eq.${callId}`
-- on UPDATE:
-  - invalidate `callDetailKeys.call(callId)`
-  - (optionally) show a toast when suggestions appear: “✨ Follow-up suggestions ready” (only once)
+| File | Status | Notes |
+|------|--------|-------|
+| `src/lib/supabaseAdapters.ts` | PASS | Line 344 maps `follow_up_suggestions` |
 
-**Files**
-- `src/hooks/useCallAnalysisRealtime.ts`
+### Frontend: Real-time Subscription
 
-**Behavior**
-- Analysis completes → initial refetch happens.
-- A few seconds later Deal Heat and suggestions are saved → realtime event fires → we refetch again automatically.
-- This eliminates “it ran but I don’t see it” without the rep needing to click Refresh.
+| Aspect | Status | Issue |
+|--------|--------|-------|
+| Listens to `call_transcripts` | PASS | Line 39-92 |
+| Listens to `ai_call_analysis` | PARTIAL | Code exists (lines 94-131) BUT table is **not in realtime publication** |
+| Shows toast for suggestions | PASS | Line 127 |
 
-#### Option 2: Short “post-complete” polling window
-If we want to avoid another realtime channel:
-- When status becomes `completed`, start polling `getAnalysisForCall()` every ~2s for up to ~20–30s until either:
-  - `deal_heat_analysis` exists AND `follow_up_suggestions` exists (or the suggestion function has finished), then stop
-  - timeout reached, stop
+### Frontend: UI Components
 
-This is simpler, but realtime is more elegant and consistent with the existing approach.
+| Component | Status | Notes |
+|-----------|--------|-------|
+| `PostCallSuggestionsPanel` | PASS | Full implementation with Accept/Dismiss/Add Custom |
+| `SuggestionCard` | PASS | Shows priority, category, due timing, AI reasoning |
+| `AddCustomTaskDialog` | PASS | Full form with priority, category, due date, reminder toggle |
+| `PostCallSuggestionsSkeleton` | PASS | Loading state |
 
----
+### Frontend: Page Integration
 
-### C) Make sure query invalidation covers both call + analysis keys (nice-to-have)
-Right now realtime invalidates only `callDetailKeys.call(callId)`.
-
-But the page also uses `useAnalysisPolling()` (separate key) in some states. For completeness:
-- invalidate `callDetailKeys.analysis(callId)` too whenever we detect completion / ai_call_analysis update.
-
-**Files**
-- `src/hooks/useCallAnalysisRealtime.ts`
-- `src/pages/calls/CallDetailPage.tsx` (only if needed)
-
----
-
-## Verification steps (what we’ll test in Test)
-
-1) Submit a new call under “Tester”.
-2) Navigate to call detail immediately.
-3) Confirm:
-   - “Analysis complete” toast appears.
-   - Within a few seconds (no manual refresh):
-     - Deal Heat badge + DealHeatCard shows a score
-     - “Suggested Follow-Up Actions” panel appears with 3–7 items
-4) Click “Accept” on a suggestion:
-   - confirm a follow-up task is created and appears where tasks are shown
-5) Click “Re-Run Analysis”:
-   - confirm old suggestions clear
-   - confirm new suggestions and Deal Heat repopulate without manual refresh
+| Aspect | Status | Notes |
+|--------|--------|-------|
+| Renders panel | PASS | Line 516-525 in `CallDetailPage.tsx` |
+| Guards for `prospect_id` | PASS | Won't render if call isn't linked to account |
+| Position in page | PASS | Right after CoachingCard, before DealHeatCard |
 
 ---
 
-## Notes / edge cases handled
+## Critical Issue Found
 
-- If a call has no `prospect_id`, the suggestions panel is currently gated and won’t show. That’s expected per current UI condition; we can later decide whether to allow suggestions without account context.
-- We’ll ensure we only show “suggestions ready” toast once per page load (useRef guard), similar to the existing “analysis complete” toast guard.
+### Real-time Subscription for `ai_call_analysis` Won't Work
+
+**Problem**: The `ai_call_analysis` table is **NOT** in the `supabase_realtime` publication.
+
+```sql
+-- Current publication tables:
+call_transcripts     -- IN publication
+performance_metrics  -- IN publication
+user_activity_logs   -- IN publication
+ai_call_analysis     -- NOT IN PUBLICATION ❌
+```
+
+Additionally, `ai_call_analysis` has `REPLICA IDENTITY = DEFAULT` (`d`), whereas `call_transcripts` has `REPLICA IDENTITY = FULL` (`f`). For real-time updates to properly include the old/new values, we need `FULL`.
+
+**Impact**: The realtime code in `useCallAnalysisRealtime.ts` (lines 94-131) subscribes to `ai_call_analysis` updates, but these updates will never be received because the table isn't in the publication.
+
+**Result**: Users won't see Deal Heat or suggestions automatically appear after analysis completes. They'll need to manually refresh.
 
 ---
 
-## Files likely to change
+## Required Fix
 
-- `src/lib/supabaseAdapters.ts` (add `follow_up_suggestions` mapping)
-- `src/api/aiCallAnalysis/types.ts` (add field to `CallAnalysis`)
-- `src/hooks/useCallAnalysisRealtime.ts` (subscribe to `ai_call_analysis` updates and invalidate queries)
+### Database Migration Needed
+
+```sql
+-- Add ai_call_analysis to realtime publication
+ALTER PUBLICATION supabase_realtime ADD TABLE public.ai_call_analysis;
+
+-- Set REPLICA IDENTITY to FULL for complete payload in realtime events
+ALTER TABLE public.ai_call_analysis REPLICA IDENTITY FULL;
+```
 
 ---
 
-## Why this will fix your exact symptom
+## Everything Else is Complete
 
-Your backend is working; the UI is just fetching at the wrong moment and also dropping the suggestions field during mapping. After these changes:
-- the suggestions field will exist in the frontend object
-- the page will automatically refresh when Deal Heat + suggestions arrive
+Once the realtime publication issue is fixed:
+
+1. User submits call → `analyze-call` runs
+2. Analysis completes → `call_transcripts.analysis_status` changes to `completed`
+3. Real-time fires → UI refetches → Shows coaching insights
+4. Post-analysis triggers → Deal Heat + Advisor run (seconds later)
+5. `ai_call_analysis` updates → Real-time fires → UI refetches again
+6. User sees Deal Heat + Suggestions panel automatically
+7. User can Accept/Dismiss suggestions or Add Custom tasks
+8. Accepted tasks create `account_follow_ups` with due dates and reminder settings
+9. Email reminders sent via `send-task-reminders` cron job
+
+---
+
+## Implementation Plan
+
+### Step 1: Database Migration
+
+Run SQL to add `ai_call_analysis` to realtime publication and set REPLICA IDENTITY to FULL.
+
+### Step 2: Verify
+
+Submit a new test call and verify:
+- Deal Heat appears automatically
+- Suggestions panel appears automatically
+- "Follow-up suggestions ready" toast displays
+- Accept/Dismiss/Add Custom all work
+
+---
+
+## Technical Details for Implementation
+
+No code changes needed - only a database migration to enable realtime for the `ai_call_analysis` table.
+
