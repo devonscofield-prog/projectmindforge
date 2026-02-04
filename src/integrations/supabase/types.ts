@@ -458,34 +458,6 @@ export type Database = {
             referencedRelation: "user_with_role"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "fk_ai_call_analysis_call_id"
-            columns: ["call_id"]
-            isOneToOne: false
-            referencedRelation: "call_transcripts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_ai_call_analysis_rep_id"
-            columns: ["rep_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_ai_call_analysis_rep_id"
-            columns: ["rep_id"]
-            isOneToOne: false
-            referencedRelation: "team_member_names"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_ai_call_analysis_rep_id"
-            columns: ["rep_id"]
-            isOneToOne: false
-            referencedRelation: "user_with_role"
-            referencedColumns: ["id"]
-          },
         ]
       }
       analysis_sessions: {
