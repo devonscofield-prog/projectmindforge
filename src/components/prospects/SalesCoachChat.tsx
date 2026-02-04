@@ -24,7 +24,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Send, Loader2, Sparkles, User, ChevronDown, Trash2, History, Plus, MoreVertical, MessageSquare, Phone, Mail, Target, TrendingUp, Calendar, Clock, Zap } from 'lucide-react';
+import { Send, Loader2, Sparkles, User, ChevronDown, Trash2, History, Plus, MoreVertical, MessageSquare, Phone, Mail, Target, TrendingUp, Calendar, Clock, Zap, FileText, Users, Wrench, Share2, ListChecks } from 'lucide-react';
 import { streamCoachResponse, type ChatMessage } from '@/api/salesCoach';
 import { 
   fetchCoachSession, 
@@ -253,6 +253,59 @@ const QUICK_ACTIONS: QuickAction[] = [
     icon: <TrendingUp className="h-4 w-4" />,
     label: 'Deal Status',
     prompt: "Give me a quick assessment of where this deal stands and what's the probability of closing.",
+  },
+];
+
+interface RecapEmailOption {
+  id: string;
+  label: string;
+  description: string;
+  icon: React.ReactNode;
+  prompt: string;
+}
+
+const RECAP_EMAIL_OPTIONS: RecapEmailOption[] = [
+  {
+    id: 'executive-summary',
+    label: 'Executive Summary',
+    description: 'For prospect to share with leadership',
+    icon: <FileText className="h-4 w-4" />,
+    prompt: 'Write a post-call recap email for my prospect that includes a brief Executive Summary they can forward to their leadership team. Keep it professional and focused on the business value and outcomes we discussed.',
+  },
+  {
+    id: 'decision-maker',
+    label: 'Decision Maker',
+    description: 'Concise email for C-suite/executives',
+    icon: <Target className="h-4 w-4" />,
+    prompt: 'Draft a recap email specifically for a decision maker or executive at this account. Keep it concise, lead with ROI and business outcomes, and include a clear next step. Executives are busy - make every word count.',
+  },
+  {
+    id: 'champion-enablement',
+    label: 'Champion Enablement',
+    description: 'Talking points for your internal advocate',
+    icon: <Users className="h-4 w-4" />,
+    prompt: 'Create a recap email for my champion at this account that includes key talking points they can use to advocate for us internally. Include a quick-reference summary of benefits and answers to likely objections from their colleagues.',
+  },
+  {
+    id: 'technical-stakeholder',
+    label: 'Technical Stakeholder',
+    description: 'For IT, implementation, and technical teams',
+    icon: <Wrench className="h-4 w-4" />,
+    prompt: 'Write a recap email tailored for technical stakeholders at this account. Focus on the technical requirements, integration details, and implementation considerations we discussed. Include any technical next steps.',
+  },
+  {
+    id: 'multi-thread',
+    label: 'Multi-Thread Recap',
+    description: 'Comprehensive email for multiple stakeholders',
+    icon: <Share2 className="h-4 w-4" />,
+    prompt: 'Draft a comprehensive recap email that I can send to multiple stakeholders at this account. Structure it so different readers (executives, technical team, end users) can each find the information relevant to them. Include a clear summary at the top.',
+  },
+  {
+    id: 'next-steps-focused',
+    label: 'Next Steps Focused',
+    description: 'Action-oriented with clear commitments',
+    icon: <ListChecks className="h-4 w-4" />,
+    prompt: 'Write a brief, action-focused recap email that emphasizes the specific next steps we agreed on, who owns each action item, and the timeline. Keep it short and scannable with a clear list of commitments from both sides.',
   },
 ];
 
@@ -720,6 +773,44 @@ export function SalesCoachChat({ prospectId, accountName, heatScore, lastContact
                             </Button>
                           ))}
                         </div>
+
+                        {/* Recap Emails Dropdown */}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className="w-full h-auto py-3 justify-between bg-gradient-to-r from-primary/5 via-accent/5 to-primary/5 border-primary/20 hover:border-primary/40 hover:bg-gradient-to-r hover:from-primary/10 hover:via-accent/10 hover:to-primary/10 transition-all duration-200"
+                              disabled={isLoading || isRateLimited}
+                            >
+                              <span className="flex items-center gap-2">
+                                <Mail className="h-4 w-4 text-primary" />
+                                <span className="font-medium">Recap Emails</span>
+                              </span>
+                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" className="w-80 bg-popover">
+                            <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                              Generate a post-call recap email
+                            </div>
+                            <DropdownMenuSeparator />
+                            {RECAP_EMAIL_OPTIONS.map((option) => (
+                              <DropdownMenuItem
+                                key={option.id}
+                                className="flex items-start gap-3 py-2.5 cursor-pointer focus:bg-accent"
+                                onClick={() => { setInput(option.prompt); inputRef.current?.focus(); }}
+                              >
+                                <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0 mt-0.5">
+                                  {option.icon}
+                                </div>
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="font-medium text-sm">{option.label}</span>
+                                  <span className="text-xs text-muted-foreground">{option.description}</span>
+                                </div>
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
 
                         {/* Enhanced Recently Asked Questions */}
                         {recentQuestions.length > 0 && (
