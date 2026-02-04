@@ -25,7 +25,7 @@ import { TranscriptViewer } from '@/components/calls/TranscriptViewer';
 import { CoachingCard } from '@/components/calls/coaching';
 import { DealHeatCard } from '@/components/calls/DealHeatCard';
 import { SalesCoachChat } from '@/components/prospects/SalesCoachChat';
-import { PostCallSuggestionsPanel, PostCallSuggestionsSkeleton } from '@/components/calls/suggestions';
+import { PostCallSuggestionsPanel, PostCallSuggestionsSkeleton, AddCustomTaskDialog } from '@/components/calls/suggestions';
 import type { FollowUpSuggestion } from '@/components/calls/suggestions';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -66,7 +66,8 @@ import {
   Crown,
   Mail,
   ChevronRight,
-  Download
+  Download,
+  ListTodo
 } from 'lucide-react';
 
 function CallDetailPage() {
@@ -145,6 +146,7 @@ function CallDetailPage() {
   const [isUserCountsDialogOpen, setIsUserCountsDialogOpen] = useState(false);
   const [isTranscriptOpen, setIsTranscriptOpen] = useState(false);
   const [isRecapDialogOpen, setIsRecapDialogOpen] = useState(false);
+  const [isAddTaskDialogOpen, setIsAddTaskDialogOpen] = useState(false);
 
   // Extract current user counts from analysis metadata
   const currentUserCounts = useMemo(() => {
@@ -477,35 +479,62 @@ function CallDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Quick Access: Recap Assets - Right below Call Information */}
+        {/* Quick Access: Recap Assets & Add Task - Right below Call Information */}
         {transcript.analysis_status === 'completed' && analysis && (
-          <Dialog open={isRecapDialogOpen} onOpenChange={setIsRecapDialogOpen}>
-            <DialogTrigger asChild>
-              <button className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-card hover:bg-muted/50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring w-full sm:w-auto">
-                <Mail className="h-4 w-4 text-primary" />
-                <span className="text-sm font-medium">Recap & Follow-up Email</span>
-                <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto" />
-              </button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-2xl md:max-w-3xl lg:max-w-4xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <Mail className="h-5 w-5 text-primary" />
-                  Recap & Follow-up Email
-                </DialogTitle>
-              </DialogHeader>
-              <SalesAssetsGenerator
-                callId={transcript.id}
-                transcript={transcript.raw_text}
-                strategicContext={analysis.analysis_strategy || null}
-                psychologyContext={analysis.analysis_psychology || null}
-                existingAssets={analysis.sales_assets || null}
-                callMetadata={analysis.analysis_metadata || null}
-                accountName={transcript.account_name}
-                stakeholderName={transcript.primary_stakeholder_name}
-              />
-            </DialogContent>
-          </Dialog>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Dialog open={isRecapDialogOpen} onOpenChange={setIsRecapDialogOpen}>
+              <DialogTrigger asChild>
+                <button className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-card hover:bg-muted/50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring w-full sm:w-auto">
+                  <Mail className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">Recap & Follow-up Email</span>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto" />
+                </button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-2xl md:max-w-3xl lg:max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Mail className="h-5 w-5 text-primary" />
+                    Recap & Follow-up Email
+                  </DialogTitle>
+                </DialogHeader>
+                <SalesAssetsGenerator
+                  callId={transcript.id}
+                  transcript={transcript.raw_text}
+                  strategicContext={analysis.analysis_strategy || null}
+                  psychologyContext={analysis.analysis_psychology || null}
+                  existingAssets={analysis.sales_assets || null}
+                  callMetadata={analysis.analysis_metadata || null}
+                  accountName={transcript.account_name}
+                  stakeholderName={transcript.primary_stakeholder_name}
+                />
+              </DialogContent>
+            </Dialog>
+
+            {/* Add Task Button */}
+            {transcript.prospect_id && user?.id && (
+              <>
+                <button
+                  onClick={() => setIsAddTaskDialogOpen(true)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-card hover:bg-muted/50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring w-full sm:w-auto"
+                >
+                  <ListTodo className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">Add Task</span>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto" />
+                </button>
+                <AddCustomTaskDialog
+                  open={isAddTaskDialogOpen}
+                  onOpenChange={setIsAddTaskDialogOpen}
+                  prospectId={transcript.prospect_id}
+                  repId={user.id}
+                  callId={transcript.id}
+                  accountName={transcript.account_name}
+                  onTaskCreated={() => {
+                    toast.success('Task created successfully');
+                  }}
+                />
+              </>
+            )}
+          </div>
         )}
 
         {/* AI Coaching Synthesis Card - First Thing User Sees */}
