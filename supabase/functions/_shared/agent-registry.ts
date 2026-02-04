@@ -20,6 +20,7 @@ import {
   CoachSchema,
   SpeakerLabelerSchema,
   SentinelSchema,
+  ScribeSchema,
 } from './agent-schemas.ts';
 import {
   CENSUS_PROMPT,
@@ -35,6 +36,7 @@ import {
   COACH_PROMPT,
   SPEAKER_LABELER_PROMPT,
   SENTINEL_PROMPT,
+  SCRIBE_PROMPT,
 } from './agent-prompts.ts';
 
 // ============= AGENT CONFIGURATION TYPE =============
@@ -171,6 +173,10 @@ const DEFAULT_SENTINEL = {
     monologue_tolerance: 'moderate' as const,
     talk_ratio_ideal: 45,
   },
+};
+
+const DEFAULT_SCRIBE = {
+  internal_notes_markdown: 'Call notes generation failed. Please regenerate manually.',
 };
 
 // ============= AGENT REGISTRY =============
@@ -346,7 +352,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     default: DEFAULT_AUDITOR,
     phase: 1,
   },
-  // Phase 2 Agent (runs after phase 1 completes)
+  // Phase 2 Agents (run after phase 1 completes, in parallel)
   {
     id: 'coach',
     name: 'The Coach',
@@ -359,6 +365,20 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     options: { model: 'google/gemini-3-pro-preview', temperature: 0.3, maxTokens: 16384 }, // Gemini 3 Pro for superior reasoning - maximum token budget for deep synthesis
     isCritical: false,
     default: DEFAULT_COACH,
+    phase: 2,
+  },
+  {
+    id: 'scribe',
+    name: 'The Scribe',
+    description: 'Generate CRM-ready internal notes from call analysis',
+    schema: ScribeSchema,
+    systemPrompt: SCRIBE_PROMPT,
+    userPromptTemplate: (input) => `Generate internal CRM notes for this sales call:\n\n${input}`,
+    toolName: 'generate_crm_notes',
+    toolDescription: 'Generate CRM-ready internal notes from call analysis',
+    options: { model: 'google/gemini-2.5-flash', temperature: 0.4, maxTokens: 4096 },
+    isCritical: false,
+    default: DEFAULT_SCRIBE,
     phase: 2,
   },
 ];

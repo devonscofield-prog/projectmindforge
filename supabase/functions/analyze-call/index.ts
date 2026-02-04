@@ -365,6 +365,8 @@ Deno.serve(async (req) => {
           analysis_pipeline_version: 'v2-registry',
           call_summary: result.metadata.summary,
           detected_call_type: result.callClassification?.detected_call_type || null,
+          sales_assets: { internal_notes_markdown: result.salesAssets.internal_notes_markdown },
+          sales_assets_generated_at: new Date().toISOString(),
           raw_json: {
             ...(result.warnings.length > 0 ? { analysis_warnings: result.warnings } : {}),
             ...(result.callClassification ? { call_classification: result.callClassification } : {}),
