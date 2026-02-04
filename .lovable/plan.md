@@ -1,95 +1,114 @@
 
 
-# Load Prompts into Input Instead of Auto-Submitting
+# Improve Chat Input Fields for Longer Prompts
 
 ## Overview
 
-When users click on suggested questions or quick actions in the Sales Coach chat, the prompt will be loaded into the input field instead of being sent immediately. This allows users to:
-- Review the prompt before sending
-- Edit or customize the prompt to their needs
-- Feel more in control of the conversation
+Currently, all three chat components use a single-line `<Input>` component that only shows about one line of text at a time. This makes it difficult to see what you've typed, especially for longer prompts loaded from suggestions.
 
-For consistency, I'll also apply this change to the Sales Assistant chat.
+The solution is to replace the `<Input>` components with auto-expanding `<Textarea>` components that:
+- Start at a single line height (similar to current behavior)
+- Automatically expand as you type more content (up to a maximum height)
+- Support Shift+Enter for new lines
+- Submit on Enter (without Shift)
 
 ---
 
-## Changes
+## Implementation Plan
 
-### Sales Coach Chat
+### 1. Sales Coach Chat
 
 **File**: `src/components/prospects/SalesCoachChat.tsx`
 
-There are three areas where clicking sends a message immediately that need to be updated:
+Changes needed:
+- Import `Textarea` instead of/alongside `Input`
+- Replace the `<Input>` with a `<Textarea>`
+- Add auto-resize logic using a `useEffect` or `useCallback`
+- Update the ref type from `HTMLInputElement` to `HTMLTextAreaElement`
+- Adjust container styling to accommodate multi-line input
 
-1. **Quick Action Buttons** (line 703)
-   - Current: `onClick={() => sendMessage(action.prompt)}`
-   - New: `onClick={() => setInput(action.prompt)}`
+The textarea will:
+- Start at ~40px height (single line)
+- Expand automatically up to ~120px (about 4-5 lines)
+- Use `resize-none` to prevent manual resizing
+- Have `rows={1}` as the initial row count
 
-2. **Recently Asked Questions** (line 728)
-   - Current: `onClick={() => sendMessage(q)}`
-   - New: `onClick={() => setInput(q)}`
-
-3. **Category Questions** (line 781)
-   - Current: `onClick={() => sendMessage(q)}`
-   - New: `onClick={() => setInput(q)}`
-
-Additionally, I'll add automatic focus to the input field after populating it so users can immediately review and send.
-
-### Sales Assistant Chat
+### 2. Sales Assistant Chat
 
 **File**: `src/components/SalesAssistantChat.tsx`
 
-For consistency, update the quick action handler:
+Same changes:
+- Replace `<Input>` with auto-expanding `<Textarea>`
+- Update ref type
+- Adjust container for flex alignment
 
-- Current (line 277-279):
-  ```typescript
-  const handleQuickAction = (action: QuickAction) => {
-    sendMessage(action.prompt);
-  };
-  ```
-- New:
-  ```typescript
-  const handleQuickAction = (action: QuickAction) => {
-    setInput(action.prompt);
-    inputRef.current?.focus();
-  };
-  ```
+### 3. Transcript Chat Input (for consistency)
+
+**File**: `src/components/admin/transcript-chat/ChatInput.tsx`
+
+Same pattern:
+- Replace `<Input>` with auto-expanding `<Textarea>`
+- Update the `inputRef` prop type in the interface
 
 ---
 
 ## Technical Details
 
-### Helper Function (Optional Enhancement)
+### Auto-Resize Logic
 
-To ensure the input field is focused after loading a prompt, I'll create a simple helper:
+Each textarea will use a simple auto-resize pattern:
 
 ```typescript
-const loadPromptToInput = (prompt: string) => {
-  setInput(prompt);
-  // Focus the input so user can review/edit/send
-  setTimeout(() => inputRef.current?.focus(), 50);
+const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+// Auto-resize on input change
+useEffect(() => {
+  const textarea = textareaRef.current;
+  if (textarea) {
+    textarea.style.height = 'auto';
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
+  }
+}, [input]);
+```
+
+### Keyboard Handling
+
+The existing `handleKeyDown` logic already handles Enter to submit. We need to add Shift+Enter support for new lines:
+
+```typescript
+const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    handleSubmit(e);
+  }
+  // Shift+Enter allows new line (default textarea behavior)
 };
 ```
 
-This can be used across all the click handlers for consistency.
+### Textarea Styling
 
----
+```tsx
+<Textarea
+  ref={textareaRef}
+  value={input}
+  onChange={(e) => setInput(e.target.value)}
+  onKeyDown={handleKeyDown}
+  placeholder="Ask your sales coach..."
+  disabled={isLoading || isRateLimited}
+  rows={1}
+  className="flex-1 min-h-[40px] max-h-[120px] border-0 bg-transparent 
+             focus-visible:ring-0 focus-visible:ring-offset-0 
+             placeholder:text-muted-foreground/60 resize-none py-2.5"
+/>
+```
 
-## User Experience
+### Container Adjustment
 
-**Before:**
-1. User sees suggested question
-2. User clicks → Message immediately sent
-3. User waits for AI response
+Change the flex container from `items-center` to `items-end` so the send button aligns to the bottom as the textarea expands:
 
-**After:**
-1. User sees suggested question
-2. User clicks → Prompt appears in input field
-3. User reviews/edits the prompt (optional)
-4. User presses Enter or clicks Send
-5. User waits for AI response
-
-This gives users more control and reduces the chance of accidentally sending a message they didn't intend to.
+```tsx
+<div className="flex gap-2.5 items-end bg-muted/30 rounded-xl p-1.5 ...">
+```
 
 ---
 
@@ -97,16 +116,32 @@ This gives users more control and reduces the chance of accidentally sending a m
 
 | File | Changes |
 |------|---------|
-| `src/components/prospects/SalesCoachChat.tsx` | Update 3 onClick handlers to use `setInput()` instead of `sendMessage()` |
-| `src/components/SalesAssistantChat.tsx` | Update `handleQuickAction` to use `setInput()` instead of `sendMessage()` |
+| `src/components/prospects/SalesCoachChat.tsx` | Replace Input with auto-expanding Textarea, update ref type, add resize logic |
+| `src/components/SalesAssistantChat.tsx` | Replace Input with auto-expanding Textarea, update ref type, add resize logic |
+| `src/components/admin/transcript-chat/ChatInput.tsx` | Replace Input with auto-expanding Textarea, update prop types |
+
+---
+
+## User Experience
+
+**Before:**
+- Single-line input that scrolls horizontally
+- Hard to see full prompt content
+- Can't add line breaks
+
+**After:**
+- Multi-line textarea that grows with content
+- See up to 4-5 lines at once
+- Shift+Enter creates new lines
+- Enter still submits the message
+- Better visibility of loaded suggestion prompts
 
 ---
 
 ## Result
 
-- Clicking any suggested question loads it into the input field
-- Input field automatically receives focus
-- User can edit the prompt before sending
-- User sends the message by pressing Enter or clicking Send
-- Both Sales Coach and Sales Assistant behave consistently
+1. **Better visibility** - Users can see up to 4-5 lines of their prompt at once
+2. **Multi-line support** - Shift+Enter allows line breaks for structured prompts
+3. **Consistent behavior** - All three chat components work the same way
+4. **Maintained aesthetics** - Same premium styling, just taller when needed
 
