@@ -15,7 +15,7 @@ import {
   Phone, 
   PhoneOff, 
   Volume2,
-  User,
+  
   Bot,
   Loader2,
   ArrowLeft,
@@ -460,8 +460,8 @@ export default function RoleplaySession() {
   useEffect(() => {
     const handleBeforeUnload = () => {
       if (sessionId && status !== 'idle' && status !== 'ended') {
-        // Use sendBeacon for reliability on page unload
-        const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/roleplay-session-manager/abandon-session`;
+        // Use dedicated abandon endpoint that doesn't require auth
+        const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/roleplay-abandon-session`;
         navigator.sendBeacon(url, JSON.stringify({ sessionId }));
       }
     };
@@ -574,12 +574,47 @@ export default function RoleplaySession() {
             </CardTitle>
           </CardHeader>
           <CardContent className="flex-1 flex items-center justify-center p-4">
-            {/* Idle state */}
+            {/* Idle state - show session type selector */}
             {status === 'idle' && (
               <div className="flex flex-col items-center justify-center text-muted-foreground">
                 <div className="w-24 h-24 rounded-full bg-secondary flex items-center justify-center mb-6">
                   <Bot className="h-12 w-12 text-muted-foreground" />
                 </div>
+                
+                {/* Session Type Selector */}
+                <div className="w-full max-w-sm mb-6">
+                  <p className="text-sm font-medium mb-3 text-center">Select Session Type</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => setSessionType('discovery')}
+                      className={cn(
+                        "p-3 rounded-lg border text-sm font-medium transition-all",
+                        sessionType === 'discovery' 
+                          ? "bg-primary text-primary-foreground border-primary" 
+                          : "bg-secondary/50 border-border hover:bg-secondary"
+                      )}
+                    >
+                      🔍 Discovery
+                    </button>
+                    <button
+                      onClick={() => setSessionType('demo')}
+                      className={cn(
+                        "p-3 rounded-lg border text-sm font-medium transition-all",
+                        sessionType === 'demo' 
+                          ? "bg-primary text-primary-foreground border-primary" 
+                          : "bg-secondary/50 border-border hover:bg-secondary"
+                      )}
+                    >
+                      📺 Demo
+                    </button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2 text-center">
+                    {sessionType === 'discovery' 
+                      ? 'Focus on uncovering needs and challenges' 
+                      : 'Practice presenting and handling feature questions'}
+                  </p>
+                </div>
+                
                 <p>Click "Start Call" to begin your practice session</p>
               </div>
             )}

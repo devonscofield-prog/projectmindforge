@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect } from "react";
+import React, { Suspense, lazy } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -51,6 +51,7 @@ const AdminBulkUpload = lazy(() => import("./pages/admin/AdminBulkUpload"));
 const AdminKnowledgeBase = lazy(() => import("./pages/admin/AdminKnowledgeBase"));
 const AdminPlaybook = lazy(() => import("./pages/admin/AdminPlaybook"));
 const AdminCompetitors = lazy(() => import("./pages/admin/AdminCompetitors"));
+const AdminTrainingPersonas = lazy(() => import("./pages/admin/AdminTrainingPersonas"));
 
 // Lazy load - Shared pages
 const CallDetailPage = lazy(() => import("./pages/calls/CallDetailPage"));
@@ -304,6 +305,11 @@ const App = () => (
                 <Route path="/admin/knowledge-base" element={
                   <ProtectedRoute allowedRoles={['admin']}>
                     <AdminKnowledgeBase />
+                  </ProtectedRoute>
+                } />
+                <Route path="/admin/training-personas" element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <AdminTrainingPersonas />
                   </ProtectedRoute>
                 } />
 

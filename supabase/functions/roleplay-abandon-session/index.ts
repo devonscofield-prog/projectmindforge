@@ -1,0 +1,120 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+/**
+ * Dedicated abandon session endpoint that works with navigator.sendBeacon.
+ * 
+ * sendBeacon cannot include Authorization headers, so this function:
+ * 1. Does NOT require JWT authentication (verify_jwt = false in config.toml)
+ * 2. Validates the session exists and is in an abandonable state
+ * 3. Uses service role to update the session status
+ * 
+ * Security: Only allows marking sessions as "abandoned" - no other operations.
+ * The sessionId must be a valid UUID and the session must exist.
+ */
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    
+    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Parse body - handle both JSON and text (sendBeacon might send as text)
+    let sessionId: string;
+    const contentType = req.headers.get('content-type') || '';
+    
+    if (contentType.includes('application/json')) {
+      const body = await req.json();
+      sessionId = body.sessionId;
+    } else {
+      // sendBeacon might send as text/plain
+      const text = await req.text();
+      try {
+        const parsed = JSON.parse(text);
+        sessionId = parsed.sessionId;
+      } catch {
+        console.error('Failed to parse request body:', text);
+        throw new Error('Invalid request body');
+      }
+    }
+
+    if (!sessionId) {
+      throw new Error('sessionId is required');
+    }
+
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(sessionId)) {
+      throw new Error('Invalid sessionId format');
+    }
+
+    console.log(`Abandoning session via beacon: ${sessionId}`);
+
+    // Verify session exists and is in a state that can be abandoned
+    const { data: session, error: fetchError } = await supabaseClient
+      .from('roleplay_sessions')
+      .select('id, status')
+      .eq('id', sessionId)
+      .single();
+
+    if (fetchError || !session) {
+      console.error('Session not found:', fetchError);
+      // Return success anyway to not leak information
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Only abandon if in progress or pending
+    if (!['in_progress', 'pending'].includes(session.status)) {
+      console.log(`Session ${sessionId} already in final state: ${session.status}`);
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'Session already completed',
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Update session to abandoned
+    const { error: updateError } = await supabaseClient
+      .from('roleplay_sessions')
+      .update({
+        status: 'abandoned',
+        ended_at: new Date().toISOString(),
+      })
+      .eq('id', sessionId);
+
+    if (updateError) {
+      console.error('Session abandon error:', updateError);
+      throw new Error('Failed to abandon session');
+    }
+
+    console.log(`Session ${sessionId} abandoned successfully`);
+
+    return new Response(JSON.stringify({
+      success: true,
+      message: 'Session abandoned',
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+
+  } catch (error) {
+    console.error('Error in roleplay-abandon-session:', error);
+    return new Response(JSON.stringify({ 
+      error: error instanceof Error ? error.message : 'Unknown error occurred' 
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+});

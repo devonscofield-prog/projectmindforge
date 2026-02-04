@@ -97,6 +97,7 @@ const adminNavGroups = [
     label: 'System',
     items: [
       { href: '/admin/knowledge-base', label: 'Knowledge Base', icon: Database },
+      { href: '/admin/training-personas', label: 'Training Personas', icon: Users },
       { href: '/admin/bulk-upload', label: 'Bulk Upload', icon: Upload },
       { href: '/admin/performance', label: 'Performance', icon: Activity },
       { href: '/admin/audit-log', label: 'Audit Log', icon: History },

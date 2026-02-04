@@ -122,3 +122,9 @@ verify_jwt = false
 
 [functions.generate-call-follow-up-suggestions]
 verify_jwt = true
+
+[functions.cleanup-stuck-sessions]
+verify_jwt = false
+
+[functions.roleplay-abandon-session]
+verify_jwt = false
