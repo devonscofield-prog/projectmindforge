@@ -175,12 +175,12 @@ Deno.serve(async (req) => {
 
     console.log(`✓ Role assigned: ${role}`);
 
-    // Generate password reset link for the user to set their own password
+    // Generate invite link for the user to set their own password
     const { data: resetData, error: resetError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'magiclink',
+      type: 'invite',
       email,
       options: {
-        redirectTo: redirectTo || undefined
+        redirectTo: redirectTo || `https://projectmindforge.lovable.app/auth`
       }
     });
 
@@ -237,7 +237,9 @@ Deno.serve(async (req) => {
                 <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;">
                   <p style="margin: 0; font-size: 14px; color: #666;">
                     <strong>What's next?</strong><br>
-                    After clicking the link, you'll be logged in and asked to set up two-factor authentication (2FA) for security. Have an authenticator app ready (like Google Authenticator or Authy).
+                    1. Click the link to create your password<br>
+                    2. Set up two-factor authentication (2FA) for security<br>
+                    Have an authenticator app ready (like Google Authenticator or Authy).
                   </p>
                 </div>
                 
