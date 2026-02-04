@@ -21,11 +21,16 @@ export type Database = {
           completed_at: string | null
           created_at: string
           description: string | null
+          due_date: string | null
           generated_from_call_ids: string[] | null
           id: string
           priority: string | null
           prospect_id: string
+          reminder_enabled: boolean | null
+          reminder_sent_at: string | null
           rep_id: string
+          source: string | null
+          source_call_id: string | null
           status: string | null
           title: string
           updated_at: string
@@ -36,11 +41,16 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           description?: string | null
+          due_date?: string | null
           generated_from_call_ids?: string[] | null
           id?: string
           priority?: string | null
           prospect_id: string
+          reminder_enabled?: boolean | null
+          reminder_sent_at?: string | null
           rep_id: string
+          source?: string | null
+          source_call_id?: string | null
           status?: string | null
           title: string
           updated_at?: string
@@ -51,11 +61,16 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           description?: string | null
+          due_date?: string | null
           generated_from_call_ids?: string[] | null
           id?: string
           priority?: string | null
           prospect_id?: string
+          reminder_enabled?: boolean | null
+          reminder_sent_at?: string | null
           rep_id?: string
+          source?: string | null
+          source_call_id?: string | null
           status?: string | null
           title?: string
           updated_at?: string
@@ -66,6 +81,13 @@ export type Database = {
             columns: ["prospect_id"]
             isOneToOne: false
             referencedRelation: "prospects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_follow_ups_source_call_id_fkey"
+            columns: ["source_call_id"]
+            isOneToOne: false
+            referencedRelation: "call_transcripts"
             referencedColumns: ["id"]
           },
         ]

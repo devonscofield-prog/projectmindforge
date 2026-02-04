@@ -43,5 +43,5 @@ export interface ProspectInsightsState {
 export type { Prospect, ProspectActivity, ProspectStatus, ProspectActivityType };
 export type { Stakeholder };
 export type { StakeholderRelationship };
-export type { AccountFollowUp };
+export type { AccountFollowUp, FollowUpSource } from '@/api/accountFollowUps';
 export type { EmailLog };

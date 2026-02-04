@@ -33,6 +33,7 @@ import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { SalesAssistantChat } from '@/components/SalesAssistantChat';
+import { PostCallTasksDialog } from '@/components/calls/PostCallTasksDialog';
 import {
   Tooltip,
   TooltipContent,
@@ -112,6 +113,14 @@ function RepDashboard() {
   const [showDraftDialog, setShowDraftDialog] = useState(false);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
+  
+  // Post-call tasks state
+  const [showPostCallTasks, setShowPostCallTasks] = useState(false);
+  const [submittedCallData, setSubmittedCallData] = useState<{
+    callId: string;
+    prospectId: string;
+    accountName: string;
+  } | null>(null);
 
   // Calculate if form has meaningful content (dirty state)
   const isDirty = useCallback(() => {
@@ -538,10 +547,16 @@ function RepDashboard() {
 
       // Show success toast immediately - this confirms the call was saved
       // regardless of background analysis status
-      toast.success('✅ Call saved successfully!', { description: 'Redirecting to your call details. Analysis will complete shortly.' });
+      toast.success('✅ Call saved successfully!', { description: 'Add follow-up tasks or view your call details.' });
 
-      // Navigate to the call detail page
-      navigate(`/calls/${result.transcript.id}`);
+      // Store call data and show post-call tasks dialog
+      setSubmittedCallData({
+        callId: result.transcript.id,
+        prospectId: result.transcript.prospect_id || '',
+        accountName: result.transcript.account_name || accountName.trim(),
+      });
+      setShowPostCallTasks(true);
+      setIsSubmitting(false);
     } catch (error) {
       log.error('Error submitting call', { error });
       toast.error('Error', { description: error instanceof Error ? error.message : 'Failed to submit call for analysis' });
@@ -623,6 +638,22 @@ function RepDashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Post-Call Tasks Dialog */}
+      {submittedCallData && (
+        <PostCallTasksDialog
+          open={showPostCallTasks}
+          callId={submittedCallData.callId}
+          prospectId={submittedCallData.prospectId}
+          repId={user?.id || ''}
+          accountName={submittedCallData.accountName}
+          onClose={() => setShowPostCallTasks(false)}
+          onComplete={() => {
+            setShowPostCallTasks(false);
+            navigate(`/calls/${submittedCallData.callId}`);
+          }}
+        />
+      )}
 
       <div className="space-y-6 md:space-y-8 pb-24 md:pb-0">
         {/* Hero Header */}

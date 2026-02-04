@@ -29,6 +29,7 @@ import {
   Building2,
   X,
 } from 'lucide-react';
+import { format, isToday, isTomorrow, isPast, parseISO } from 'date-fns';
 import {
   listAllPendingFollowUpsForRep,
   type AccountFollowUpWithProspect,
@@ -54,6 +55,23 @@ const categoryLabels: Record<FollowUpCategory, string> = {
   relationship: 'Relationship',
   competitive: 'Competitive',
 };
+
+function formatDueDate(dueDate: string): { text: string; isOverdue: boolean; isDueToday: boolean } {
+  const date = parseISO(dueDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  if (isPast(date) && !isToday(date)) {
+    return { text: 'Overdue', isOverdue: true, isDueToday: false };
+  }
+  if (isToday(date)) {
+    return { text: 'Due today', isOverdue: false, isDueToday: true };
+  }
+  if (isTomorrow(date)) {
+    return { text: 'Due tomorrow', isOverdue: false, isDueToday: false };
+  }
+  return { text: `Due ${format(date, 'MMM d')}`, isOverdue: false, isDueToday: false };
+}
 
 export function PendingFollowUpsWidget({ repId }: PendingFollowUpsWidgetProps) {
   const navigate = useNavigate();
@@ -251,6 +269,10 @@ function FollowUpRow({
 }: FollowUpRowProps) {
   const priority = priorityConfig[followUp.priority] || priorityConfig.medium;
   const accountDisplay = followUp.account_name || followUp.prospect_name;
+  const isManual = followUp.source === 'manual';
+  
+  // Format due date if present
+  const dueDateInfo = followUp.due_date ? formatDueDate(followUp.due_date) : null;
 
   const content = (
     <div
@@ -276,7 +298,7 @@ function FollowUpRow({
 
       {/* Content */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
+        <div className="flex items-center gap-2 mb-1 flex-wrap">
           <Badge variant="secondary" className={`${priority.className} text-[10px] px-1.5 py-0`}>
             {priority.label}
           </Badge>
@@ -284,6 +306,25 @@ function FollowUpRow({
             <span className="text-[10px] text-muted-foreground">
               {categoryLabels[followUp.category]}
             </span>
+          )}
+          {isManual && (
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-primary/5 text-primary border-primary/20">
+              Personal
+            </Badge>
+          )}
+          {dueDateInfo && (
+            <Badge 
+              variant="outline" 
+              className={`text-[10px] px-1.5 py-0 ${
+                dueDateInfo.isOverdue 
+                  ? 'bg-destructive/10 text-destructive border-destructive/20' 
+                  : dueDateInfo.isDueToday 
+                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200' 
+                    : 'bg-muted text-muted-foreground'
+              }`}
+            >
+              {dueDateInfo.text}
+            </Badge>
           )}
         </div>
         <p className="text-sm font-medium truncate">{followUp.title}</p>

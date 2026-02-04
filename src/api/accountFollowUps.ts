@@ -6,6 +6,7 @@ const log = createLogger('followUps');
 export type FollowUpStatus = 'pending' | 'completed' | 'dismissed';
 export type FollowUpPriority = 'high' | 'medium' | 'low';
 export type FollowUpCategory = 'discovery' | 'stakeholder' | 'objection' | 'proposal' | 'relationship' | 'competitive';
+export type FollowUpSource = 'ai' | 'manual';
 
 export interface AccountFollowUp {
   id: string;
@@ -19,6 +20,11 @@ export interface AccountFollowUp {
   completed_at: string | null;
   generated_from_call_ids: string[] | null;
   ai_reasoning: string | null;
+  source: FollowUpSource;
+  due_date: string | null;
+  reminder_enabled: boolean;
+  reminder_sent_at: string | null;
+  source_call_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -235,7 +241,7 @@ export async function listAllPendingFollowUpsForRep(repId: string): Promise<Acco
     return acc;
   }, {} as Record<string, { prospect_name: string; account_name: string | null }>);
 
-  // Sort by priority (high first, then medium, then low)
+  // Sort by priority (high first, then medium, then low), then by due date
   const priorityOrder: Record<FollowUpPriority, number> = { high: 0, medium: 1, low: 2 };
   
   return followUps.map(f => ({
@@ -243,8 +249,120 @@ export async function listAllPendingFollowUpsForRep(repId: string): Promise<Acco
     prospect_name: prospectMap[f.prospect_id]?.prospect_name,
     account_name: prospectMap[f.prospect_id]?.account_name || undefined,
   })).sort((a, b) => {
+    // First sort by due date (overdue first, then upcoming, then no date)
+    const aHasDue = !!a.due_date;
+    const bHasDue = !!b.due_date;
+    if (aHasDue && !bHasDue) return -1;
+    if (!aHasDue && bHasDue) return 1;
+    if (aHasDue && bHasDue) {
+      const dateDiff = new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime();
+      if (dateDiff !== 0) return dateDiff;
+    }
+    // Then by priority
     const priorityDiff = priorityOrder[a.priority as FollowUpPriority] - priorityOrder[b.priority as FollowUpPriority];
     if (priorityDiff !== 0) return priorityDiff;
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   }) as AccountFollowUpWithProspect[];
+}
+
+/**
+ * Create a manual follow-up task
+ */
+export interface CreateManualFollowUpParams {
+  prospectId: string;
+  repId: string;
+  title: string;
+  description?: string;
+  priority?: FollowUpPriority;
+  category?: FollowUpCategory;
+  dueDate?: string;
+  reminderEnabled?: boolean;
+  sourceCallId?: string;
+}
+
+export async function createManualFollowUp(params: CreateManualFollowUpParams): Promise<AccountFollowUp> {
+  const { data, error } = await supabase
+    .from('account_follow_ups')
+    .insert({
+      prospect_id: params.prospectId,
+      rep_id: params.repId,
+      title: params.title,
+      description: params.description || null,
+      priority: params.priority || 'medium',
+      category: params.category || null,
+      source: 'manual',
+      due_date: params.dueDate || null,
+      reminder_enabled: params.reminderEnabled || false,
+      source_call_id: params.sourceCallId || null,
+      status: 'pending',
+    })
+    .select()
+    .single();
+
+  if (error) {
+    log.error('Error creating manual follow-up', { params, error });
+    throw error;
+  }
+
+  return data as AccountFollowUp;
+}
+
+/**
+ * Create multiple manual follow-up tasks at once
+ */
+export async function createManualFollowUps(tasks: CreateManualFollowUpParams[]): Promise<AccountFollowUp[]> {
+  if (tasks.length === 0) return [];
+  
+  const inserts = tasks.map(params => ({
+    prospect_id: params.prospectId,
+    rep_id: params.repId,
+    title: params.title,
+    description: params.description || null,
+    priority: params.priority || 'medium',
+    category: params.category || null,
+    source: 'manual' as const,
+    due_date: params.dueDate || null,
+    reminder_enabled: params.reminderEnabled || false,
+    source_call_id: params.sourceCallId || null,
+    status: 'pending' as const,
+  }));
+
+  const { data, error } = await supabase
+    .from('account_follow_ups')
+    .insert(inserts)
+    .select();
+
+  if (error) {
+    log.error('Error creating manual follow-ups', { count: tasks.length, error });
+    throw error;
+  }
+
+  return (data || []) as AccountFollowUp[];
+}
+
+/**
+ * Update due date and reminder settings for a follow-up
+ */
+export async function updateFollowUpReminder(
+  followUpId: string,
+  dueDate: string | null,
+  reminderEnabled: boolean
+): Promise<AccountFollowUp> {
+  const { data, error } = await supabase
+    .from('account_follow_ups')
+    .update({
+      due_date: dueDate,
+      reminder_enabled: reminderEnabled,
+      reminder_sent_at: null, // Reset when reminder settings change
+    })
+    .eq('id', followUpId)
+    .select()
+    .single();
+
+  if (error) {
+    log.error('Error updating follow-up reminder', { followUpId, error });
+    throw error;
+  }
+
+  return data as AccountFollowUp;
 }
