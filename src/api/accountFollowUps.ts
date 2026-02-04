@@ -5,7 +5,7 @@ const log = createLogger('followUps');
 
 export type FollowUpStatus = 'pending' | 'completed' | 'dismissed';
 export type FollowUpPriority = 'high' | 'medium' | 'low';
-export type FollowUpCategory = 'discovery' | 'stakeholder' | 'objection' | 'proposal' | 'relationship' | 'competitive';
+export type FollowUpCategory = 'phone_call' | 'drip_email' | 'text_message' | 'follow_up_email';
 export type FollowUpSource = 'ai' | 'manual';
 
 export interface AccountFollowUp {
