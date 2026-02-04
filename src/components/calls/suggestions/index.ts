@@ -2,3 +2,6 @@ export { PostCallSuggestionsPanel, PostCallSuggestionsSkeleton } from './PostCal
 export { SuggestionCard } from './SuggestionCard';
 export { AddCustomTaskDialog } from './AddCustomTaskDialog';
 export type { FollowUpSuggestion } from './types';
+
+// Re-export types for convenience
+export * from './types';
