@@ -480,3 +480,48 @@ export async function listAllFollowUpsForRepByStatus(
     account_name: prospectMap[f.prospect_id]?.account_name || undefined,
   })) as AccountFollowUpWithProspect[];
 }
+
+/**
+ * Bulk complete multiple follow-ups
+ */
+export async function bulkCompleteFollowUps(ids: string[]): Promise<void> {
+  const { error } = await supabase
+    .from('account_follow_ups')
+    .update({ status: 'completed', completed_at: new Date().toISOString() })
+    .in('id', ids);
+
+  if (error) {
+    log.error('Error bulk completing follow-ups', { count: ids.length, error });
+    throw error;
+  }
+}
+
+/**
+ * Bulk dismiss multiple follow-ups
+ */
+export async function bulkDismissFollowUps(ids: string[]): Promise<void> {
+  const { error } = await supabase
+    .from('account_follow_ups')
+    .update({ status: 'dismissed' })
+    .in('id', ids);
+
+  if (error) {
+    log.error('Error bulk dismissing follow-ups', { count: ids.length, error });
+    throw error;
+  }
+}
+
+/**
+ * Bulk reschedule multiple follow-ups to a new due date
+ */
+export async function bulkRescheduleFollowUps(ids: string[], dueDate: string): Promise<void> {
+  const { error } = await supabase
+    .from('account_follow_ups')
+    .update({ due_date: dueDate, reminder_sent_at: null })
+    .in('id', ids);
+
+  if (error) {
+    log.error('Error bulk rescheduling follow-ups', { count: ids.length, error });
+    throw error;
+  }
+}
