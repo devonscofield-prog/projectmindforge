@@ -1,203 +1,153 @@
 
-# Practice Roleplay System Audit & Improvement Plan
 
-## Executive Summary
+# Add New Training Personas
 
-After a comprehensive audit of the Practice Roleplay system, I've identified 15 improvement areas spanning UX, reliability, persona management, analytics, and feature gaps. The system has a solid foundation with sophisticated persona logic, DISC-based voice mapping, and AI grading, but there are significant opportunities to improve the overall experience.
+## Overview
 
----
+Add two new AI personas to the Practice Roleplay system to provide trainees with more diverse practice scenarios:
 
-## Current System Overview
+1. **Marcus Chen** - Network Engineer (Technical Influencer)
+2. **Dr. Patricia Okonkwo** - Chief Technology Officer (Executive Decision Maker)
 
-**Architecture:**
-- **Edge Functions**: `roleplay-session-manager` (create/end/abandon sessions) and `roleplay-grade-session` (AI grading)
-- **Frontend Pages**: TrainingDashboard, RoleplaySession, TrainingHistory, TrainingProgress, SessionDetail, ManagerTrainingDashboard
-- **Database Tables**: `roleplay_personas`, `roleplay_sessions`, `roleplay_transcripts`, `roleplay_grades`
-- **Features**: WebRTC voice with OpenAI Realtime API, screen sharing, DISC-based personas, AI grading with custom criteria
+These personas will complement the existing Steven Green (IT Director) and offer practice with different personality types, difficulty levels, and buyer roles.
 
 ---
 
-## ✅ Phase 1: Critical Fixes (COMPLETED)
+## New Personas
 
-### ✅ 1.1 Stuck Sessions Recovery - DONE
+### Persona 1: Marcus Chen - Network Engineer
 
-**Implemented:**
-- Created `supabase/functions/cleanup-stuck-sessions/index.ts` edge function
-- Set up CRON job to run every 15 minutes
-- Automatically marks sessions stuck in `in_progress` for >10 minutes as `abandoned`
+| Field | Value |
+|-------|-------|
+| **Name** | Marcus Chen |
+| **Role** | Network Engineer / Senior System Administrator |
+| **Industry** | Manufacturing |
+| **DISC Profile** | I (Influential) - Enthusiastic, talkative, collaborative |
+| **Difficulty** | Easy |
+| **Voice** | ballad (warm, engaging) |
 
----
+**Backstory:**
+Marcus is a Senior Network Engineer at a mid-sized manufacturing company. He's been in IT for 8 years and genuinely loves technology. He's the "go-to" person for anything network or cloud-related, and he's always looking for ways to improve his skills. He's friendly, talks a lot when excited, and is open to new ideas - but he's not the decision maker. He can champion solutions internally but needs to convince his IT Director and CFO.
 
-### ✅ 1.2 Admin Persona Management UI - DONE
+**Pain Points:**
+- Networking certifications are expensive and outdated quickly
+- Limited budget for individual training - has to share with the whole team
+- Self-study is hard when constantly interrupted by support tickets
+- Wants to move into cloud architecture but lacks hands-on Azure experience
 
-**Implemented:**
-- Created `src/pages/admin/AdminTrainingPersonas.tsx` - Full CRUD management page
-- Created `src/components/admin/PersonaFormDialog.tsx` - Create/edit form with tabs for:
-  - Basic info (name, type, industry, difficulty, voice, DISC profile)
-  - Behavior (dos and don'ts)
-  - Challenges (pain points and objections)
-- Added route at `/admin/training-personas`
+**Common Objections:**
+- "This sounds great, but I'd need to run it by my boss first"
+- "We already have some LinkedIn Learning licenses, not sure we need another platform"
+- "I'm worried I won't have time to actually use it between projects"
 
----
+**Dos (What Works):**
+- Get him excited about specific technical features
+- Ask about his career goals and aspirations
+- Let him talk - he reveals a lot when enthusiastic
+- Connect training to promotions/career advancement
 
-### ✅ 1.3 Session Abandonment via sendBeacon - DONE
-
-**Implemented:**
-- Created dedicated `supabase/functions/roleplay-abandon-session/index.ts`
-- Set `verify_jwt = false` to allow sendBeacon requests without auth headers
-- Updated `RoleplaySession.tsx` to use the new endpoint
-- Validates session exists and is in abandonable state before updating
-
----
-
-### ✅ 1.4 Session Type Selection - DONE
-
-**Implemented:**
-- Added session type selector UI in `RoleplaySession.tsx` (Discovery / Demo buttons)
-- Shows description of selected session type
-- Session type is passed to the edge function and affects persona behavior
-
----
-
-## ✅ Phase 2: UX Improvements (COMPLETED)
-
-### ✅ 2.1 Pre-Call Briefing Screen - DONE
-
-**Implemented:**
-- Created `src/components/training/RoleplayBriefing.tsx` component
-- Shows persona profile (name, role, industry, DISC profile, backstory)
-- Displays session type selector with descriptions
-- Shows communication tips based on DISC profile
-- Lists challenges to uncover (visible pain points with hints about hidden ones)
-- Shows expected objections with severity badges
-- Added 'briefing' state to session flow - users see briefing before starting
+**Don'ts (What Irritates):**
+- Talking down to him technically - he knows his stuff
+- Being too corporate or salesy
+- Ignoring his input and jumping to pricing
+- Not acknowledging he's not the final decision maker
 
 ---
 
-### ✅ 2.2 Post-Session Summary - DONE
+### Persona 2: Dr. Patricia Okonkwo - CTO
 
-**Implemented:**
-- Created `src/components/training/RoleplayPostSession.tsx` component
-- Shows duration and overall grade with color-coded badge
-- Polls for grade with refetch interval until available
-- Displays quick feedback (top strength, focus area, focus tags)
-- Handles restricted feedback visibility gracefully
-- Provides actions: Back to Training, Practice Again, View Full Feedback
+| Field | Value |
+|-------|-------|
+| **Name** | Dr. Patricia Okonkwo |
+| **Role** | Chief Technology Officer |
+| **Industry** | Financial Services |
+| **DISC Profile** | D (Dominant) - Direct, decisive, results-focused |
+| **Difficulty** | Hard |
+| **Voice** | ash (confident, authoritative) |
 
----
+**Backstory:**
+Dr. Patricia Okonkwo is the CTO of a regional bank with 2,000 employees. She has a PhD in Computer Science and spent 15 years at major tech companies before moving to financial services. She is extremely busy, values her time above all else, and has zero tolerance for fluff. She speaks in short, direct sentences and expects the same. She's evaluating training solutions as part of a broader digital transformation initiative and has final sign-off authority, but she'll involve her VP of Engineering in the decision.
 
-### ✅ 2.3 Key Moments Display - DONE
+**Pain Points:**
+- Security skills gap across the organization is a compliance risk
+- High turnover among junior developers - training investment walks out the door
+- Board pressure to show ROI on every technology investment
+- Previous training vendor promised customization but delivered generic content
 
-**Implemented:**
-- Created `src/components/training/KeyMomentsSection.tsx` component
-- Displays AI-highlighted moments with transcript quotes
-- Shows assessment (positive/negative) with appropriate styling
-- Includes coaching suggestion for each moment
-- Integrated into `SessionDetail.tsx`
+**Common Objections:**
+- "I have 10 minutes. What's your differentiation in one sentence?"
+- "We evaluated CBT Nuggets last quarter. Why are you different?"
+- "Show me the data. What's the completion rate? Time to competency?"
+- "I don't care about features. What business outcome will this drive?"
 
----
+**Dos (What Works):**
+- Lead with business outcomes and metrics
+- Be direct and concise - short sentences
+- Reference similar financial services clients
+- Know your competitive differentiation cold
 
-### ✅ 2.4 Retry Grading Option - DONE
+**Don'ts (What Irritates):**
+- Small talk or rapport-building attempts
+- Feature dumps without business context
+- Saying "I'll get back to you on that"
+- Going over time or not respecting her schedule
 
-**Implemented:**
-- Added retry grading button to SessionDetail for admins/managers
-- Only shows when session is completed but has no grade
-- Calls `roleplay-grade-session` edge function
-- Shows loading state and invalidates query after 5 seconds
-
----
-
-### ✅ 2.5 Collapsible Transcript During Call - DONE
-
-**Implemented:**
-- Created `src/components/training/RoleplayTranscriptPanel.tsx` component
-- Collapsible panel that shows live transcript during calls
-- Collapsed by default to maintain focus on voice activity
-- Shows message count badge
-- Displays streaming text with typing indicator
-
----
-
-## ✅ Phase 3: Analytics & Tracking (COMPLETED)
-
-### ✅ 3.1 Enhanced Progress Metrics - DONE
-
-**Implemented:**
-- Created `src/components/training/ProgressTrendChart.tsx` - Line chart showing score trends
-- Added weekly session count and streak tracking
-- Shows "sessions this week" card with flame icon for streaks
+**Grading Criteria:**
+- Must establish credibility within first 60 seconds
+- Must tie everything to business outcomes (ROI, risk reduction, compliance)
+- Must handle "why not competitor X" objection effectively
+- Grade cap of C if rep cannot articulate competitive differentiation
 
 ---
 
-### ✅ 3.2 Persona & Session Type Breakdown - DONE
+## Implementation
 
-**Implemented:**
-- Created `src/components/training/PersonaBreakdownCard.tsx` component
-- Shows performance breakdown by persona (sessions count, avg score)
-- Shows performance breakdown by session type
-- Uses progress bars for visual score display
+### Database Changes
 
----
+Insert two new rows into `roleplay_personas` table with the full persona configurations including:
+- Basic info (name, persona_type, industry, difficulty)
+- DISC profile and voice selection
+- Detailed backstory
+- Pain points with context and emotional weight
+- Common objections with triggers
+- Dos and Don'ts
+- Custom grading criteria
 
-### ✅ 3.3 Manager Dashboard Analytics - DONE
+### Files to Modify
 
-**Implemented:**
-- Created `src/components/training/TraineesNeedingAttention.tsx` - Alerts for:
-  - Declining performance trends
-  - Inactive trainees (7+ days since last practice)
-  - Low grades (below 60)
-  - No practice sessions
-- Created `src/components/training/TeamPerformanceChart.tsx` - Bar charts for:
-  - Team average scores by persona
-  - Team average scores by session type
-- Added new "Analytics" tab to ManagerTrainingDashboard
+| File | Changes |
+|------|---------|
+| Database migration | INSERT statements for both personas |
 
----
+### Technical Notes
 
-## ✅ Phase 4: Feature Additions (COMPLETED)
-
-### ✅ 4.1 Sales Coach Integration - DONE
-
-**Implemented:**
-- Added "Discuss with Coach" button to SessionDetail.tsx
-- Button appears when viewing session with full feedback access
-- Pre-populates context with coaching_prescription and focus areas
-- Navigates to training page with coach context for follow-up discussion
+- **Marcus Chen** uses persona_type `technical_buyer` (influencer who can champion but not sign)
+- **Dr. Patricia Okonkwo** uses persona_type `cto` (already in the PERSONA_TYPES list)
+- Voices are selected based on DISC mapping: I=ballad, D=ash
+- Both personas will be created with `is_active = true`
 
 ---
 
-### ✅ 4.2 Custom Scenarios - DONE
+## Persona Comparison Matrix
 
-**Implemented:**
-- Created `src/components/training/RoleplayScenarioSelector.tsx` component
-- 5 pre-built scenario templates:
-  - Price Objection Focus
-  - Technical Deep-Dive
-  - Executive Stakeholder
-  - Competitor Evaluation
-  - Burned by Past Vendor
-- Custom text input for user-defined scenarios
-- Integrated into RoleplaySession.tsx briefing screen
-- Scenario prompt passed to edge function and injected into persona context
+| Attribute | Steven Green | Marcus Chen | Dr. Patricia Okonkwo |
+|-----------|-------------|-------------|---------------------|
+| Role | IT Director | Network Engineer | CTO |
+| DISC | C (Analytical) | I (Influential) | D (Dominant) |
+| Difficulty | Medium | Easy | Hard |
+| Industry | Healthcare | Manufacturing | Financial Services |
+| Decision Power | Needs CFO approval | Needs boss approval | Final authority |
+| Communication | Short, skeptical | Talkative, enthusiastic | Ultra-direct, impatient |
+| Key Challenge | Past shelfware trauma | Career advancement | Prove business ROI |
 
 ---
 
-### ✅ 4.3 Demo Mode with Product Knowledge Integration - DONE
+## Result
 
-**Implemented:**
-- Modified `supabase/functions/roleplay-session-manager/index.ts`
-- For demo sessions, fetches up to 8 relevant product knowledge chunks
-- Injects product context into persona system prompt
-- Persona can ask realistic product questions based on scraped knowledge
-- Guides persona to challenge claims and connect features to pain points
+After implementation:
+1. Trainees will have 3 distinct personas to practice with
+2. Coverage across difficulty levels: Easy, Medium, Hard
+3. Practice with different DISC profiles: C, I, D
+4. Different buyer types: Technical buyer, IT Director, C-level executive
+5. Varied industries: Manufacturing, Healthcare, Financial Services
 
----
-
-## Implementation Progress
-
-| Phase | Status | Items |
-|-------|--------|-------|
-| Phase 1 - Critical | ✅ COMPLETE | Admin Persona UI, Stuck Sessions CRON, sendBeacon Fix, Session Type Selector |
-| Phase 2 - UX Polish | ✅ COMPLETE | Pre-call briefing, Post-session summary, Key moments, Retry grading, Collapsible transcript |
-| Phase 3 - Analytics | ✅ COMPLETE | Progress trend chart, Weekly/streak tracking, Persona breakdown, Trainees needing attention, Team performance charts |
-| Phase 4 - Features | ✅ COMPLETE | Custom scenarios, Sales Coach integration, Product Knowledge integration |
