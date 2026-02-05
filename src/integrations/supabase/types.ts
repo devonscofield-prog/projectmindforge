@@ -1870,6 +1870,116 @@ export type Database = {
         }
         Relationships: []
       }
+      rep_task_template_settings: {
+        Row: {
+          auto_create_enabled: boolean | null
+          rep_id: string
+          updated_at: string
+        }
+        Insert: {
+          auto_create_enabled?: boolean | null
+          rep_id: string
+          updated_at?: string
+        }
+        Update: {
+          auto_create_enabled?: boolean | null
+          rep_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rep_task_template_settings_rep_id_fkey"
+            columns: ["rep_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rep_task_template_settings_rep_id_fkey"
+            columns: ["rep_id"]
+            isOneToOne: true
+            referencedRelation: "team_member_names"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rep_task_template_settings_rep_id_fkey"
+            columns: ["rep_id"]
+            isOneToOne: true
+            referencedRelation: "user_with_role"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rep_task_templates: {
+        Row: {
+          category: string | null
+          created_at: string
+          description: string | null
+          due_days_offset: number | null
+          id: string
+          is_active: boolean | null
+          priority: string | null
+          reminder_enabled: boolean | null
+          reminder_time: string | null
+          rep_id: string
+          sort_order: number | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          due_days_offset?: number | null
+          id?: string
+          is_active?: boolean | null
+          priority?: string | null
+          reminder_enabled?: boolean | null
+          reminder_time?: string | null
+          rep_id: string
+          sort_order?: number | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          due_days_offset?: number | null
+          id?: string
+          is_active?: boolean | null
+          priority?: string | null
+          reminder_enabled?: boolean | null
+          reminder_time?: string | null
+          rep_id?: string
+          sort_order?: number | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rep_task_templates_rep_id_fkey"
+            columns: ["rep_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rep_task_templates_rep_id_fkey"
+            columns: ["rep_id"]
+            isOneToOne: false
+            referencedRelation: "team_member_names"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rep_task_templates_rep_id_fkey"
+            columns: ["rep_id"]
+            isOneToOne: false
+            referencedRelation: "user_with_role"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       roleplay_grades: {
         Row: {
           coaching_prescription: string | null
