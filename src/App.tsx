@@ -44,6 +44,7 @@ const AdminUserEdit = lazy(() => import("./pages/admin/AdminUserEdit"));
 const AdminInviteUsers = lazy(() => import("./pages/admin/AdminInviteUsers"));
 const AdminAccounts = lazy(() => import("./pages/admin/AdminAccounts"));
 const AdminCoachingTrends = lazy(() => import("./pages/admin/AdminCoachingTrends"));
+const AdminSalesCoachHistory = lazy(() => import("./pages/admin/AdminSalesCoachHistory"));
 const AdminTranscriptAnalysis = lazy(() => import("./pages/admin/AdminTranscriptAnalysis"));
 const AdminPerformanceMonitor = lazy(() => import("./pages/admin/AdminPerformanceMonitor"));
 const AdminAuditLog = lazy(() => import("./pages/admin/AdminAuditLog"));
@@ -270,6 +271,11 @@ const App = () => (
                 <Route path="/admin/coaching" element={
                   <ProtectedRoute allowedRoles={['admin']}>
                     <AdminCoachingTrends />
+                  </ProtectedRoute>
+                } />
+                <Route path="/admin/sales-coach" element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <AdminSalesCoachHistory />
                   </ProtectedRoute>
                 } />
                 <Route path="/admin/transcripts" element={
