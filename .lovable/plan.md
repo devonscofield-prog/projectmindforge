@@ -1,147 +1,131 @@
 
 
-# Application-Wide Audit: Findings and Fix Plan
+# Email Reminders, Template Editing UX, and Task Analytics
 
-## Summary
+## Overview
 
-After a thorough review of the codebase, database schema, RLS policies, security scan results, runtime errors, and recently-added features, I identified **13 issues** across 4 categories: security, bugs, data integrity, and UX gaps.
+Three enhancements to the Rep Task Management page:
+
+1. **Email Reminder Delivery** -- Already fully implemented (edge function, hourly cron, notification preferences UI). No additional work needed here.
+2. **Template Drag-and-Drop Reordering** -- Let reps reorder their auto-task templates by dragging them up/down, so they control the sequence tasks are created in.
+3. **Task Analytics and Insights** -- A new "Insights" tab on the My Tasks page showing completion rates, overdue trends, category breakdowns, and template effectiveness.
 
 ---
 
-## Critical Issues
+## Feature 1: Email Reminder Delivery
 
-### 1. Product Knowledge Tables Exposed to All Authenticated Users (SECURITY)
-**Impact**: Any logged-in user (including trainees and reps) can read all 152 rows of proprietary training materials and 698 rows of AI-processed knowledge chunks. Competitors who gain access to any account could steal this intellectual property.
+This is already production-ready:
+- Edge function `send-task-reminders` runs hourly via pg_cron
+- Sends consolidated HTML digest emails via Resend (overdue, due today, due tomorrow sections)
+- Notification preferences UI exists at Settings with timezone, primary/secondary reminder times, weekend exclusion, and priority filtering
+- Test email button works
+- No changes needed
 
-**Root cause**: RLS policies use `qual: true` for SELECT -- meaning any authenticated user can read everything.
+---
 
-**Fix**: Replace the overly-permissive SELECT policies with role-restricted ones. Only admins should have full access; reps/managers should access via edge functions that use the service role key.
+## Feature 2: Template Drag-and-Drop Reordering
 
+### Approach
+Use simple up/down arrow buttons rather than a drag-and-drop library (keeps bundle small, works on mobile, no new dependency needed).
+
+### Changes
+
+**`src/api/taskTemplates.ts`** -- Add `reorderTaskTemplates` function:
+- Accepts `repId` and an array of `{ id, sort_order }` pairs
+- Batch updates via individual update calls (templates are small lists, typically under 10)
+
+**`src/hooks/useTaskTemplates.ts`** -- Add `useReorderTaskTemplates` mutation hook with optimistic reordering
+
+**`src/components/tasks/TaskTemplateRow.tsx`** -- Add up/down arrow buttons (ChevronUp, ChevronDown) to each row:
+- Up arrow disabled on first item, down arrow disabled on last item
+- Compact icons alongside existing edit/delete buttons
+
+**`src/components/tasks/TaskTemplatesSection.tsx`** -- Wire up reorder handlers:
+- `handleMoveUp(index)` / `handleMoveDown(index)` swap adjacent templates and call the reorder mutation
+- Optimistically reorder the local list
+
+---
+
+## Feature 3: Task Analytics and Insights
+
+### New Tab
+Add an **"Insights"** tab to `RepTasks.tsx` alongside Pending/Completed/Dismissed/Auto Tasks.
+
+### Data Source
+Create a new API function `getTaskAnalytics(repId)` in `src/api/accountFollowUps.ts` that fetches:
+- All follow-ups for the rep (pending, completed, dismissed) with `source = 'manual'`
+- Aggregates computed client-side (small dataset, under 1000 rows per rep)
+
+### Metrics Displayed
+
+| Metric | Visualization | Description |
+|--------|--------------|-------------|
+| Completion Rate | Large percentage + progress ring | Completed / (Completed + Dismissed + Pending) |
+| Avg. Time to Complete | Number (days) | Average days between created_at and completed_at |
+| Overdue Rate | Percentage | Tasks completed after their due date / total completed with due dates |
+| Tasks by Priority | Horizontal bar chart | Count of tasks by priority (high/medium/low), stacked by status |
+| Tasks by Category | Horizontal bar chart | Count by category (phone call, email, etc.) |
+| Weekly Completion Trend | Line/area chart | Tasks completed per week over last 8 weeks |
+| Template Effectiveness | Table | For each auto-task template: how many tasks created, completion rate, avg. days to complete |
+
+### New Files
+
+| File | Purpose |
+|------|---------|
+| `src/components/tasks/TaskInsightsSection.tsx` | Analytics dashboard component with charts and stat cards |
+| `src/api/taskAnalytics.ts` | Data fetching and aggregation logic |
+
+### Charts
+Use `recharts` (already installed) for:
+- `BarChart` for priority/category breakdowns
+- `AreaChart` for weekly completion trend
+- Simple stat cards using existing `Card` components with large numbers
+
+### UI Layout
 ```text
-DROP POLICY "Authenticated users can view product knowledge" ON product_knowledge;
-CREATE POLICY "Admins and managers can view product knowledge" ON product_knowledge
-  FOR SELECT TO authenticated
-  USING (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'manager'));
-
-DROP POLICY "Authenticated users can view product knowledge chunks" ON product_knowledge_chunks;
-CREATE POLICY "Admins and managers can view product knowledge chunks" ON product_knowledge_chunks
-  FOR SELECT TO authenticated
-  USING (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'manager'));
++--------------------------------------------------+
+| Completion Rate    | Avg. Days to Complete        |
+|     78%            |     2.3 days                 |
++--------------------------------------------------+
+| Tasks by Priority         | Tasks by Category      |
+| [==== High: 12 ====]      | [== Phone Call: 8 ==]  |
+| [======= Med: 24 =]       | [== Email: 14 ======]  |
+| [=== Low: 6 =======]      | [== Text: 4 ========]  |
++--------------------------------------------------+
+| Weekly Completion Trend (last 8 weeks)            |
+| [area chart showing completed tasks per week]     |
++--------------------------------------------------+
+| Template Effectiveness                            |
+| Template Name | Created | Completed | Avg Days    |
+| Send recap    |    12   |    10     |   1.5       |
+| Follow up     |    8    |    5     |   3.2       |
++--------------------------------------------------+
 ```
 
-### 2. Runtime Error: "useAuth must be used within an AuthProvider" (BUG)
-**Impact**: Application crashes on initial load when ProtectedRoute renders before AuthProvider is ready.
-
-**Root cause**: In `App.tsx`, the `<Suspense>` boundary wraps routes inside `<AuthProvider>`, but if a lazy-loaded route component fails to load, the error boundary may re-render outside the AuthProvider context. The error trace shows ProtectedRoute calling useAuth and failing.
-
-**Fix**: This is a transient race condition that appears during hot-reload or when the Suspense boundary catches. Add a safety check in `useAuth` to return a safe default instead of throwing when context is undefined, or wrap the error message with a redirect to `/auth`.
-
 ---
 
-## High Priority Issues
-
-### 3. Auto-Create Default is `true` Before User Opts In (UX/DATA)
-**Impact**: The `getAutoCreateSetting` function returns `true` when no settings row exists (line 146 of taskTemplates.ts). This means if a rep creates even one template, it will auto-fire on EVERY call submission even if they never explicitly turned it on.
-
-**Fix**: Change default from `true` to `false` so auto-creation is opt-in:
-```typescript
-// taskTemplates.ts line 146
-return data?.auto_create_enabled ?? false;
-```
-Also update the Switch default in TaskTemplatesSection.tsx (line 38):
-```typescript
-checked={autoCreateEnabled ?? false}
-```
-
-### 4. No Input Length Validation on Task Templates (SECURITY)
-**Impact**: Users can submit arbitrarily long titles and descriptions to `rep_task_templates` and `account_follow_ups`, potentially storing megabytes of data per row.
-
-**Fix**: Add client-side validation with max lengths (title: 200 chars, description: 1000 chars) in `AddTaskTemplateDialog`, `EditTaskDialog`, and `StandaloneTaskDialog`. Also add database-level CHECK constraints.
-
-### 5. No Pagination on Task Lists (PERFORMANCE)
-**Impact**: `listManualPendingFollowUpsForRep` and `listAllFollowUpsForRepByStatus` fetch ALL tasks for a rep without any limit. A rep with hundreds of tasks will experience slow load times and hit the Supabase 1000-row default limit silently.
-
-**Fix**: Add `.limit(100)` to queries and implement "Load More" or pagination in the RepTasks page. Also add `.limit(50)` to completed/dismissed tabs since historical data grows indefinitely.
-
-### 6. Extension in Public Schema (SECURITY)
-**Impact**: Database extensions installed in the `public` schema can be exploited by authenticated users.
-
-**Fix**: Move the extension to a dedicated schema per Supabase best practices.
-
----
-
-## Medium Priority Issues
-
-### 7. Duplicate Code: Priority/Category Config (MAINTAINABILITY)
-**Impact**: `priorityConfig` and `categoryLabels` are duplicated across `RepTasks.tsx`, `TaskTemplateRow.tsx`, and `PendingFollowUpsWidget.tsx`.
-
-**Fix**: Extract into a shared `src/lib/taskConstants.ts` file and import everywhere.
-
-### 8. No Edit Capability for Task Templates (UX GAP)
-**Impact**: `TaskTemplateRow` only supports toggling active/inactive and deleting. There is no way to edit a template's title, priority, category, or due date offset after creation. Users must delete and recreate.
-
-**Fix**: Add an edit button to `TaskTemplateRow` that opens a pre-populated dialog (reuse `AddTaskTemplateDialog` with edit mode).
-
-### 9. Missing Delete Confirmation on Task Templates (UX)
-**Impact**: Clicking the trash icon on a template row immediately deletes it with no confirmation. Accidental deletes are easy.
-
-**Fix**: Add an `AlertDialog` confirmation before deletion, matching the pattern used for task dismissal in RepTasks.
-
-### 10. StandaloneTaskDialog Doesn't Reset on Close via Overlay Click (BUG)
-**Impact**: If a user partially fills the form, clicks outside to close, then reopens -- the stale data persists because `handleClose` resets form but `onOpenChange` from Dialog doesn't call it when closed via overlay.
-
-**Fix**: The dialog passes `handleClose` to `onOpenChange` which should work, but the `useEffect` for `dueDate` (line 79-83) has a missing dependency and can cause unexpected state. Fix the dependency array and ensure form resets on dialog open.
-
-### 11. Task Templates Not Visible to Managers/Admins (VISIBILITY GAP)
-**Impact**: Managers and admins cannot see what auto-task templates their reps have configured. This limits coaching visibility.
-
-**Fix**: This is a future enhancement -- add a read-only view of rep templates to the manager coaching detail page. For now, document as a known limitation.
-
----
-
-## Low Priority / Informational
-
-### 12. `listAllFollowUpsForRepByStatus` Makes Two Queries (PERFORMANCE)
-**Impact**: The function first fetches follow-ups, then makes a separate query for prospect names. This could be a single query with a join or a `.select('*, prospects(prospect_name, account_name)')` syntax.
-
-**Fix**: Use Supabase's foreign key join syntax to combine into one query.
-
-### 13. Data Access Logs Missing Retention Policy (INFO)
-**Impact**: The `data_access_logs` table will grow indefinitely without cleanup.
-
-**Fix**: Add a pg_cron job to delete logs older than 1 year, or implement archival.
-
----
-
-## Implementation Sequence
-
-1. Fix #3 (auto-create default) -- 1 line change, high impact
-2. Fix #2 (runtime error) -- defensive check in useAuth
-3. Fix #1 (product knowledge RLS) -- database migration
-4. Fix #4 (input validation) -- add max lengths to 3 dialog components
-5. Fix #5 (pagination) -- add limits to queries
-6. Fix #9 (delete confirmation) -- add AlertDialog to TaskTemplatesSection
-7. Fix #8 (template editing) -- add edit mode to template dialog
-8. Fix #7 (deduplicate constants) -- extract shared config
-9. Fix #10 (form reset bug) -- fix useEffect dependency
-10. Fix #6 (extension in public) -- database migration
-11. Fix #12 (query optimization) -- use join syntax
-12. Fix #13 (log retention) -- pg_cron job
-
----
-
-## Files to Modify
+## Modified Files Summary
 
 | File | Changes |
 |------|---------|
-| `src/api/taskTemplates.ts` | Fix default auto-create to `false` |
-| `src/components/tasks/TaskTemplatesSection.tsx` | Fix default switch value, add delete confirmation, add edit button |
-| `src/components/tasks/AddTaskTemplateDialog.tsx` | Add edit mode, input length limits |
-| `src/components/tasks/EditTaskDialog.tsx` | Add input length limits |
-| `src/components/tasks/StandaloneTaskDialog.tsx` | Add input length limits, fix form reset |
-| `src/components/tasks/TaskTemplateRow.tsx` | Add edit button |
-| `src/pages/rep/RepTasks.tsx` | Extract shared constants |
-| `src/api/accountFollowUps.ts` | Add pagination limits, optimize joins |
-| `src/lib/taskConstants.ts` | New shared constants file |
-| Database migration | Fix product_knowledge RLS, extension schema |
+| `src/api/taskTemplates.ts` | Add `reorderTaskTemplates()` function |
+| `src/hooks/useTaskTemplates.ts` | Add `useReorderTaskTemplates` mutation |
+| `src/components/tasks/TaskTemplateRow.tsx` | Add up/down arrow buttons for reordering |
+| `src/components/tasks/TaskTemplatesSection.tsx` | Wire reorder handlers |
+| `src/pages/rep/RepTasks.tsx` | Add "Insights" tab |
+
+## New Files
+
+| File | Purpose |
+|------|---------|
+| `src/api/taskAnalytics.ts` | Fetch and aggregate task data for analytics |
+| `src/components/tasks/TaskInsightsSection.tsx` | Analytics dashboard with charts and stats |
+
+## Implementation Sequence
+
+1. Add `reorderTaskTemplates` to API layer and hook
+2. Add up/down buttons to `TaskTemplateRow` and wire in `TaskTemplatesSection`
+3. Create `src/api/taskAnalytics.ts` with data fetching and aggregation
+4. Create `TaskInsightsSection.tsx` with stat cards and recharts visualizations
+5. Add "Insights" tab to `RepTasks.tsx`
 
