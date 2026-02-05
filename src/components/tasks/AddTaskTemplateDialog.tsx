@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -12,12 +12,15 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { useCreateTaskTemplate } from '@/hooks/useTaskTemplates';
+import { useCreateTaskTemplate, useUpdateTaskTemplate } from '@/hooks/useTaskTemplates';
 import { Loader2 } from 'lucide-react';
+import type { TaskTemplate } from '@/api/taskTemplates';
+import { TITLE_MAX_LENGTH, DESCRIPTION_MAX_LENGTH } from '@/lib/taskConstants';
 
 interface AddTaskTemplateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  editTemplate?: TaskTemplate | null;
 }
 
 const DUE_DAY_PRESETS = [
@@ -28,8 +31,11 @@ const DUE_DAY_PRESETS = [
   { label: '14 days after', value: 14 },
 ];
 
-export function AddTaskTemplateDialog({ open, onOpenChange }: AddTaskTemplateDialogProps) {
+export function AddTaskTemplateDialog({ open, onOpenChange, editTemplate }: AddTaskTemplateDialogProps) {
   const createMutation = useCreateTaskTemplate();
+  const updateMutation = useUpdateTaskTemplate();
+  const isEditing = !!editTemplate;
+  const isPending = createMutation.isPending || updateMutation.isPending;
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -40,16 +46,35 @@ export function AddTaskTemplateDialog({ open, onOpenChange }: AddTaskTemplateDia
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderTime, setReminderTime] = useState('09:00');
 
-  const resetForm = () => {
-    setTitle('');
-    setDescription('');
-    setPriority('medium');
-    setCategory('');
-    setDueDaysOffset('none');
-    setCustomDays('');
-    setReminderEnabled(false);
-    setReminderTime('09:00');
-  };
+  // Populate form when editing or reset when creating
+  useEffect(() => {
+    if (!open) return;
+    if (editTemplate) {
+      setTitle(editTemplate.title);
+      setDescription(editTemplate.description || '');
+      setPriority(editTemplate.priority || 'medium');
+      setCategory(editTemplate.category || '');
+      if (editTemplate.due_days_offset == null) {
+        setDueDaysOffset('none');
+        setCustomDays('');
+      } else {
+        const isPreset = DUE_DAY_PRESETS.some(p => p.value === editTemplate.due_days_offset);
+        setDueDaysOffset(isPreset ? String(editTemplate.due_days_offset) : 'custom');
+        setCustomDays(isPreset ? '' : String(editTemplate.due_days_offset));
+      }
+      setReminderEnabled(editTemplate.reminder_enabled);
+      setReminderTime(editTemplate.reminder_time?.slice(0, 5) || '09:00');
+    } else {
+      setTitle('');
+      setDescription('');
+      setPriority('medium');
+      setCategory('');
+      setDueDaysOffset('none');
+      setCustomDays('');
+      setReminderEnabled(false);
+      setReminderTime('09:00');
+    }
+  }, [open, editTemplate]);
 
   const handleSubmit = () => {
     if (!title.trim()) return;
@@ -62,41 +87,57 @@ export function AddTaskTemplateDialog({ open, onOpenChange }: AddTaskTemplateDia
       offset = parseInt(dueDaysOffset, 10);
     }
 
-    createMutation.mutate(
-      {
-        title: title.trim(),
-        description: description.trim() || undefined,
-        priority,
-        category: category || undefined,
-        due_days_offset: offset,
-        reminder_enabled: reminderEnabled,
-        reminder_time: reminderEnabled ? reminderTime : undefined,
-      },
-      {
-        onSuccess: () => {
-          resetForm();
-          onOpenChange(false);
-        },
-      }
-    );
+    const params = {
+      title: title.trim(),
+      description: description.trim() || undefined,
+      priority,
+      category: category || undefined,
+      due_days_offset: offset,
+      reminder_enabled: reminderEnabled,
+      reminder_time: reminderEnabled ? reminderTime : undefined,
+    };
+
+    if (isEditing && editTemplate) {
+      updateMutation.mutate(
+        { id: editTemplate.id, params },
+        { onSuccess: () => onOpenChange(false) }
+      );
+    } else {
+      createMutation.mutate(params, {
+        onSuccess: () => onOpenChange(false),
+      });
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Add Task Template</DialogTitle>
+          <DialogTitle>{isEditing ? 'Edit Task Template' : 'Add Task Template'}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
           <div>
             <Label htmlFor="tpl-title">Title *</Label>
-            <Input id="tpl-title" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Send recap email" />
+            <Input
+              id="tpl-title"
+              value={title}
+              onChange={e => setTitle(e.target.value.slice(0, TITLE_MAX_LENGTH))}
+              maxLength={TITLE_MAX_LENGTH}
+              placeholder="e.g. Send recap email"
+            />
           </div>
 
           <div>
             <Label htmlFor="tpl-desc">Description</Label>
-            <Textarea id="tpl-desc" value={description} onChange={e => setDescription(e.target.value)} placeholder="Optional details" rows={2} />
+            <Textarea
+              id="tpl-desc"
+              value={description}
+              onChange={e => setDescription(e.target.value.slice(0, DESCRIPTION_MAX_LENGTH))}
+              maxLength={DESCRIPTION_MAX_LENGTH}
+              placeholder="Optional details"
+              rows={2}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -167,9 +208,9 @@ export function AddTaskTemplateDialog({ open, onOpenChange }: AddTaskTemplateDia
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={!title.trim() || createMutation.isPending}>
-            {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Add Template
+          <Button onClick={handleSubmit} disabled={!title.trim() || isPending}>
+            {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            {isEditing ? 'Save Changes' : 'Add Template'}
           </Button>
         </DialogFooter>
       </DialogContent>

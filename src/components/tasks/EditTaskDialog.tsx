@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils';
 import { type AccountFollowUp, type FollowUpPriority, type FollowUpCategory } from '@/api/accountFollowUps';
 import { useUpdateFollowUp } from '@/hooks/useUpdateFollowUp';
 import { REMINDER_TIMES } from '@/api/notificationPreferences';
+import { TITLE_MAX_LENGTH, DESCRIPTION_MAX_LENGTH } from '@/lib/taskConstants';
 
 interface EditTaskDialogProps {
   open: boolean;
@@ -102,7 +103,8 @@ export function EditTaskDialog({ open, onOpenChange, task, accountName }: EditTa
             <Input
               id="edit-task-title"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => setTitle(e.target.value.slice(0, TITLE_MAX_LENGTH))}
+              maxLength={TITLE_MAX_LENGTH}
             />
           </div>
 
@@ -111,7 +113,8 @@ export function EditTaskDialog({ open, onOpenChange, task, accountName }: EditTa
             <Textarea
               id="edit-task-description"
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => setDescription(e.target.value.slice(0, DESCRIPTION_MAX_LENGTH))}
+              maxLength={DESCRIPTION_MAX_LENGTH}
               rows={2}
             />
           </div>
