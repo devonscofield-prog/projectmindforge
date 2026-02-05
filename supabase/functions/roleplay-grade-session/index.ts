@@ -1,6 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -479,7 +479,7 @@ serve(async (req) => {
     let userId: string | null = null;
     const authHeader = req.headers.get('Authorization');
     
-    if (authHeader && !authHeader.includes(supabaseServiceKey)) {
+    if (authHeader && authHeader !== `Bearer ${supabaseServiceKey}`) {
       const token = authHeader.replace('Bearer ', '');
       const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token);
       if (userError) {

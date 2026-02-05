@@ -65,7 +65,7 @@ export default function RoleplaySession() {
   const [isMuted, setIsMuted] = useState(false);
   const [currentTranscript, setCurrentTranscript] = useState('');
   const [isScreenSharing, setIsScreenSharing] = useState(false);
-  const [sessionType, setSessionType] = useState<'discovery' | 'demo'>('discovery');
+  const [sessionType, setSessionType] = useState<'discovery' | 'demo' | 'objection_handling' | 'negotiation'>('discovery');
   const [scenarioPrompt, setScenarioPrompt] = useState('');
   
   const pcRef = useRef<RTCPeerConnection | null>(null);
@@ -77,6 +77,9 @@ export default function RoleplaySession() {
   const screenCaptureRef = useRef<ScreenCapture | null>(null);
   // Use ref to track current transcript to avoid stale closure in handleDataChannelMessage
   const currentTranscriptRef = useRef('');
+  // Use refs for sessionId and status to avoid stale closures in cleanup/beforeunload
+  const sessionIdRef = useRef<string | null>(null);
+  const statusRef = useRef<SessionStatus>('briefing');
 
   // Fetch persona details with extended fields
   const { data: persona, isLoading: personaLoading } = useQuery({
@@ -103,6 +106,10 @@ export default function RoleplaySession() {
       navigate('/training');
     }
   }, [persona, personaLoading, personaId, navigate]);
+
+  // Keep refs in sync with state to avoid stale closures in cleanup/beforeunload
+  useEffect(() => { sessionIdRef.current = sessionId; }, [sessionId]);
+  useEffect(() => { statusRef.current = status; }, [status]);
 
   // Auto-scroll transcript
   useEffect(() => {
@@ -398,7 +405,7 @@ export default function RoleplaySession() {
     if (success) {
       screenCaptureRef.current = screenCapture;
       setIsScreenSharing(true);
-      toast.success('Screen sharing active - Steven can now see your screen');
+      toast.success(`Screen sharing active - ${persona?.name || 'AI Prospect'} can now see your screen`);
     } else {
       toast.error('Failed to start screen sharing');
     }
@@ -458,34 +465,30 @@ export default function RoleplaySession() {
     }
   };
 
-  // Cleanup on unmount - also abandon session if still active
+  // Abandon active session via sendBeacon (works on both unmount and browser close).
+  // Uses refs to always read the latest sessionId/status and avoid stale closures.
+  // sendBeacon is the only abandon mechanism to prevent double-abandon race conditions.
   useEffect(() => {
-    return () => {
-      // If session is active, mark it as abandoned in the database
-      if (sessionId && status !== 'idle' && status !== 'ended') {
-        // Fire and forget - we're unmounting so can't await
-        supabase.functions.invoke('roleplay-session-manager/abandon-session', {
-          body: { sessionId }
-        }).catch(console.error);
+    const abandonViaBeacon = () => {
+      const sid = sessionIdRef.current;
+      const st = statusRef.current;
+      if (sid && st !== 'briefing' && st !== 'idle' && st !== 'ended') {
+        const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/roleplay-abandon-session`;
+        navigator.sendBeacon(url, JSON.stringify({ sessionId: sid, traineeId: user?.id }));
       }
+    };
+
+    window.addEventListener('beforeunload', abandonViaBeacon);
+
+    return () => {
+      window.removeEventListener('beforeunload', abandonViaBeacon);
+      // On unmount (e.g. React navigation), also fire the beacon
+      abandonViaBeacon();
       cleanup();
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [sessionId, status]);
-
-  // Handle browser close/refresh - use sendBeacon for reliability
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      if (sessionId && status !== 'idle' && status !== 'ended') {
-        // Use dedicated abandon endpoint that doesn't require auth
-        const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/roleplay-abandon-session`;
-        navigator.sendBeacon(url, JSON.stringify({ sessionId }));
-      }
-    };
-    
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [sessionId, status]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (personaLoading) {
     return (
