@@ -1,106 +1,88 @@
 
-# Comprehensive Edge Function Diagnostic & Fix Plan
+# Admin Sales Coach Chat History Feature
 
-## Problem Identified
+## Overview
+Create a new admin page that allows administrators to view Sales Coach chat history for all users. This will help identify prompt patterns, evaluate AI outputs, and find areas for improvement.
 
-Your app has multiple edge functions failing with `Bundle generation timed out` errors. This is because many functions are using outdated import specifiers (`https://esm.sh/...` and `https://deno.land/x/...`) that cause slow dependency resolution during deployment.
+## What You'll Get
 
-We already fixed this for `roleplay-session-manager` and `sales-coach-chat` - the same fix is needed across all other edge functions.
+### New Admin Page: Sales Coach History
+- A dedicated page at `/admin/sales-coach` accessible from the admin sidebar
+- Filter and search by user, date range, or prospect
+- View complete conversation threads with user prompts and AI responses
+- See usage statistics (total conversations, messages per user, etc.)
 
-## Affected Edge Functions
+### Session Viewer Sheet
+- Click on any session to open a detailed view
+- Shows the full conversation with proper formatting
+- Displays metadata: user name, account/prospect, timestamps
+- Export capability for sharing insights
 
-After auditing the codebase, here are all functions that need their imports updated:
+## Technical Approach
 
-| Function | Current Imports | Status |
-|----------|-----------------|--------|
-| `analyze-call/index.ts` | `esm.sh/@supabase/supabase-js@2` | Needs fix |
-| `admin-transcript-chat/index.ts` | `esm.sh/@supabase/supabase-js@2` | Needs fix |
-| `reanalyze-call/index.ts` | `esm.sh/@supabase/supabase-js@2` | Needs fix |
-| `calculate-deal-heat/index.ts` | `esm.sh/@supabase/supabase-js@2` | Needs fix |
-| `chunk-transcripts/index.ts` | `esm.sh/@supabase/supabase-js@2`, `deno.land/x/zod` | Needs fix |
-| `generate-call-follow-up-suggestions/index.ts` | `esm.sh/@supabase/supabase-js@2` | Needs fix |
-| `submit-call-transcript/index.ts` | `esm.sh/@supabase/supabase-js@2` | Needs fix |
-| `sales-assistant-chat/index.ts` | `esm.sh/@supabase/supabase-js@2`, `deno.land/x/zod` | Needs fix |
-| `_shared/pipeline.ts` | `esm.sh/@supabase/supabase-js@2` | Needs fix |
-| `_shared/agent-factory.ts` | `deno.land/x/zod`, `esm.sh/@supabase/supabase-js@2` | Needs fix |
+### 1. API Layer
+Create new functions to fetch sessions with user and prospect details:
+- `fetchAllAdminCoachSessions()` - Get all sessions across users with pagination
+- `fetchAdminCoachSessionStats()` - Aggregate usage statistics
 
-## Root Cause
-
-The `esm.sh` and `deno.land/x` registries can be slow/unreliable, causing Supabase's bundler to timeout during deployment. The `npm:` specifier is more efficient because it uses Deno's built-in npm compatibility layer.
-
-## Solution
-
-Update all import statements from:
-```typescript
-// Old (slow, unreliable)
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
+### 2. Database Query
+The existing RLS policy already allows admin access:
+```sql
+CREATE POLICY "Admins can view all coaching sessions"
+  ON public.sales_coach_sessions FOR SELECT
+  USING (has_role(auth.uid(), 'admin'::user_role));
 ```
 
-To:
-```typescript
-// New (fast, stable)
-import { createClient } from "npm:@supabase/supabase-js@2";
-import { z } from "npm:zod@3.23.8";
-```
+### 3. New Components
+| Component | Description |
+|-----------|-------------|
+| `AdminSalesCoachHistory.tsx` | Main page with filters and session list |
+| `CoachSessionViewerSheet.tsx` | Side panel to view full conversation |
+| `CoachSessionStatsCard.tsx` | Usage statistics display |
 
-## Implementation Plan
+### 4. Navigation
+Add to admin sidebar under "Coaching" section:
+- Route: `/admin/sales-coach`
+- Label: "Coach History"
+- Icon: MessageSquare (matching the coach theme)
 
-### Phase 1: Core Analysis Pipeline (Highest Priority)
-Fix the call analysis flow that's currently broken:
+## Files to Create/Modify
 
-1. **`analyze-call/index.ts`** - Update Supabase import
-2. **`_shared/pipeline.ts`** - Update Supabase import  
-3. **`_shared/agent-factory.ts`** - Update Supabase and Zod imports
-4. **`reanalyze-call/index.ts`** - Update Supabase import
-5. **`calculate-deal-heat/index.ts`** - Update Supabase import
-6. **`generate-call-follow-up-suggestions/index.ts`** - Update Supabase import
-
-### Phase 2: Secondary Functions
-Fix remaining user-facing features:
-
-7. **`admin-transcript-chat/index.ts`** - Update Supabase import
-8. **`chunk-transcripts/index.ts`** - Update Supabase and Zod imports
-9. **`submit-call-transcript/index.ts`** - Update Supabase import
-10. **`sales-assistant-chat/index.ts`** - Update Supabase and Zod imports
-
-### Phase 3: Deploy All Functions
-After updating imports, deploy all affected functions to ensure they're using the new efficient imports.
-
-## Technical Details
-
-### Import Changes Summary
-
-For each file, the change is simple - replacing the import URLs:
-
-```text
-Before: import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-After:  import { createClient } from "npm:@supabase/supabase-js@2";
-
-Before: import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
-After:  import { z } from "npm:zod@3.23.8";
-
-Before: import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-After:  import { SupabaseClient } from "npm:@supabase/supabase-js@2";
-```
-
-### Expected Outcome
-- All edge functions will deploy successfully without timeout errors
-- Call analysis will work again
-- Transcript chat will work again
-- Follow-up suggestions will generate properly
-
-## Files to Modify
-
-| File | Change |
+| File | Action |
 |------|--------|
-| `supabase/functions/analyze-call/index.ts` | Line 13: Update import |
-| `supabase/functions/_shared/pipeline.ts` | Line 17: Update import |
-| `supabase/functions/_shared/agent-factory.ts` | Lines 7-8: Update both imports |
-| `supabase/functions/reanalyze-call/index.ts` | Line 1: Update import |
-| `supabase/functions/calculate-deal-heat/index.ts` | Line 1: Update import |
-| `supabase/functions/generate-call-follow-up-suggestions/index.ts` | Line 9: Update import |
-| `supabase/functions/admin-transcript-chat/index.ts` | Line 1: Update import |
-| `supabase/functions/chunk-transcripts/index.ts` | Lines 1-2: Update both imports |
-| `supabase/functions/submit-call-transcript/index.ts` | Line 1: Update import |
-| `supabase/functions/sales-assistant-chat/index.ts` | Lines 1-2: Update both imports |
+| `src/pages/admin/AdminSalesCoachHistory.tsx` | Create - Main page |
+| `src/components/admin/CoachSessionViewerSheet.tsx` | Create - Conversation viewer |
+| `src/api/adminSalesCoachSessions.ts` | Create - Admin API functions |
+| `src/hooks/useAdminCoachSessions.ts` | Create - React Query hook |
+| `src/components/layout/AppLayout.tsx` | Modify - Add nav item |
+| `src/App.tsx` | Modify - Add route |
+
+## UI Features
+
+### Session List View
+- Tabular display with columns: User, Account, Last Message Preview, Date, Message Count
+- Filters: User dropdown, date picker, search by content
+- Pagination for large datasets
+- Sortable columns
+
+### Conversation Viewer
+- User messages styled distinctly from AI responses
+- Markdown rendering for AI responses
+- Copy conversation button
+- Timestamps for each message
+
+### Statistics Dashboard
+- Total sessions across all users
+- Average messages per conversation
+- Most active users
+- Most discussed accounts
+- Conversation trends over time
+
+## Implementation Sequence
+
+1. Create admin API functions with proper typing
+2. Build the session list page with filters
+3. Add the conversation viewer sheet
+4. Integrate statistics cards
+5. Wire up navigation and routing
+6. Test admin access with RLS policies
