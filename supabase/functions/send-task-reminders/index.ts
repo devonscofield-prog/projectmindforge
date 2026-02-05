@@ -1,5 +1,4 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -528,4 +527,4 @@ function taskHtml(followUp: FollowUp, accountName: string, prospectId: string, s
   `;
 }
 
-serve(handler);
+Deno.serve(handler);

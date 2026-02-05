@@ -1,5 +1,5 @@
 // Edge function for generating coaching trends analysis
-import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
+import { z } from "zod";
 import { validateSignedRequest } from "../_shared/hmac.ts";
 // Zod schema for Analysis 2.0 Trend Analysis response validation
 const FrameworkTrendSchema = z.object({

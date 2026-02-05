@@ -6,7 +6,7 @@
  * JSON tool schemas are auto-generated in agent-registry.ts
  */
 
-import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
+import { z } from "zod";
 
 // ============= AGENT OUTPUT SCHEMAS =============
 

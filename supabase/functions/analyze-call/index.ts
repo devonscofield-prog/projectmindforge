@@ -10,7 +10,7 @@
  * - Request deduplication via row-level locking
  */
 
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "@supabase/supabase-js";
 
 import { UUID_REGEX } from './lib/constants.ts';
 import { getCorsHeaders, checkRateLimit } from './lib/cors.ts';

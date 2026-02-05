@@ -5,7 +5,7 @@
  * Stores raw content in product_knowledge table and triggers chunking.
  */
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "@supabase/supabase-js";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',

@@ -1,5 +1,5 @@
-import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
-import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { z } from "zod";
 
 // ============= CORS Utilities =============
 function getCorsHeaders(origin?: string | null): Record<string, string> {

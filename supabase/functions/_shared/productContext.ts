@@ -5,7 +5,7 @@
  * Uses hybrid search (vector + FTS) for best relevance.
  */
 
-import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { SupabaseClient } from "@supabase/supabase-js";
 
 export interface ProductKnowledgeChunk {
   chunk_text: string;

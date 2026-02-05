@@ -1,4 +1,4 @@
-import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
+import { z } from "zod";
 
 function getCorsHeaders(origin?: string | null): Record<string, string> {
   const CUSTOM_DOMAIN = Deno.env.get('CUSTOM_DOMAIN');

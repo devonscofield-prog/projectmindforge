@@ -1,4 +1,4 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "@supabase/supabase-js";
 
 // Rate limiting: 15 requests per minute per user
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
