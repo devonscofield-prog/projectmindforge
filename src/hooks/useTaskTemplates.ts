@@ -5,9 +5,11 @@ import {
   createTaskTemplate,
   updateTaskTemplate,
   deleteTaskTemplate,
+  reorderTaskTemplates,
   getAutoCreateSetting,
   setAutoCreateSetting,
   type CreateTaskTemplateParams,
+  type TaskTemplate,
 } from '@/api/taskTemplates';
 import { toast } from 'sonner';
 
@@ -98,5 +100,32 @@ export function useDeleteTaskTemplate() {
       toast.success('Template removed');
     },
     onError: () => toast.error('Failed to delete template'),
+  });
+}
+
+export function useReorderTaskTemplates() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const repId = user?.id || '';
+
+  return useMutation({
+    mutationFn: (updates: { id: string; sort_order: number }[]) => reorderTaskTemplates(updates),
+    onMutate: async (updates) => {
+      await qc.cancelQueries({ queryKey: ['task-templates', repId] });
+      const prev = qc.getQueryData<TaskTemplate[]>(['task-templates', repId]);
+      if (prev) {
+        const sorted = [...prev].map(t => {
+          const update = updates.find(u => u.id === t.id);
+          return update ? { ...t, sort_order: update.sort_order } : t;
+        }).sort((a, b) => a.sort_order - b.sort_order);
+        qc.setQueryData(['task-templates', repId], sorted);
+      }
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      qc.setQueryData(['task-templates', repId], ctx?.prev);
+      toast.error('Failed to reorder templates');
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['task-templates', repId] }),
   });
 }

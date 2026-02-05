@@ -160,6 +160,25 @@ export async function setAutoCreateSetting(repId: string, enabled: boolean): Pro
   }
 }
 
+// --- Reorder ---
+
+export async function reorderTaskTemplates(updates: { id: string; sort_order: number }[]): Promise<void> {
+  // Batch update sort_order for each template
+  const promises = updates.map(({ id, sort_order }) =>
+    supabase
+      .from('rep_task_templates')
+      .update({ sort_order })
+      .eq('id', id)
+  );
+
+  const results = await Promise.all(promises);
+  const error = results.find(r => r.error)?.error;
+  if (error) {
+    log.error('Error reordering templates', { error });
+    throw error;
+  }
+}
+
 // --- Apply Templates (called during call submission) ---
 
 export async function applyTaskTemplates(
