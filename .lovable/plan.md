@@ -1,88 +1,46 @@
 
-# Admin Sales Coach Chat History Feature
+# Fix "Failed to Create Task" Error
 
-## Overview
-Create a new admin page that allows administrators to view Sales Coach chat history for all users. This will help identify prompt patterns, evaluate AI outputs, and find areas for improvement.
+## Root Cause
 
-## What You'll Get
+The database has a check constraint on the `account_follow_ups` table that only allows these category values:
+- `discovery`, `stakeholder`, `objection`, `proposal`, `relationship`, `competitive`
 
-### New Admin Page: Sales Coach History
-- A dedicated page at `/admin/sales-coach` accessible from the admin sidebar
-- Filter and search by user, date range, or prospect
-- View complete conversation threads with user prompts and AI responses
-- See usage statistics (total conversations, messages per user, etc.)
+But the custom task creation dialog sends these newer categories:
+- `phone_call`, `drip_email`, `text_message`, `follow_up_email`
 
-### Session Viewer Sheet
-- Click on any session to open a detailed view
-- Shows the full conversation with proper formatting
-- Displays metadata: user name, account/prospect, timestamps
-- Export capability for sharing insights
+The database rejects the insert, causing the "Failed to Create Task" error.
 
-## Technical Approach
+## Fix
 
-### 1. API Layer
-Create new functions to fetch sessions with user and prospect details:
-- `fetchAllAdminCoachSessions()` - Get all sessions across users with pagination
-- `fetchAdminCoachSessionStats()` - Aggregate usage statistics
+Update the database check constraint to include all valid categories (both AI-generated and manual task categories).
 
-### 2. Database Query
-The existing RLS policy already allows admin access:
+### Database Migration
+Drop the old constraint and create a new one that accepts all category values:
+
 ```sql
-CREATE POLICY "Admins can view all coaching sessions"
-  ON public.sales_coach_sessions FOR SELECT
-  USING (has_role(auth.uid(), 'admin'::user_role));
+ALTER TABLE account_follow_ups DROP CONSTRAINT account_follow_ups_category_check;
+ALTER TABLE account_follow_ups ADD CONSTRAINT account_follow_ups_category_check 
+  CHECK (category = ANY (ARRAY[
+    'discovery', 'stakeholder', 'objection', 'proposal', 
+    'relationship', 'competitive',
+    'phone_call', 'drip_email', 'text_message', 'follow_up_email'
+  ]));
 ```
 
-### 3. New Components
-| Component | Description |
-|-----------|-------------|
-| `AdminSalesCoachHistory.tsx` | Main page with filters and session list |
-| `CoachSessionViewerSheet.tsx` | Side panel to view full conversation |
-| `CoachSessionStatsCard.tsx` | Usage statistics display |
+## Secondary Fix: Build Error
 
-### 4. Navigation
-Add to admin sidebar under "Coaching" section:
-- Route: `/admin/sales-coach`
-- Label: "Coach History"
-- Icon: MessageSquare (matching the coach theme)
+There is also a build error with `npm:zod@3.23.8` in `_shared/agent-factory.ts`. This needs to be reverted to use the `https://deno.land/x/zod` import or use a `deno.json` with the dependency listed. The simplest fix is to revert to the URL import for zod in edge functions since the `npm:` specifier requires additional Deno configuration.
 
-## Files to Create/Modify
+### Files to modify:
+- `supabase/functions/_shared/agent-factory.ts` -- revert zod import to URL-based
+- `supabase/functions/chunk-transcripts/index.ts` -- revert zod import to URL-based  
+- `supabase/functions/sales-assistant-chat/index.ts` -- revert zod import to URL-based
+- `supabase/functions/sales-coach-chat/index.ts` -- revert zod import to URL-based
 
-| File | Action |
-|------|--------|
-| `src/pages/admin/AdminSalesCoachHistory.tsx` | Create - Main page |
-| `src/components/admin/CoachSessionViewerSheet.tsx` | Create - Conversation viewer |
-| `src/api/adminSalesCoachSessions.ts` | Create - Admin API functions |
-| `src/hooks/useAdminCoachSessions.ts` | Create - React Query hook |
-| `src/components/layout/AppLayout.tsx` | Modify - Add nav item |
-| `src/App.tsx` | Modify - Add route |
+The zod imports should use:
+```typescript
+import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
+```
 
-## UI Features
-
-### Session List View
-- Tabular display with columns: User, Account, Last Message Preview, Date, Message Count
-- Filters: User dropdown, date picker, search by content
-- Pagination for large datasets
-- Sortable columns
-
-### Conversation Viewer
-- User messages styled distinctly from AI responses
-- Markdown rendering for AI responses
-- Copy conversation button
-- Timestamps for each message
-
-### Statistics Dashboard
-- Total sessions across all users
-- Average messages per conversation
-- Most active users
-- Most discussed accounts
-- Conversation trends over time
-
-## Implementation Sequence
-
-1. Create admin API functions with proper typing
-2. Build the session list page with filters
-3. Add the conversation viewer sheet
-4. Integrate statistics cards
-5. Wire up navigation and routing
-6. Test admin access with RLS policies
+Note: The `npm:` specifier works for `@supabase/supabase-js` but not for `zod` without a `deno.json` configuration. The URL-based import for zod is reliable and does not cause timeout issues.
