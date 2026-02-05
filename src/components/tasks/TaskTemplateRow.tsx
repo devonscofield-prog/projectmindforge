@@ -1,0 +1,85 @@
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { Trash2, Loader2 } from 'lucide-react';
+import type { TaskTemplate } from '@/api/taskTemplates';
+
+const priorityConfig: Record<string, { label: string; className: string }> = {
+  high: { label: 'HIGH', className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
+  medium: { label: 'MED', className: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' },
+  low: { label: 'LOW', className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+};
+
+const categoryLabels: Record<string, string> = {
+  phone_call: 'Phone Call',
+  drip_email: 'DRIP Email',
+  text_message: 'Text Message',
+  follow_up_email: 'Follow Up Email',
+};
+
+interface TaskTemplateRowProps {
+  template: TaskTemplate;
+  onToggleActive: (id: string, active: boolean) => void;
+  onDelete: (id: string) => void;
+  isDeleting: boolean;
+  isToggling: boolean;
+}
+
+export function TaskTemplateRow({ template, onToggleActive, onDelete, isDeleting, isToggling }: TaskTemplateRowProps) {
+  const priority = priorityConfig[template.priority] || priorityConfig.medium;
+  const dueLabel = template.due_days_offset != null
+    ? template.due_days_offset === 0
+      ? 'Same day'
+      : `${template.due_days_offset} day${template.due_days_offset !== 1 ? 's' : ''} after`
+    : null;
+
+  return (
+    <div className="flex items-center gap-3 p-3 rounded-lg border bg-card">
+      <Switch
+        checked={template.is_active}
+        onCheckedChange={(checked) => onToggleActive(template.id, checked)}
+        disabled={isToggling}
+        aria-label={`Toggle ${template.title}`}
+      />
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge variant="secondary" className={`${priority.className} text-[10px] px-1.5 py-0`}>
+            {priority.label}
+          </Badge>
+          {template.category && categoryLabels[template.category] && (
+            <span className="text-[10px] text-muted-foreground">
+              {categoryLabels[template.category]}
+            </span>
+          )}
+          {dueLabel && (
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-muted text-muted-foreground">
+              {dueLabel}
+            </Badge>
+          )}
+          {template.reminder_enabled && (
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+              🔔 {template.reminder_time?.slice(0, 5)}
+            </Badge>
+          )}
+        </div>
+        <p className={`text-sm font-medium truncate mt-0.5 ${!template.is_active ? 'text-muted-foreground line-through' : ''}`}>
+          {template.title}
+        </p>
+        {template.description && (
+          <p className="text-xs text-muted-foreground truncate">{template.description}</p>
+        )}
+      </div>
+
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive shrink-0"
+        onClick={() => onDelete(template.id)}
+        disabled={isDeleting}
+      >
+        {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+      </Button>
+    </div>
+  );
+}

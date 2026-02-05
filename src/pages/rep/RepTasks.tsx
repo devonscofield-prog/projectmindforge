@@ -24,6 +24,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { TaskTemplatesSection } from '@/components/tasks/TaskTemplatesSection';
 import {
   Target,
   Plus,
@@ -232,6 +233,7 @@ function RepTasks() {
             <TabsTrigger value="pending">Pending ({pendingTasks.length})</TabsTrigger>
             <TabsTrigger value="completed">Completed</TabsTrigger>
             <TabsTrigger value="dismissed">Dismissed</TabsTrigger>
+            <TabsTrigger value="auto-tasks">Auto Tasks</TabsTrigger>
           </TabsList>
 
           <TabsContent value="pending" className="space-y-4">
@@ -336,6 +338,10 @@ function RepTasks() {
                 ))}
               </div>
             )}
+          </TabsContent>
+
+          <TabsContent value="auto-tasks">
+            <TaskTemplatesSection />
           </TabsContent>
         </Tabs>
       </div>

@@ -1,0 +1,88 @@
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Plus, Loader2, FileText } from 'lucide-react';
+import {
+  useTaskTemplates,
+  useAutoCreateSetting,
+  useToggleAutoCreate,
+  useUpdateTaskTemplate,
+  useDeleteTaskTemplate,
+} from '@/hooks/useTaskTemplates';
+import { TaskTemplateRow } from './TaskTemplateRow';
+import { AddTaskTemplateDialog } from './AddTaskTemplateDialog';
+
+export function TaskTemplatesSection() {
+  const [showAdd, setShowAdd] = useState(false);
+
+  const { data: templates = [], isLoading: templatesLoading } = useTaskTemplates();
+  const { data: autoCreateEnabled, isLoading: settingLoading } = useAutoCreateSetting();
+  const toggleAutoCreate = useToggleAutoCreate();
+  const updateTemplate = useUpdateTaskTemplate();
+  const deleteTemplate = useDeleteTaskTemplate();
+
+  const isLoading = templatesLoading || settingLoading;
+
+  return (
+    <div className="space-y-4">
+      {/* Master toggle */}
+      <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
+        <div>
+          <Label className="text-sm font-medium">Auto-create tasks for every call</Label>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            When enabled, these tasks are automatically created whenever you submit a call
+          </p>
+        </div>
+        <Switch
+          checked={autoCreateEnabled ?? true}
+          onCheckedChange={(checked) => toggleAutoCreate.mutate(checked)}
+          disabled={settingLoading || toggleAutoCreate.isPending}
+        />
+      </div>
+
+      {/* Template list header */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-medium text-muted-foreground">
+          Task Templates ({templates.length})
+        </h3>
+        <Button size="sm" onClick={() => setShowAdd(true)}>
+          <Plus className="h-4 w-4 mr-1" />
+          Add Template
+        </Button>
+      </div>
+
+      {/* Template list */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : templates.length === 0 ? (
+        <div className="text-center py-12">
+          <FileText className="h-10 w-10 text-muted-foreground/50 mx-auto mb-3" />
+          <p className="text-sm font-medium text-muted-foreground">No task templates yet</p>
+          <p className="text-xs text-muted-foreground/70 mt-1">
+            Add templates that will be automatically created for every call you submit
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {templates.map(t => (
+            <TaskTemplateRow
+              key={t.id}
+              template={t}
+              onToggleActive={(id, active) =>
+                updateTemplate.mutate({ id, params: { is_active: active } })
+              }
+              onDelete={(id) => deleteTemplate.mutate(id)}
+              isDeleting={deleteTemplate.isPending && deleteTemplate.variables === t.id}
+              isToggling={updateTemplate.isPending && updateTemplate.variables?.id === t.id}
+            />
+          ))}
+        </div>
+      )}
+
+      <AddTaskTemplateDialog open={showAdd} onOpenChange={setShowAdd} />
+    </div>
+  );
+}

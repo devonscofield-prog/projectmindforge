@@ -4,6 +4,7 @@ import { getOrCreateProspect, linkCallToProspect } from '@/api/prospects';
 import { getOrCreateStakeholder, createCallStakeholderMention } from '@/api/stakeholders';
 import { toCallTranscript, toCallAnalysis, toCoachOutput } from '@/lib/supabaseAdapters';
 import { insertCallProducts, updateProspectActiveRevenue } from '@/api/callProducts';
+import { applyTaskTemplates } from '@/api/taskTemplates';
 import type {
   CreateCallTranscriptParams,
   CallTranscript,
@@ -157,6 +158,13 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
     }
   } catch (prospectError) {
     log.error('Failed to create/link prospect', { error: prospectError });
+  }
+
+  // Auto-create tasks from rep's task templates (non-blocking)
+  if (prospectId) {
+    applyTaskTemplates(repId, prospectId, transcript.id, callDate)
+      .then(() => log.info('Auto-created tasks from templates', { repId }))
+      .catch(err => log.warn('Failed to auto-create template tasks', { error: err }));
   }
 
   // Insert call products if provided
