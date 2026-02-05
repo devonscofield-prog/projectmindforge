@@ -75,6 +75,7 @@ const adminNavGroups = [
     label: 'Coaching',
     items: [
       { href: '/admin/coaching', label: 'Coaching Trends', icon: TrendingUp },
+      { href: '/admin/sales-coach', label: 'Coach History', icon: MessageSquare },
       { href: '/admin/playbook', label: 'Sales Playbook', icon: BookOpen },
       { href: '/admin/competitors', label: 'Competitor Intel', icon: Swords },
     ],
