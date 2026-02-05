@@ -72,7 +72,7 @@ export default function RoleplaySession() {
   const dcRef = useRef<RTCDataChannel | null>(null);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const screenCaptureRef = useRef<ScreenCapture | null>(null);
   // Use ref to track current transcript to avoid stale closure in handleDataChannelMessage
@@ -251,19 +251,25 @@ export default function RoleplaySession() {
 
       dc.onopen = () => {
         console.log('Data channel opened');
-        
+
         // Determine silence duration based on persona communication style
         // Stoic/minimal personas like Alex use longer pauses (1200ms) to create awkward silences
         const communicationStyle = persona?.communication_style;
-        const isSlowPaced = String(communicationStyle?.pace || '').includes('slow') || 
+        const isSlowPaced = String(communicationStyle?.pace || '').includes('slow') ||
                            String(communicationStyle?.tone || '').includes('monotone');
         const silenceDurationMs = isSlowPaced ? 1200 : 800;
-        
-        // Configure session settings
+
+        const realtime = sessionData?.realtime;
+        const voice = realtime?.voice || sessionData?.persona?.voice || persona?.voice;
+        const instructions = realtime?.instructions;
+
+        // Configure session settings (GA: pass voice + instructions here)
         dc.send(JSON.stringify({
           type: 'session.update',
           session: {
             modalities: ['text', 'audio'],
+            voice,
+            instructions,
             input_audio_format: 'pcm16',
             output_audio_format: 'pcm16',
             input_audio_transcription: {
@@ -277,7 +283,7 @@ export default function RoleplaySession() {
             }
           }
         }));
-        console.log('Session configured with silence_duration_ms:', silenceDurationMs);
+        console.log('Session configured with voice:', voice, 'silence_duration_ms:', silenceDurationMs);
       };
 
       dc.onmessage = handleDataChannelMessage;
@@ -291,17 +297,20 @@ export default function RoleplaySession() {
       await pc.setLocalDescription(offer);
 
       // Connect to OpenAI Realtime API (GA endpoint)
-      const response = await fetch('https://api.openai.com/v1/realtime/calls', {
+      const model = sessionData?.realtime?.model || 'gpt-realtime-mini-2025-12-15';
+      const response = await fetch(`https://api.openai.com/v1/realtime/calls?model=${encodeURIComponent(model)}`, {
         method: 'POST',
         body: offer.sdp,
         headers: {
           'Authorization': `Bearer ${sessionData.ephemeralToken}`,
-          'Content-Type': 'application/sdp'
+          'Content-Type': 'application/sdp',
+          'OpenAI-Beta': 'realtime=v1',
         }
       });
 
       if (!response.ok) {
-        throw new Error(`WebRTC connection failed: ${response.status}`);
+        const errText = await response.text().catch(() => '');
+        throw new Error(`WebRTC connection failed: ${response.status}${errText ? ` - ${errText}` : ''}`);
       }
 
       const answerSdp = await response.text();

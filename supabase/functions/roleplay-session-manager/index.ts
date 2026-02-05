@@ -762,20 +762,18 @@ Do NOT:
         screenShareEnabled
       ) + productKnowledgeContext;
 
-      // Request ephemeral token from OpenAI Realtime API with latest model
-      console.log('Requesting ephemeral token from OpenAI with latest realtime model...');
+      // Request ephemeral token from OpenAI Realtime API (GA)
+      // GA endpoint requires an EMPTY JSON body; session configuration is provided during the WebRTC handshake.
+      console.log('Requesting ephemeral token from OpenAI (realtime client_secrets)...');
+      const realtimeModel = 'gpt-realtime-mini-2025-12-15';
+
       const openAIResponse = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${openAIApiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          // Using gpt-realtime-mini (Dec 2025): 50% cost savings, faster, improved voice fidelity
-          model: 'gpt-realtime-mini-2025-12-15',
-          voice: selectedVoice,
-          instructions: systemPrompt,
-        }),
+        body: JSON.stringify({}),
       });
 
       if (!openAIResponse.ok) {
@@ -785,6 +783,12 @@ Do NOT:
       }
 
       const openAIData = await openAIResponse.json();
+      const ephemeralToken = openAIData?.value as string | undefined;
+      if (!ephemeralToken) {
+        console.error('OpenAI response missing ephemeral token:', openAIData);
+        throw new Error('OpenAI API error: missing ephemeral token');
+      }
+
       console.log('Ephemeral token received successfully');
 
       // Update session to in_progress
@@ -798,7 +802,7 @@ Do NOT:
 
       return new Response(JSON.stringify({
         sessionId: session.id,
-        ephemeralToken: openAIData.value,
+        ephemeralToken,
         persona: {
           id: persona.id,
           name: persona.name,
@@ -809,6 +813,11 @@ Do NOT:
         sessionConfig: {
           type: sessionType,
           difficulty: persona.difficulty_level,
+        },
+        realtime: {
+          model: realtimeModel,
+          voice: selectedVoice,
+          instructions: systemPrompt,
         },
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
