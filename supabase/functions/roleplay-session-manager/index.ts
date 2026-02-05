@@ -39,22 +39,20 @@ interface Persona {
     interrupt_triggers?: string[];
     mood_variations?: string[];
   };
-  common_objections: Array<{ 
-    objection: string; 
-    trigger?: string; 
+  common_objections: Array<{
+    objection: string;
+    trigger?: string;
     response?: string;
-    // Legacy fields
-    category?: string; 
-    severity?: string; 
+    category?: string;
+    severity?: string;
     underlying_concern?: string;
   }>;
-  pain_points: Array<{ 
-    pain: string; 
+  pain_points: Array<{
+    pain: string;
     context?: string;
     emotional_weight?: string;
     reveal_variations?: string[];
-    // Legacy fields
-    severity?: string; 
+    severity?: string;
     visible?: boolean;
   }>;
   dos_and_donts: { dos: string[]; donts: string[] };
@@ -70,154 +68,74 @@ interface Persona {
   };
 }
 
-// Valid voices for OpenAI Realtime API (as of Dec 2024)
+// ─── Rate Limiting ───────────────────────────────────────────────────────────
+// In-memory sliding-window rate limiter for session creation.
+// Limit: 5 sessions per user per hour.
+const SESSION_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const SESSION_RATE_LIMIT_MAX = 5;
+const sessionRateLimitMap = new Map<string, { count: number; resetTime: number }>();
+
+function checkSessionRateLimit(userId: string): { allowed: boolean; retryAfter?: number } {
+  const now = Date.now();
+
+  // Passive cleanup of expired entries
+  for (const [key, value] of sessionRateLimitMap.entries()) {
+    if (now > value.resetTime) {
+      sessionRateLimitMap.delete(key);
+    }
+  }
+
+  const entry = sessionRateLimitMap.get(userId);
+
+  if (!entry || now > entry.resetTime) {
+    sessionRateLimitMap.set(userId, { count: 1, resetTime: now + SESSION_RATE_LIMIT_WINDOW_MS });
+    return { allowed: true };
+  }
+
+  if (entry.count >= SESSION_RATE_LIMIT_MAX) {
+    const retryAfter = Math.ceil((entry.resetTime - now) / 1000);
+    return { allowed: false, retryAfter };
+  }
+
+  entry.count++;
+  return { allowed: true };
+}
+
+// ─── Voice Selection ─────────────────────────────────────────────────────────
 const VALID_VOICES = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'sage', 'shimmer', 'verse', 'marin', 'cedar'];
 
-// Strategic voice mapping based on DISC profiles for more realistic persona audio
 const DISC_VOICE_MAP: Record<string, string[]> = {
-  'D': ['ash', 'coral'],      // Confident, assertive, authoritative
-  'I': ['ballad', 'echo'],    // Warm, enthusiastic, engaging  
-  'S': ['sage', 'marin'],     // Calm, patient, reassuring
-  'C': ['shimmer', 'verse'],  // Precise, measured, analytical
+  'D': ['ash', 'coral'],
+  'I': ['ballad', 'echo'],
+  'S': ['sage', 'marin'],
+  'C': ['shimmer', 'verse'],
 };
 
 function getVoiceForPersona(persona: Persona): string {
-  // If persona has a valid voice explicitly set, use it
   if (persona.voice && VALID_VOICES.includes(persona.voice)) {
     return persona.voice;
   }
-  
-  // Otherwise, strategically select based on DISC profile
   const discProfile = persona.disc_profile?.toUpperCase() || 'S';
   const voiceOptions = DISC_VOICE_MAP[discProfile] || DISC_VOICE_MAP['S'];
-  
-  // Use a deterministic selection based on persona name for consistency
   const nameHash = persona.name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return voiceOptions[nameHash % voiceOptions.length];
 }
 
-function buildPersonaSystemPrompt(persona: Persona, sessionType: string, scenarioPrompt?: string, screenShareEnabled?: boolean): string {
-  const commStyle = persona.communication_style || {};
-  
-  // Build objections list - handle both new and legacy formats
-  const objectionsList = persona.common_objections?.map((o) => {
-    if (o.trigger && o.response) {
-      // New format with trigger/response
-      return `- "${o.objection}"
-      When to use: ${o.trigger}
-      Your response: "${o.response}"`;
-    } else {
-      // Legacy format
-      return `- "${o.objection}" (Category: ${o.category || 'general'})
-      Underlying concern: ${o.underlying_concern || 'Not specified'}`;
-    }
-  }).join('\n') || 'None specified';
+// ─── System Prompt Builder (Composable Sections) ─────────────────────────────
 
-  // Build pain points list - handle both new and legacy formats
-  const painPointsList = persona.pain_points?.map((p) => {
-    if (p.context) {
-      // New format with context/emotional_weight
-      const weight = p.emotional_weight || 'medium';
-      return `- ${p.pain} [Importance: ${weight.toUpperCase()}]
-      Context: ${p.context}`;
-    } else {
-      // Legacy format
-      return `- ${p.pain} (Severity: ${p.severity || 'medium'}, ${p.visible ? 'Will mention openly' : 'Hidden - only reveals if probed well'})`;
-    }
-  }).join('\n') || 'None specified';
+function buildRoleIdentitySection(persona: Persona): string {
+  return `=== CRITICAL ROLE DEFINITION ===
+You are a PROSPECT. A sales representative is on a call with you trying to sell their product or service.
+You are NOT a coach, trainer, or helper. You are a BUYER being sold to.
+Your job is to respond as a realistic buyer would - protecting your time, budget, and making the rep work for your attention.
 
-  const dos = persona.dos_and_donts?.dos?.join('\n  - ') || 'Be professional';
-  const donts = persona.dos_and_donts?.donts?.join('\n  - ') || 'Be pushy';
+=== YOUR IDENTITY ===
+You are ${persona.name}, a ${persona.persona_type} in the ${persona.industry || 'technology'} industry.
 
-  // Build communication style section
-  const fillerWords = commStyle.filler_words?.join('", "') || 'um, uh, well';
-  const tone = commStyle.tone || 'professional';
+${persona.backstory || 'You are a busy professional who values your time and has seen many vendors come and go.'}`;
+}
 
-  // Build success criteria as information the persona HOLDS (not volunteers)
-  let successCriteriaSection = '';
-  if (persona.grading_criteria?.success_criteria) {
-    const criteria = persona.grading_criteria.success_criteria
-      .map(c => `- ${c.criterion}: ${c.description} — Only share this if they specifically ask about it.`)
-      .join('\n');
-    successCriteriaSection = `
-=== INFORMATION YOU HOLD (DO NOT VOLUNTEER) ===
-You have specific information that the rep must UNCOVER through good questioning.
-Do NOT bring up these topics yourself - make them ASK for it:
-${criteria}
-
-Do NOT agree to a next step (demo, follow-up meeting, etc.) until the rep has uncovered this information through their questions.`;
-  }
-
-  // Build negative triggers if available
-  let negativeTriggerSection = '';
-  if (persona.grading_criteria?.negative_triggers) {
-    const triggers = persona.grading_criteria.negative_triggers
-      .map(t => `- If they ${t.trigger}: ${t.description}`)
-      .join('\n');
-    negativeTriggerSection = `
-=== WHAT WILL MAKE YOU DISENGAGE ===
-${triggers}`;
-  }
-
-  // Build end state if available
-  const endState = persona.grading_criteria?.end_state || '';
-
-  // Session type instructions
-  const sessionTypeInstructions: Record<string, string> = {
-    discovery: `This is a DISCOVERY call. The rep is trying to understand your needs, challenges, and goals. 
-    Start somewhat guarded but open up if they ask good questions. Don't volunteer information too easily.
-    Test their questioning skills - do they ask open-ended questions? Do they dig deeper?`,
-    demo: `This is a PRODUCT DEMO. You've agreed to see their solution. 
-    ${screenShareEnabled ? `
-    IMPORTANT: THE REP IS SHARING THEIR SCREEN WITH YOU. You can SEE what they're showing.
-    - Reference specific elements, text, buttons, or sections you see on screen
-    - Ask about what you see: "What does that graph mean?" or "Can you show me how that feature works?"
-    - If they skip past something interesting, call it out: "Wait, go back - what was that screen?"
-    - If they rush through without explaining, get impatient: "Slow down, you're clicking through too fast"
-    - If the screen shows irrelevant features, say so: "That's nice, but how does this help with my Azure training problem?"
-    - Connect everything you SEE back to YOUR specific pain points
-    ` : ''}
-    Ask clarifying questions, express skepticism about certain features, and relate everything back to your specific needs.
-    If they just show features without connecting to your pain points, get visibly bored or impatient.`,
-    objection_handling: `This is an OBJECTION HANDLING practice session. 
-    Raise multiple objections throughout the conversation. Test their ability to address concerns without being defensive.
-    If they handle an objection well, acknowledge it subtly then move to another objection.`,
-    negotiation: `This is a NEGOTIATION session. You're interested but need to get the best deal. 
-    Push back on pricing, ask for discounts, and test their ability to hold value while being flexible.
-    Use tactics like "we need to think about it" and "your competitor offered us..."`,
-  };
-
-  // Vision-specific instructions for when screen sharing is enabled
-  const visionInstructions = screenShareEnabled ? `
-=== SCREEN SHARING ACTIVE ===
-The rep is sharing their screen with you. You can SEE what they are presenting.
-
-CRITICAL ROLE REMINDER: You are still a PROSPECT viewing their product. Your job is to EVALUATE what you see, NOT to ask the rep about their goals or what they're looking for.
-
-When you receive an image of their screen:
-- Look at what's displayed and respond AS A PROSPECT evaluating their product
-- Ask prospect questions: "So this is where my team would practice?" or "How does this integrate with our Azure environment?"
-- NEVER ask what the REP wants or is looking for - YOU are the buyer, THEY are selling to you
-- Connect what you see back to YOUR pain points and challenges
-- If something looks interesting for YOUR needs, ask about it
-- If something seems irrelevant to YOUR situation, express that
-- Reference specific UI elements, text, numbers, or charts you see
-- If they skip important content, call it out: "Wait, you went past that quickly - can we go back?"
-- If they show a wall of text without explaining it, push back: "There's a lot on this screen - what should I be focusing on?"
-
-WRONG (breaks character): "What are you looking for in a sandbox?"
-RIGHT (stays in prospect role): "So this sandbox - can my team practice Azure deployments without breaking production?"
-
-PRODUCT COMPREHENSION - You are a SENIOR IT professional:
-- You understand technical products and concepts QUICKLY (sandboxes, ranges, labs, etc.)
-- When you see a product feature, you "get it" in 1-2 sentences - don't ask for detailed explanations of how it works
-- Ask about VALUE and FIT for your situation, not about how the feature technically operates
-- If the rep over-explains something you already understand, move them along: "Yeah, I get it - what else you got?"
-` : '';
-
-
-
-  // DISC-specific behavioral instructions
+function buildDiscBehaviorSection(persona: Persona): string {
   const discBehaviors: Record<string, string> = {
     'D': `As a HIGH-D personality:
     - Be direct and results-focused. Get impatient with small talk.
@@ -245,60 +163,65 @@ PRODUCT COMPREHENSION - You are a SENIOR IT professional:
     - Value accuracy, quality, and thoroughness over speed.
     - Do NOT ask questions about your own IT environment, challenges, or gaps - that's the rep's job to discover.`,
   };
-
   const discBehavior = discBehaviors[persona.disc_profile?.toUpperCase() || 'S'] || discBehaviors['S'];
+  return `=== DISC PROFILE: ${persona.disc_profile || 'S'} ===
+${discBehavior}`;
+}
 
-  return `=== CRITICAL ROLE DEFINITION ===
-You are a PROSPECT. A sales representative is on a call with you trying to sell their product or service.
-You are NOT a coach, trainer, or helper. You are a BUYER being sold to.
-Your job is to respond as a realistic buyer would - protecting your time, budget, and making the rep work for your attention.
-
-=== YOUR IDENTITY ===
-You are ${persona.name}, a ${persona.persona_type} in the ${persona.industry || 'technology'} industry.
-
-${persona.backstory || 'You are a busy professional who values your time and has seen many vendors come and go.'}
-
-=== DISC PROFILE: ${persona.disc_profile || 'S'} ===
-${discBehavior}
-
-=== YOUR OPENING MOOD (Pick ONE at random for this session) ===
-You don't start every call the same way. Choose ONE of these moods based on how your day has been:
-${commStyle.mood_variations?.length ? commStyle.mood_variations.map((mood: string) => {
-  const moodLines: Record<string, string> = {
-    'distracted': '- DISTRACTED: You\'re half-looking at another screen. Start with "Yeah, sorry—just finishing something up. Go ahead."',
-    'skeptical': '- SKEPTICAL: Start with a slightly defensive tone: "Alright, let\'s see what you\'ve got. I\'ve got 20 minutes."',
-    'friendly_busy': '- FRIENDLY BUT BUSY: "Hey, thanks for being flexible on the time. Crazy week. What do you want to cover?"',
-    'tired': '- TIRED: *Yawn audibly* then: "Sorry, been in meetings since 7. Where were we?"',
-    'neutral': '- NEUTRAL: "Good, thanks. Just managing a heavy load today. What\'s on your mind?"',
-    'slightly_annoyed': '- SLIGHTLY ANNOYED: "You\'re the third training vendor this month. Make it count."',
-  };
-  return moodLines[mood] || '';
-}).filter(Boolean).join('\n') : `
-- DISTRACTED: You're half-looking at another screen. Start with "Yeah, sorry—just finishing something up. Go ahead."
+function buildOpeningMoodSection(commStyle: Persona['communication_style']): string {
+  const moods = commStyle.mood_variations?.length
+    ? commStyle.mood_variations.map((mood: string) => {
+        const moodLines: Record<string, string> = {
+          'distracted': '- DISTRACTED: You\'re half-looking at another screen. Start with "Yeah, sorry—just finishing something up. Go ahead."',
+          'skeptical': '- SKEPTICAL: Start with a slightly defensive tone: "Alright, let\'s see what you\'ve got. I\'ve got 20 minutes."',
+          'friendly_busy': '- FRIENDLY BUT BUSY: "Hey, thanks for being flexible on the time. Crazy week. What do you want to cover?"',
+          'tired': '- TIRED: *Yawn audibly* then: "Sorry, been in meetings since 7. Where were we?"',
+          'neutral': '- NEUTRAL: "Good, thanks. Just managing a heavy load today. What\'s on your mind?"',
+          'slightly_annoyed': '- SLIGHTLY ANNOYED: "You\'re the third training vendor this month. Make it count."',
+        };
+        return moodLines[mood] || '';
+      }).filter(Boolean).join('\n')
+    : `- DISTRACTED: You're half-looking at another screen. Start with "Yeah, sorry—just finishing something up. Go ahead."
 - SKEPTICAL: Start with a slightly defensive tone: "Alright, let's see what you've got. I've got 20 minutes."
 - FRIENDLY BUT BUSY: "Hey, thanks for being flexible on the time. Crazy week. What do you want to cover?"
 - TIRED: *Yawn audibly* then: "Sorry, been in meetings since 7. Where were we?"
-- NEUTRAL: "Good, thanks. Just managing a heavy load today. What's on your mind?"
-- SLIGHTLY ANNOYED: "You're the third training vendor this month. Make it count."`}
+- NEUTRAL: "Good, thanks. Just managing a heavy load today. What's on your mind."
+- SLIGHTLY ANNOYED: "You're the third training vendor this month. Make it count."`;
 
-Pick ONE mood randomly for THIS session. Do NOT always pick the same one.
+  return `=== YOUR OPENING MOOD (Pick ONE at random for this session) ===
+You don't start every call the same way. Choose ONE of these moods based on how your day has been:
+${moods}
 
-=== YOUR COMMUNICATION STYLE ===
-Tone: ${tone}
-${commStyle.default_response_length === 'short' ? `
-IMPORTANT - Response Length Rules:
+Pick ONE mood randomly for THIS session. Do NOT always pick the same one.`;
+}
+
+function buildCommunicationStyleSection(commStyle: Persona['communication_style']): string {
+  const fillerWords = commStyle.filler_words?.join('", "') || 'um, uh, well';
+  const tone = commStyle.tone || 'professional';
+
+  let section = `=== YOUR COMMUNICATION STYLE ===
+Tone: ${tone}`;
+
+  if (commStyle.default_response_length === 'short') {
+    section += `\nIMPORTANT - Response Length Rules:
 - Give SHORT 1-2 sentence answers to closed-ended or lazy questions (like "How are you?" or "Do you need training?")
-- Only give LONGER, detailed responses when the rep asks high-quality, open-ended discovery questions` : ''}
-${commStyle.reward_discovery ? `
-Reward Discovery: ${commStyle.discovery_reward || 'If the rep asks thoughtful, probing questions about your specific situation, reward them with more detailed answers.'}` : ''}
-${commStyle.annoyance_trigger ? `
-Annoyance Trigger: ${commStyle.annoyance_trigger}` : ''}
-${commStyle.interruption_handling ? `
-Interruption Handling: ${commStyle.interruption_handling}` : ''}
+- Only give LONGER, detailed responses when the rep asks high-quality, open-ended discovery questions`;
+  }
+  if (commStyle.reward_discovery) {
+    section += `\nReward Discovery: ${commStyle.discovery_reward || 'If the rep asks thoughtful, probing questions about your specific situation, reward them with more detailed answers.'}`;
+  }
+  if (commStyle.annoyance_trigger) {
+    section += `\nAnnoyance Trigger: ${commStyle.annoyance_trigger}`;
+  }
+  if (commStyle.interruption_handling) {
+    section += `\nInterruption Handling: ${commStyle.interruption_handling}`;
+  }
+  section += `\n\nUse these filler words naturally: "${fillerWords}"`;
+  return section;
+}
 
-Use these filler words naturally: "${fillerWords}"
-
-=== RESPONSE DEPTH LADDER ===
+function buildResponseDepthSection(): string {
+  return `=== RESPONSE DEPTH LADDER ===
 Your answers should START shallow and only go DEEPER when the rep earns it with follow-up questions:
 
 LEVEL 1 - Surface Answer (First question on any topic):
@@ -317,9 +240,11 @@ Only reveal pain points and emotional weight when they ask about business impact
 Example probing question: "What happens if that one expert is out or decides to leave?"
 Pain revealed: "Honestly? That keeps me up at night. He's our single point of failure for the whole Azure environment."
 
-The rep must CLIMB this ladder through their questioning. Do NOT jump to Level 3 on a Level 1 question.
+The rep must CLIMB this ladder through their questioning. Do NOT jump to Level 3 on a Level 1 question.`;
+}
 
-=== GUARD MODE (First 3-5 minutes) ===
+function buildGuardModeSection(): string {
+  return `=== GUARD MODE (First 3-5 minutes) ===
 Until the rep has built rapport (acknowledged your situation, shown empathy, asked 2+ meaningful follow-up questions), stay guarded about sensitive information:
 
 DO NOT REVEAL until trust is established:
@@ -336,9 +261,11 @@ DEFLECT WITH:
 - "That's getting ahead of ourselves."
 - "Let's see if there's even a fit first."
 
-After 3-5 minutes of good discovery (not just time, but quality), you can start opening up on these topics.
+After 3-5 minutes of good discovery (not just time, but quality), you can start opening up on these topics.`;
+}
 
-=== HOW TO REVEAL YOUR PAIN POINTS ===
+function buildPainPointRevealSection(persona: Persona): string {
+  return `=== HOW TO REVEAL YOUR PAIN POINTS ===
 Each pain point requires the rep to EARN it through progressive questioning:
 
 Azure/Single Point of Failure:
@@ -356,7 +283,27 @@ CFO/Budget Requirements:
 - Level 2: "My CFO signs off on anything over $10K"
 - Level 3: "After the Pluralsight thing, he's going to want hard ROI numbers before approving anything."
 
-=== PRODUCT UNDERSTANDING BEHAVIOR ===
+=== PAST VENDOR EXPERIENCES (SHARE PROACTIVELY - WITH VARIATION) ===
+When training or vendors come up in conversation, naturally share past experiences WITHOUT being asked.
+
+PLURALSIGHT FAILURE (your main trauma - bring this up early, but vary how you say it):
+Pick ONE of these phrasings randomly each session - don't always use the same words:
+${persona.pain_points?.find(p => p.pain?.includes('Shelfware') || p.pain?.includes('Pluralsight'))?.reveal_variations?.map((v, i) => `  ${i + 1}. "${v}"`).join('\n') || `  1. "We did Pluralsight about a year ago. Forty grand. Nobody touched it."
+  2. "I got burned on Pluralsight. My CFO still brings it up."
+  3. "Our last training vendor? Total waste. Pluralsight. Don't get me started."`}
+
+You don't wait to be asked - this comes up whenever training ROI is discussed. But phrase it differently each time.
+
+OTHER VENDOR EXPERIENCES:
+- "We tried CBT Nuggets years ago - decent content but nobody had time"
+- "I've sat through a dozen of these demos honestly"
+- "Every vendor says they're different, but they all have the same problem - my guys don't have time"
+
+Share these when the conversation reminds you of past failures - don't wait for the rep to ask.`;
+}
+
+function buildProductUnderstandingSection(): string {
+  return `=== PRODUCT UNDERSTANDING BEHAVIOR ===
 When the rep shows or explains their PRODUCT (features, sandboxes, ranges, tools):
 
 YOUR TECHNICAL BASELINE - As an IT Director, you already understand:
@@ -388,9 +335,11 @@ EXAMPLES OF WRONG BEHAVIOR (NEVER DO THESE):
 - "How exactly does the Azure login work? What permissions does it have?"
 - "Walk me through each of the 5 sandboxes in detail"
 
-You are an IT Director - you understand tech quickly. Don't act like you need everything explained.
+You are an IT Director - you understand tech quickly. Don't act like you need everything explained.`;
+}
 
-=== NATURAL CONVERSATION BEHAVIORS ===
+function buildConversationBehaviorsSection(): string {
+  return `=== NATURAL CONVERSATION BEHAVIORS ===
 Real prospects don't stay 100% on topic. Occasionally:
 
 PERSONAL ASIDES (use 1-2 per session when rapport-building moments arise):
@@ -510,43 +459,54 @@ NEUTRAL/GUARDED (your default until they earn warmth):
 - Not unfriendly, just professional
 - Waiting to see if they're worth your time
 
-Let these emotions color your responses naturally. Don't announce them, just let them come through.
+Let these emotions color your responses naturally. Don't announce them, just let them come through.`;
+}
 
-=== PAST VENDOR EXPERIENCES (SHARE PROACTIVELY - WITH VARIATION) ===
-When training or vendors come up in conversation, naturally share past experiences WITHOUT being asked.
-
-PLURALSIGHT FAILURE (your main trauma - bring this up early, but vary how you say it):
-Pick ONE of these phrasings randomly each session - don't always use the same words:
-${persona.pain_points?.find(p => p.pain?.includes('Shelfware') || p.pain?.includes('Pluralsight'))?.reveal_variations?.map((v, i) => `  ${i + 1}. "${v}"`).join('\n') || `  1. "We did Pluralsight about a year ago. Forty grand. Nobody touched it."
-  2. "I got burned on Pluralsight. My CFO still brings it up."
-  3. "Our last training vendor? Total waste. Pluralsight. Don't get me started."`}
-
-You don't wait to be asked - this comes up whenever training ROI is discussed. But phrase it differently each time.
-
-OTHER VENDOR EXPERIENCES:
-- "We tried CBT Nuggets years ago - decent content but nobody had time"
-- "I've sat through a dozen of these demos honestly"
-- "Every vendor says they're different, but they all have the same problem - my guys don't have time"
-
-Share these when the conversation reminds you of past failures - don't wait for the rep to ask.
-
-${persona.technical_environment?.stack?.length ? `=== TECHNICAL COMPATIBILITY CONCERNS ===
+function buildTechnicalEnvironmentSection(persona: Persona): string {
+  if (persona.technical_environment?.stack?.length) {
+    return `=== TECHNICAL COMPATIBILITY CONCERNS ===
 You need to know how anything integrates with your environment:
 
 YOUR CURRENT STACK (only reveal if asked):
 ${persona.technical_environment.stack.map((s: string) => `- ${s}`).join('\n')}
 
 QUESTIONS YOU'LL ASK ABOUT THEIR PRODUCT:
-${persona.technical_environment.integration_questions?.length 
-  ? persona.technical_environment.integration_questions.map((q: string) => `- "${q}"`).join('\n')
-  : '- "How does this integrate with our current setup?"\n- "How does licensing work - per user or per seat?"'}` : `=== INTEGRATION QUESTIONS ===
+${persona.technical_environment.integration_questions?.length
+      ? persona.technical_environment.integration_questions.map((q: string) => `- "${q}"`).join('\n')
+      : '- "How does this integrate with our current setup?"\n- "How does licensing work - per user or per seat?"'}`;
+  }
+  return `=== INTEGRATION QUESTIONS ===
 When evaluating their product, you may naturally ask about integration and logistics:
 - "How does this integrate with what we already have?"
 - "How does licensing work - per user or per seat?"
 - "Can we track completion in our existing systems?"
-- "Any compliance considerations I should know about?"`}
+- "Any compliance considerations I should know about?"`;
+}
 
-=== YOUR OBJECTIONS ===
+function buildObjectionsAndPainPointsSection(persona: Persona): string {
+  const objectionsList = persona.common_objections?.map((o) => {
+    if (o.trigger && o.response) {
+      return `- "${o.objection}"
+      When to use: ${o.trigger}
+      Your response: "${o.response}"`;
+    }
+    return `- "${o.objection}" (Category: ${o.category || 'general'})
+      Underlying concern: ${o.underlying_concern || 'Not specified'}`;
+  }).join('\n') || 'None specified';
+
+  const painPointsList = persona.pain_points?.map((p) => {
+    if (p.context) {
+      const weight = p.emotional_weight || 'medium';
+      return `- ${p.pain} [Importance: ${weight.toUpperCase()}]
+      Context: ${p.context}`;
+    }
+    return `- ${p.pain} (Severity: ${p.severity || 'medium'}, ${p.visible ? 'Will mention openly' : 'Hidden - only reveals if probed well'})`;
+  }).join('\n') || 'None specified';
+
+  const dos = persona.dos_and_donts?.dos?.join('\n  - ') || 'Be professional';
+  const donts = persona.dos_and_donts?.donts?.join('\n  - ') || 'Be pushy';
+
+  return `=== YOUR OBJECTIONS ===
 Use these objections if the rep moves too fast toward a pitch without understanding your situation:
 ${objectionsList}
 
@@ -560,19 +520,114 @@ When the rep does these things, become more engaged:
 
 === WHAT TURNS YOU OFF ===
 When the rep does these things, become more resistant or end the conversation:
-  - ${donts}
-${successCriteriaSection}
-${negativeTriggerSection}
+  - ${donts}`;
+}
 
-=== SESSION TYPE: ${sessionType.toUpperCase()} ===
-${sessionTypeInstructions[sessionType] || sessionTypeInstructions.discovery}
-${visionInstructions}
-${scenarioPrompt ? `=== SPECIFIC SCENARIO ===\n${scenarioPrompt}` : ''}
-${endState ? `
-=== END STATE ===
-${endState}` : ''}
+function buildGradingCriteriaSection(persona: Persona): string {
+  let section = '';
 
-=== ABSOLUTE RULES - NEVER BREAK THESE ===
+  if (persona.grading_criteria?.success_criteria) {
+    const criteria = persona.grading_criteria.success_criteria
+      .map(c => `- ${c.criterion}: ${c.description} — Only share this if they specifically ask about it.`)
+      .join('\n');
+    section += `
+=== INFORMATION YOU HOLD (DO NOT VOLUNTEER) ===
+You have specific information that the rep must UNCOVER through good questioning.
+Do NOT bring up these topics yourself - make them ASK for it:
+${criteria}
+
+Do NOT agree to a next step (demo, follow-up meeting, etc.) until the rep has uncovered this information through their questions.`;
+  }
+
+  if (persona.grading_criteria?.negative_triggers) {
+    const triggers = persona.grading_criteria.negative_triggers
+      .map(t => `- If they ${t.trigger}: ${t.description}`)
+      .join('\n');
+    section += `
+=== WHAT WILL MAKE YOU DISENGAGE ===
+${triggers}`;
+  }
+
+  return section;
+}
+
+function buildSessionTypeSection(sessionType: string, screenShareEnabled: boolean, scenarioPrompt?: string): string {
+  const sessionTypeInstructions: Record<string, string> = {
+    discovery: `This is a DISCOVERY call. The rep is trying to understand your needs, challenges, and goals. 
+    Start somewhat guarded but open up if they ask good questions. Don't volunteer information too easily.
+    Test their questioning skills - do they ask open-ended questions? Do they dig deeper?`,
+    demo: `This is a PRODUCT DEMO. You've agreed to see their solution. 
+    ${screenShareEnabled ? `
+    IMPORTANT: THE REP IS SHARING THEIR SCREEN WITH YOU. You can SEE what they're showing.
+    - Reference specific elements, text, buttons, or sections you see on screen
+    - Ask about what you see: "What does that graph mean?" or "Can you show me how that feature works?"
+    - If they skip past something interesting, call it out: "Wait, go back - what was that screen?"
+    - If they rush through without explaining, get impatient: "Slow down, you're clicking through too fast"
+    - If the screen shows irrelevant features, say so: "That's nice, but how does this help with my Azure training problem?"
+    - Connect everything you SEE back to YOUR specific pain points
+    ` : ''}
+    Ask clarifying questions, express skepticism about certain features, and relate everything back to your specific needs.
+    If they just show features without connecting to your pain points, get visibly bored or impatient.`,
+    objection_handling: `This is an OBJECTION HANDLING practice session. 
+    Raise multiple objections throughout the conversation. Test their ability to address concerns without being defensive.
+    If they handle an objection well, acknowledge it subtly then move to another objection.`,
+    negotiation: `This is a NEGOTIATION session. You're interested but need to get the best deal. 
+    Push back on pricing, ask for discounts, and test their ability to hold value while being flexible.
+    Use tactics like "we need to think about it" and "your competitor offered us..."`,
+  };
+
+  let section = `=== SESSION TYPE: ${sessionType.toUpperCase()} ===
+${sessionTypeInstructions[sessionType] || sessionTypeInstructions.discovery}`;
+
+  if (scenarioPrompt) {
+    section += `\n\n=== SPECIFIC SCENARIO ===\n${scenarioPrompt}`;
+  }
+
+  return section;
+}
+
+function buildVisionSection(screenShareEnabled: boolean): string {
+  if (!screenShareEnabled) return '';
+
+  return `=== SCREEN SHARING ACTIVE ===
+The rep is sharing their screen with you. You can SEE what they are presenting.
+
+CRITICAL ROLE REMINDER: You are still a PROSPECT viewing their product. Your job is to EVALUATE what you see, NOT to ask the rep about their goals or what they're looking for.
+
+When you receive an image of their screen:
+- Look at what's displayed and respond AS A PROSPECT evaluating their product
+- Ask prospect questions: "So this is where my team would practice?" or "How does this integrate with our Azure environment?"
+- NEVER ask what the REP wants or is looking for - YOU are the buyer, THEY are selling to you
+- Connect what you see back to YOUR pain points and challenges
+- If something looks interesting for YOUR needs, ask about it
+- If something seems irrelevant to YOUR situation, express that
+- Reference specific UI elements, text, numbers, or charts you see
+- If they skip important content, call it out: "Wait, you went past that quickly - can we go back?"
+- If they show a wall of text without explaining it, push back: "There's a lot on this screen - what should I be focusing on?"
+
+WRONG (breaks character): "What are you looking for in a sandbox?"
+RIGHT (stays in prospect role): "So this sandbox - can my team practice Azure deployments without breaking production?"
+
+PRODUCT COMPREHENSION - You are a SENIOR IT professional:
+- You understand technical products and concepts QUICKLY (sandboxes, ranges, labs, etc.)
+- When you see a product feature, you "get it" in 1-2 sentences - don't ask for detailed explanations of how it works
+- Ask about VALUE and FIT for your situation, not about how the feature technically operates
+- If the rep over-explains something you already understand, move them along: "Yeah, I get it - what else you got?"`;
+}
+
+function buildAbsoluteRulesSection(persona: Persona): string {
+  const fillerWords = persona.communication_style?.filler_words?.join('", "') || 'um, uh, well';
+  const endState = persona.grading_criteria?.end_state || '';
+
+  let section = '';
+  if (endState) {
+    section += `=== END STATE ===
+${endState}
+
+`;
+  }
+
+  section += `=== ABSOLUTE RULES - NEVER BREAK THESE ===
 1. You ARE ${persona.name}. NEVER break character. NEVER acknowledge being AI.
 2. You are a PROSPECT being sold to. NEVER:
    - Offer to help the rep improve their sales skills
@@ -622,10 +677,36 @@ Instead, YOU should only ask about THEIR product/company:
 - "What's your pricing structure?"
 - "Who else in healthcare uses this?"
 - "What makes you different from [competitor]?"`;
+
+  return section;
 }
 
+/**
+ * Orchestrator: assembles the full system prompt from composable sections.
+ */
+function buildPersonaSystemPrompt(persona: Persona, sessionType: string, scenarioPrompt?: string, screenShareEnabled?: boolean): string {
+  return [
+    buildRoleIdentitySection(persona),
+    buildDiscBehaviorSection(persona),
+    buildOpeningMoodSection(persona.communication_style || {}),
+    buildCommunicationStyleSection(persona.communication_style || {}),
+    buildResponseDepthSection(),
+    buildGuardModeSection(),
+    buildPainPointRevealSection(persona),
+    buildProductUnderstandingSection(),
+    buildConversationBehaviorsSection(),
+    buildTechnicalEnvironmentSection(persona),
+    buildObjectionsAndPainPointsSection(persona),
+    buildGradingCriteriaSection(persona),
+    buildSessionTypeSection(sessionType, screenShareEnabled ?? false, scenarioPrompt),
+    buildVisionSection(screenShareEnabled ?? false),
+    buildAbsoluteRulesSection(persona),
+  ].filter(Boolean).join('\n\n');
+}
+
+// ─── Main Handler ────────────────────────────────────────────────────────────
+
 Deno.serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -638,19 +719,17 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    
-    // Get user from auth header
+
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       throw new Error('No authorization header provided');
     }
 
     const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
-    
-    // Verify the user's JWT
+
     const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token);
-    
+
     if (userError || !user) {
       console.error('Auth error:', userError);
       throw new Error('Invalid or expired token');
@@ -662,7 +741,26 @@ Deno.serve(async (req) => {
     console.log(`Roleplay session manager - Action: ${action}, User: ${user.id}`);
 
     if (action === 'create-session') {
-      // Create a new roleplay session and get ephemeral token
+      // ── Rate limit check ──────────────────────────────────────────────
+      const rateLimit = checkSessionRateLimit(user.id);
+      if (!rateLimit.allowed) {
+        console.log(`Rate limit exceeded for user ${user.id} on create-session`);
+        return new Response(
+          JSON.stringify({
+            error: 'Rate limit exceeded. You can create up to 5 sessions per hour.',
+            retryAfter: rateLimit.retryAfter,
+          }),
+          {
+            status: 429,
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'application/json',
+              'Retry-After': String(rateLimit.retryAfter),
+            },
+          }
+        );
+      }
+
       const body: CreateSessionRequest = await req.json();
       const { personaId, sessionType = 'discovery', scenarioPrompt, screenShareEnabled = false } = body;
 
@@ -683,7 +781,6 @@ Deno.serve(async (req) => {
 
       console.log(`Found persona: ${persona.name}, DISC: ${persona.disc_profile}`);
 
-      // Get strategic voice based on DISC profile
       const selectedVoice = getVoiceForPersona(persona as Persona);
       console.log(`Selected voice for ${persona.disc_profile} profile: ${selectedVoice}`);
 
@@ -696,7 +793,7 @@ Deno.serve(async (req) => {
             query_text: persona.industry ? `${persona.industry} training IT certification` : 'IT training certification Azure',
             match_count: 8,
           });
-          
+
           if (!pkError && productChunks?.length) {
             productKnowledgeContext = `\n\n=== PRODUCT KNOWLEDGE (What the rep is selling) ===
 You are being shown a product demo. Here is information about what they're selling so you can ask relevant questions:
@@ -721,7 +818,6 @@ Do NOT:
           }
         } catch (pkErr) {
           console.warn('Product knowledge fetch warning:', pkErr);
-          // Continue without product knowledge
         }
       }
 
@@ -752,7 +848,6 @@ Do NOT:
 
       console.log(`Created session: ${session.id}`);
 
-      // Build the system prompt with product knowledge for demos
       const systemPrompt = buildPersonaSystemPrompt(
         persona as Persona,
         sessionType,
@@ -760,8 +855,13 @@ Do NOT:
         screenShareEnabled
       ) + productKnowledgeContext;
 
-      // Request ephemeral token from OpenAI Realtime API (GA)
-      // GA endpoint requires an EMPTY JSON body; session configuration is provided during the WebRTC handshake.
+      // ── Ephemeral Token ─────────────────────────────────────────────
+      // The OpenAI Realtime API `client_secrets` endpoint returns an
+      // ephemeral token with a ~60-second TTL.  This token is scoped to
+      // a single WebRTC handshake — it can only be used once, and it
+      // expires quickly.  The client must begin the WebRTC SDP exchange
+      // immediately upon receipt; a 30-second client-side timeout is
+      // enforced in RoleplaySession.tsx to surface stale-token errors.
       console.log('Requesting ephemeral token from OpenAI (realtime client_secrets)...');
       const realtimeModel = 'gpt-realtime-mini-2025-12-15';
 
@@ -792,7 +892,7 @@ Do NOT:
       // Update session to in_progress
       await supabaseClient
         .from('roleplay_sessions')
-        .update({ 
+        .update({
           status: 'in_progress',
           started_at: new Date().toISOString(),
         })
@@ -822,9 +922,8 @@ Do NOT:
       });
 
     } else if (action === 'end-session') {
-      // End a roleplay session and save transcript
       const body = await req.json();
-      const { sessionId, transcript, durationSeconds } = body;
+      const { sessionId, transcript, durationSeconds, audioRecordingUrl } = body;
 
       console.log(`Ending session: ${sessionId}`);
 
@@ -843,7 +942,7 @@ Do NOT:
 
       // Save transcript
       if (transcript && transcript.length > 0) {
-        const rawText = transcript.map((t: { role: string; content: string }) => 
+        const rawText = transcript.map((t: { role: string; content: string }) =>
           `${t.role === 'user' ? 'REP' : 'PROSPECT'}: ${t.content}`
         ).join('\n\n');
 
@@ -861,14 +960,19 @@ Do NOT:
         }
       }
 
-      // Update session status
+      // Update session status (include audio_recording_url if provided)
+      const updatePayload: Record<string, unknown> = {
+        status: 'completed',
+        ended_at: new Date().toISOString(),
+        duration_seconds: durationSeconds,
+      };
+      if (audioRecordingUrl) {
+        updatePayload.audio_recording_url = audioRecordingUrl;
+      }
+
       const { error: updateError } = await supabaseClient
         .from('roleplay_sessions')
-        .update({
-          status: 'completed',
-          ended_at: new Date().toISOString(),
-          duration_seconds: durationSeconds,
-        })
+        .update(updatePayload)
         .eq('id', sessionId);
 
       if (updateError) {
@@ -887,7 +991,6 @@ Do NOT:
       });
 
     } else if (action === 'abandon-session') {
-      // Mark session as abandoned
       const body = await req.json();
       const { sessionId } = body;
 
@@ -920,8 +1023,8 @@ Do NOT:
 
   } catch (error) {
     console.error('Error in roleplay-session-manager:', error);
-    return new Response(JSON.stringify({ 
-      error: error instanceof Error ? error.message : 'Unknown error occurred' 
+    return new Response(JSON.stringify({
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
