@@ -1,181 +1,106 @@
 
-# Fix Roleplay WebRTC Connection Issue
+# Comprehensive Edge Function Diagnostic & Fix Plan
 
-## Problem Diagnosis
+## Problem Identified
 
-The roleplay call is stuck on "Connecting" because the client-side code is using an **outdated OpenAI Realtime API endpoint**.
+Your app has multiple edge functions failing with `Bundle generation timed out` errors. This is because many functions are using outdated import specifiers (`https://esm.sh/...` and `https://deno.land/x/...`) that cause slow dependency resolution during deployment.
 
-### Evidence Collected
+We already fixed this for `roleplay-session-manager` and `sales-coach-chat` - the same fix is needed across all other edge functions.
 
-1. **Edge function works correctly** - Returns valid ephemeral token (verified via curl test)
-2. **Console shows session created** - `Session created: 660d4de1-5dca-450d-82c3-f49fa386e0c1`
-3. **No WebRTC connection established** - Status never changes from "connecting" to "connected"
+## Affected Edge Functions
 
-### Root Cause
+After auditing the codebase, here are all functions that need their imports updated:
 
-OpenAI updated their Realtime API endpoints (GA release). The code is using the **pre-GA endpoints** which may no longer work reliably:
+| Function | Current Imports | Status |
+|----------|-----------------|--------|
+| `analyze-call/index.ts` | `esm.sh/@supabase/supabase-js@2` | Needs fix |
+| `admin-transcript-chat/index.ts` | `esm.sh/@supabase/supabase-js@2` | Needs fix |
+| `reanalyze-call/index.ts` | `esm.sh/@supabase/supabase-js@2` | Needs fix |
+| `calculate-deal-heat/index.ts` | `esm.sh/@supabase/supabase-js@2` | Needs fix |
+| `chunk-transcripts/index.ts` | `esm.sh/@supabase/supabase-js@2`, `deno.land/x/zod` | Needs fix |
+| `generate-call-follow-up-suggestions/index.ts` | `esm.sh/@supabase/supabase-js@2` | Needs fix |
+| `submit-call-transcript/index.ts` | `esm.sh/@supabase/supabase-js@2` | Needs fix |
+| `sales-assistant-chat/index.ts` | `esm.sh/@supabase/supabase-js@2`, `deno.land/x/zod` | Needs fix |
+| `_shared/pipeline.ts` | `esm.sh/@supabase/supabase-js@2` | Needs fix |
+| `_shared/agent-factory.ts` | `deno.land/x/zod`, `esm.sh/@supabase/supabase-js@2` | Needs fix |
 
-| Component | Current (Pre-GA) | Required (GA) |
-|-----------|------------------|---------------|
-| Token endpoint | `/v1/realtime/sessions` | `/v1/realtime/client_secrets` |
-| WebRTC SDP endpoint | `/v1/realtime?model=...` | `/v1/realtime/calls` |
+## Root Cause
 
-The client code at line 294-298 uses:
-```javascript
-const baseUrl = 'https://api.openai.com/v1/realtime';
-const response = await fetch(`${baseUrl}?model=${model}`, {...});
-```
-
-Should use:
-```javascript
-const response = await fetch('https://api.openai.com/v1/realtime/calls', {...});
-```
-
----
+The `esm.sh` and `deno.land/x` registries can be slow/unreliable, causing Supabase's bundler to timeout during deployment. The `npm:` specifier is more efficient because it uses Deno's built-in npm compatibility layer.
 
 ## Solution
 
-### Option A: Update Client Endpoint Only (Quick Fix)
-
-Update the WebRTC SDP endpoint in the client to use `/v1/realtime/calls`:
-
-**File:** `src/pages/training/RoleplaySession.tsx`
-
+Update all import statements from:
 ```typescript
-// Line 293-298: Change from
-const baseUrl = 'https://api.openai.com/v1/realtime';
-const model = 'gpt-realtime-mini-2025-12-15';
-const response = await fetch(`${baseUrl}?model=${model}`, {...});
-
-// To:
-const response = await fetch('https://api.openai.com/v1/realtime/calls', {...});
+// Old (slow, unreliable)
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
 ```
 
-This keeps the ephemeral token approach but uses the new GA endpoint.
-
----
-
-### Option B: Full GA Migration (Recommended)
-
-Update both the edge function and client to use the new GA endpoints for better long-term reliability.
-
-**1. Edge Function Update**
-
-**File:** `supabase/functions/roleplay-session-manager/index.ts`
-
+To:
 ```typescript
-// Line 767: Change from
-const openAIResponse = await fetch('https://api.openai.com/v1/realtime/sessions', {...});
-
-// To:
-const openAIResponse = await fetch('https://api.openai.com/v1/realtime/client_secrets', {...});
-
-// Also update how we extract the token (line 801):
-// From:
-ephemeralToken: openAIData.client_secret?.value,
-// To:
-ephemeralToken: openAIData.value,  // New format returns { value: "ek_..." } directly
+// New (fast, stable)
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { z } from "npm:zod@3.23.8";
 ```
 
-**2. Client Update**
+## Implementation Plan
 
-**File:** `src/pages/training/RoleplaySession.tsx`
+### Phase 1: Core Analysis Pipeline (Highest Priority)
+Fix the call analysis flow that's currently broken:
 
-```typescript
-// Lines 293-305: Replace entire WebRTC connection block
-const response = await fetch('https://api.openai.com/v1/realtime/calls', {
-  method: 'POST',
-  body: offer.sdp,
-  headers: {
-    'Authorization': `Bearer ${sessionData.ephemeralToken}`,
-    'Content-Type': 'application/sdp'
-  }
-});
-```
+1. **`analyze-call/index.ts`** - Update Supabase import
+2. **`_shared/pipeline.ts`** - Update Supabase import  
+3. **`_shared/agent-factory.ts`** - Update Supabase and Zod imports
+4. **`reanalyze-call/index.ts`** - Update Supabase import
+5. **`calculate-deal-heat/index.ts`** - Update Supabase import
+6. **`generate-call-follow-up-suggestions/index.ts`** - Update Supabase import
 
----
+### Phase 2: Secondary Functions
+Fix remaining user-facing features:
 
-### Option C: Unified Interface (Server-Side SDP)
+7. **`admin-transcript-chat/index.ts`** - Update Supabase import
+8. **`chunk-transcripts/index.ts`** - Update Supabase and Zod imports
+9. **`submit-call-transcript/index.ts`** - Update Supabase import
+10. **`sales-assistant-chat/index.ts`** - Update Supabase and Zod imports
 
-Use the new "unified interface" where the edge function handles the entire SDP exchange:
+### Phase 3: Deploy All Functions
+After updating imports, deploy all affected functions to ensure they're using the new efficient imports.
 
-This moves the OpenAI API call entirely to the edge function, providing better security since the ephemeral token never reaches the client. However, this is more complex and may increase latency.
+## Technical Details
 
----
+### Import Changes Summary
 
-## Recommended Approach
-
-**Implement Option A first** as a quick fix to verify the issue, then migrate to Option B for long-term reliability.
-
-### Files to Modify
-
-| File | Changes |
-|------|---------|
-| `src/pages/training/RoleplaySession.tsx` | Update WebRTC endpoint from `/v1/realtime` to `/v1/realtime/calls` |
-| `supabase/functions/roleplay-session-manager/index.ts` | (Option B) Update token endpoint and response parsing |
-
-### Additional Improvements
-
-1. **Add connection timeout** - If WebRTC doesn't connect within 15 seconds, show error and allow retry
-2. **Add ICE connection state logging** - Log `pc.iceConnectionState` changes for debugging
-3. **Add error handling for OpenAI endpoint changes** - Catch specific HTTP errors and provide helpful messages
-
----
-
-## Technical Implementation Details
-
-### WebRTC Connection Flow (Current vs Fixed)
+For each file, the change is simple - replacing the import URLs:
 
 ```text
-CURRENT (BROKEN):
-┌─────────┐    ┌─────────────┐    ┌─────────────────────┐
-│ Browser │───▶│ Edge Func   │───▶│ /v1/realtime/sessions│ ✓ Works
-└─────────┘    └─────────────┘    └─────────────────────┘
-     │                                      
-     └───────────────────────────▶ /v1/realtime?model=... ✗ Fails
-                                   (Old endpoint)
+Before: import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+After:  import { createClient } from "npm:@supabase/supabase-js@2";
 
-FIXED:
-┌─────────┐    ┌─────────────┐    ┌──────────────────────────┐
-│ Browser │───▶│ Edge Func   │───▶│ /v1/realtime/client_secrets│ ✓ 
-└─────────┘    └─────────────┘    └──────────────────────────┘
-     │                                      
-     └───────────────────────────▶ /v1/realtime/calls ✓
-                                   (New GA endpoint)
+Before: import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
+After:  import { z } from "npm:zod@3.23.8";
+
+Before: import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+After:  import { SupabaseClient } from "npm:@supabase/supabase-js@2";
 ```
 
-### Code Changes Summary
+### Expected Outcome
+- All edge functions will deploy successfully without timeout errors
+- Call analysis will work again
+- Transcript chat will work again
+- Follow-up suggestions will generate properly
 
-**RoleplaySession.tsx (lines 293-305):**
-```typescript
-// BEFORE:
-const baseUrl = 'https://api.openai.com/v1/realtime';
-const model = 'gpt-realtime-mini-2025-12-15';
+## Files to Modify
 
-const response = await fetch(`${baseUrl}?model=${model}`, {
-  method: 'POST',
-  body: offer.sdp,
-  headers: {
-    'Authorization': `Bearer ${sessionData.ephemeralToken}`,
-    'Content-Type': 'application/sdp'
-  }
-});
-
-// AFTER:
-const response = await fetch('https://api.openai.com/v1/realtime/calls', {
-  method: 'POST',
-  body: offer.sdp,
-  headers: {
-    'Authorization': `Bearer ${sessionData.ephemeralToken}`,
-    'Content-Type': 'application/sdp'
-  }
-});
-```
-
-### Testing After Fix
-
-1. Navigate to Training → Practice Roleplay
-2. Select any persona (e.g., Dr. Patricia Okonkwo)
-3. Click "Start Call" button
-4. Verify status changes from "Connecting" to "Connected"
-5. Speak and verify the AI persona responds
+| File | Change |
+|------|--------|
+| `supabase/functions/analyze-call/index.ts` | Line 13: Update import |
+| `supabase/functions/_shared/pipeline.ts` | Line 17: Update import |
+| `supabase/functions/_shared/agent-factory.ts` | Lines 7-8: Update both imports |
+| `supabase/functions/reanalyze-call/index.ts` | Line 1: Update import |
+| `supabase/functions/calculate-deal-heat/index.ts` | Line 1: Update import |
+| `supabase/functions/generate-call-follow-up-suggestions/index.ts` | Line 9: Update import |
+| `supabase/functions/admin-transcript-chat/index.ts` | Line 1: Update import |
+| `supabase/functions/chunk-transcripts/index.ts` | Lines 1-2: Update both imports |
+| `supabase/functions/submit-call-transcript/index.ts` | Line 1: Update import |
+| `supabase/functions/sales-assistant-chat/index.ts` | Lines 1-2: Update both imports |
