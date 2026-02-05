@@ -1,51 +1,108 @@
 
-# Fix: Mass Edge Function Deployment Failure
 
-## Problem
-Almost ALL edge functions (41 of 43) are returning 404 (not deployed). Only `trigger-pending-analyses` and `roleplay-session-manager` survived the recent bulk import standardization changes. This means core features like call submission, analysis, coaching, admin operations, and more are completely broken for all users.
+# Rep Task Management Page
 
-Ben Martin's error was caused by hitting one of these undeployed functions.
+## Overview
+Create a dedicated task management page at `/rep/tasks` where reps can view, create, edit, complete, and manage all their manually-created follow-up tasks in one place. This extends the existing dashboard widget into a full-featured task management experience.
 
-## Root Cause
-The recent batch edit that standardized imports across 44+ files triggered a mass redeployment. The bundler timed out trying to process all functions simultaneously, leaving most functions undeployed.
+---
 
-## Fix: Force Redeploy All Functions
+## What Reps Will Be Able to Do
 
-The code is correct -- bare imports match the centralized `deno.json` import map. The functions just need to be redeployed. This will be done in batches to avoid overwhelming the bundler:
+- **View all tasks** organized by status tabs: Pending, Completed, Dismissed
+- **Filter and sort** tasks by priority, category, due date, or account
+- **Create new tasks** (standalone, not requiring a call link) with an adapted version of the existing Add Task dialog
+- **Edit existing tasks** inline -- change title, description, priority, category, due date, and reminder settings
+- **Complete / Dismiss / Restore** tasks with the same swipe and button interactions already used on the dashboard widget
+- **See overdue tasks** highlighted prominently at the top
+- **Navigate to the linked account** by clicking the account name on any task
+- **Access the page** from a new "My Tasks" link in the left sidebar under "My Work"
 
-### Batch 1 -- Critical User-Facing Functions
-`submit-call-transcript`, `analyze-call`, `seed-demo-data`, `reanalyze-call`, `bulk-upload-transcripts`
+---
 
-### Batch 2 -- AI/Analysis Functions
-`sales-coach-chat`, `sales-assistant-chat`, `admin-transcript-chat`, `chunk-transcripts`, `generate-call-follow-up-suggestions`
+## Navigation Changes
 
-### Batch 3 -- Account & Coaching Functions
-`account-research`, `competitor-research`, `generate-account-follow-ups`, `regenerate-account-insights`, `calculate-deal-heat`, `calculate-account-heat`
-
-### Batch 4 -- Coaching & Training
-`generate-coaching-trends`, `generate-coaching-chunk-summary`, `generate-aggregate-coaching-trends`, `roleplay-grade-session`, `roleplay-abandon-session`, `generate-agreed-next-steps`
-
-### Batch 5 -- Admin & Auth Functions
-`invite-user`, `delete-user`, `reset-user-password`, `admin-reset-mfa`, `reset-database`, `reset-test-passwords`, `set-user-password`
-
-### Batch 6 -- Password Reset & Performance
-`generate-password-reset-otp`, `verify-password-reset-otp`, `complete-password-reset`, `check-performance-alerts`, `send-performance-alert`, `analyze-performance`
-
-### Batch 7 -- Remaining Functions
-`edit-recap-email`, `generate-sales-assets`, `scrape-product-knowledge`, `process-product-knowledge`, `upload-product-knowledge`, `send-task-reminders`, `cleanup-stuck-sessions`
-
-## Secondary Fix: Update CORS Headers
-
-All 41 functions use the old short CORS `Access-Control-Allow-Headers` list. The Supabase client now sends additional headers that should be allowed. Each function's CORS headers will be updated to include the expanded set:
-
+**Sidebar (AppLayout.tsx)** -- Add to `repNavGroups` under "My Work":
 ```
-authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version
+{ href: '/rep/tasks', label: 'My Tasks', icon: Target }
 ```
 
-This will be done during the redeploy by making a small touch-edit to each function's CORS headers.
+**Mobile Bottom Nav (MobileBottomNav.tsx)** -- Replace "History" with "Tasks" for reps (since tasks are higher-frequency):
+```
+{ href: '/rep/tasks', label: 'Tasks', icon: Target }
+```
 
-## Verification
-After each batch deploys, the function will be tested with a curl call to confirm it responds (even if with 401/400 -- anything other than 404 means it's deployed).
+---
 
-## Files Modified
-All 41 edge function `index.ts` files will have their CORS headers updated. No logic changes.
+## Technical Details
+
+### New Files
+
+| File | Purpose |
+|------|---------|
+| `src/pages/rep/RepTasks.tsx` | Full task management page with tabs, filters, create/edit dialogs |
+| `src/components/tasks/EditTaskDialog.tsx` | Dialog for editing an existing task's fields |
+| `src/components/tasks/StandaloneTaskDialog.tsx` | Adapted create dialog that doesn't require a call ID (uses account picker instead) |
+
+### API Layer Changes (`src/api/accountFollowUps.ts`)
+
+Add two new functions:
+- `updateFollowUp(id, fields)` -- General-purpose update for title, description, priority, category, due_date, reminder_enabled, reminder_time
+- `listAllFollowUpsForRepByStatus(repId, status)` -- Fetch tasks filtered by status (for completed/dismissed tabs), with prospect details joined
+
+### Mutation Hook (`src/hooks/useFollowUpMutations.ts`)
+
+Add `useUpdateFollowUp()` hook with optimistic updates and cache invalidation for task edits.
+
+### Router (`src/App.tsx`)
+
+Add route:
+```
+<Route path="/rep/tasks" element={
+  <ProtectedRoute allowedRoles={['rep']}>
+    <RepTasks />
+  </ProtectedRoute>
+} />
+```
+
+### Page Structure (`RepTasks.tsx`)
+
+- Wrapped in `AppLayout` for consistent navigation
+- **Header**: Page title + "New Task" button
+- **Stats bar**: Quick counts (overdue, due today, total pending)
+- **Tabs**: Pending | Completed | Dismissed
+- **Filter bar** (Pending tab): Priority dropdown, Category dropdown, Sort by (due date / priority / created date)
+- **Task list**: Reuses the existing `FollowUpRow` pattern from `PendingFollowUpsWidget` with additions:
+  - Edit button (pencil icon) opens `EditTaskDialog`
+  - Account name is a clickable link
+  - Overdue tasks get a red left border accent
+- **Empty states**: Contextual messages per tab
+- Mobile: swipe-to-complete and swipe-to-dismiss (reuses `SwipeableCard`)
+
+### Edit Task Dialog (`EditTaskDialog.tsx`)
+
+- Pre-populated form matching the create dialog layout (title, description, priority, category, due date, reminder)
+- Uses the new `updateFollowUp` API function
+- Invalidates relevant query caches on save
+
+### Standalone Task Dialog (`StandaloneTaskDialog.tsx`)
+
+- Adapted from `AddCustomTaskDialog` but replaces the `callId` + `prospectId` props with an account search/select dropdown
+- Queries the rep's prospects list for the picker
+- `sourceCallId` is optional/null for standalone tasks
+
+### Dashboard Widget Link
+
+Add a "View All" link in the `PendingFollowUpsWidget` header that navigates to `/rep/tasks`.
+
+### Implementation Sequence
+
+1. Add `updateFollowUp` and `listAllFollowUpsForRepByStatus` to API layer
+2. Add `useUpdateFollowUp` mutation hook
+3. Create `EditTaskDialog` component
+4. Create `StandaloneTaskDialog` component  
+5. Create `RepTasks` page
+6. Add route in `App.tsx`
+7. Add sidebar nav item and mobile nav update
+8. Add "View All" link to dashboard widget
+
