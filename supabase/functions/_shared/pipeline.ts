@@ -14,7 +14,7 @@
  * Phase 2: Coach (synthesis)
  */
 
-import { SupabaseClient } from "npm:@supabase/supabase-js@2";
+import { SupabaseClient } from "@supabase/supabase-js";
 import { getAgent, getPhase0Agent, AgentConfig } from './agent-registry.ts';
 import { executeAgent, executeAgentWithPrompt, executeCoachWithConsensus, AgentResult, getAgentTimeout } from './agent-factory.ts';
 import {

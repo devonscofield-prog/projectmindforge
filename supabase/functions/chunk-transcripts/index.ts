@@ -1,5 +1,5 @@
-import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2";
-import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { z } from "zod";
 
 // Version indicator for deployment verification
 console.log('[chunk-transcripts] Version: v3-timeout30s-parallel3');
