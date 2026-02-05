@@ -23,31 +23,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { Loader2, Plus, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import type { Json } from '@/integrations/supabase/types';
-
-interface Persona {
-  id: string;
-  name: string;
-  persona_type: string;
-  disc_profile: string | null;
-  difficulty_level: string;
-  industry: string | null;
-  backstory: string | null;
-  voice: string;
-  is_active: boolean;
-  communication_style: Json | null;
-  common_objections: Json | null;
-  pain_points: Json | null;
-  dos_and_donts: Json | null;
-  grading_criteria: Json | null;
-  technical_environment: Json | null;
-}
+import type { PersonaFull } from '@/types/persona';
 
 interface PersonaFormDialogProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  persona: Persona | null;
+  persona: PersonaFull | null;
 }
 
 const VALID_VOICES = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'sage', 'shimmer', 'verse', 'marin', 'cedar'];

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Json } from '@/integrations/supabase/types';
+import { gradeColors } from '@/constants/training';
 
 // Maximum number of poll attempts before showing timeout (30 * 2s = 60 seconds)
 const MAX_POLL_ATTEMPTS = 30;
@@ -40,15 +41,6 @@ interface GradeData {
   coaching_prescription: string | null;
   feedback_visibility: string | null;
 }
-
-const gradeColors: Record<string, string> = {
-  'A+': 'bg-green-500 text-white',
-  'A': 'bg-green-500 text-white',
-  'B': 'bg-blue-500 text-white',
-  'C': 'bg-amber-500 text-white',
-  'D': 'bg-orange-500 text-white',
-  'F': 'bg-red-500 text-white',
-};
 
 export function RoleplayPostSession({
   sessionId,

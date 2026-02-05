@@ -32,7 +32,9 @@ import {
   AlertCircle,
   AlertTriangle,
   Monitor,
-  MonitorOff
+  MonitorOff,
+  Pause,
+  Play
 } from 'lucide-react';
 import { RoleplayBriefing } from '@/components/training/RoleplayBriefing';
 import { RoleplayPostSession } from '@/components/training/RoleplayPostSession';
@@ -40,21 +42,8 @@ import { RoleplayTranscriptPanel } from '@/components/training/RoleplayTranscrip
 import { RoleplayScenarioSelector } from '@/components/training/RoleplayScenarioSelector';
 import { cn } from '@/lib/utils';
 import { ScreenCapture } from '@/utils/ScreenCapture';
-
-interface Persona {
-  id: string;
-  name: string;
-  persona_type: string;
-  disc_profile: string | null;
-  difficulty_level: string;
-  industry: string | null;
-  backstory: string | null;
-  voice: string;
-  communication_style: Record<string, unknown> | null;
-  common_objections?: Array<{ objection: string; category: string; severity: string }>;
-  pain_points?: Array<{ pain: string; severity: string; visible: boolean }>;
-  dos_and_donts?: { dos: string[]; donts: string[] };
-}
+import { AudioLevelMeter } from '@/components/training/AudioLevelMeter';
+import type { PersonaClient } from '@/types/persona';
 
 interface TranscriptEntry {
   role: 'user' | 'assistant';
@@ -79,6 +68,7 @@ export default function RoleplaySession() {
   const [sessionType, setSessionType] = useState<'discovery' | 'demo' | 'objection_handling' | 'negotiation'>('discovery');
   const [scenarioPrompt, setScenarioPrompt] = useState('');
   const [showEndConfirm, setShowEndConfirm] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
@@ -98,6 +88,14 @@ export default function RoleplaySession() {
   const durationWarningShownRef = useRef(false);
   // Ref to endSession so the timer can call it without stale closures
   const endSessionRef = useRef<() => void>(() => {});
+  // Track cumulative paused time for accurate elapsed calculation
+  const pausedTimeRef = useRef(0);
+  const pauseStartRef = useRef<number | null>(null);
+  // Audio recording refs
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  // Token timeout ref
+  const tokenTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Fetch persona details with extended fields
   const { data: persona, isLoading: personaLoading } = useQuery({
@@ -112,7 +110,7 @@ export default function RoleplaySession() {
         .single();
       
       if (error) throw error;
-      return data as Persona;
+      return data as PersonaClient;
     },
     enabled: !!personaId,
   });
@@ -140,15 +138,16 @@ export default function RoleplaySession() {
   const WARN_SESSION_SECONDS = 25 * 60;
 
   // Drift-free timer using Date.now() instead of incrementing a counter.
+  // Paused time is excluded from the elapsed calculation.
   // Also enforces max session duration with a warning at 25 min and auto-end at 30 min.
   useEffect(() => {
-    const isActive = status === 'connected' || status === 'speaking' || status === 'listening';
+    const isActive = (status === 'connected' || status === 'speaking' || status === 'listening') && !isPaused;
     if (isActive) {
       if (callStartTimeRef.current === null) {
         callStartTimeRef.current = Date.now();
       }
       timerRef.current = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - callStartTimeRef.current!) / 1000);
+        const elapsed = Math.floor((Date.now() - callStartTimeRef.current! - pausedTimeRef.current) / 1000);
         setElapsedSeconds(elapsed);
 
         // Show warning at 25 minutes
@@ -172,7 +171,7 @@ export default function RoleplaySession() {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
+  }, [status, isPaused]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -256,6 +255,7 @@ export default function RoleplaySession() {
       streamRef.current = stream;
 
       // Get session token from edge function
+      // Ephemeral token has ~60s TTL - must complete WebRTC handshake quickly
       const { data: sessionData, error: sessionError } = await supabase.functions.invoke(
         'roleplay-session-manager/create-session',
         {
@@ -268,12 +268,29 @@ export default function RoleplaySession() {
         }
       );
 
+      // Handle rate limiting (429)
+      if (sessionError && sessionError.message?.includes('429')) {
+        toast.error('You\'ve created too many sessions recently. Please wait a few minutes and try again.');
+        setStatus('idle');
+        cleanup();
+        return;
+      }
+
       if (sessionError || !sessionData?.ephemeralToken) {
         throw new Error(sessionError?.message || 'Failed to create session');
       }
 
       setSessionId(sessionData.sessionId);
       console.log('Session created:', sessionData.sessionId);
+
+      // Set a 30s timeout for the WebRTC handshake (ephemeral token has ~60s TTL)
+      tokenTimeoutRef.current = setTimeout(() => {
+        if (statusRef.current === 'connecting') {
+          toast.error('Connection timed out. The session token may have expired. Please try again.');
+          setStatus('idle');
+          cleanup();
+        }
+      }, 30000);
 
       // Create WebRTC peer connection
       const pc = new RTCPeerConnection();
@@ -401,6 +418,26 @@ export default function RoleplaySession() {
       await pc.setRemoteDescription(answer);
       console.log('WebRTC connection established');
       
+      // Clear token timeout - handshake succeeded
+      if (tokenTimeoutRef.current) {
+        clearTimeout(tokenTimeoutRef.current);
+        tokenTimeoutRef.current = null;
+      }
+
+      // Start audio recording
+      try {
+        const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+        recordedChunksRef.current = [];
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+        };
+        mediaRecorder.start(1000); // Collect in 1s chunks
+        mediaRecorderRef.current = mediaRecorder;
+        console.log('Audio recording started');
+      } catch (recErr) {
+        console.warn('Audio recording not supported:', recErr);
+      }
+
       setStatus('connected');
       toast.success(`Connected to ${persona?.name || 'AI Prospect'}`);
 
@@ -413,12 +450,22 @@ export default function RoleplaySession() {
   };
 
   const cleanup = () => {
+    // Clear token timeout
+    if (tokenTimeoutRef.current) {
+      clearTimeout(tokenTimeoutRef.current);
+      tokenTimeoutRef.current = null;
+    }
+    // Stop audio recording
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
     // Stop screen capture
     if (screenCaptureRef.current) {
       screenCaptureRef.current.stop();
       screenCaptureRef.current = null;
     }
     setIsScreenSharing(false);
+    setIsPaused(false);
     
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
@@ -450,7 +497,6 @@ export default function RoleplaySession() {
     const screenCapture = new ScreenCapture({
       onFrame: (base64Frame) => {
         if (dcRef.current?.readyState === 'open') {
-          // Send screenshot as an image message to the AI
           dcRef.current.send(JSON.stringify({
             type: 'conversation.item.create',
             item: {
@@ -469,8 +515,8 @@ export default function RoleplaySession() {
         setIsScreenSharing(false);
         toast.info('Screen sharing ended');
       },
-      intervalMs: 4000, // Capture every 4 seconds
-      maxWidthPx: 1024, // Compress to reasonable size
+      intervalMs: 4000,
+      maxWidthPx: 1024,
     });
 
     const success = await screenCapture.start();
@@ -483,9 +529,6 @@ export default function RoleplaySession() {
     }
   };
 
-  /**
-   * Stop screen sharing
-   */
   const stopScreenShare = () => {
     if (screenCaptureRef.current) {
       screenCaptureRef.current.stop();
@@ -495,8 +538,43 @@ export default function RoleplaySession() {
     toast.info('Screen sharing stopped');
   };
 
+  /**
+   * Upload recorded audio to storage and update session record.
+   */
+  const uploadRecording = async (sid: string) => {
+    if (recordedChunksRef.current.length === 0) return;
+    try {
+      const blob = new Blob(recordedChunksRef.current, { type: 'audio/webm' });
+      const filePath = `${user!.id}/${sid}.webm`;
+      const { error: uploadError } = await supabase.storage
+        .from('roleplay-recordings')
+        .upload(filePath, blob, { contentType: 'audio/webm', upsert: true });
+      if (uploadError) {
+        console.error('Recording upload error:', uploadError);
+        return;
+      }
+      const { data: urlData } = supabase.storage
+        .from('roleplay-recordings')
+        .getPublicUrl(filePath);
+      if (urlData?.publicUrl) {
+        await supabase
+          .from('roleplay_sessions')
+          .update({ audio_recording_url: urlData.publicUrl } as any)
+          .eq('id', sid);
+        console.log('Recording saved:', urlData.publicUrl);
+      }
+    } catch (err) {
+      console.error('Failed to upload recording:', err);
+    }
+  };
+
   const endSession = async () => {
     setStatus('ending');
+
+    // Stop recording before uploading
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
     
     try {
       if (sessionId) {
@@ -508,6 +586,9 @@ export default function RoleplaySession() {
             durationSeconds: elapsedSeconds
           }
         });
+
+        // Upload recording in background
+        uploadRecording(sessionId);
 
         // Trigger AI grading asynchronously
         supabase.functions.invoke('roleplay-grade-session', {
@@ -537,6 +618,42 @@ export default function RoleplaySession() {
         audioTrack.enabled = !audioTrack.enabled;
         setIsMuted(!audioTrack.enabled);
       }
+    }
+  };
+
+  /**
+   * Pause/Resume the session. Mutes mic, cancels AI response, and pauses the timer.
+   */
+  const togglePause = () => {
+    if (isPaused) {
+      // Resume
+      if (pauseStartRef.current) {
+        pausedTimeRef.current += Date.now() - pauseStartRef.current;
+        pauseStartRef.current = null;
+      }
+      // Unmute mic
+      if (streamRef.current) {
+        const audioTrack = streamRef.current.getAudioTracks()[0];
+        if (audioTrack) audioTrack.enabled = true;
+      }
+      setIsMuted(false);
+      setIsPaused(false);
+      toast.info('Session resumed');
+    } else {
+      // Pause
+      pauseStartRef.current = Date.now();
+      // Mute mic
+      if (streamRef.current) {
+        const audioTrack = streamRef.current.getAudioTracks()[0];
+        if (audioTrack) audioTrack.enabled = false;
+      }
+      setIsMuted(true);
+      // Cancel any in-progress AI response
+      if (dcRef.current?.readyState === 'open') {
+        dcRef.current.send(JSON.stringify({ type: 'response.cancel' }));
+      }
+      setIsPaused(true);
+      toast.info('Session paused');
     }
   };
 
@@ -626,10 +743,17 @@ export default function RoleplaySession() {
                 </Badge>
               )}
               
+              {isPaused && (
+                <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500/30 animate-pulse">
+                  <Pause className="h-3 w-3 mr-1" />
+                  Paused
+                </Badge>
+              )}
+              
               <Badge 
                 variant={status === 'connected' || status === 'listening' ? 'default' : 'secondary'}
                 className={cn(
-                  status === 'speaking' && 'bg-success animate-pulse',
+                  status === 'speaking' && !isPaused && 'bg-success animate-pulse',
                   status === 'connecting' && 'bg-warning'
                 )}
               >
@@ -807,13 +931,14 @@ export default function RoleplaySession() {
                     {/* Status text */}
                     <p className={cn(
                       "mt-2 text-muted-foreground transition-all",
-                      status === 'speaking' && 'text-primary font-medium'
+                      status === 'speaking' && 'text-primary font-medium',
+                      isPaused && 'text-amber-500 font-medium'
                     )}>
-                      {status === 'speaking' ? 'Speaking...' : 'Listening...'}
+                      {isPaused ? 'Paused' : status === 'speaking' ? 'Speaking...' : 'Listening...'}
                     </p>
                     
                     {/* Visual waveform when speaking */}
-                    {status === 'speaking' && (
+                    {status === 'speaking' && !isPaused && (
                       <div className="flex items-center gap-1 mt-4 h-8">
                         {[...Array(7)].map((_, i) => (
                           <div 
@@ -829,9 +954,10 @@ export default function RoleplaySession() {
                       </div>
                     )}
                     
-                    {/* Subtle indicator when listening */}
-                    {(status === 'connected' || status === 'listening') && (
+                    {/* Mic level indicator when listening */}
+                    {(status === 'connected' || status === 'listening') && !isPaused && (
                       <div className="flex items-center gap-2 mt-4 text-sm text-muted-foreground">
+                        <AudioLevelMeter stream={streamRef.current} isActive={!isMuted && !isPaused} />
                         <Mic className="h-4 w-4" />
                         <span>Your turn to speak</span>
                       </div>

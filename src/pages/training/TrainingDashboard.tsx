@@ -20,17 +20,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AppLayout } from '@/components/layout/AppLayout';
-
-interface Persona {
-  id: string;
-  name: string;
-  persona_type: string;
-  disc_profile: string | null;
-  difficulty_level: string;
-  industry: string | null;
-  backstory: string | null;
-  voice: string;
-}
+import type { PersonaBase } from '@/types/persona';
 
 interface SessionStats {
   total_sessions: number;
@@ -67,7 +57,7 @@ export default function TrainingDashboard() {
         .order('difficulty_level', { ascending: true });
       
       if (error) throw error;
-      return data as Persona[];
+      return data as PersonaBase[];
     },
   });
 

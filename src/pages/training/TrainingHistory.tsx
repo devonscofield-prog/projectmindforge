@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { gradeColors } from '@/constants/training';
 
 interface Session {
   id: string;
@@ -45,15 +46,6 @@ const statusIcons: Record<string, React.ReactNode> = {
   abandoned: <XCircle className="h-4 w-4 text-red-500" />,
   in_progress: <PlayCircle className="h-4 w-4 text-amber-500" />,
   pending: <Clock className="h-4 w-4 text-muted-foreground" />,
-};
-
-const gradeColors: Record<string, string> = {
-  'A+': 'bg-green-500 text-white',
-  'A': 'bg-green-500 text-white',
-  'B': 'bg-blue-500 text-white',
-  'C': 'bg-amber-500 text-white',
-  'D': 'bg-orange-500 text-white',
-  'F': 'bg-red-500 text-white',
 };
 
 export default function TrainingHistory() {
