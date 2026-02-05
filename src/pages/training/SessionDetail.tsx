@@ -24,11 +24,14 @@ import {
   Lock,
   RotateCcw,
   Loader2,
-  Sparkles
+  Sparkles,
+  Play
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { KeyMomentsSection } from '@/components/training/KeyMomentsSection';
+import { AppLayout } from '@/components/layout/AppLayout';
+import { gradeColors } from '@/constants/training';
 import type { Json } from '@/integrations/supabase/types';
 
 interface TranscriptEntry {
@@ -46,6 +49,7 @@ interface Session {
   ended_at: string | null;
   duration_seconds: number | null;
   created_at: string;
+  audio_recording_url: string | null;
   roleplay_personas: {
     id: string;
     name: string;
@@ -70,15 +74,6 @@ interface Session {
     raw_text: string | null;
   }>;
 }
-
-const gradeColors: Record<string, string> = {
-  'A+': 'bg-green-500 text-white',
-  'A': 'bg-green-500 text-white',
-  'B': 'bg-blue-500 text-white',
-  'C': 'bg-amber-500 text-white',
-  'D': 'bg-orange-500 text-white',
-  'F': 'bg-red-500 text-white',
-};
 
 // Default score categories (used when persona doesn't have custom criteria)
 const defaultScoreCategories = [
@@ -134,7 +129,7 @@ export default function SessionDetail() {
         .single();
       
       if (error) throw error;
-      return data as Session;
+      return data as unknown as Session;
     },
     enabled: !!sessionId && !!user?.id,
   });
@@ -165,31 +160,35 @@ export default function SessionDetail() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <div className="container mx-auto px-4 py-8 max-w-4xl">
-          <Skeleton className="h-8 w-48 mb-6" />
-          <Skeleton className="h-64 w-full mb-6" />
-          <Skeleton className="h-96 w-full" />
+      <AppLayout>
+        <div className="min-h-screen bg-background">
+          <div className="container mx-auto px-4 py-8 max-w-4xl">
+            <Skeleton className="h-8 w-48 mb-6" />
+            <Skeleton className="h-64 w-full mb-6" />
+            <Skeleton className="h-96 w-full" />
+          </div>
         </div>
-      </div>
+      </AppLayout>
     );
   }
 
   if (error || !session) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Card className="p-8 text-center max-w-md">
-          <AlertCircle className="h-12 w-12 mx-auto text-destructive mb-4" />
-          <h2 className="text-xl font-semibold mb-2">Session Not Found</h2>
-          <p className="text-muted-foreground mb-4">
-            This session doesn't exist or you don't have access to it.
-          </p>
-          <Button onClick={() => navigate('/training/history')}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to History
-          </Button>
-        </Card>
-      </div>
+      <AppLayout>
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <Card className="p-8 text-center max-w-md">
+            <AlertCircle className="h-12 w-12 mx-auto text-destructive mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Session Not Found</h2>
+            <p className="text-muted-foreground mb-4">
+              This session doesn't exist or you don't have access to it.
+            </p>
+            <Button onClick={() => navigate('/training/history')}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to History
+            </Button>
+          </Card>
+        </div>
+      </AppLayout>
     );
   }
 
@@ -247,6 +246,7 @@ export default function SessionDetail() {
     : defaultScoreCategories;
 
   return (
+    <AppLayout>
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         {/* Header */}
@@ -519,6 +519,23 @@ export default function SessionDetail() {
           </Card>
         )}
 
+        {/* Audio Recording Playback */}
+        {session.audio_recording_url && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Play className="h-5 w-5" />
+                Session Recording
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <audio controls className="w-full" src={session.audio_recording_url}>
+                Your browser does not support audio playback.
+              </audio>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Transcript */}
         {transcriptEntries.length > 0 && (
           <Card>
@@ -597,5 +614,6 @@ export default function SessionDetail() {
         )}
       </div>
     </div>
+    </AppLayout>
   );
 }

@@ -12,26 +12,12 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-interface Persona {
-  id: string;
-  name: string;
-  persona_type: string;
-  disc_profile: string | null;
-  difficulty_level: string;
-  industry: string | null;
-  backstory: string | null;
-  voice: string;
-  communication_style: Record<string, unknown> | null;
-  common_objections?: Array<{ objection: string; category: string; severity: string }>;
-  pain_points?: Array<{ pain: string; severity: string; visible: boolean }>;
-  dos_and_donts?: { dos: string[]; donts: string[] };
-}
+import type { PersonaClient } from '@/types/persona';
 
 type SessionType = 'discovery' | 'demo' | 'objection_handling' | 'negotiation';
 
 interface RoleplayBriefingProps {
-  persona: Persona;
+  persona: PersonaClient;
   sessionType: SessionType;
   onStart: () => void;
   onChangeSessionType: (type: SessionType) => void;

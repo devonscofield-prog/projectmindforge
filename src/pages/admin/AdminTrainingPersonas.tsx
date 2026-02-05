@@ -31,26 +31,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import type { Json } from '@/integrations/supabase/types';
-
-interface Persona {
-  id: string;
-  name: string;
-  persona_type: string;
-  disc_profile: string | null;
-  difficulty_level: string;
-  industry: string | null;
-  backstory: string | null;
-  voice: string;
-  is_active: boolean;
-  communication_style: Json | null;
-  common_objections: Json | null;
-  pain_points: Json | null;
-  dos_and_donts: Json | null;
-  grading_criteria: Json | null;
-  technical_environment: Json | null;
-  created_at: string;
-}
+import type { PersonaFull } from '@/types/persona';
 
 const difficultyColors: Record<string, string> = {
   easy: 'bg-green-500/10 text-green-600 border-green-500/30',
@@ -68,7 +49,7 @@ const discColors: Record<string, string> = {
 export default function AdminTrainingPersonas() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
+  const [selectedPersona, setSelectedPersona] = useState<PersonaFull | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [deletePersonaId, setDeletePersonaId] = useState<string | null>(null);
 
@@ -82,7 +63,7 @@ export default function AdminTrainingPersonas() {
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      return data as Persona[];
+      return data as PersonaFull[];
     },
   });
 
@@ -145,7 +126,7 @@ export default function AdminTrainingPersonas() {
     setIsFormOpen(true);
   };
 
-  const handleEdit = (persona: Persona) => {
+  const handleEdit = (persona: PersonaFull) => {
     setSelectedPersona(persona);
     setIsFormOpen(true);
   };
