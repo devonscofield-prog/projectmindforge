@@ -290,12 +290,8 @@ export default function RoleplaySession() {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
-      // Connect to OpenAI Realtime API
-      const baseUrl = 'https://api.openai.com/v1/realtime';
-      // Must match the model used in roleplay-session-manager edge function
-      const model = 'gpt-realtime-mini-2025-12-15';
-      
-      const response = await fetch(`${baseUrl}?model=${model}`, {
+      // Connect to OpenAI Realtime API (GA endpoint)
+      const response = await fetch('https://api.openai.com/v1/realtime/calls', {
         method: 'POST',
         body: offer.sdp,
         headers: {

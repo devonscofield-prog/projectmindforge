@@ -764,7 +764,7 @@ Do NOT:
 
       // Request ephemeral token from OpenAI Realtime API with latest model
       console.log('Requesting ephemeral token from OpenAI with latest realtime model...');
-      const openAIResponse = await fetch('https://api.openai.com/v1/realtime/sessions', {
+      const openAIResponse = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${openAIApiKey}`,
@@ -798,7 +798,7 @@ Do NOT:
 
       return new Response(JSON.stringify({
         sessionId: session.id,
-        ephemeralToken: openAIData.client_secret?.value,
+        ephemeralToken: openAIData.value,
         persona: {
           id: persona.id,
           name: persona.name,
