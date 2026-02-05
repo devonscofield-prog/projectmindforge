@@ -41,7 +41,7 @@ export async function listFollowUpsForProspect(
     .from('account_follow_ups')
     .select('*')
     .eq('prospect_id', prospectId)
-    .order('priority', { ascending: true }) // high, low, medium alphabetically - we'll sort in JS
+    .order('priority', { ascending: true })
     .order('created_at', { ascending: false });
 
   if (status) {
@@ -59,7 +59,6 @@ export async function listFollowUpsForProspect(
     throw error;
   }
 
-  // Sort by priority (high first, then medium, then low)
   const priorityOrder: Record<FollowUpPriority, number> = { high: 0, medium: 1, low: 2 };
   return (data || []).sort((a, b) => {
     const priorityDiff = priorityOrder[a.priority as FollowUpPriority] - priorityOrder[b.priority as FollowUpPriority];
@@ -68,9 +67,6 @@ export async function listFollowUpsForProspect(
   }) as AccountFollowUp[];
 }
 
-/**
- * Complete a follow-up
- */
 export async function completeFollowUp(followUpId: string): Promise<AccountFollowUp> {
   const { data, error } = await supabase
     .from('account_follow_ups')
@@ -90,9 +86,6 @@ export async function completeFollowUp(followUpId: string): Promise<AccountFollo
   return data as AccountFollowUp;
 }
 
-/**
- * Reopen a completed follow-up
- */
 export async function reopenFollowUp(followUpId: string): Promise<AccountFollowUp> {
   const { data, error } = await supabase
     .from('account_follow_ups')
@@ -112,9 +105,6 @@ export async function reopenFollowUp(followUpId: string): Promise<AccountFollowU
   return data as AccountFollowUp;
 }
 
-/**
- * Dismiss a follow-up (mark as not applicable)
- */
 export async function dismissFollowUp(followUpId: string): Promise<AccountFollowUp> {
   const { data, error } = await supabase
     .from('account_follow_ups')
@@ -133,9 +123,6 @@ export async function dismissFollowUp(followUpId: string): Promise<AccountFollow
   return data as AccountFollowUp;
 }
 
-/**
- * Restore a dismissed follow-up back to pending
- */
 export async function restoreFollowUp(followUpId: string): Promise<AccountFollowUp> {
   const { data, error } = await supabase
     .from('account_follow_ups')
@@ -154,9 +141,6 @@ export async function restoreFollowUp(followUpId: string): Promise<AccountFollow
   return data as AccountFollowUp;
 }
 
-/**
- * Trigger regeneration of follow-ups for a prospect
- */
 export async function refreshFollowUps(prospectId: string): Promise<{ success: boolean; count?: number; error?: string; isRateLimited?: boolean }> {
   const { data, error } = await supabase.functions.invoke('generate-account-follow-ups', {
     body: { prospect_id: prospectId }
@@ -164,13 +148,11 @@ export async function refreshFollowUps(prospectId: string): Promise<{ success: b
 
   if (error) {
     log.error('Error refreshing follow-ups', { prospectId, error });
-    // Check for rate limit in error message
     const isRateLimited = error.message?.toLowerCase().includes('rate limit') || 
                           error.message?.includes('429');
     return { success: false, error: error.message, isRateLimited };
   }
 
-  // Check if the response itself indicates rate limiting
   if (data?.error?.toLowerCase().includes('rate limit')) {
     return { success: false, error: data.error, isRateLimited: true };
   }
@@ -178,9 +160,6 @@ export async function refreshFollowUps(prospectId: string): Promise<{ success: b
   return data;
 }
 
-/**
- * Get the generation status for a prospect's follow-ups
- */
 export async function getFollowUpGenerationStatus(prospectId: string): Promise<{
   status: string | null;
   lastGeneratedAt: string | null;
@@ -211,7 +190,6 @@ export interface AccountFollowUpWithProspect extends AccountFollowUp {
  * List all pending follow-ups for a rep across all accounts
  */
 export async function listAllPendingFollowUpsForRep(repId: string): Promise<AccountFollowUpWithProspect[]> {
-  // Get all pending follow-ups
   const { data: followUps, error } = await supabase
     .from('account_follow_ups')
     .select('*')
@@ -228,10 +206,8 @@ export async function listAllPendingFollowUpsForRep(repId: string): Promise<Acco
     return [];
   }
 
-  // Get unique prospect IDs
   const prospectIds = [...new Set(followUps.map(f => f.prospect_id))];
 
-  // Fetch prospect details
   const { data: prospects } = await supabase
     .from('prospects')
     .select('id, prospect_name, account_name')
@@ -242,7 +218,6 @@ export async function listAllPendingFollowUpsForRep(repId: string): Promise<Acco
     return acc;
   }, {} as Record<string, { prospect_name: string; account_name: string | null }>);
 
-  // Sort by priority (high first, then medium, then low), then by due date
   const priorityOrder: Record<FollowUpPriority, number> = { high: 0, medium: 1, low: 2 };
   
   return followUps.map(f => ({
@@ -250,7 +225,6 @@ export async function listAllPendingFollowUpsForRep(repId: string): Promise<Acco
     prospect_name: prospectMap[f.prospect_id]?.prospect_name,
     account_name: prospectMap[f.prospect_id]?.account_name || undefined,
   })).sort((a, b) => {
-    // First sort by due date (overdue first, then upcoming, then no date)
     const aHasDue = !!a.due_date;
     const bHasDue = !!b.due_date;
     if (aHasDue && !bHasDue) return -1;
@@ -259,7 +233,6 @@ export async function listAllPendingFollowUpsForRep(repId: string): Promise<Acco
       const dateDiff = new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime();
       if (dateDiff !== 0) return dateDiff;
     }
-    // Then by priority
     const priorityDiff = priorityOrder[a.priority as FollowUpPriority] - priorityOrder[b.priority as FollowUpPriority];
     if (priorityDiff !== 0) return priorityDiff;
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
@@ -268,10 +241,8 @@ export async function listAllPendingFollowUpsForRep(repId: string): Promise<Acco
 
 /**
  * List pending follow-ups that the rep manually created (not AI-generated)
- * Used for the Rep Dashboard "My Scheduled Tasks" widget
  */
 export async function listManualPendingFollowUpsForRep(repId: string): Promise<AccountFollowUpWithProspect[]> {
-  // Get manual pending follow-ups only
   const { data: followUps, error } = await supabase
     .from('account_follow_ups')
     .select('*')
@@ -289,10 +260,8 @@ export async function listManualPendingFollowUpsForRep(repId: string): Promise<A
     return [];
   }
 
-  // Get unique prospect IDs
   const prospectIds = [...new Set(followUps.map(f => f.prospect_id))];
 
-  // Fetch prospect details
   const { data: prospects } = await supabase
     .from('prospects')
     .select('id, prospect_name, account_name')
@@ -303,7 +272,6 @@ export async function listManualPendingFollowUpsForRep(repId: string): Promise<A
     return acc;
   }, {} as Record<string, { prospect_name: string; account_name: string | null }>);
 
-  // Sort by priority (high first, then medium, then low), then by due date
   const priorityOrder: Record<FollowUpPriority, number> = { high: 0, medium: 1, low: 2 };
   
   return followUps.map(f => ({
@@ -311,7 +279,6 @@ export async function listManualPendingFollowUpsForRep(repId: string): Promise<A
     prospect_name: prospectMap[f.prospect_id]?.prospect_name,
     account_name: prospectMap[f.prospect_id]?.account_name || undefined,
   })).sort((a, b) => {
-    // First sort by due date (overdue first, then upcoming, then no date)
     const aHasDue = !!a.due_date;
     const bHasDue = !!b.due_date;
     if (aHasDue && !bHasDue) return -1;
@@ -320,7 +287,6 @@ export async function listManualPendingFollowUpsForRep(repId: string): Promise<A
       const dateDiff = new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime();
       if (dateDiff !== 0) return dateDiff;
     }
-    // Then by priority
     const priorityDiff = priorityOrder[a.priority as FollowUpPriority] - priorityOrder[b.priority as FollowUpPriority];
     if (priorityDiff !== 0) return priorityDiff;
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
@@ -371,9 +337,6 @@ export async function createManualFollowUp(params: CreateManualFollowUpParams): 
   return data as AccountFollowUp;
 }
 
-/**
- * Create multiple manual follow-up tasks at once
- */
 export async function createManualFollowUps(tasks: CreateManualFollowUpParams[]): Promise<AccountFollowUp[]> {
   if (tasks.length === 0) return [];
   
@@ -405,9 +368,6 @@ export async function createManualFollowUps(tasks: CreateManualFollowUpParams[])
   return (data || []) as AccountFollowUp[];
 }
 
-/**
- * Update due date and reminder settings for a follow-up
- */
 export async function updateFollowUpReminder(
   followUpId: string,
   dueDate: string | null,
@@ -418,7 +378,7 @@ export async function updateFollowUpReminder(
     .update({
       due_date: dueDate,
       reminder_enabled: reminderEnabled,
-      reminder_sent_at: null, // Reset when reminder settings change
+      reminder_sent_at: null,
     })
     .eq('id', followUpId)
     .select()
@@ -430,4 +390,91 @@ export async function updateFollowUpReminder(
   }
 
   return data as AccountFollowUp;
+}
+
+/**
+ * General-purpose update for a follow-up task
+ */
+export interface UpdateFollowUpParams {
+  title?: string;
+  description?: string | null;
+  priority?: FollowUpPriority;
+  category?: FollowUpCategory | null;
+  due_date?: string | null;
+  reminder_enabled?: boolean;
+  reminder_time?: string | null;
+}
+
+export async function updateFollowUp(followUpId: string, fields: UpdateFollowUpParams): Promise<AccountFollowUp> {
+  const updateData: Record<string, unknown> = {};
+  
+  if (fields.title !== undefined) updateData.title = fields.title;
+  if (fields.description !== undefined) updateData.description = fields.description;
+  if (fields.priority !== undefined) updateData.priority = fields.priority;
+  if (fields.category !== undefined) updateData.category = fields.category;
+  if (fields.due_date !== undefined) updateData.due_date = fields.due_date;
+  if (fields.reminder_enabled !== undefined) updateData.reminder_enabled = fields.reminder_enabled;
+  if (fields.reminder_time !== undefined) updateData.reminder_time = fields.reminder_time;
+  
+  // Reset reminder_sent_at if reminder settings change
+  if (fields.due_date !== undefined || fields.reminder_enabled !== undefined || fields.reminder_time !== undefined) {
+    updateData.reminder_sent_at = null;
+  }
+
+  const { data, error } = await supabase
+    .from('account_follow_ups')
+    .update(updateData)
+    .eq('id', followUpId)
+    .select()
+    .single();
+
+  if (error) {
+    log.error('Error updating follow-up', { followUpId, error });
+    throw error;
+  }
+
+  return data as AccountFollowUp;
+}
+
+/**
+ * List all follow-ups for a rep filtered by status, with prospect details joined
+ */
+export async function listAllFollowUpsForRepByStatus(
+  repId: string, 
+  status: FollowUpStatus
+): Promise<AccountFollowUpWithProspect[]> {
+  const { data: followUps, error } = await supabase
+    .from('account_follow_ups')
+    .select('*')
+    .eq('rep_id', repId)
+    .eq('status', status)
+    .eq('source', 'manual')
+    .order('updated_at', { ascending: false });
+
+  if (error) {
+    log.error('Error fetching follow-ups by status', { repId, status, error });
+    throw error;
+  }
+
+  if (!followUps || followUps.length === 0) {
+    return [];
+  }
+
+  const prospectIds = [...new Set(followUps.map(f => f.prospect_id))];
+
+  const { data: prospects } = await supabase
+    .from('prospects')
+    .select('id, prospect_name, account_name')
+    .in('id', prospectIds);
+
+  const prospectMap = (prospects || []).reduce((acc, p) => {
+    acc[p.id] = p;
+    return acc;
+  }, {} as Record<string, { prospect_name: string; account_name: string | null }>);
+
+  return followUps.map(f => ({
+    ...f,
+    prospect_name: prospectMap[f.prospect_id]?.prospect_name,
+    account_name: prospectMap[f.prospect_id]?.account_name || undefined,
+  })) as AccountFollowUpWithProspect[];
 }

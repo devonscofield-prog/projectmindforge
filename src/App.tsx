@@ -27,6 +27,7 @@ const RepCallHistory = lazy(() => import("./pages/rep/RepCallHistory"));
 const RepProspects = lazy(() => import("./pages/rep/RepProspects"));
 const ProspectDetail = lazy(() => import("./pages/rep/ProspectDetail"));
 const RepCoachingSummary = lazy(() => import("./pages/rep/RepCoachingSummary"));
+const RepTasks = lazy(() => import("./pages/rep/RepTasks"));
 
 // Lazy load - Manager pages
 const ManagerDashboard = lazy(() => import("./pages/manager/ManagerDashboard"));
@@ -120,6 +121,11 @@ const App = () => (
                 <Route path="/rep/prospects/:id" element={
                   <ProtectedRoute allowedRoles={['rep', 'manager', 'admin']}>
                     <ProspectDetail />
+                  </ProtectedRoute>
+                } />
+                <Route path="/rep/tasks" element={
+                  <ProtectedRoute allowedRoles={['rep']}>
+                    <RepTasks />
                   </ProtectedRoute>
                 } />
                 <Route path="/rep/coaching-summary/:repId" element={

@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
-import { Mic, History, UserCheck, LayoutDashboard, MessageSquare, TrendingUp, FileText, GraduationCap } from 'lucide-react';
+import { Mic, History, UserCheck, LayoutDashboard, MessageSquare, TrendingUp, FileText, GraduationCap, Target } from 'lucide-react';
 
 export function MobileBottomNav() {
   const { role } = useAuth();
@@ -28,7 +28,7 @@ export function MobileBottomNav() {
       ]
     : [
         { href: '/rep', label: 'New Call', icon: Mic },
-        { href: '/rep/history', label: 'History', icon: History },
+        { href: '/rep/tasks', label: 'Tasks', icon: Target },
         { href: '/rep/prospects', label: 'Accounts', icon: UserCheck },
       ];
 
