@@ -19,6 +19,7 @@ import {
   useToggleAutoCreate,
   useUpdateTaskTemplate,
   useDeleteTaskTemplate,
+  useReorderTaskTemplates,
 } from '@/hooks/useTaskTemplates';
 import { TaskTemplateRow } from './TaskTemplateRow';
 import { AddTaskTemplateDialog } from './AddTaskTemplateDialog';
@@ -34,13 +35,24 @@ export function TaskTemplatesSection() {
   const toggleAutoCreate = useToggleAutoCreate();
   const updateTemplate = useUpdateTaskTemplate();
   const deleteTemplate = useDeleteTaskTemplate();
-
+  const reorderTemplates = useReorderTaskTemplates();
   const isLoading = templatesLoading || settingLoading;
 
   const handleConfirmDelete = () => {
     if (!confirmDeleteId) return;
     deleteTemplate.mutate(confirmDeleteId);
     setConfirmDeleteId(null);
+  };
+
+  const handleMove = (index: number, direction: 'up' | 'down') => {
+    const swapIndex = direction === 'up' ? index - 1 : index + 1;
+    if (swapIndex < 0 || swapIndex >= templates.length) return;
+    const a = templates[index];
+    const b = templates[swapIndex];
+    reorderTemplates.mutate([
+      { id: a.id, sort_order: b.sort_order },
+      { id: b.id, sort_order: a.sort_order },
+    ]);
   };
 
   return (
@@ -86,7 +98,7 @@ export function TaskTemplatesSection() {
         </div>
       ) : (
         <div className="space-y-2">
-          {templates.map(t => (
+          {templates.map((t, idx) => (
             <TaskTemplateRow
               key={t.id}
               template={t}
@@ -95,6 +107,10 @@ export function TaskTemplatesSection() {
               }
               onEdit={(template) => setEditTemplate(template)}
               onDelete={(id) => setConfirmDeleteId(id)}
+              onMoveUp={() => handleMove(idx, 'up')}
+              onMoveDown={() => handleMove(idx, 'down')}
+              isFirst={idx === 0}
+              isLast={idx === templates.length - 1}
               isDeleting={deleteTemplate.isPending && deleteTemplate.variables === t.id}
               isToggling={updateTemplate.isPending && updateTemplate.variables?.id === t.id}
             />
