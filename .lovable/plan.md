@@ -1,142 +1,51 @@
 
-# Roleplay System Improvements
+# Fix: Mass Edge Function Deployment Failure
 
-## Overview
-This plan addresses 10 items across security, code quality, and missing features in the Sales Roleplay system.
+## Problem
+Almost ALL edge functions (41 of 43) are returning 404 (not deployed). Only `trigger-pending-analyses` and `roleplay-session-manager` survived the recent bulk import standardization changes. This means core features like call submission, analysis, coaching, admin operations, and more are completely broken for all users.
 
----
+Ben Martin's error was caused by hitting one of these undeployed functions.
 
-## Security Fixes
+## Root Cause
+The recent batch edit that standardized imports across 44+ files triggered a mass redeployment. The bundler timed out trying to process all functions simultaneously, leaving most functions undeployed.
 
-### 7. Ephemeral Token TTL -- Document/Verify Scope and Expiration
-The OpenAI Realtime API's `client_secrets` endpoint returns ephemeral tokens with a default 60-second TTL. Currently, the code doesn't document this or handle expiration gracefully.
+## Fix: Force Redeploy All Functions
 
-**Changes:**
-- Add inline documentation in `roleplay-session-manager/index.ts` explaining the token scope (single WebRTC handshake) and ~60s expiration
-- Add a client-side timeout in `RoleplaySession.tsx` that shows an error if the WebRTC handshake hasn't completed within 30 seconds of receiving the token, prompting the user to retry
+The code is correct -- bare imports match the centralized `deno.json` import map. The functions just need to be redeployed. This will be done in batches to avoid overwhelming the bundler:
 
-### 8. Rate Limiting on Session Creation
-No rate limiting exists on `create-session`, allowing potential API credit abuse.
+### Batch 1 -- Critical User-Facing Functions
+`submit-call-transcript`, `analyze-call`, `seed-demo-data`, `reanalyze-call`, `bulk-upload-transcripts`
 
-**Changes:**
-- Add in-memory rate limiting in `roleplay-session-manager/index.ts` (similar to the pattern already used in `reset-database`)
-- Limit: 5 sessions per user per hour (sliding window)
-- Return 429 status with `Retry-After` header when exceeded
-- Add client-side handling in `RoleplaySession.tsx` to display a user-friendly message when rate limited
+### Batch 2 -- AI/Analysis Functions
+`sales-coach-chat`, `sales-assistant-chat`, `admin-transcript-chat`, `chunk-transcripts`, `generate-call-follow-up-suggestions`
 
-### 9. Auth Check (Already Fixed)
-Noted as fixed as part of fix 6 -- no action needed.
+### Batch 3 -- Account & Coaching Functions
+`account-research`, `competitor-research`, `generate-account-follow-ups`, `regenerate-account-insights`, `calculate-deal-heat`, `calculate-account-heat`
 
----
+### Batch 4 -- Coaching & Training
+`generate-coaching-trends`, `generate-coaching-chunk-summary`, `generate-aggregate-coaching-trends`, `roleplay-grade-session`, `roleplay-abandon-session`, `generate-agreed-next-steps`
 
-## Code Quality / Maintenance
+### Batch 5 -- Admin & Auth Functions
+`invite-user`, `delete-user`, `reset-user-password`, `admin-reset-mfa`, `reset-database`, `reset-test-passwords`, `set-user-password`
 
-### 17. Extract Shared Persona Interface
-The `Persona` interface is duplicated across 5 files with slight variations.
+### Batch 6 -- Password Reset & Performance
+`generate-password-reset-otp`, `verify-password-reset-otp`, `complete-password-reset`, `check-performance-alerts`, `send-performance-alert`, `analyze-performance`
 
-**Changes:**
-- Create `src/types/persona.ts` with two variants:
-  - `PersonaBase` -- the common subset (id, name, persona_type, disc_profile, difficulty_level, industry, backstory, voice)
-  - `PersonaFull` -- extends base with admin fields (is_active, communication_style as Json, common_objections as Json, etc.)
-  - `PersonaClient` -- the typed version used in RoleplaySession/RoleplayBriefing with parsed fields
-- Update imports in: `RoleplaySession.tsx`, `RoleplayBriefing.tsx`, `TrainingDashboard.tsx`, `AdminTrainingPersonas.tsx`, `PersonaFormDialog.tsx`
+### Batch 7 -- Remaining Functions
+`edit-recap-email`, `generate-sales-assets`, `scrape-product-knowledge`, `process-product-knowledge`, `upload-product-knowledge`, `send-task-reminders`, `cleanup-stuck-sessions`
 
-### 18. Extract Shared gradeColors Map
-The `gradeColors` map is duplicated identically in 3 files (TrainingHistory, SessionDetail, RoleplayPostSession). A 4th variant exists in `coach-grade-badge.tsx` with different styling.
+## Secondary Fix: Update CORS Headers
 
-**Changes:**
-- Create `src/constants/training.ts` with exported `gradeColors` (the `bg-X text-white` variant used in 3 files)
-- Update imports in: `TrainingHistory.tsx`, `SessionDetail.tsx`, `RoleplayPostSession.tsx`
-- Leave `coach-grade-badge.tsx` as-is since it uses a different style pattern (border-based)
+All 41 functions use the old short CORS `Access-Control-Allow-Headers` list. The Supabase client now sends additional headers that should be allowed. Each function's CORS headers will be updated to include the expanded set:
 
-### 19. Break Up 526-line buildPersonaSystemPrompt
-The function is a single monolithic string concatenation spanning lines 99-625.
+```
+authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version
+```
 
-**Changes:**
-- Split into composable builder functions within the same file (keeping edge function single-file requirement):
-  - `buildDiscBehaviorSection(persona)` -- DISC profile instructions
-  - `buildOpeningMoodSection(commStyle)` -- randomized mood selection
-  - `buildResponseDepthSection()` -- discovery ladder rules
-  - `buildGuardModeSection()` -- initial guarded behavior
-  - `buildPainPointRevealSection(persona)` -- pain point progressive disclosure
-  - `buildSessionTypeSection(sessionType, screenShareEnabled)` -- session-specific instructions
-  - `buildVisionSection(screenShareEnabled)` -- screen sharing instructions
-  - `buildGradingCriteriaSection(persona)` -- success criteria and negative triggers
-  - `buildAbsoluteRulesSection(persona)` -- never-break rules
-- Main `buildPersonaSystemPrompt` becomes a simple orchestrator calling these functions and joining results
+This will be done during the redeploy by making a small touch-edit to each function's CORS headers.
 
-### 20. SessionDetail Missing AppLayout Wrapper
-`SessionDetail.tsx` renders without `AppLayout`, making navigation inconsistent with all other training pages.
+## Verification
+After each batch deploys, the function will be tested with a curl call to confirm it responds (even if with 401/400 -- anything other than 404 means it's deployed).
 
-**Changes:**
-- Import `AppLayout` and wrap the component's return JSX
-- Wrap loading and error states as well
-
----
-
-## Missing Features
-
-### 21. Pause/Resume Capability During Sessions
-Allow users to temporarily pause the mic and AI interaction during a session (e.g., to take a note or handle an interruption).
-
-**Changes in `RoleplaySession.tsx`:**
-- Add `isPaused` state
-- When paused: mute the mic, send a `response.cancel` event via data channel, show a "Paused" overlay on the call card
-- Pause the elapsed timer (adjust `callStartTimeRef` to exclude paused time)
-- Add a Pause/Resume button in the call controls bar (using `Pause`/`Play` icons from lucide)
-- "Paused" status badge and visual overlay
-
-### 22. Audio Recording (DB Column Exists But Unused)
-The database has an `audio_recording_url` column on `roleplay_sessions` but no recording is captured.
-
-**Changes:**
-- In `RoleplaySession.tsx`, use `MediaRecorder` API to record the user's mic stream when the session starts
-- On session end, upload the audio blob to storage via the Supabase storage bucket
-- Update the `end-session` handler in `roleplay-session-manager` to save the storage URL to `audio_recording_url`
-- Add a playback button in `SessionDetail.tsx` when `audio_recording_url` is present
-- Create a `roleplay-recordings` storage bucket with appropriate RLS
-
-### 24. Real-Time Mic Audio Level Indicator
-Show the user a visual indicator of their microphone input level during active calls.
-
-**Changes in `RoleplaySession.tsx`:**
-- Create an `AudioLevelMeter` component using `AnalyserNode` from Web Audio API
-- Connect it to the user's mic stream when the call starts
-- Display as a small animated bar/arc near the mic button or in the status area
-- Shows the user their mic is picking up audio (useful feedback for "am I being heard?")
-
----
-
-## Files to Create
-
-| File | Purpose |
-|------|---------|
-| `src/types/persona.ts` | Shared Persona type definitions |
-| `src/constants/training.ts` | Shared gradeColors and other training constants |
-| `src/components/training/AudioLevelMeter.tsx` | Real-time mic level visualizer |
-
-## Files to Modify
-
-| File | Changes |
-|------|---------|
-| `supabase/functions/roleplay-session-manager/index.ts` | Rate limiting, token TTL docs, prompt refactor into composable parts, storage URL on end-session |
-| `src/pages/training/RoleplaySession.tsx` | Pause/resume, audio recording, mic level indicator, rate limit handling, token timeout |
-| `src/pages/training/SessionDetail.tsx` | Add AppLayout wrapper, audio playback button, import shared gradeColors |
-| `src/pages/training/TrainingHistory.tsx` | Import shared gradeColors |
-| `src/pages/training/TrainingDashboard.tsx` | Import shared Persona type |
-| `src/components/training/RoleplayPostSession.tsx` | Import shared gradeColors |
-| `src/components/training/RoleplayBriefing.tsx` | Import shared Persona type |
-| `src/pages/admin/AdminTrainingPersonas.tsx` | Import shared Persona type |
-| `src/components/admin/PersonaFormDialog.tsx` | Import shared Persona type |
-
-## Implementation Sequence
-
-1. Create shared types and constants files (17, 18)
-2. Update all imports to use shared types/constants
-3. Refactor `buildPersonaSystemPrompt` into composable parts (19)
-4. Add rate limiting to session creation (8)
-5. Add token TTL documentation and client-side timeout (7)
-6. Wrap SessionDetail in AppLayout (20)
-7. Implement pause/resume capability (21)
-8. Implement audio recording with storage (22)
-9. Add mic audio level indicator (24)
+## Files Modified
+All 41 edge function `index.ts` files will have their CORS headers updated. No logic changes.
