@@ -8,18 +8,29 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { 
-  Mic, 
-  MicOff, 
-  Phone, 
-  PhoneOff, 
+import {
+  Mic,
+  MicOff,
+  Phone,
+  PhoneOff,
   Volume2,
   Bot,
   Loader2,
   ArrowLeft,
   Clock,
   AlertCircle,
+  AlertTriangle,
   Monitor,
   MonitorOff
 } from 'lucide-react';
@@ -67,7 +78,8 @@ export default function RoleplaySession() {
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [sessionType, setSessionType] = useState<'discovery' | 'demo' | 'objection_handling' | 'negotiation'>('discovery');
   const [scenarioPrompt, setScenarioPrompt] = useState('');
-  
+  const [showEndConfirm, setShowEndConfirm] = useState(false);
+
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
@@ -80,6 +92,12 @@ export default function RoleplaySession() {
   // Use refs for sessionId and status to avoid stale closures in cleanup/beforeunload
   const sessionIdRef = useRef<string | null>(null);
   const statusRef = useRef<SessionStatus>('briefing');
+  // Timestamp when the active call started (for drift-free elapsed time)
+  const callStartTimeRef = useRef<number | null>(null);
+  // Track whether duration warnings have been shown
+  const durationWarningShownRef = useRef(false);
+  // Ref to endSession so the timer can call it without stale closures
+  const endSessionRef = useRef<() => void>(() => {});
 
   // Fetch persona details with extended fields
   const { data: persona, isLoading: personaLoading } = useQuery({
@@ -116,11 +134,34 @@ export default function RoleplaySession() {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [transcript, currentTranscript]);
 
-  // Timer effect
+  // Maximum session duration in seconds (30 minutes)
+  const MAX_SESSION_SECONDS = 30 * 60;
+  // Warning threshold (25 minutes)
+  const WARN_SESSION_SECONDS = 25 * 60;
+
+  // Drift-free timer using Date.now() instead of incrementing a counter.
+  // Also enforces max session duration with a warning at 25 min and auto-end at 30 min.
   useEffect(() => {
-    if (status === 'connected' || status === 'speaking' || status === 'listening') {
+    const isActive = status === 'connected' || status === 'speaking' || status === 'listening';
+    if (isActive) {
+      if (callStartTimeRef.current === null) {
+        callStartTimeRef.current = Date.now();
+      }
       timerRef.current = setInterval(() => {
-        setElapsedSeconds(prev => prev + 1);
+        const elapsed = Math.floor((Date.now() - callStartTimeRef.current!) / 1000);
+        setElapsedSeconds(elapsed);
+
+        // Show warning at 25 minutes
+        if (elapsed >= WARN_SESSION_SECONDS && !durationWarningShownRef.current) {
+          durationWarningShownRef.current = true;
+          toast.warning('5 minutes remaining. The session will auto-end at 30 minutes.');
+        }
+
+        // Auto-end at 30 minutes
+        if (elapsed >= MAX_SESSION_SECONDS) {
+          toast.info('Maximum session duration reached. Ending call.');
+          endSessionRef.current();
+        }
       }, 1000);
     } else {
       if (timerRef.current) {
@@ -130,6 +171,7 @@ export default function RoleplaySession() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
   const formatTime = (seconds: number) => {
@@ -246,6 +288,36 @@ export default function RoleplaySession() {
       pc.ontrack = (e) => {
         console.log('Received remote track');
         audioEl.srcObject = e.streams[0];
+      };
+
+      // Monitor WebRTC connection state for disconnections (Fix 13)
+      pc.onconnectionstatechange = () => {
+        const state = pc.connectionState;
+        console.log('WebRTC connection state:', state);
+        if (state === 'disconnected') {
+          toast.warning('Connection unstable. Attempting to reconnect...');
+        } else if (state === 'failed') {
+          toast.error('Connection lost. Please end the call and try again.');
+        }
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        const state = pc.iceConnectionState;
+        console.log('ICE connection state:', state);
+        if (state === 'disconnected') {
+          toast.warning('Network connection interrupted. Waiting for recovery...');
+        } else if (state === 'failed') {
+          toast.error('Network connection failed. The call may not recover — consider ending and restarting.');
+        }
+      };
+
+      // Surface ICE candidate errors for connectivity diagnostics (Fix 14)
+      pc.onicecandidateerror = (event) => {
+        console.warn('ICE candidate error:', event);
+        // Only surface to user if it's a meaningful failure (error code 701 = TURN allocation failure)
+        if ((event as RTCPeerConnectionIceErrorEvent).errorCode === 701) {
+          toast.warning('Network connectivity issue detected. The call may have trouble connecting.');
+        }
       };
 
       // Add local audio track
@@ -454,6 +526,9 @@ export default function RoleplaySession() {
     setStatus('ended');
     toast.success('Session completed! Your performance is being evaluated.');
   };
+
+  // Keep endSessionRef in sync so the timer can call it without stale closures
+  endSessionRef.current = endSession;
 
   const toggleMute = () => {
     if (streamRef.current) {
@@ -830,11 +905,11 @@ export default function RoleplaySession() {
                     {isMuted ? 'Unmute' : 'Mute'}
                   </Button>
                   
-                  <Button 
-                    size="lg" 
+                  <Button
+                    size="lg"
                     variant="destructive"
                     className="gap-2 px-8"
-                    onClick={endSession}
+                    onClick={() => setShowEndConfirm(true)}
                   >
                     <PhoneOff className="h-5 w-5" />
                     End Call
@@ -864,10 +939,36 @@ export default function RoleplaySession() {
               setSessionId(null);
               setTranscript([]);
               setElapsedSeconds(0);
+              callStartTimeRef.current = null;
+              durationWarningShownRef.current = false;
             }}
             onBackToTraining={() => navigate('/training')}
           />
         )}
+
+        {/* End Call Confirmation Dialog */}
+        <AlertDialog open={showEndConfirm} onOpenChange={setShowEndConfirm}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-destructive" />
+                End this call?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                This will end your practice session with {persona.name} and submit it for grading. You cannot resume a session once ended.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Continue Call</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={endSession}
+              >
+                End Call
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
         </div>
       </div>
     </AppLayout>

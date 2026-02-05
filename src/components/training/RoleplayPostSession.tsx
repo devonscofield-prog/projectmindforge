@@ -1,21 +1,26 @@
-import { useQuery } from '@tanstack/react-query';
+import { useRef } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { 
-  Star, 
-  Clock, 
-  ArrowRight, 
-  RefreshCw, 
-  Check, 
+import {
+  Star,
+  Clock,
+  ArrowRight,
+  RefreshCw,
+  Check,
   TrendingUp,
   AlertCircle,
-  Loader2
+  Loader2,
+  RotateCcw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Json } from '@/integrations/supabase/types';
+
+// Maximum number of poll attempts before showing timeout (30 * 2s = 60 seconds)
+const MAX_POLL_ATTEMPTS = 30;
 
 interface RoleplayPostSessionProps {
   sessionId: string;
@@ -53,26 +58,39 @@ export function RoleplayPostSession({
   onNewSession,
   onBackToTraining,
 }: RoleplayPostSessionProps) {
-  // Poll for grade with refetch interval
+  const queryClient = useQueryClient();
+  const pollCountRef = useRef(0);
+
+  // Poll for grade with refetch interval and timeout
   const { data: grade, isLoading } = useQuery({
     queryKey: ['roleplay-grade', sessionId],
     queryFn: async () => {
+      pollCountRef.current += 1;
       const { data, error } = await supabase
         .from('roleplay_grades')
         .select('id, overall_grade, scores, feedback, focus_areas, coaching_prescription, feedback_visibility')
         .eq('session_id', sessionId)
         .maybeSingle();
-      
+
       if (error) throw error;
       return data as GradeData | null;
     },
     refetchInterval: (query) => {
       // Stop polling once we have a grade
       if (query.state.data?.overall_grade) return false;
+      // Stop polling after max attempts
+      if (pollCountRef.current >= MAX_POLL_ATTEMPTS) return false;
       return 2000; // Poll every 2 seconds
     },
     enabled: !!sessionId,
   });
+
+  const gradingTimedOut = !grade?.overall_grade && pollCountRef.current >= MAX_POLL_ATTEMPTS;
+
+  const retryGradingPoll = () => {
+    pollCountRef.current = 0;
+    queryClient.invalidateQueries({ queryKey: ['roleplay-grade', sessionId] });
+  };
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -112,16 +130,10 @@ export function RoleplayPostSession({
         
         <Card>
           <CardContent className="p-4 text-center">
-            {isLoading || !grade?.overall_grade ? (
-              <>
-                <Loader2 className="h-5 w-5 mx-auto text-muted-foreground mb-2 animate-spin" />
-                <p className="text-lg font-medium text-muted-foreground">Grading...</p>
-                <p className="text-sm text-muted-foreground">Please wait</p>
-              </>
-            ) : (
+            {grade?.overall_grade ? (
               <>
                 <Star className="h-5 w-5 mx-auto text-primary mb-2" />
-                <Badge 
+                <Badge
                   className={cn(
                     "text-xl px-4 py-1 font-bold",
                     gradeColors[grade.overall_grade] || 'bg-secondary'
@@ -130,6 +142,26 @@ export function RoleplayPostSession({
                   {grade.overall_grade}
                 </Badge>
                 <p className="text-sm text-muted-foreground mt-1">Overall Grade</p>
+              </>
+            ) : gradingTimedOut ? (
+              <>
+                <AlertCircle className="h-5 w-5 mx-auto text-amber-500 mb-2" />
+                <p className="text-sm font-medium text-muted-foreground">Grading is taking longer than expected</p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mt-2 gap-1"
+                  onClick={retryGradingPoll}
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  Check Again
+                </Button>
+              </>
+            ) : (
+              <>
+                <Loader2 className="h-5 w-5 mx-auto text-muted-foreground mb-2 animate-spin" />
+                <p className="text-lg font-medium text-muted-foreground">Grading...</p>
+                <p className="text-sm text-muted-foreground">Please wait</p>
               </>
             )}
           </CardContent>
@@ -222,12 +254,12 @@ export function RoleplayPostSession({
           <RefreshCw className="h-4 w-4" />
           Practice Again
         </Button>
-        <Button 
+        <Button
           className="flex-1 gap-2"
           onClick={onViewDetails}
-          disabled={!grade?.overall_grade}
+          disabled={!grade?.overall_grade && !gradingTimedOut}
         >
-          View Full Feedback
+          {gradingTimedOut && !grade?.overall_grade ? 'View Session' : 'View Full Feedback'}
           <ArrowRight className="h-4 w-4" />
         </Button>
       </div>
