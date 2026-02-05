@@ -5,7 +5,7 @@
  * Adding a new agent = adding one object to this registry.
  */
 
-import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
+import { z } from "zod";
 import {
   CensusSchema,
   HistorianSchema,

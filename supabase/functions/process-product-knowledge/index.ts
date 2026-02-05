@@ -5,7 +5,7 @@
  * Extracts topics and product mentions using AI for enhanced filtering.
  */
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "@supabase/supabase-js";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',

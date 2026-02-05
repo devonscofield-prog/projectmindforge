@@ -1,4 +1,4 @@
-import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
+import { z } from "zod";
 import { validateSignedRequest } from "../_shared/hmac.ts";
 
 // CORS: Restrict to production domains

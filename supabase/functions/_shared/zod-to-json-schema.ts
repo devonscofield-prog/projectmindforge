@@ -5,7 +5,7 @@
  * This eliminates the need to maintain duplicate schemas.
  */
 
-import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
+import { z } from "zod";
 
 type JsonSchemaType = {
   type?: string;
