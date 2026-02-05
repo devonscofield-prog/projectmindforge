@@ -4,7 +4,7 @@
  * Handles AI calling, validation, logging, and error handling for any agent.
  */
 
-import { z } from "npm:zod@3.23.8";
+import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
 import { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { AgentConfig } from './agent-registry.ts';
 import { createToolFromSchema } from './zod-to-json-schema.ts';
