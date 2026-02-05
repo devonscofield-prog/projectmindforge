@@ -7,6 +7,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SwipeableCard } from '@/components/ui/swipeable-card';
@@ -14,6 +15,8 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useCompleteFollowUp, useDismissFollowUp, useRestoreFollowUp, useReopenFollowUp } from '@/hooks/useFollowUpMutations';
 import { EditTaskDialog } from '@/components/tasks/EditTaskDialog';
 import { StandaloneTaskDialog } from '@/components/tasks/StandaloneTaskDialog';
+import { BulkActionBar } from '@/components/tasks/BulkActionBar';
+import { BulkRescheduleDialog } from '@/components/tasks/BulkRescheduleDialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,9 +43,14 @@ import {
   Inbox,
 } from 'lucide-react';
 import { format, isToday, isTomorrow, isPast, parseISO } from 'date-fns';
+import { toast } from 'sonner';
+
 import {
   listManualPendingFollowUpsForRep,
   listAllFollowUpsForRepByStatus,
+  bulkCompleteFollowUps,
+  bulkDismissFollowUps,
+  bulkRescheduleFollowUps,
   type AccountFollowUpWithProspect,
   type FollowUpPriority,
   type FollowUpCategory,
@@ -78,6 +86,10 @@ function RepTasks() {
   const [confirmDismissItem, setConfirmDismissItem] = useState<AccountFollowUpWithProspect | null>(null);
   const [editTask, setEditTask] = useState<AccountFollowUpWithProspect | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showBulkReschedule, setShowBulkReschedule] = useState(false);
+  const [confirmBulkDismiss, setConfirmBulkDismiss] = useState(false);
+  const [bulkActioning, setBulkActioning] = useState(false);
 
   const repId = user?.id || '';
 
@@ -165,6 +177,73 @@ function RepTasks() {
 
   const handleNavigate = (prospectId: string) => {
     navigate(getAccountDetailUrl(role, prospectId));
+  };
+
+  // -- Bulk actions --
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredPending.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredPending.map(t => t.id)));
+    }
+  };
+
+  const handleBulkComplete = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    setBulkActioning(true);
+    try {
+      await bulkCompleteFollowUps(ids);
+      toast.success(`${ids.length} task${ids.length !== 1 ? 's' : ''} completed`);
+      setSelectedIds(new Set());
+      invalidateAll();
+    } catch {
+      toast.error('Failed to complete tasks');
+    } finally {
+      setBulkActioning(false);
+    }
+  };
+
+  const handleBulkDismissConfirm = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    setBulkActioning(true);
+    try {
+      await bulkDismissFollowUps(ids);
+      toast.success(`${ids.length} task${ids.length !== 1 ? 's' : ''} dismissed`);
+      setSelectedIds(new Set());
+      setConfirmBulkDismiss(false);
+      invalidateAll();
+    } catch {
+      toast.error('Failed to dismiss tasks');
+    } finally {
+      setBulkActioning(false);
+    }
+  };
+
+  const handleBulkReschedule = async (dueDate: string) => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    setBulkActioning(true);
+    try {
+      await bulkRescheduleFollowUps(ids, dueDate);
+      toast.success(`${ids.length} task${ids.length !== 1 ? 's' : ''} rescheduled`);
+      setSelectedIds(new Set());
+      setShowBulkReschedule(false);
+      invalidateAll();
+    } catch {
+      toast.error('Failed to reschedule tasks');
+    } finally {
+      setBulkActioning(false);
+    }
   };
 
   return (
@@ -261,6 +340,30 @@ function RepTasks() {
               </Select>
             </div>
 
+            {/* Bulk action bar */}
+            <BulkActionBar
+              selectedCount={selectedIds.size}
+              onComplete={handleBulkComplete}
+              onDismiss={() => setConfirmBulkDismiss(true)}
+              onReschedule={() => setShowBulkReschedule(true)}
+              onClearSelection={() => setSelectedIds(new Set())}
+              isActioning={bulkActioning}
+            />
+
+            {/* Select all toggle */}
+            {filteredPending.length > 0 && !pendingLoading && (
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={selectedIds.size === filteredPending.length && filteredPending.length > 0}
+                  onCheckedChange={toggleSelectAll}
+                  aria-label="Select all"
+                />
+                <span className="text-xs text-muted-foreground">
+                  Select all ({filteredPending.length})
+                </span>
+              </div>
+            )}
+
             {pendingLoading ? (
               <TaskListSkeleton />
             ) : filteredPending.length === 0 ? (
@@ -273,6 +376,8 @@ function RepTasks() {
                     task={task}
                     variant="pending"
                     isMobile={isMobile}
+                    selected={selectedIds.has(task.id)}
+                    onToggleSelect={() => toggleSelect(task.id)}
                     onComplete={(id, e) => handleComplete(id, e)}
                     onDismissClick={(t, e) => handleDismissClick(t, e)}
                     onEdit={(t) => setEditTask(t)}
@@ -376,6 +481,33 @@ function RepTasks() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Bulk dismiss confirmation */}
+      <AlertDialog open={confirmBulkDismiss} onOpenChange={setConfirmBulkDismiss}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Dismiss {selectedIds.size} task{selectedIds.size !== 1 ? 's' : ''}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              These tasks will be moved to the Dismissed tab. You can restore them later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkDismissConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Dismiss All
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk reschedule dialog */}
+      <BulkRescheduleDialog
+        open={showBulkReschedule}
+        onOpenChange={setShowBulkReschedule}
+        count={selectedIds.size}
+        onConfirm={handleBulkReschedule}
+        isPending={bulkActioning}
+      />
     </AppLayout>
   );
 }
@@ -386,6 +518,8 @@ interface TaskRowProps {
   task: AccountFollowUpWithProspect;
   variant: 'pending' | 'completed' | 'dismissed';
   isMobile: boolean;
+  selected?: boolean;
+  onToggleSelect?: () => void;
   onComplete?: (id: string, e?: React.MouseEvent) => void;
   onDismissClick?: (task: AccountFollowUpWithProspect, e: React.MouseEvent) => void;
   onEdit?: (task: AccountFollowUpWithProspect) => void;
@@ -399,6 +533,7 @@ interface TaskRowProps {
 
 function TaskRow({
   task, variant, isMobile,
+  selected, onToggleSelect,
   onComplete, onDismissClick, onEdit, onRestore, onReopen,
   onNavigate, isActioning,
   onSwipeComplete, onSwipeDismiss,
@@ -411,9 +546,20 @@ function TaskRow({
 
   const content = (
     <div
-      className={`flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors group ${isOverdue ? 'border-l-4 border-l-destructive' : ''}`}
+      className={`flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors group ${isOverdue ? 'border-l-4 border-l-destructive' : ''} ${selected ? 'ring-2 ring-primary/30 bg-primary/5' : ''}`}
       onClick={() => onNavigate(task.prospect_id)}
     >
+      {/* Selection checkbox */}
+      {variant === 'pending' && onToggleSelect && (
+        <Checkbox
+          checked={!!selected}
+          onCheckedChange={() => onToggleSelect()}
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`Select ${task.title}`}
+          className="shrink-0"
+        />
+      )}
+
       {/* Action buttons */}
       {variant === 'pending' && !isMobile && onComplete && (
         <Button size="sm" variant="ghost" className="h-8 w-8 p-0 shrink-0"
