@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -8,14 +8,16 @@ const corsHeaders = {
 
 /**
  * Dedicated abandon session endpoint that works with navigator.sendBeacon.
- * 
+ *
  * sendBeacon cannot include Authorization headers, so this function:
  * 1. Does NOT require JWT authentication (verify_jwt = false in config.toml)
  * 2. Validates the session exists and is in an abandonable state
- * 3. Uses service role to update the session status
- * 
+ * 3. Validates that the provided traineeId matches the session's owner
+ * 4. Uses service role to update the session status
+ *
  * Security: Only allows marking sessions as "abandoned" - no other operations.
- * The sessionId must be a valid UUID and the session must exist.
+ * Both sessionId and traineeId must be valid UUIDs.
+ * The traineeId must match the session's trainee_id to prevent unauthorized abandons.
  */
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -30,17 +32,20 @@ serve(async (req) => {
 
     // Parse body - handle both JSON and text (sendBeacon might send as text)
     let sessionId: string;
+    let traineeId: string;
     const contentType = req.headers.get('content-type') || '';
-    
+
     if (contentType.includes('application/json')) {
       const body = await req.json();
       sessionId = body.sessionId;
+      traineeId = body.traineeId;
     } else {
       // sendBeacon might send as text/plain
       const text = await req.text();
       try {
         const parsed = JSON.parse(text);
         sessionId = parsed.sessionId;
+        traineeId = parsed.traineeId;
       } catch {
         console.error('Failed to parse request body:', text);
         throw new Error('Invalid request body');
@@ -51,19 +56,27 @@ serve(async (req) => {
       throw new Error('sessionId is required');
     }
 
+    if (!traineeId) {
+      throw new Error('traineeId is required');
+    }
+
     // Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(sessionId)) {
       throw new Error('Invalid sessionId format');
     }
+    if (!uuidRegex.test(traineeId)) {
+      throw new Error('Invalid traineeId format');
+    }
 
     console.log(`Abandoning session via beacon: ${sessionId}`);
 
-    // Verify session exists and is in a state that can be abandoned
+    // Verify session exists, belongs to the trainee, and is in a state that can be abandoned
     const { data: session, error: fetchError } = await supabaseClient
       .from('roleplay_sessions')
-      .select('id, status')
+      .select('id, status, trainee_id')
       .eq('id', sessionId)
+      .eq('trainee_id', traineeId)
       .single();
 
     if (fetchError || !session) {
@@ -85,14 +98,15 @@ serve(async (req) => {
       });
     }
 
-    // Update session to abandoned
+    // Update session to abandoned (scoped to trainee for safety)
     const { error: updateError } = await supabaseClient
       .from('roleplay_sessions')
       .update({
         status: 'abandoned',
         ended_at: new Date().toISOString(),
       })
-      .eq('id', sessionId);
+      .eq('id', sessionId)
+      .eq('trainee_id', traineeId);
 
     if (updateError) {
       console.error('Session abandon error:', updateError);
