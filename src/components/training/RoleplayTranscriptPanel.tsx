@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { 
-  MessageSquare, 
-  ChevronUp, 
+import {
+  MessageSquare,
+  ChevronUp,
   ChevronDown,
   Bot,
   User
@@ -29,8 +29,17 @@ export function RoleplayTranscriptPanel({
   isExpanded: defaultExpanded = false,
 }: RoleplayTranscriptPanelProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
-  
+
   const messageCount = transcript.length + (currentTranscript ? 1 : 0);
+
+  // Auto-expand when the first message arrives
+  useEffect(() => {
+    if (!isExpanded && messageCount > 0) {
+      setIsExpanded(true);
+    }
+  // Only trigger on messageCount crossing from 0 to >0, not on every change
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messageCount > 0]);
 
   return (
     <Card className={cn(
