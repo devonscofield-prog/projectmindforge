@@ -140,10 +140,15 @@ export function PendingFollowUpsWidget({ repId }: PendingFollowUpsWidgetProps) {
     <>
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2">
-            <Target className="h-5 w-5 text-primary" />
-            My Scheduled Tasks
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Target className="h-5 w-5 text-primary" />
+              My Scheduled Tasks
+            </CardTitle>
+            <Button variant="ghost" size="sm" className="text-xs text-muted-foreground" onClick={() => navigate('/rep/tasks')}>
+              View All
+            </Button>
+          </div>
           <CardDescription>
             {followUps.length} task{followUps.length !== 1 ? 's' : ''} you've scheduled
           </CardDescription>

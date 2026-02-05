@@ -26,6 +26,7 @@ import {
   BookOpen,
   Swords,
   GraduationCap,
+  Target,
   Database,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -143,6 +144,7 @@ const repNavGroups = [
   {
     label: 'My Work',
     items: [
+      { href: '/rep/tasks', label: 'My Tasks', icon: Target },
       { href: '/rep/history', label: 'Call History', icon: History },
       { href: '/rep/prospects', label: 'Accounts', icon: UserCheck },
     ],
