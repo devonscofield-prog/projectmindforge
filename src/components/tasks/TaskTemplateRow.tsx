@@ -1,32 +1,21 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { Trash2, Loader2 } from 'lucide-react';
+import { Trash2, Loader2, Pencil } from 'lucide-react';
 import type { TaskTemplate } from '@/api/taskTemplates';
-
-const priorityConfig: Record<string, { label: string; className: string }> = {
-  high: { label: 'HIGH', className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
-  medium: { label: 'MED', className: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' },
-  low: { label: 'LOW', className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
-};
-
-const categoryLabels: Record<string, string> = {
-  phone_call: 'Phone Call',
-  drip_email: 'DRIP Email',
-  text_message: 'Text Message',
-  follow_up_email: 'Follow Up Email',
-};
+import { PRIORITY_CONFIG, CATEGORY_LABELS } from '@/lib/taskConstants';
 
 interface TaskTemplateRowProps {
   template: TaskTemplate;
   onToggleActive: (id: string, active: boolean) => void;
+  onEdit: (template: TaskTemplate) => void;
   onDelete: (id: string) => void;
   isDeleting: boolean;
   isToggling: boolean;
 }
 
-export function TaskTemplateRow({ template, onToggleActive, onDelete, isDeleting, isToggling }: TaskTemplateRowProps) {
-  const priority = priorityConfig[template.priority] || priorityConfig.medium;
+export function TaskTemplateRow({ template, onToggleActive, onEdit, onDelete, isDeleting, isToggling }: TaskTemplateRowProps) {
+  const priority = PRIORITY_CONFIG[template.priority] || PRIORITY_CONFIG.medium;
   const dueLabel = template.due_days_offset != null
     ? template.due_days_offset === 0
       ? 'Same day'
@@ -47,9 +36,9 @@ export function TaskTemplateRow({ template, onToggleActive, onDelete, isDeleting
           <Badge variant="secondary" className={`${priority.className} text-[10px] px-1.5 py-0`}>
             {priority.label}
           </Badge>
-          {template.category && categoryLabels[template.category] && (
+          {template.category && CATEGORY_LABELS[template.category] && (
             <span className="text-[10px] text-muted-foreground">
-              {categoryLabels[template.category]}
+              {CATEGORY_LABELS[template.category]}
             </span>
           )}
           {dueLabel && (
@@ -70,6 +59,16 @@ export function TaskTemplateRow({ template, onToggleActive, onDelete, isDeleting
           <p className="text-xs text-muted-foreground truncate">{template.description}</p>
         )}
       </div>
+
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-8 w-8 p-0 text-muted-foreground shrink-0"
+        onClick={() => onEdit(template)}
+        title="Edit"
+      >
+        <Pencil className="h-4 w-4" />
+      </Button>
 
       <Button
         size="sm"

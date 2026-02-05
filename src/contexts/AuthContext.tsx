@@ -553,7 +553,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
 export function useAuth(): AuthContextType {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    // Return a safe default during Suspense/error-boundary race conditions
+    // instead of crashing the entire app tree
+    return {
+      user: null,
+      session: null,
+      profile: null,
+      role: null,
+      loading: true,
+      mfaStatus: 'loading',
+      signIn: async () => ({ error: new Error('AuthProvider not ready') }),
+      signUp: async () => ({ error: new Error('AuthProvider not ready') }),
+      signOut: async () => {},
+      resetPassword: async () => ({ error: new Error('AuthProvider not ready') }),
+      updatePassword: async () => ({ error: new Error('AuthProvider not ready') }),
+      setMfaVerified: () => {},
+    };
   }
   return context;
 }

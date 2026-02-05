@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils';
 import { createManualFollowUp, type FollowUpPriority, type FollowUpCategory } from '@/api/accountFollowUps';
 import { REMINDER_TIMES } from '@/api/notificationPreferences';
 import { supabase } from '@/integrations/supabase/client';
+import { TITLE_MAX_LENGTH, DESCRIPTION_MAX_LENGTH } from '@/lib/taskConstants';
 
 interface StandaloneTaskDialogProps {
   open: boolean;
@@ -76,10 +77,16 @@ export function StandaloneTaskDialog({ open, onOpenChange, repId, onTaskCreated 
     enabled: open,
   });
 
+  // Reset form when dialog opens
+  useEffect(() => {
+    if (open) resetForm();
+  }, [open]);
+
   useEffect(() => {
     if (dueDate && !reminderEnabled) {
       setReminderEnabled(true);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dueDate]);
 
   const resetForm = () => {
@@ -193,7 +200,8 @@ export function StandaloneTaskDialog({ open, onOpenChange, repId, onTaskCreated 
               id="standalone-task-title"
               placeholder="e.g., Schedule follow-up demo"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => setTitle(e.target.value.slice(0, TITLE_MAX_LENGTH))}
+              maxLength={TITLE_MAX_LENGTH}
             />
           </div>
 
@@ -203,7 +211,8 @@ export function StandaloneTaskDialog({ open, onOpenChange, repId, onTaskCreated 
               id="standalone-task-desc"
               placeholder="Add any additional context..."
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => setDescription(e.target.value.slice(0, DESCRIPTION_MAX_LENGTH))}
+              maxLength={DESCRIPTION_MAX_LENGTH}
               rows={2}
             />
           </div>

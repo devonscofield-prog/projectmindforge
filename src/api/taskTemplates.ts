@@ -142,8 +142,8 @@ export async function getAutoCreateSetting(repId: string): Promise<boolean> {
     throw error;
   }
 
-  // Default to true if no setting row exists
-  return data?.auto_create_enabled ?? true;
+  // Default to false — auto-create is opt-in
+  return data?.auto_create_enabled ?? false;
 }
 
 export async function setAutoCreateSetting(repId: string, enabled: boolean): Promise<void> {

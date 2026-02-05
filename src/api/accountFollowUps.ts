@@ -249,7 +249,8 @@ export async function listManualPendingFollowUpsForRep(repId: string): Promise<A
     .eq('rep_id', repId)
     .eq('status', 'pending')
     .eq('source', 'manual')
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(200);
 
   if (error) {
     log.error('Error fetching manual follow-ups', { repId, error });
@@ -449,7 +450,8 @@ export async function listAllFollowUpsForRepByStatus(
     .eq('rep_id', repId)
     .eq('status', status)
     .eq('source', 'manual')
-    .order('updated_at', { ascending: false });
+    .order('updated_at', { ascending: false })
+    .limit(100);
 
   if (error) {
     log.error('Error fetching follow-ups by status', { repId, status, error });

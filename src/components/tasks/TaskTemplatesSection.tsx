@@ -2,6 +2,16 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Plus, Loader2, FileText } from 'lucide-react';
 import {
   useTaskTemplates,
@@ -12,9 +22,12 @@ import {
 } from '@/hooks/useTaskTemplates';
 import { TaskTemplateRow } from './TaskTemplateRow';
 import { AddTaskTemplateDialog } from './AddTaskTemplateDialog';
+import type { TaskTemplate } from '@/api/taskTemplates';
 
 export function TaskTemplatesSection() {
   const [showAdd, setShowAdd] = useState(false);
+  const [editTemplate, setEditTemplate] = useState<TaskTemplate | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const { data: templates = [], isLoading: templatesLoading } = useTaskTemplates();
   const { data: autoCreateEnabled, isLoading: settingLoading } = useAutoCreateSetting();
@@ -23,6 +36,12 @@ export function TaskTemplatesSection() {
   const deleteTemplate = useDeleteTaskTemplate();
 
   const isLoading = templatesLoading || settingLoading;
+
+  const handleConfirmDelete = () => {
+    if (!confirmDeleteId) return;
+    deleteTemplate.mutate(confirmDeleteId);
+    setConfirmDeleteId(null);
+  };
 
   return (
     <div className="space-y-4">
@@ -35,7 +54,7 @@ export function TaskTemplatesSection() {
           </p>
         </div>
         <Switch
-          checked={autoCreateEnabled ?? true}
+          checked={autoCreateEnabled ?? false}
           onCheckedChange={(checked) => toggleAutoCreate.mutate(checked)}
           disabled={settingLoading || toggleAutoCreate.isPending}
         />
@@ -74,7 +93,8 @@ export function TaskTemplatesSection() {
               onToggleActive={(id, active) =>
                 updateTemplate.mutate({ id, params: { is_active: active } })
               }
-              onDelete={(id) => deleteTemplate.mutate(id)}
+              onEdit={(template) => setEditTemplate(template)}
+              onDelete={(id) => setConfirmDeleteId(id)}
               isDeleting={deleteTemplate.isPending && deleteTemplate.variables === t.id}
               isToggling={updateTemplate.isPending && updateTemplate.variables?.id === t.id}
             />
@@ -82,7 +102,35 @@ export function TaskTemplatesSection() {
         </div>
       )}
 
-      <AddTaskTemplateDialog open={showAdd} onOpenChange={setShowAdd} />
+      {/* Add / Edit dialog */}
+      <AddTaskTemplateDialog
+        open={showAdd || !!editTemplate}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowAdd(false);
+            setEditTemplate(null);
+          }
+        }}
+        editTemplate={editTemplate}
+      />
+
+      {/* Delete confirmation */}
+      <AlertDialog open={!!confirmDeleteId} onOpenChange={(open) => !open && setConfirmDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Template?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove this task template. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

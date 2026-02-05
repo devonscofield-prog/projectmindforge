@@ -46,19 +46,10 @@ import {
   type FollowUpPriority,
   type FollowUpCategory,
 } from '@/api/accountFollowUps';
+import { PRIORITY_CONFIG, CATEGORY_LABELS } from '@/lib/taskConstants';
 
-const priorityConfig: Record<FollowUpPriority, { label: string; className: string }> = {
-  high: { label: 'HIGH', className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
-  medium: { label: 'MED', className: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' },
-  low: { label: 'LOW', className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
-};
-
-const categoryLabels: Record<FollowUpCategory, string> = {
-  phone_call: 'Phone Call',
-  drip_email: 'DRIP Email',
-  text_message: 'Text Message',
-  follow_up_email: 'Follow Up Email',
-};
+const priorityConfig = PRIORITY_CONFIG;
+const categoryLabels = CATEGORY_LABELS;
 
 function formatDueDate(dueDate: string): { text: string; isOverdue: boolean; isDueToday: boolean } {
   const date = parseISO(dueDate);
