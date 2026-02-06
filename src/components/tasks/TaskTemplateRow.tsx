@@ -1,7 +1,9 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { Trash2, Loader2, Pencil, ChevronUp, ChevronDown } from 'lucide-react';
+import { Trash2, Loader2, Pencil, GripVertical } from 'lucide-react';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import type { TaskTemplate } from '@/api/taskTemplates';
 import { PRIORITY_CONFIG, CATEGORY_LABELS } from '@/lib/taskConstants';
 
@@ -10,19 +12,28 @@ interface TaskTemplateRowProps {
   onToggleActive: (id: string, active: boolean) => void;
   onEdit: (template: TaskTemplate) => void;
   onDelete: (id: string) => void;
-  onMoveUp?: () => void;
-  onMoveDown?: () => void;
-  isFirst?: boolean;
-  isLast?: boolean;
   isDeleting: boolean;
   isToggling: boolean;
 }
 
 export function TaskTemplateRow({
   template, onToggleActive, onEdit, onDelete,
-  onMoveUp, onMoveDown, isFirst, isLast,
   isDeleting, isToggling,
 }: TaskTemplateRowProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: template.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
   const priority = PRIORITY_CONFIG[template.priority] || PRIORITY_CONFIG.medium;
   const dueLabel = template.due_days_offset != null
     ? template.due_days_offset === 0
@@ -31,26 +42,22 @@ export function TaskTemplateRow({
     : null;
 
   return (
-    <div className="flex items-center gap-3 p-3 rounded-lg border bg-card">
-      {/* Reorder buttons */}
-      <div className="flex flex-col gap-0.5 shrink-0">
-        <Button
-          size="sm" variant="ghost"
-          className="h-5 w-5 p-0 text-muted-foreground"
-          onClick={onMoveUp} disabled={isFirst}
-          aria-label="Move up"
-        >
-          <ChevronUp className="h-3.5 w-3.5" />
-        </Button>
-        <Button
-          size="sm" variant="ghost"
-          className="h-5 w-5 p-0 text-muted-foreground"
-          onClick={onMoveDown} disabled={isLast}
-          aria-label="Move down"
-        >
-          <ChevronDown className="h-3.5 w-3.5" />
-        </Button>
-      </div>
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center gap-3 p-3 rounded-lg border bg-card transition-shadow ${
+        isDragging ? 'shadow-lg ring-2 ring-primary/30 opacity-90 z-50' : ''
+      }`}
+    >
+      {/* Drag handle */}
+      <button
+        className="touch-none cursor-grab active:cursor-grabbing p-0.5 rounded text-muted-foreground hover:text-foreground transition-colors shrink-0"
+        {...attributes}
+        {...listeners}
+        aria-label="Drag to reorder"
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
 
       <Switch
         checked={template.is_active}
