@@ -1167,6 +1167,42 @@ export type Database = {
         }
         Relationships: []
       }
+      in_app_notifications: {
+        Row: {
+          created_at: string
+          id: string
+          is_read: boolean
+          link: string | null
+          message: string | null
+          related_entity_id: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          link?: string | null
+          message?: string | null
+          related_entity_id?: string | null
+          title: string
+          type?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          link?: string | null
+          message?: string | null
+          related_entity_id?: string | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       mfa_enrollment_status: {
         Row: {
           created_at: string | null
@@ -1342,6 +1378,39 @@ export type Database = {
           metadata?: Json | null
           status?: string
           sync_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notification_log: {
+        Row: {
+          channel: string
+          id: string
+          notification_type: string
+          sent_at: string
+          summary: string | null
+          task_count: number
+          title: string
+          user_id: string
+        }
+        Insert: {
+          channel?: string
+          id?: string
+          notification_type: string
+          sent_at?: string
+          summary?: string | null
+          task_count?: number
+          title: string
+          user_id: string
+        }
+        Update: {
+          channel?: string
+          id?: string
+          notification_type?: string
+          sent_at?: string
+          summary?: string | null
+          task_count?: number
+          title?: string
           user_id?: string
         }
         Relationships: []
