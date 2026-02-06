@@ -14,6 +14,20 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Plus, Loader2, FileText } from 'lucide-react';
 import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import {
   useTaskTemplates,
   useAutoCreateSetting,
   useToggleAutoCreate,
@@ -38,21 +52,32 @@ export function TaskTemplatesSection() {
   const reorderTemplates = useReorderTaskTemplates();
   const isLoading = templatesLoading || settingLoading;
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
   const handleConfirmDelete = () => {
     if (!confirmDeleteId) return;
     deleteTemplate.mutate(confirmDeleteId);
     setConfirmDeleteId(null);
   };
 
-  const handleMove = (index: number, direction: 'up' | 'down') => {
-    const swapIndex = direction === 'up' ? index - 1 : index + 1;
-    if (swapIndex < 0 || swapIndex >= templates.length) return;
-    const a = templates[index];
-    const b = templates[swapIndex];
-    reorderTemplates.mutate([
-      { id: a.id, sort_order: b.sort_order },
-      { id: b.id, sort_order: a.sort_order },
-    ]);
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = templates.findIndex(t => t.id === active.id);
+    const newIndex = templates.findIndex(t => t.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    // Build new order assignments
+    const reordered = [...templates];
+    const [moved] = reordered.splice(oldIndex, 1);
+    reordered.splice(newIndex, 0, moved);
+
+    const updates = reordered.map((t, i) => ({ id: t.id, sort_order: i }));
+    reorderTemplates.mutate(updates);
   };
 
   return (
@@ -97,25 +122,25 @@ export function TaskTemplatesSection() {
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {templates.map((t, idx) => (
-            <TaskTemplateRow
-              key={t.id}
-              template={t}
-              onToggleActive={(id, active) =>
-                updateTemplate.mutate({ id, params: { is_active: active } })
-              }
-              onEdit={(template) => setEditTemplate(template)}
-              onDelete={(id) => setConfirmDeleteId(id)}
-              onMoveUp={() => handleMove(idx, 'up')}
-              onMoveDown={() => handleMove(idx, 'down')}
-              isFirst={idx === 0}
-              isLast={idx === templates.length - 1}
-              isDeleting={deleteTemplate.isPending && deleteTemplate.variables === t.id}
-              isToggling={updateTemplate.isPending && updateTemplate.variables?.id === t.id}
-            />
-          ))}
-        </div>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={templates.map(t => t.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-2">
+              {templates.map((t) => (
+                <TaskTemplateRow
+                  key={t.id}
+                  template={t}
+                  onToggleActive={(id, active) =>
+                    updateTemplate.mutate({ id, params: { is_active: active } })
+                  }
+                  onEdit={(template) => setEditTemplate(template)}
+                  onDelete={(id) => setConfirmDeleteId(id)}
+                  isDeleting={deleteTemplate.isPending && deleteTemplate.variables === t.id}
+                  isToggling={updateTemplate.isPending && updateTemplate.variables?.id === t.id}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
 
       {/* Add / Edit dialog */}
