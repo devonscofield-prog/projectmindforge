@@ -29,7 +29,8 @@ import { Separator } from '@/components/ui/separator';
 import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
 import { format } from 'date-fns';
 import { parseDateOnly } from '@/lib/formatters';
-import { Plus, ArrowUpDown, Pencil, Trash2, Calendar, User, Target, FileText, CheckSquare, CalendarClock, RefreshCw } from 'lucide-react';
+import { Plus, ArrowUpDown, Pencil, Trash2, Calendar, User, Target, FileText, CheckSquare, CalendarClock, RefreshCw, ListChecks } from 'lucide-react';
+import { RepTaskTemplatesReadOnly } from '@/components/tasks/RepTaskTemplatesReadOnly';
 import { toast } from 'sonner';
 
 type SortField = 'date' | 'follow-up';
@@ -679,6 +680,17 @@ export default function ManagerCoaching() {
                 ) : (
                   <p className="text-sm text-muted-foreground italic">No follow-up scheduled</p>
                 )}
+              </div>
+
+              <Separator />
+
+              {/* Rep's Auto-Task Templates */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <ListChecks className="h-4 w-4" />
+                  Auto-Task Templates
+                </div>
+                <RepTaskTemplatesReadOnly repId={viewingSession.rep_id} />
               </div>
 
               <Separator />
