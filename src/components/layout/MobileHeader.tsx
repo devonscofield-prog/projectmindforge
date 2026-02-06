@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Menu, Plus, TrendingUp, UserPlus, Mic } from 'lucide-react';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 
 // Map routes to page titles
 function getPageTitle(pathname: string, role: string | null): string {
@@ -103,6 +104,7 @@ export function MobileHeader() {
         </Button>
       )}
       
+      <NotificationBell />
       <ThemeToggle />
     </header>
   );

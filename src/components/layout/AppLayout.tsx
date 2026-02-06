@@ -51,6 +51,8 @@ import { MobileBottomNav } from './MobileBottomNav';
 import { MobileHeader } from './MobileHeader';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { usePullToRefreshOnboarding } from '@/hooks/usePullToRefreshOnboarding';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { useNotificationRealtime } from '@/hooks/useInAppNotifications';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -430,20 +432,23 @@ function DesktopSidebarToggle() {
   const isExpanded = state === 'expanded';
   
   return (
-    <div className="hidden md:flex sticky top-0 z-40 h-12 items-center border-b bg-background px-4">
-      <SidebarTrigger 
-        className="h-8 w-8 flex items-center justify-center hover:bg-accent rounded-md transition-colors" 
-        aria-label={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
-      >
-        {isExpanded ? (
-          <PanelLeftClose className="h-5 w-5" aria-hidden="true" />
-        ) : (
-          <PanelLeft className="h-5 w-5" aria-hidden="true" />
-        )}
-      </SidebarTrigger>
-      <span className="ml-2 text-xs text-muted-foreground hidden lg:inline">
-        ⌘B
-      </span>
+    <div className="hidden md:flex sticky top-0 z-40 h-12 items-center justify-between border-b bg-background px-4">
+      <div className="flex items-center">
+        <SidebarTrigger 
+          className="h-8 w-8 flex items-center justify-center hover:bg-accent rounded-md transition-colors" 
+          aria-label={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
+        >
+          {isExpanded ? (
+            <PanelLeftClose className="h-5 w-5" aria-hidden="true" />
+          ) : (
+            <PanelLeft className="h-5 w-5" aria-hidden="true" />
+          )}
+        </SidebarTrigger>
+        <span className="ml-2 text-xs text-muted-foreground hidden lg:inline">
+          ⌘B
+        </span>
+      </div>
+      <NotificationBell />
     </div>
   );
 }
@@ -451,6 +456,8 @@ function DesktopSidebarToggle() {
 export function AppLayout({ children }: AppLayoutProps) {
   // Enable real-time performance alert toasts for admins
   usePerformanceAlertToasts();
+  // Enable real-time notification toasts
+  useNotificationRealtime();
 
   return (
     <PullToRefreshProvider>

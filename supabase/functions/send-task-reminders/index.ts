@@ -375,13 +375,49 @@ async function sendRemindersToUsers(
     }
   }
 
-  // Send emails
+  // Send emails + in-app notifications
   let sentCount = 0;
   const followUpIdsToUpdate: string[] = [];
 
-  for (const [_userId, reminders] of Object.entries(userReminders)) {
+  for (const [userId, reminders] of Object.entries(userReminders)) {
     const totalTasks = reminders.overdue.length + reminders.dueToday.length + reminders.dueTomorrow.length;
     if (totalTasks === 0) continue;
+
+    // --- In-app notifications: one per task ---
+    const inAppRows: Array<{
+      user_id: string;
+      type: string;
+      title: string;
+      message: string;
+      link: string;
+      related_entity_id: string;
+    }> = [];
+
+    const addInApp = (tasks: FollowUp[], type: string) => {
+      for (const t of tasks) {
+        const acctName = reminders.prospectNames[t.prospect_id] || 'Unknown';
+        inAppRows.push({
+          user_id: userId,
+          type,
+          title: t.title,
+          message: `Account: ${acctName} · Priority: ${t.priority}`,
+          link: '/rep/tasks',
+          related_entity_id: t.id,
+        });
+      }
+    };
+    addInApp(reminders.overdue, 'task_overdue');
+    addInApp(reminders.dueToday, 'task_due_today');
+    addInApp(reminders.dueTomorrow, 'task_due_tomorrow');
+
+    if (inAppRows.length > 0) {
+      const { error: inAppErr } = await supabase
+        .from('in_app_notifications')
+        .insert(inAppRows);
+      if (inAppErr) {
+        console.error(`[send-task-reminders] Failed to insert in-app notifications for ${userId}:`, inAppErr);
+      }
+    }
 
     // Build email HTML
     const emailHtml = buildEmailHtml(reminders, isTestMode);
@@ -401,6 +437,15 @@ async function sendRemindersToUsers(
           followUpIdsToUpdate.push(f.id);
         });
       }
+
+      // --- Notification log entries ---
+      const logRows = [
+        { user_id: userId, channel: 'email', notification_type: 'task_reminder', title: subject, summary: `${totalTasks} task${totalTasks > 1 ? 's' : ''} need attention`, task_count: totalTasks },
+        { user_id: userId, channel: 'in_app', notification_type: 'task_reminder', title: 'In-app reminders created', summary: `${inAppRows.length} notification${inAppRows.length > 1 ? 's' : ''}`, task_count: inAppRows.length },
+      ];
+      const { error: logErr } = await supabase.from('notification_log').insert(logRows);
+      if (logErr) console.error(`[send-task-reminders] Failed to write notification log:`, logErr);
+
       // Rate limit protection - small delay between emails
       await new Promise(resolve => setTimeout(resolve, 100));
     } catch (emailError) {
@@ -425,7 +470,8 @@ async function sendRemindersToUsers(
       success: true, 
       sent: sentCount, 
       tasksNotified: followUpIdsToUpdate.length,
-      message: sentCount > 0 ? `Email sent with ${followUpIdsToUpdate.length || Object.values(userReminders).reduce((sum, r) => sum + r.overdue.length + r.dueToday.length + r.dueTomorrow.length, 0)} tasks` : "No emails sent"
+      inAppCreated: Object.values(userReminders).reduce((sum, r) => sum + r.overdue.length + r.dueToday.length + r.dueTomorrow.length, 0),
+      message: sentCount > 0 ? `Email sent + in-app notifications created` : "No emails sent"
     }),
     {
       status: 200,
