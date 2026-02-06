@@ -1,105 +1,123 @@
 
 
-# Email Reminders, Template Editing UX, and Task Analytics
+# In-App Notifications, Notification History, and Cron Fix
 
 ## Overview
 
-Three enhancements to the Rep Task Management page:
-
-1. **Email Reminder Delivery** -- Already fully implemented (edge function, hourly cron, notification preferences UI). No additional work needed here.
-2. **Template Drag-and-Drop Reordering** -- Let reps reorder their auto-task templates by dragging them up/down, so they control the sequence tasks are created in.
-3. **Task Analytics and Insights** -- A new "Insights" tab on the My Tasks page showing completion rates, overdue trends, category breakdowns, and template effectiveness.
-
----
-
-## Feature 1: Email Reminder Delivery
-
-This is already production-ready:
-- Edge function `send-task-reminders` runs hourly via pg_cron
-- Sends consolidated HTML digest emails via Resend (overdue, due today, due tomorrow sections)
-- Notification preferences UI exists at Settings with timezone, primary/secondary reminder times, weekend exclusion, and priority filtering
-- Test email button works
-- No changes needed
+Three deliverables:
+1. **In-app notification system** with bell icon badge, notification center dropdown, and toast alerts for new notifications
+2. **Notification history log** so users can review past sent notifications
+3. **Fix trigger-pending-analyses 404** by redeploying the edge function
 
 ---
 
-## Feature 2: Template Drag-and-Drop Reordering
+## 1. Fix trigger-pending-analyses (Quick Fix)
 
-### Approach
-Use simple up/down arrow buttons rather than a drag-and-drop library (keeps bundle small, works on mobile, no new dependency needed).
+The edge function code exists at `supabase/functions/trigger-pending-analyses/index.ts` and is configured in `supabase/config.toml`, but it is not currently deployed. The pg_cron job (job 3) calls it every minute and gets a 404.
 
-### Changes
-
-**`src/api/taskTemplates.ts`** -- Add `reorderTaskTemplates` function:
-- Accepts `repId` and an array of `{ id, sort_order }` pairs
-- Batch updates via individual update calls (templates are small lists, typically under 10)
-
-**`src/hooks/useTaskTemplates.ts`** -- Add `useReorderTaskTemplates` mutation hook with optimistic reordering
-
-**`src/components/tasks/TaskTemplateRow.tsx`** -- Add up/down arrow buttons (ChevronUp, ChevronDown) to each row:
-- Up arrow disabled on first item, down arrow disabled on last item
-- Compact icons alongside existing edit/delete buttons
-
-**`src/components/tasks/TaskTemplatesSection.tsx`** -- Wire up reorder handlers:
-- `handleMoveUp(index)` / `handleMoveDown(index)` swap adjacent templates and call the reorder mutation
-- Optimistically reorder the local list
+**Action:** Deploy the edge function. No code changes needed -- the function just needs to be deployed to resolve the 404s that fire every minute.
 
 ---
 
-## Feature 3: Task Analytics and Insights
+## 2. Database: notifications table + notification_log table
 
-### New Tab
-Add an **"Insights"** tab to `RepTasks.tsx` alongside Pending/Completed/Dismissed/Auto Tasks.
+### New table: `in_app_notifications`
 
-### Data Source
-Create a new API function `getTaskAnalytics(repId)` in `src/api/accountFollowUps.ts` that fetches:
-- All follow-ups for the rep (pending, completed, dismissed) with `source = 'manual'`
-- Aggregates computed client-side (small dataset, under 1000 rows per rep)
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid PK | default gen_random_uuid() |
+| user_id | uuid | references auth.users, NOT NULL |
+| type | text | 'task_due_today', 'task_overdue', 'task_due_tomorrow', 'system' |
+| title | text | NOT NULL |
+| message | text | nullable |
+| link | text | nullable, in-app route to navigate to |
+| is_read | boolean | default false |
+| created_at | timestamptz | default now() |
+| related_entity_id | uuid | nullable, e.g. follow-up ID |
 
-### Metrics Displayed
+RLS: Users can only SELECT/UPDATE their own notifications.
 
-| Metric | Visualization | Description |
-|--------|--------------|-------------|
-| Completion Rate | Large percentage + progress ring | Completed / (Completed + Dismissed + Pending) |
-| Avg. Time to Complete | Number (days) | Average days between created_at and completed_at |
-| Overdue Rate | Percentage | Tasks completed after their due date / total completed with due dates |
-| Tasks by Priority | Horizontal bar chart | Count of tasks by priority (high/medium/low), stacked by status |
-| Tasks by Category | Horizontal bar chart | Count by category (phone call, email, etc.) |
-| Weekly Completion Trend | Line/area chart | Tasks completed per week over last 8 weeks |
-| Template Effectiveness | Table | For each auto-task template: how many tasks created, completion rate, avg. days to complete |
+### New table: `notification_log`
 
-### New Files
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid PK | default gen_random_uuid() |
+| user_id | uuid | NOT NULL |
+| channel | text | 'email' or 'in_app' |
+| notification_type | text | 'task_due_today', 'task_overdue', etc. |
+| title | text | NOT NULL |
+| summary | text | nullable, e.g. "3 tasks due today" |
+| task_count | integer | default 0 |
+| sent_at | timestamptz | default now() |
+
+RLS: Users can only SELECT their own logs.
+
+---
+
+## 3. Update send-task-reminders Edge Function
+
+Modify `supabase/functions/send-task-reminders/index.ts` to:
+
+1. **Write in-app notifications** -- For each task in a user's reminder batch, insert a row into `in_app_notifications` with type, title, message (task title + account name), and link (`/rep/tasks`).
+2. **Write notification log entries** -- After sending email and/or creating in-app notifications, insert a summary row into `notification_log` recording channel, type, task count, and timestamp.
+3. Both happen alongside the existing email send logic (not replacing it).
+
+---
+
+## 4. Frontend: Notification Bell + Center
+
+### New files
 
 | File | Purpose |
 |------|---------|
-| `src/components/tasks/TaskInsightsSection.tsx` | Analytics dashboard component with charts and stat cards |
-| `src/api/taskAnalytics.ts` | Data fetching and aggregation logic |
+| `src/api/inAppNotifications.ts` | CRUD: fetch unread count, fetch all, mark as read, mark all read |
+| `src/hooks/useInAppNotifications.ts` | React Query hooks + realtime subscription for live badge updates |
+| `src/components/notifications/NotificationBell.tsx` | Bell icon with unread count badge |
+| `src/components/notifications/NotificationCenter.tsx` | Popover dropdown listing recent notifications with mark-as-read |
+| `src/components/notifications/NotificationHistorySection.tsx` | Full log view for Settings page |
 
-### Charts
-Use `recharts` (already installed) for:
-- `BarChart` for priority/category breakdowns
-- `AreaChart` for weekly completion trend
-- Simple stat cards using existing `Card` components with large numbers
+### NotificationBell
 
-### UI Layout
+- Bell icon from lucide-react
+- Red badge with unread count (hidden when 0)
+- Clicking opens NotificationCenter popover
+- On new notification arrival via realtime subscription, show a sonner toast with the notification title
+
+### NotificationCenter (Popover)
+
+- Header: "Notifications" + "Mark all read" button
+- Scrollable list of recent notifications (last 50)
+- Each item shows: type icon, title, message, relative time ("2h ago")
+- Unread items have a subtle highlight/dot indicator
+- Clicking an item marks it read and navigates to its `link` if present
+- Empty state: "No notifications yet"
+
+### Integration points
+
+**`src/components/layout/AppLayout.tsx`** -- Add `NotificationBell` to the `DesktopSidebarToggle` bar (right side, next to the collapse button).
+
+**`src/components/layout/MobileHeader.tsx`** -- Add `NotificationBell` between the primary action button and ThemeToggle.
+
+**`src/hooks/useInAppNotifications.ts`** -- Subscribe to `postgres_changes` on `in_app_notifications` table for the current user. On INSERT event, show a sonner toast and invalidate the query cache.
+
+### Notification History (Settings)
+
+**`src/components/notifications/NotificationHistorySection.tsx`** -- A card for the Settings page showing:
+- Table/list of past notification log entries from `notification_log`
+- Columns: Date/Time, Channel (Email/In-App badge), Type, Summary, Task Count
+- Paginated or limited to last 30 days
+- Empty state when no history exists
+
+Integrate into the Settings page below the existing NotificationPreferences component.
+
+---
+
+## 5. Realtime Setup
+
+Enable realtime on the `in_app_notifications` table so the frontend subscription works:
+
 ```text
-+--------------------------------------------------+
-| Completion Rate    | Avg. Days to Complete        |
-|     78%            |     2.3 days                 |
-+--------------------------------------------------+
-| Tasks by Priority         | Tasks by Category      |
-| [==== High: 12 ====]      | [== Phone Call: 8 ==]  |
-| [======= Med: 24 =]       | [== Email: 14 ======]  |
-| [=== Low: 6 =======]      | [== Text: 4 ========]  |
-+--------------------------------------------------+
-| Weekly Completion Trend (last 8 weeks)            |
-| [area chart showing completed tasks per week]     |
-+--------------------------------------------------+
-| Template Effectiveness                            |
-| Template Name | Created | Completed | Avg Days    |
-| Send recap    |    12   |    10     |   1.5       |
-| Follow up     |    8    |    5     |   3.2       |
-+--------------------------------------------------+
+ALTER PUBLICATION supabase_realtime ADD TABLE public.in_app_notifications;
 ```
 
 ---
@@ -108,24 +126,29 @@ Use `recharts` (already installed) for:
 
 | File | Changes |
 |------|---------|
-| `src/api/taskTemplates.ts` | Add `reorderTaskTemplates()` function |
-| `src/hooks/useTaskTemplates.ts` | Add `useReorderTaskTemplates` mutation |
-| `src/components/tasks/TaskTemplateRow.tsx` | Add up/down arrow buttons for reordering |
-| `src/components/tasks/TaskTemplatesSection.tsx` | Wire reorder handlers |
-| `src/pages/rep/RepTasks.tsx` | Add "Insights" tab |
+| `supabase/functions/send-task-reminders/index.ts` | Add in-app notification + log writes |
+| `src/components/layout/AppLayout.tsx` | Add NotificationBell to desktop header |
+| `src/components/layout/MobileHeader.tsx` | Add NotificationBell to mobile header |
+| Settings page | Add NotificationHistorySection |
 
 ## New Files
 
 | File | Purpose |
 |------|---------|
-| `src/api/taskAnalytics.ts` | Fetch and aggregate task data for analytics |
-| `src/components/tasks/TaskInsightsSection.tsx` | Analytics dashboard with charts and stats |
+| `src/api/inAppNotifications.ts` | API layer for notifications CRUD |
+| `src/hooks/useInAppNotifications.ts` | Query hooks + realtime subscription |
+| `src/components/notifications/NotificationBell.tsx` | Bell icon with badge |
+| `src/components/notifications/NotificationCenter.tsx` | Dropdown notification list |
+| `src/components/notifications/NotificationHistorySection.tsx` | History log for Settings |
 
 ## Implementation Sequence
 
-1. Add `reorderTaskTemplates` to API layer and hook
-2. Add up/down buttons to `TaskTemplateRow` and wire in `TaskTemplatesSection`
-3. Create `src/api/taskAnalytics.ts` with data fetching and aggregation
-4. Create `TaskInsightsSection.tsx` with stat cards and recharts visualizations
-5. Add "Insights" tab to `RepTasks.tsx`
+1. Deploy trigger-pending-analyses edge function (immediate fix)
+2. Create `in_app_notifications` and `notification_log` tables with RLS + enable realtime
+3. Update `send-task-reminders` to write in-app notifications and log entries
+4. Create `src/api/inAppNotifications.ts` and `src/hooks/useInAppNotifications.ts`
+5. Build NotificationBell and NotificationCenter components
+6. Integrate bell into AppLayout and MobileHeader
+7. Build NotificationHistorySection and add to Settings page
+8. Deploy updated edge function
 
