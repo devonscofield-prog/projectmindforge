@@ -263,7 +263,7 @@ async function processReport(
       id: "",
       user_id: userId,
       enabled: true,
-      delivery_time: "08:00",
+      delivery_time: "17:00",
       timezone: "America/New_York",
       rep_ids: null,
       include_weekends: false,
@@ -320,32 +320,34 @@ async function processReport(
     return jsonResponse({ success: true, message: msg, sent: 0 });
   }
 
-  // Determine the report date range
+  // Determine the report date range — report covers TODAY (same-day recap)
   const userLocal = new Date(now.toLocaleString("en-US", { timeZone: config.timezone }));
   const dayOfWeek = userLocal.getDay();
 
-  // *** FIX #1: Monday gap — always look back 3 days on Monday ***
-  const daysBack = dayOfWeek === 1 ? 3 : 1;
-
+  // Report covers today's calls. On Monday with include_weekends, also cover Sat+Sun.
   const reportEnd = new Date(userLocal);
-  reportEnd.setHours(0, 0, 0, 0);
-  const reportStart = new Date(reportEnd);
-  reportStart.setDate(reportStart.getDate() - daysBack);
+  reportEnd.setHours(23, 59, 59, 999);
+  const reportStart = new Date(userLocal);
+  reportStart.setHours(0, 0, 0, 0);
+
+  // On Monday, also include Friday (and weekend if enabled)
+  if (dayOfWeek === 1) {
+    reportStart.setDate(reportStart.getDate() - 3); // back to Friday
+  }
 
   const startDate = reportStart.toISOString().split("T")[0];
-  const endDate = reportEnd.toISOString().split("T")[0];
+  // Use tomorrow's date as the exclusive upper bound for the query
+  const endDateObj = new Date(userLocal);
+  endDateObj.setDate(endDateObj.getDate() + 1);
+  endDateObj.setHours(0, 0, 0, 0);
+  const endDate = endDateObj.toISOString().split("T")[0];
 
   console.log(`[send-daily-report] Querying calls from ${startDate} to ${endDate} for ${targetRepIds.length} reps`);
 
-  // *** FIX #4: Week-over-Week — fetch previous period in parallel ***
-  const prevEnd = new Date(reportStart);
-  prevEnd.setDate(prevEnd.getDate() - (7 - daysBack)); // same weekday last week
-  const prevStart = new Date(prevEnd);
-  prevStart.setDate(prevStart.getDate() - daysBack);
-  // Simpler: previous period = exactly 7 days before current period
+  // *** WoW: previous period = same weekday(s) last week ***
   const prevStartDate = new Date(reportStart);
   prevStartDate.setDate(prevStartDate.getDate() - 7);
-  const prevEndDate = new Date(reportEnd);
+  const prevEndDate = new Date(endDateObj);
   prevEndDate.setDate(prevEndDate.getDate() - 7);
 
   const prevStartStr = prevStartDate.toISOString().split("T")[0];
@@ -406,7 +408,9 @@ async function processReport(
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   const unsubscribeUrl = `${supabaseUrl}/functions/v1/unsubscribe-report?token=${encodeURIComponent(unsubscribeToken)}`;
 
-  const dateLabel = daysBack > 1 ? `${startDate} – ${endDate}` : startDate;
+  const isMondayLookback = dayOfWeek === 1;
+  const todayStr = userLocal.toISOString().split("T")[0];
+  const dateLabel = isMondayLookback ? `${startDate} – ${todayStr}` : todayStr;
   const emailHtml = buildEmailHtml({
     dateLabel,
     totalCalls,
