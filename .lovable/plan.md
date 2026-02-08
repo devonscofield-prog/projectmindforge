@@ -1,46 +1,88 @@
 
 
-# New "Reporting" Section for Managers and Admins
+# Add Report Customization Options
 
 ## Overview
 
-Create a dedicated **Reporting** section accessible from the sidebar for managers and admins. This section will serve as a hub for generating on-demand reports and managing daily email report settings (moved out of the general Settings page).
+Add toggleable sections/columns so users can choose exactly what information appears in both on-demand reports and daily email reports.
 
-## What Gets Built
+## What Changes
 
-### 1. New Reporting Page (`/admin/reporting` and `/manager/reporting`)
+### 1. Database Migration -- Add `report_sections` column
 
-A tabbed page with two sections:
+Add a JSONB column `report_sections` to `daily_report_configs` that stores which email sections are enabled:
 
-- **On-Demand Reports** -- Generate and download reports instantly
-- **Daily Email Settings** -- The existing `DailyReportSettings` component, relocated from Settings
+```sql
+ALTER TABLE daily_report_configs
+ADD COLUMN report_sections jsonb DEFAULT '{
+  "summary_stats": true,
+  "wow_trends": true,
+  "top_calls": true,
+  "bottom_calls": true,
+  "top_performers": true,
+  "needs_attention": true,
+  "rep_breakdown": true,
+  "pipeline": true
+}'::jsonb;
+```
 
-**On-Demand Report Types:**
+All sections default to ON so existing users see no change.
 
-| Report | Description |
-|--------|-------------|
-| Team Performance Summary | Call volume, avg effectiveness, pipeline by rep for a selected date range |
-| Individual Rep Report | Deep dive on a single rep: calls, scores, coaching sessions, trends |
-| Pipeline Report | All deals/prospects with revenue estimates, heat scores, and stage |
-| Coaching Activity Report | AI coaching session counts and themes by rep |
+### 2. Daily Email Settings UI -- Section Toggles
 
-Each report will have:
-- Date range picker (preset: Today, Last 7 Days, Last 30 Days, Custom)
-- Rep filter (for admins/managers with multiple reps)
-- "Generate Report" button that calls the existing `send-daily-report` edge function with custom parameters, or renders results in-page
-- Export to CSV option for tabular data
+**File:** `src/components/settings/DailyReportSettings.tsx`
 
-### 2. Sidebar Navigation Update
+Add a new "Report Sections" area (below Include Weekends, above Send Test) with checkboxes for each email section:
 
-Add a "Reporting" nav item to both admin and manager sidebar groups:
+| Toggle | Controls |
+|--------|----------|
+| Summary Stats | The 2-3 stat cards at the top (calls, effectiveness, pipeline) |
+| Week-over-Week Trends | The trend arrows beneath each stat |
+| Best Calls | Top-scoring call highlights |
+| Calls to Review | Lowest-scoring call highlights |
+| Top Performers | Reps with scores >= 70 |
+| Needs Attention | Reps with scores < 50 |
+| Rep Breakdown | Full per-rep table |
+| Pipeline Data | Pipeline/revenue figures throughout the report |
 
-- **Admin sidebar**: New group "Reporting" with a single item pointing to `/admin/reporting`
-- **Manager sidebar**: New item in an appropriate group pointing to `/manager/reporting`
+Each is a checkbox that updates the `report_sections` JSONB via the existing `handleUpdate` flow.
 
-### 3. Move Daily Report Settings
+### 3. Update Types and API
 
-- Remove `<DailyReportSettings />` from the Settings page (keep it only for manager/admin roles in the new Reporting page)
-- The Settings page will no longer show the Daily Call Report card for managers/admins
+**File:** `src/api/dailyReportConfig.ts`
+
+- Add `report_sections` to `DailyReportConfig` and `DailyReportConfigUpdate` interfaces
+- Define a `ReportSections` interface with the 8 boolean keys
+
+### 4. Edge Function -- Conditionally Render Sections
+
+**File:** `supabase/functions/send-daily-report/index.ts`
+
+- Read `report_sections` from the config (default all true if null)
+- Pass the sections object into `buildEmailHtml`
+- Wrap each email section in a conditional: only include the HTML if that section's flag is true
+- When pipeline is off, hide the pipeline stat card AND the pipeline column in rep breakdown
+
+### 5. On-Demand Report Column Selector
+
+**File:** `src/components/reporting/OnDemandReportGenerator.tsx`
+
+Add a "Columns" multi-select (using checkboxes in a popover) that lets users toggle which columns appear in the results table. Each report type has its own set of toggleable columns:
+
+| Report Type | Available Columns |
+|-------------|-------------------|
+| Team Performance | Rep, Calls, Avg Effectiveness, Pipeline |
+| Individual Rep | Date, Account, Score, Summary |
+| Pipeline | Prospect, Account, Heat, Potential Rev, Active Rev, Rep |
+| Coaching Activity | Rep, Sessions, Latest Session |
+
+The selected columns are passed as a `visibleColumns` prop to `ReportResultsTable`, which conditionally renders only the chosen columns. Defaults: all columns ON. The CSV export also respects the column selection.
+
+### 6. Update ReportResultsTable
+
+**File:** `src/components/reporting/ReportResultsTable.tsx`
+
+Accept a `visibleColumns` prop (string array). Only render `<TableHead>` and `<TableCell>` for columns in the array. The `exportToCsv` call also filters to only the visible columns.
 
 ---
 
@@ -48,66 +90,22 @@ Add a "Reporting" nav item to both admin and manager sidebar groups:
 
 ### Files to Create
 
-| File | Purpose |
-|------|---------|
-| `src/pages/admin/AdminReporting.tsx` | Main reporting page with tabs for on-demand reports and daily email settings |
-| `src/components/reporting/OnDemandReportGenerator.tsx` | Component with date range picker, rep filter, report type selector, and results display |
-| `src/components/reporting/ReportResultsTable.tsx` | Reusable table component for displaying generated report data |
-| `src/api/reportingApi.ts` | API functions to query call data, coaching data, and pipeline data for custom date ranges |
+None -- all changes are in existing files.
 
 ### Files to Modify
 
 | File | Change |
 |------|--------|
-| `src/components/layout/AppLayout.tsx` | Add "Reporting" nav item to `adminNavGroups` and `managerNavGroups` |
-| `src/App.tsx` | Add routes for `/admin/reporting` and `/manager/reporting` |
-| `src/pages/UserSettings.tsx` | Remove the `DailyReportSettings` import and rendering for manager/admin |
-| `src/lib/routes.ts` | Add `getReportingUrl()` helper |
+| `daily_report_configs` table | Add `report_sections` JSONB column via migration |
+| `src/api/dailyReportConfig.ts` | Add `ReportSections` interface, update config types |
+| `src/components/settings/DailyReportSettings.tsx` | Add section toggle checkboxes |
+| `supabase/functions/send-daily-report/index.ts` | Read `report_sections`, conditionally render email sections |
+| `src/components/reporting/OnDemandReportGenerator.tsx` | Add column selector popover with per-report-type defaults |
+| `src/components/reporting/ReportResultsTable.tsx` | Accept `visibleColumns` prop, filter rendered columns and CSV export |
 
-### Route Configuration
+### Default Behavior
 
-- `/admin/reporting` -- Protected for admin role
-- `/manager/reporting` -- Protected for manager role
-- Both render the same `AdminReporting` page component (it adapts based on role)
-
-### On-Demand Report Data Flow
-
-The on-demand reports will query the database directly from the frontend using the existing Supabase client (respecting RLS). No new edge functions are needed since admins and managers already have read access to calls, prospects, coaching sessions, and profiles through existing RLS policies.
-
-```text
-User selects report type + date range + rep filter
-  -> reportingApi.ts queries relevant tables
-  -> Results rendered in ReportResultsTable
-  -> Optional: Export to CSV via client-side generation
-```
-
-### Page Layout
-
-The reporting page uses a tab-based layout:
-
-```text
-+------------------------------------------+
-|  Reporting                                |
-|  [On-Demand Reports]  [Daily Email]       |
-+------------------------------------------+
-|                                           |
-|  Report Type:  [Team Performance v]       |
-|  Date Range:   [Last 7 Days v]  or Custom |
-|  Reps:         [All Team Members v]       |
-|                                           |
-|  [Generate Report]     [Export CSV]        |
-|                                           |
-|  +--------------------------------------+ |
-|  | Results Table                        | |
-|  | Rep | Calls | Avg Score | Pipeline   | |
-|  | ... | ...   | ...       | ...        | |
-|  +--------------------------------------+ |
-+------------------------------------------+
-```
-
-The "Daily Email" tab contains the existing `DailyReportSettings` and `ReportDeliveryHistory` components, unchanged.
-
-### No Database Changes Required
-
-All data is already accessible through existing tables and RLS policies. The on-demand reports simply query `call_transcripts`, `call_analyses`, `prospects`, `profiles`, and `sales_coach_sessions` with date and rep filters.
+- Existing users: all sections/columns ON (no behavior change)
+- New users: all sections/columns ON by default
+- The `report_sections` JSONB defaults ensure backward compatibility even if the column is null
 
