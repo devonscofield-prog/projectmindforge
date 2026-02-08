@@ -128,3 +128,6 @@ verify_jwt = false
 
 [functions.roleplay-abandon-session]
 verify_jwt = false
+
+[functions.send-daily-report]
+verify_jwt = false

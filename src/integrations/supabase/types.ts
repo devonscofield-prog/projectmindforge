@@ -942,6 +942,64 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_report_configs: {
+        Row: {
+          created_at: string
+          delivery_time: string
+          enabled: boolean
+          id: string
+          include_weekends: boolean
+          rep_ids: string[] | null
+          timezone: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          delivery_time?: string
+          enabled?: boolean
+          id?: string
+          include_weekends?: boolean
+          rep_ids?: string[] | null
+          timezone?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          delivery_time?: string
+          enabled?: boolean
+          id?: string
+          include_weekends?: boolean
+          rep_ids?: string[] | null
+          timezone?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_report_configs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_report_configs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "team_member_names"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_report_configs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "user_with_role"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dashboard_cache: {
         Row: {
           cache_data: Json
