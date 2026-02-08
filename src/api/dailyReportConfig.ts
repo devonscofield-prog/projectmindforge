@@ -1,5 +1,27 @@
 import { supabase } from '@/integrations/supabase/client';
 
+export interface ReportSections {
+  summary_stats: boolean;
+  wow_trends: boolean;
+  top_calls: boolean;
+  bottom_calls: boolean;
+  top_performers: boolean;
+  needs_attention: boolean;
+  rep_breakdown: boolean;
+  pipeline: boolean;
+}
+
+export const DEFAULT_REPORT_SECTIONS: ReportSections = {
+  summary_stats: true,
+  wow_trends: true,
+  top_calls: true,
+  bottom_calls: true,
+  top_performers: true,
+  needs_attention: true,
+  rep_breakdown: true,
+  pipeline: true,
+};
+
 export interface DailyReportConfig {
   id: string;
   user_id: string;
@@ -8,6 +30,7 @@ export interface DailyReportConfig {
   timezone: string;
   rep_ids: string[] | null;
   include_weekends: boolean;
+  report_sections: ReportSections | null;
   created_at: string;
   updated_at: string;
 }
@@ -18,6 +41,7 @@ export interface DailyReportConfigUpdate {
   timezone?: string;
   rep_ids?: string[] | null;
   include_weekends?: boolean;
+  report_sections?: ReportSections | null;
 }
 
 export async function getDailyReportConfig(): Promise<DailyReportConfig | null> {
