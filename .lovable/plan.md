@@ -1,100 +1,85 @@
 
+# Upgrade Admin AI Assistant: Full Platform Visibility
 
-# Admin AI Assistant -- Context-Aware Chat
+## Problem
 
-## Overview
+The current implementation fetches context from **only the page the admin is viewing**. The `getPageContext` function (line 371) routes to a single fetcher, and the system prompt labels it `CURRENT PAGE DATA`. This means:
 
-A floating AI chat available on all admin pages that understands the current page context and can answer questions about any data in the app. It uses the existing OpenAI API (GPT-5.2) and follows the same architectural pattern as the Sales Assistant Chat.
+- On `/admin/users`, the AI knows nothing about calls, accounts, or coaching
+- On `/admin/accounts`, the AI cannot answer questions about users or teams
+- The admin cannot ask cross-cutting questions like "Which reps have the most calls but lowest coaching scores?"
 
-## How It Works
+## Solution
 
-The admin clicks a floating button (bottom-right corner, only visible to admins). A slide-out sheet opens with a chat interface. The assistant automatically knows which page the admin is on and fetches relevant data as context before responding.
+Fetch **all** context categories in parallel on every request, but clearly mark which page the admin is currently viewing so the AI prioritizes that data in its responses.
 
-## Architecture
+## Changes
 
-### 1. Edge Function: `admin-assistant-chat`
+### Edge Function: `supabase/functions/admin-assistant-chat/index.ts`
 
-**New file:** `supabase/functions/admin-assistant-chat/index.ts`
+**1. Replace `getPageContext` with `fetchAllContext`**
 
-- Accepts `{ messages, page_context }` where `page_context` is the current route (e.g., `/admin/sales-coach`)
-- Verifies the user is authenticated and has the `admin` role (via `user_roles` table)
-- Rate-limited to 20 requests/minute per user
-- Based on `page_context`, fetches relevant data from the database:
-
-| Route | Data Fetched |
-|-------|-------------|
-| `/admin` (Dashboard) | User counts, team counts, call stats (7d), recent activity |
-| `/admin/sales-coach` (Coach History) | Recent coach sessions with user names, session stats, usage trends |
-| `/admin/history` (Call History) | Recent calls with analysis summaries, rep performance |
-| `/admin/users` | User list with roles, team assignments, activity status |
-| `/admin/teams` | Team structure, member counts, performance |
-| `/admin/accounts` | Account overview, heat scores, pipeline values |
-| `/admin/coaching` | Coaching trends, aggregate scores |
-| `/admin/performance` | Performance metrics, alerts |
-| Default | High-level app summary (user count, call count, team count) |
-
-- System prompt instructs the AI it is an admin assistant with full visibility into the platform
-- Calls OpenAI GPT-5.2 directly (matching existing pattern) with streaming
-- Returns SSE stream
-
-### 2. Frontend: Streaming API
-
-**New file:** `src/api/adminAssistantChat.ts`
-
-- `streamAdminAssistantChat({ messages, pageContext, onDelta, onDone, onError })`
-- Follows the exact same SSE streaming pattern as `salesAssistant.ts`
-- Sends auth token via Authorization header
-
-### 3. Frontend: Chat Component
-
-**New file:** `src/components/admin/AdminAssistantChat.tsx`
-
-- Floating button (bottom-right) with a sheet/drawer that slides open
-- Only renders when `role === 'admin'`
-- Uses `useLocation()` to detect the current route and passes it as `page_context`
-- Chat history with markdown rendering (ReactMarkdown)
-- Session persistence in a new `admin_assistant_sessions` table
-- Quick action suggestions based on current page context
-- Typing indicator, rate-limit countdown, error handling
-
-### 4. Database: Session Persistence
-
-**New table:** `admin_assistant_sessions`
+Instead of routing to one fetcher, call all fetchers in parallel:
 
 ```text
-id            uuid (PK, default gen_random_uuid())
-user_id       uuid (FK to profiles.id, NOT NULL)
-title         text
-messages      jsonb (NOT NULL, default '[]')
-page_context  text
-created_at    timestamptz (default now())
-updated_at    timestamptz (default now())
+async function fetchAllContext(supabase, pageContext):
+  Run all fetchers concurrently:
+    - fetchDashboardContext (stats, recent calls, recent coaching)
+    - fetchUsersContext (all users, roles, teams)
+    - fetchTeamsContext (team structure, members)
+    - fetchAccountsContext (prospects, pipeline, heat scores)
+    - fetchCallHistoryContext (recent calls by rep/type)
+    - fetchCoachHistoryContext (coach sessions, usage by user)
+    - fetchCoachingTrendsContext (trend analyses)
+    - fetchPerformanceContext (last 24h metrics)
+
+  Combine all results into one string, with a header indicating the active page
 ```
 
-RLS policies:
-- Admins can SELECT/INSERT/UPDATE/DELETE their own sessions (`auth.uid() = user_id` AND user has admin role)
+Each fetcher already returns a markdown section (e.g., `## USERS`, `## CALL HISTORY`), so combining them is straightforward.
 
-### 5. Integration Point
+**2. Update the system prompt injection (line 482)**
 
-**Modified file:** `src/components/layout/AppLayout.tsx`
+Change from:
+```
+The admin is currently viewing: {page_context}
+## CURRENT PAGE DATA
+{contextData}
+```
 
-- Import and render `<AdminAssistantChat />` inside the layout, conditionally when `role === 'admin'`
-- The component self-manages its visibility via portal (same pattern as SalesAssistantChat)
+To:
+```
+The admin is currently viewing: {page_context}
+Prioritize data relevant to this page when answering, but you have visibility into ALL platform data below.
 
-## Key Design Decisions
+## PLATFORM DATA
+{allContextData}
+```
 
-- **Uses OpenAI directly** (not Lovable AI Gateway) to match the existing Sales Coach and Sales Assistant pattern, since `OPENAI_API_KEY` is already configured
-- **Page-aware context fetching** happens server-side in the edge function so the admin doesn't need to manually specify what they're asking about
-- **Reuses existing UI patterns** from SalesAssistantChat (floating button, Sheet, markdown rendering, session management)
-- **Admin-only access** enforced both in the edge function (role check) and frontend (conditional render)
+**3. Optimize individual fetchers for combined payload size**
 
-## Files Created/Modified
+Since all fetchers now run on every request, reduce limits slightly to stay within token budgets:
+- Recent calls: 50 -> 30
+- Coach sessions: 30 -> 20
+- Accounts: 50 -> 30
+- Coaching trends: 20 -> 10
 
-| File | Action |
+This keeps the total context manageable while still providing comprehensive data.
+
+### Frontend: Quick Actions Update
+
+No changes needed -- the quick actions already suggest page-relevant prompts, and the AI will now be able to answer them using full platform data.
+
+### Files Modified
+
+| File | Change |
 |------|--------|
-| `supabase/functions/admin-assistant-chat/index.ts` | Create |
-| `src/api/adminAssistantChat.ts` | Create |
-| `src/components/admin/AdminAssistantChat.tsx` | Create |
-| `src/components/layout/AppLayout.tsx` | Modify (add AdminAssistantChat) |
-| Database migration (admin_assistant_sessions table) | Create |
+| `supabase/functions/admin-assistant-chat/index.ts` | Replace `getPageContext` with `fetchAllContext`; update system prompt; trim individual fetcher limits |
 
+No database changes, no frontend changes, no new files.
+
+## Technical Details
+
+The parallel fetch approach uses `Promise.allSettled` so that a failure in one fetcher (e.g., if `get_performance_summary` RPC errors) does not block the others. Failed fetchers return an empty string and log a warning.
+
+Estimated total context size with all fetchers: ~3,000-5,000 tokens, well within the 32,768 completion token budget and GPT-5.2's context window.
