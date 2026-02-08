@@ -19,6 +19,7 @@ import { createCallTranscriptAndAnalyze } from '@/api/aiCallAnalysis';
 import type { ProductEntry, StakeholderEntry } from '@/api/aiCallAnalysis';
 import { updateProspect } from '@/api/prospects';
 import { CallType, callTypeOptions } from '@/constants/callTypes';
+import { OpportunityLabel, opportunityLabelOptions } from '@/constants/opportunityLabels';
 import { format, formatDistanceToNow } from 'date-fns';
 import { Send, Loader2, FileText, Pencil, BarChart3, Users, AlertTriangle, Info, Keyboard, RotateCcw, ClipboardList, Package, CheckCircle2 } from 'lucide-react';
 import { FormSection } from '@/components/forms/FormSection';
@@ -76,6 +77,9 @@ interface FormDraft {
   stakeholders: StakeholderEntry[];
   selectedProducts: ProductEntry[];
   isUnqualified: boolean;
+  estimatedOpportunitySize: string;
+  targetCloseDate: string;
+  opportunityLabel: string;
   savedAt: number;
 }
 
@@ -103,6 +107,9 @@ function RepDashboard() {
   const [selectedProducts, setSelectedProducts] = useState<ProductEntry[]>([]);
   const [managerOnCall, setManagerOnCall] = useState(false);
   const [isUnqualified, setIsUnqualified] = useState(false);
+  const [estimatedOpportunitySize, setEstimatedOpportunitySize] = useState('');
+  const [targetCloseDate, setTargetCloseDate] = useState('');
+  const [opportunityLabel, setOpportunityLabel] = useState<OpportunityLabel | ''>('');
   const [additionalSpeakersEnabled, setAdditionalSpeakersEnabled] = useState(false);
   const [additionalSpeakersText, setAdditionalSpeakersText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -150,6 +157,9 @@ function RepDashboard() {
             setStakeholders(draft.stakeholders || []);
             setSelectedProducts(draft.selectedProducts || []);
             setIsUnqualified(draft.isUnqualified || false);
+            setEstimatedOpportunitySize(draft.estimatedOpportunitySize || '');
+            setTargetCloseDate(draft.targetCloseDate || '');
+            setOpportunityLabel((draft.opportunityLabel as OpportunityLabel) || '');
             // Silent restore - no dialog, no toast for seamless tab-switch experience
           } else {
             // Older draft - show confirmation dialog
@@ -183,6 +193,9 @@ function RepDashboard() {
           stakeholders,
           selectedProducts,
           isUnqualified,
+          estimatedOpportunitySize,
+          targetCloseDate,
+          opportunityLabel,
           savedAt: Date.now(),
         };
         try {
@@ -227,6 +240,9 @@ function RepDashboard() {
           stakeholders,
           selectedProducts,
           isUnqualified,
+          estimatedOpportunitySize,
+          targetCloseDate,
+          opportunityLabel,
           savedAt: Date.now(),
         };
         try {
@@ -278,6 +294,9 @@ function RepDashboard() {
         setStakeholders(draft.stakeholders || []);
         setSelectedProducts(draft.selectedProducts || []);
         setIsUnqualified(draft.isUnqualified || false);
+        setEstimatedOpportunitySize(draft.estimatedOpportunitySize || '');
+        setTargetCloseDate(draft.targetCloseDate || '');
+        setOpportunityLabel((draft.opportunityLabel as OpportunityLabel) || '');
         toast.success('Draft restored', { description: 'Your previous work has been restored.' });
       }
     } catch {
@@ -358,6 +377,9 @@ function RepDashboard() {
   const isSalesforceUrlValid = !salesforceAccountLink.trim() || SALESFORCE_URL_PATTERN.test(salesforceAccountLink);
   const isCallTypeOtherValid = callType !== 'other' || callTypeOther.trim().length > 0;
   const { speakers: additionalSpeakers, isValid: isAdditionalSpeakersValid } = parseAdditionalSpeakers(additionalSpeakersText);
+  const isOpportunitySizeValid = estimatedOpportunitySize.trim().length > 0 && parseFloat(estimatedOpportunitySize) >= 0;
+  const isTargetCloseDateValid = targetCloseDate.trim().length > 0;
+  const isOpportunityLabelValid = opportunityLabel !== '';
 
   // Transcript length progress (0-100, capped at 100)
   const transcriptProgress = Math.min(100, (normalizedTranscript.length / MIN_TRANSCRIPT_LENGTH) * 100);
@@ -380,6 +402,9 @@ function RepDashboard() {
     isSalesforceUrlValid && 
     isCallTypeOtherValid && 
     isAdditionalSpeakersValid &&
+    isOpportunitySizeValid &&
+    isTargetCloseDateValid &&
+    isOpportunityLabelValid &&
     !hasInvalidProducts &&
     !isSubmitting &&
     (Date.now() - lastSubmitTime >= SUBMISSION_COOLDOWN_MS);
@@ -396,6 +421,9 @@ function RepDashboard() {
     if (!isCallTypeOtherValid) hints.push('Call Type');
     if (!isAdditionalSpeakersValid) hints.push(`Max ${MAX_ADDITIONAL_SPEAKERS} speakers`);
     if (hasInvalidProducts) hints.push('Products with $0 price');
+    if (!isOpportunitySizeValid) hints.push('Estimated Opportunity Size');
+    if (!isTargetCloseDateValid) hints.push('Target Close Date');
+    if (!isOpportunityLabelValid) hints.push('Opportunity Label');
     return hints;
   };
 
@@ -432,6 +460,9 @@ function RepDashboard() {
     setIsUnqualified(false);
     setAdditionalSpeakersEnabled(false);
     setAdditionalSpeakersText('');
+    setEstimatedOpportunitySize('');
+    setTargetCloseDate('');
+    setOpportunityLabel('');
     clearDraft();
     toast.success('Form cleared', { description: 'All fields have been reset.' });
   };
@@ -476,6 +507,9 @@ function RepDashboard() {
     if (!isCallTypeOtherValid) invalidFields.push('callType');
     if (!isAdditionalSpeakersValid) invalidFields.push('speakers');
     if (hasInvalidProducts) invalidFields.push('products');
+    if (!isOpportunitySizeValid) invalidFields.push('opportunitySize');
+    if (!isTargetCloseDateValid) invalidFields.push('targetCloseDate');
+    if (!isOpportunityLabelValid) invalidFields.push('opportunityLabel');
 
     // If there are invalid fields, shake them and return
     if (invalidFields.length > 0) {
@@ -525,6 +559,9 @@ function RepDashboard() {
           ? additionalSpeakers
           : undefined,
         isUnqualified,
+        estimatedOpportunitySize: parseFloat(estimatedOpportunitySize),
+        targetCloseDate,
+        opportunityLabel,
       });
 
       // Clear draft on successful submission
@@ -663,7 +700,7 @@ function RepDashboard() {
                   {/* Progress Header */}
                   <FormProgressHeader
                     sections={[
-                      { id: 'call-details', title: 'Call Details', isComplete: isAccountValid && isStakeholderValid && isSalesforceValid && isSalesforceUrlValid && isCallTypeOtherValid, isRequired: true },
+                      { id: 'call-details', title: 'Call Details', isComplete: isAccountValid && isStakeholderValid && isSalesforceValid && isSalesforceUrlValid && isCallTypeOtherValid && isOpportunitySizeValid && isTargetCloseDateValid && isOpportunityLabelValid, isRequired: true },
                       { id: 'participants', title: 'Participants', isComplete: managerOnCall || (additionalSpeakersEnabled && additionalSpeakersText.trim().length > 0), isRequired: false },
                       { id: 'transcript', title: 'Transcript', isComplete: isTranscriptLengthValid, isRequired: true },
                       { id: 'products', title: 'Products', isComplete: selectedProducts.length > 0, isRequired: false },
@@ -674,9 +711,9 @@ function RepDashboard() {
                   <FormSection
                     title="Call Details"
                     icon={<ClipboardList className="h-4 w-4" />}
-                    isComplete={isAccountValid && isStakeholderValid && isSalesforceValid && isSalesforceUrlValid && isCallTypeOtherValid}
-                    completionCount={[isAccountValid, isStakeholderValid, isSalesforceValid && isSalesforceUrlValid, true].filter(Boolean).length}
-                    totalCount={4}
+                    isComplete={isAccountValid && isStakeholderValid && isSalesforceValid && isSalesforceUrlValid && isCallTypeOtherValid && isOpportunitySizeValid && isTargetCloseDateValid && isOpportunityLabelValid}
+                    completionCount={[isAccountValid, isStakeholderValid, isSalesforceValid && isSalesforceUrlValid, true, isOpportunitySizeValid, isTargetCloseDateValid, isOpportunityLabelValid].filter(Boolean).length}
+                    totalCount={7}
                     isRequired
                     defaultOpen
                   >
@@ -794,6 +831,52 @@ function RepDashboard() {
                             Brief description for call categorization ({callTypeOther.length}/50)
                           </p>
                         </div>}
+
+                      {/* Opportunity Fields */}
+                      <div className="grid gap-4 sm:grid-cols-3">
+                        <div className={`space-y-2 ${shakeFields.includes('opportunitySize') ? 'animate-shake' : ''}`}>
+                          <Label htmlFor="estimatedOpportunitySize">Est. Opportunity Size *</Label>
+                          <Input 
+                            id="estimatedOpportunitySize" 
+                            type="number" 
+                            min="0" 
+                            step="0.01"
+                            placeholder="$0.00"
+                            value={estimatedOpportunitySize} 
+                            onChange={e => setEstimatedOpportunitySize(e.target.value)} 
+                            disabled={isSubmitting}
+                            className="h-11"
+                            required 
+                          />
+                        </div>
+                        <div className={`space-y-2 ${shakeFields.includes('targetCloseDate') ? 'animate-shake' : ''}`}>
+                          <Label htmlFor="targetCloseDate">Target Close Date *</Label>
+                          <Input 
+                            id="targetCloseDate" 
+                            type="date" 
+                            value={targetCloseDate} 
+                            onChange={e => setTargetCloseDate(e.target.value)} 
+                            disabled={isSubmitting}
+                            className="h-11"
+                            required 
+                          />
+                        </div>
+                        <div className={`space-y-2 ${shakeFields.includes('opportunityLabel') ? 'animate-shake' : ''}`}>
+                          <Label htmlFor="opportunityLabel">Opportunity Label *</Label>
+                          <Select value={opportunityLabel} onValueChange={v => setOpportunityLabel(v as OpportunityLabel)} disabled={isSubmitting}>
+                            <SelectTrigger id="opportunityLabel" className="h-11">
+                              <SelectValue placeholder="Select label" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {opportunityLabelOptions.map(option => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
                     </div>
                   </FormSection>
 
