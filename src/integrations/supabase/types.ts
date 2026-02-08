@@ -1014,6 +1014,7 @@ export type Database = {
           id: string
           include_weekends: boolean
           rep_ids: string[] | null
+          report_sections: Json | null
           timezone: string
           updated_at: string
           user_id: string
@@ -1025,6 +1026,7 @@ export type Database = {
           id?: string
           include_weekends?: boolean
           rep_ids?: string[] | null
+          report_sections?: Json | null
           timezone?: string
           updated_at?: string
           user_id: string
@@ -1036,6 +1038,7 @@ export type Database = {
           id?: string
           include_weekends?: boolean
           rep_ids?: string[] | null
+          report_sections?: Json | null
           timezone?: string
           updated_at?: string
           user_id?: string

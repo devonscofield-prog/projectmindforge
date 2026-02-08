@@ -10,6 +10,7 @@ import { subDays, format, startOfDay } from 'date-fns';
 import { getTeamReps } from '@/api/dailyReportConfig';
 import { generateReport, type ReportType, type ReportData, type ReportFilters } from '@/api/reportingApi';
 import { ReportResultsTable } from './ReportResultsTable';
+import { ColumnSelector, getDefaultColumns } from './ColumnSelector';
 
 type DatePreset = 'today' | 'last_7' | 'last_30' | 'custom';
 
@@ -20,6 +21,7 @@ export function OnDemandReportGenerator() {
   const [customEnd, setCustomEnd] = useState('');
   const [selectedRepId, setSelectedRepId] = useState<string>('all');
   const [reportData, setReportData] = useState<ReportData | null>(null);
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(getDefaultColumns('team_performance'));
 
   const { data: reps = [], isLoading: repsLoading } = useQuery({
     queryKey: ['team-reps-for-report'],
@@ -30,6 +32,13 @@ export function OnDemandReportGenerator() {
     mutationFn: generateReport,
     onSuccess: (data) => setReportData(data),
   });
+
+  const handleReportTypeChange = (v: string) => {
+    const newType = v as ReportType;
+    setReportType(newType);
+    setReportData(null);
+    setVisibleColumns(getDefaultColumns(newType));
+  };
 
   const getDateRange = (): { startDate: string; endDate: string } => {
     const now = new Date();
@@ -49,7 +58,6 @@ export function OnDemandReportGenerator() {
   const handleGenerate = () => {
     const { startDate, endDate } = getDateRange();
     const repIds = selectedRepId === 'all' ? null : [selectedRepId];
-
     const filters: ReportFilters = { reportType, startDate, endDate, repIds };
     mutation.mutate(filters);
   };
@@ -58,14 +66,11 @@ export function OnDemandReportGenerator() {
     <div className="space-y-6">
       <Card>
         <CardContent className="pt-6 space-y-5">
-          {/* Report Type */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-2">
               <Label>Report Type</Label>
-              <Select value={reportType} onValueChange={(v) => { setReportType(v as ReportType); setReportData(null); }}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+              <Select value={reportType} onValueChange={handleReportTypeChange}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="team_performance">Team Performance</SelectItem>
                   <SelectItem value="individual_rep">Individual Rep</SelectItem>
@@ -75,13 +80,10 @@ export function OnDemandReportGenerator() {
               </Select>
             </div>
 
-            {/* Date Range */}
             <div className="space-y-2">
               <Label>Date Range</Label>
               <Select value={datePreset} onValueChange={(v) => setDatePreset(v as DatePreset)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="today">Today</SelectItem>
                   <SelectItem value="last_7">Last 7 Days</SelectItem>
@@ -91,25 +93,17 @@ export function OnDemandReportGenerator() {
               </Select>
             </div>
 
-            {/* Rep Filter */}
             <div className="space-y-2">
               <Label>{reportType === 'individual_rep' ? 'Select Rep' : 'Filter by Rep'}</Label>
               <Select value={selectedRepId} onValueChange={setSelectedRepId} disabled={repsLoading}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All team" />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="All team" /></SelectTrigger>
                 <SelectContent>
-                  {reportType !== 'individual_rep' && (
-                    <SelectItem value="all">All Team Members</SelectItem>
-                  )}
-                  {reps.map(r => (
-                    <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
-                  ))}
+                  {reportType !== 'individual_rep' && <SelectItem value="all">All Team Members</SelectItem>}
+                  {reps.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Generate */}
             <div className="space-y-2">
               <Label className="invisible">Action</Label>
               <Button
@@ -127,7 +121,6 @@ export function OnDemandReportGenerator() {
             </div>
           </div>
 
-          {/* Custom date inputs */}
           {datePreset === 'custom' && (
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
@@ -143,11 +136,18 @@ export function OnDemandReportGenerator() {
         </CardContent>
       </Card>
 
-      {/* Results */}
       {reportData && (
         <Card>
           <CardContent className="pt-6">
-            <ReportResultsTable data={reportData} />
+            <div className="flex justify-between items-center mb-4">
+              <div />
+              <ColumnSelector
+                reportType={reportType}
+                visibleColumns={visibleColumns}
+                onChange={setVisibleColumns}
+              />
+            </div>
+            <ReportResultsTable data={reportData} visibleColumns={visibleColumns} />
           </CardContent>
         </Card>
       )}

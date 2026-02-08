@@ -15,8 +15,10 @@ import {
   upsertDailyReportConfig,
   sendTestDailyReport,
   getTeamReps,
+  DEFAULT_REPORT_SECTIONS,
   type DailyReportConfigUpdate,
 } from '@/api/dailyReportConfig';
+import { ReportSectionToggles } from './ReportSectionToggles';
 import { ReportDeliveryHistory } from './ReportDeliveryHistory';
 import {
   detectBrowserTimezone,
@@ -76,6 +78,7 @@ export function DailyReportSettings() {
       timezone: config?.timezone ?? 'America/New_York',
       rep_ids: config?.rep_ids ?? null,
       include_weekends: config?.include_weekends ?? false,
+      report_sections: config?.report_sections ?? DEFAULT_REPORT_SECTIONS,
       ...updates,
     });
   };
@@ -291,6 +294,15 @@ export function DailyReportSettings() {
                   })}
                 </div>
               )}
+            </div>
+
+            {/* Report Sections */}
+            <div className="pt-4 border-t">
+              <ReportSectionToggles
+                sections={config?.report_sections ?? DEFAULT_REPORT_SECTIONS}
+                onChange={(sections) => handleUpdate({ report_sections: sections })}
+                disabled={mutation.isPending}
+              />
             </div>
 
             {/* Send Test Report */}

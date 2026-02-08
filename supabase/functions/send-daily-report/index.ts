@@ -6,6 +6,22 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+interface ReportSections {
+  summary_stats: boolean;
+  wow_trends: boolean;
+  top_calls: boolean;
+  bottom_calls: boolean;
+  top_performers: boolean;
+  needs_attention: boolean;
+  rep_breakdown: boolean;
+  pipeline: boolean;
+}
+
+const DEFAULT_SECTIONS: ReportSections = {
+  summary_stats: true, wow_trends: true, top_calls: true, bottom_calls: true,
+  top_performers: true, needs_attention: true, rep_breakdown: true, pipeline: true,
+};
+
 interface ReportConfig {
   id: string;
   user_id: string;
@@ -14,6 +30,7 @@ interface ReportConfig {
   timezone: string;
   rep_ids: string[] | null;
   include_weekends: boolean;
+  report_sections: ReportSections | null;
 }
 
 interface CallData {
@@ -267,6 +284,7 @@ async function processReport(
       timezone: "America/New_York",
       rep_ids: null,
       include_weekends: false,
+      report_sections: null,
     };
   }
 
@@ -411,6 +429,8 @@ async function processReport(
   const isMondayLookback = dayOfWeek === 1;
   const todayStr = userLocal.toISOString().split("T")[0];
   const dateLabel = isMondayLookback ? `${startDate} – ${todayStr}` : todayStr;
+  const sections: ReportSections = { ...DEFAULT_SECTIONS, ...(config.report_sections || {}) };
+
   const emailHtml = buildEmailHtml({
     dateLabel,
     totalCalls,
@@ -428,6 +448,7 @@ async function processReport(
     recipientName: profile.name,
     trend,
     unsubscribeUrl,
+    sections,
   });
 
   const subject = isTestMode
@@ -475,6 +496,7 @@ interface EmailParams {
   recipientName: string;
   trend: TrendData;
   unsubscribeUrl: string;
+  sections: ReportSections;
 }
 
 /** Build a trend indicator string: arrow + change */
@@ -500,8 +522,10 @@ function buildEmailHtml(params: EmailParams): string {
   const {
     dateLabel, totalCalls, scoredCallCount, avgEffectiveness, totalPipeline, hasPipelineData,
     topPerformers, needsAttention, repBreakdown, topCalls, bottomCalls,
-    dashboardUrl, isTestMode, recipientName, trend, unsubscribeUrl,
+    dashboardUrl, isTestMode, recipientName, trend, unsubscribeUrl, sections,
   } = params;
+
+  const showPipeline = hasPipelineData && sections.pipeline;
 
   const testBanner = isTestMode ? `
     <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 12px 16px; margin-bottom: 24px;">
@@ -519,12 +543,12 @@ function buildEmailHtml(params: EmailParams): string {
 
   const formatCurrency = (n: number) => "$" + n.toLocaleString("en-US", { maximumFractionDigits: 0 });
 
-  // WoW trend indicators
-  const callsTrend = trend.hasPrevData ? `<div style="margin-top:4px;">${trendIndicator(totalCalls, trend.prevTotalCalls)}</div>` : "";
-  const effectivenessTrend = trend.hasPrevData && scoredCallCount > 0
+  // WoW trend indicators (only if wow_trends enabled)
+  const callsTrend = sections.wow_trends && trend.hasPrevData ? `<div style="margin-top:4px;">${trendIndicator(totalCalls, trend.prevTotalCalls)}</div>` : "";
+  const effectivenessTrend = sections.wow_trends && trend.hasPrevData && scoredCallCount > 0
     ? `<div style="margin-top:4px;">${trendIndicator(avgEffectiveness, trend.prevAvgEffectiveness, false)}</div>`
     : "";
-  const pipelineTrend = trend.hasPrevData && hasPipelineData
+  const pipelineTrend = sections.wow_trends && trend.hasPrevData && showPipeline
     ? `<div style="margin-top:4px;">${trendIndicator(totalPipeline, trend.prevTotalPipeline)}</div>`
     : "";
 
@@ -568,7 +592,7 @@ function buildEmailHtml(params: EmailParams): string {
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">${r.name}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;">${r.callCount}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;color:${scoreColor(r.avgScore)};font-weight:600;">${r.scores.length > 0 ? Math.round(r.avgScore) : "—"}</td>
-      ${hasPipelineData ? `<td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right;">${r.totalPipeline > 0 ? formatCurrency(r.totalPipeline) : "—"}</td>` : ""}
+      ${showPipeline ? `<td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right;">${r.totalPipeline > 0 ? formatCurrency(r.totalPipeline) : "—"}</td>` : ""}
     </tr>
   `).join("");
 
@@ -588,7 +612,7 @@ function buildEmailHtml(params: EmailParams): string {
   ` : "";
 
   // *** FIX #3: Table-based pipeline stat card ***
-  const pipelineStatTd = hasPipelineData ? `
+  const pipelineStatTd = showPipeline ? `
     <td style="width:33%;padding:0 0 0 8px;">
       <div style="background:#fefce8;border-radius:8px;padding:16px;text-align:center;">
         <div style="font-size:28px;font-weight:700;color:#ca8a04;">${formatCurrency(totalPipeline)}</div>
@@ -632,16 +656,17 @@ function buildEmailHtml(params: EmailParams): string {
           ${dataQualityBanner}
 
           <!-- Summary Stats: TABLE-BASED for Outlook compat -->
+          ${sections.summary_stats ? `
           <table style="width:100%;border-collapse:separate;border-spacing:8px 0;margin-bottom:32px;">
             <tr>
-              <td style="width:${hasPipelineData ? '33%' : '50%'};padding:0;">
+              <td style="width:${showPipeline ? '33%' : '50%'};padding:0;">
                 <div style="background:#f0f9ff;border-radius:8px;padding:16px;text-align:center;">
                   <div style="font-size:28px;font-weight:700;color:#1e40af;">${totalCalls}</div>
                   <div style="font-size:12px;color:#6b7280;margin-top:4px;">Calls Analyzed</div>
                   ${callsTrend}
                 </div>
               </td>
-              <td style="width:${hasPipelineData ? '33%' : '50%'};padding:0 0 0 8px;">
+              <td style="width:${showPipeline ? '33%' : '50%'};padding:0 0 0 8px;">
                 <div style="background:#f0fdf4;border-radius:8px;padding:16px;text-align:center;">
                   <div style="font-size:28px;font-weight:700;color:${scoreColor(avgEffectiveness)};">${scoredCallCount > 0 ? Math.round(avgEffectiveness) : "—"}</div>
                   <div style="font-size:12px;color:#6b7280;margin-top:4px;">Avg Effectiveness</div>
@@ -651,13 +676,15 @@ function buildEmailHtml(params: EmailParams): string {
               ${pipelineStatTd}
             </tr>
           </table>
+          ` : ""}
 
           ${totalCalls === 0 ? `
             <p style="text-align:center;color:#6b7280;padding:24px 0;">No calls recorded for this period.</p>
           ` : `
-            ${topCallsSection}
-            ${bottomCallsSection}
+            ${sections.top_calls ? topCallsSection : ""}
+            ${sections.bottom_calls ? bottomCallsSection : ""}
 
+            ${sections.top_performers ? `
             <!-- Top Performers -->
             <h2 style="font-size:16px;margin:0 0 12px;color:#16a34a;">🏆 Top Performers</h2>
             <table style="width:100%;border-collapse:collapse;margin-bottom:24px;font-size:14px;">
@@ -668,7 +695,9 @@ function buildEmailHtml(params: EmailParams): string {
               </tr></thead>
               <tbody>${topPerformerRows}</tbody>
             </table>
+            ` : ""}
 
+            ${sections.needs_attention ? `
             <!-- Needs Attention -->
             <h2 style="font-size:16px;margin:0 0 12px;color:#dc2626;">⚠️ Needs Attention</h2>
             <table style="width:100%;border-collapse:collapse;margin-bottom:24px;font-size:14px;">
@@ -679,7 +708,9 @@ function buildEmailHtml(params: EmailParams): string {
               </tr></thead>
               <tbody>${attentionRows}</tbody>
             </table>
+            ` : ""}
 
+            ${sections.rep_breakdown ? `
             <!-- Full Breakdown -->
             <h2 style="font-size:16px;margin:0 0 12px;">📋 Rep Breakdown</h2>
             <table style="width:100%;border-collapse:collapse;margin-bottom:24px;font-size:14px;">
@@ -687,10 +718,11 @@ function buildEmailHtml(params: EmailParams): string {
                 <th style="padding:8px 12px;text-align:left;font-weight:600;border-bottom:2px solid #e5e7eb;">Rep</th>
                 <th style="padding:8px 12px;text-align:center;font-weight:600;border-bottom:2px solid #e5e7eb;">Calls</th>
                 <th style="padding:8px 12px;text-align:center;font-weight:600;border-bottom:2px solid #e5e7eb;">Avg Score</th>
-                ${hasPipelineData ? `<th style="padding:8px 12px;text-align:right;font-weight:600;border-bottom:2px solid #e5e7eb;">Pipeline</th>` : ""}
+                ${showPipeline ? `<th style="padding:8px 12px;text-align:right;font-weight:600;border-bottom:2px solid #e5e7eb;">Pipeline</th>` : ""}
               </tr></thead>
               <tbody>${breakdownRows}</tbody>
             </table>
+            ` : ""}
           `}
 
           ${dashboardLink}
