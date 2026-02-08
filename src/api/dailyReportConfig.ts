@@ -67,6 +67,30 @@ export async function sendTestDailyReport(): Promise<{ success: boolean; message
   return data;
 }
 
+export interface ReportDeliveryEntry {
+  id: string;
+  sent_at: string;
+  title: string;
+  summary: string | null;
+  task_count: number;
+}
+
+export async function getReportDeliveryHistory(limit = 10): Promise<ReportDeliveryEntry[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await (supabase as any)
+    .from('notification_log')
+    .select('id, sent_at, title, summary, task_count')
+    .eq('user_id', user.id)
+    .eq('notification_type', 'daily_call_report')
+    .order('sent_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  return (data || []) as ReportDeliveryEntry[];
+}
+
 export async function getTeamReps(): Promise<Array<{ id: string; name: string }>> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');

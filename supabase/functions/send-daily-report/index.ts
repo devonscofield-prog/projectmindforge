@@ -36,6 +36,13 @@ interface RepSummary {
   scores: number[];
 }
 
+interface TrendData {
+  prevTotalCalls: number;
+  prevAvgEffectiveness: number;
+  prevTotalPipeline: number;
+  hasPrevData: boolean;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyClient = SupabaseClient<any, any, any>;
 
@@ -61,6 +68,18 @@ function getCallSummary(analysis: any): string | null {
       : analysis.analysis_metadata;
     return meta?.summary || null;
   } catch { return null; }
+}
+
+/** Generate HMAC token for unsubscribe links */
+async function generateUnsubscribeToken(userId: string): Promise<string> {
+  const secret = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(userId));
+  const sigHex = Array.from(new Uint8Array(signature)).map(b => b.toString(16).padStart(2, "0")).join("");
+  return btoa(JSON.stringify({ uid: userId, sig: sigHex }));
 }
 
 async function sendEmail(to: string, subject: string, html: string): Promise<void> {
@@ -151,6 +170,24 @@ const handler = async (req: Request): Promise<Response> => {
     let sentCount = 0;
     for (const config of usersToProcess) {
       try {
+        // *** FIX #2: Duplicate send prevention ***
+        const hourStart = new Date(now);
+        hourStart.setMinutes(0, 0, 0);
+        hourStart.setMilliseconds(0);
+
+        const { data: existing } = await supabase
+          .from("notification_log")
+          .select("id")
+          .eq("user_id", config.user_id)
+          .eq("notification_type", "daily_call_report")
+          .gte("sent_at", hourStart.toISOString())
+          .limit(1);
+
+        if (existing && existing.length > 0) {
+          console.log(`[send-daily-report] Skipping user ${config.user_id} — already sent this hour`);
+          continue;
+        }
+
         await processReport(supabase, config.user_id, now, false, config);
         sentCount++;
         await new Promise((r) => setTimeout(r, 100));
@@ -166,6 +203,46 @@ const handler = async (req: Request): Promise<Response> => {
     return jsonResponse({ error: msg }, 500);
   }
 };
+
+async function fetchCallsForPeriod(
+  supabase: AnyClient,
+  targetRepIds: string[],
+  startDate: string,
+  endDate: string
+): Promise<CallData[]> {
+  const { data: callsRaw, error } = await supabase
+    .from("call_transcripts")
+    .select(`
+      id, call_date, account_name, call_type, potential_revenue, rep_id,
+      profiles!call_transcripts_rep_id_fkey(name),
+      ai_call_analysis(call_effectiveness_score, analysis_behavior, analysis_metadata)
+    `)
+    .in("rep_id", targetRepIds)
+    .gte("call_date", startDate)
+    .lt("call_date", endDate)
+    .is("deleted_at", null)
+    .order("call_date", { ascending: false });
+
+  if (error) {
+    console.error("[send-daily-report] Error fetching calls:", error);
+    return [];
+  }
+
+  return (callsRaw || []).map((c: any) => {
+    const analysis = c.ai_call_analysis?.[0] || null;
+    return {
+      id: c.id,
+      call_date: c.call_date,
+      account_name: c.account_name,
+      call_type: c.call_type,
+      potential_revenue: c.potential_revenue,
+      rep_id: c.rep_id,
+      rep_name: c.profiles?.name || "Unknown",
+      effectiveness_score: getEffectivenessScore(analysis),
+      summary: getCallSummary(analysis),
+    };
+  });
+}
 
 async function processReport(
   supabase: AnyClient,
@@ -209,7 +286,6 @@ async function processReport(
   if (config.rep_ids && config.rep_ids.length > 0) {
     targetRepIds = config.rep_ids;
   } else {
-    // Get all team member IDs for this manager
     const { data: teams } = await supabase
       .from("teams")
       .select("id")
@@ -226,7 +302,6 @@ async function processReport(
       targetRepIds = (members || []).map((m: any) => m.id);
     }
 
-    // For admins with no team, check role and get all reps
     if (targetRepIds.length === 0) {
       const { data: role } = await supabase.rpc("get_user_role", { _user_id: userId });
       if (role === "admin") {
@@ -248,11 +323,9 @@ async function processReport(
   // Determine the report date range
   const userLocal = new Date(now.toLocaleString("en-US", { timeZone: config.timezone }));
   const dayOfWeek = userLocal.getDay();
-  
-  let daysBack = 1;
-  if (dayOfWeek === 1 && config.include_weekends) {
-    daysBack = 3;
-  }
+
+  // *** FIX #1: Monday gap — always look back 3 days on Monday ***
+  const daysBack = dayOfWeek === 1 ? 3 : 1;
 
   const reportEnd = new Date(userLocal);
   reportEnd.setHours(0, 0, 0, 0);
@@ -264,39 +337,24 @@ async function processReport(
 
   console.log(`[send-daily-report] Querying calls from ${startDate} to ${endDate} for ${targetRepIds.length} reps`);
 
-  // Fetch calls with analysis data (including analysis_behavior and analysis_metadata)
-  const { data: callsRaw, error: callsError } = await supabase
-    .from("call_transcripts")
-    .select(`
-      id, call_date, account_name, call_type, potential_revenue, rep_id,
-      profiles!call_transcripts_rep_id_fkey(name),
-      ai_call_analysis(call_effectiveness_score, analysis_behavior, analysis_metadata)
-    `)
-    .in("rep_id", targetRepIds)
-    .gte("call_date", startDate)
-    .lt("call_date", endDate)
-    .is("deleted_at", null)
-    .order("call_date", { ascending: false });
+  // *** FIX #4: Week-over-Week — fetch previous period in parallel ***
+  const prevEnd = new Date(reportStart);
+  prevEnd.setDate(prevEnd.getDate() - (7 - daysBack)); // same weekday last week
+  const prevStart = new Date(prevEnd);
+  prevStart.setDate(prevStart.getDate() - daysBack);
+  // Simpler: previous period = exactly 7 days before current period
+  const prevStartDate = new Date(reportStart);
+  prevStartDate.setDate(prevStartDate.getDate() - 7);
+  const prevEndDate = new Date(reportEnd);
+  prevEndDate.setDate(prevEndDate.getDate() - 7);
 
-  if (callsError) {
-    console.error("[send-daily-report] Error fetching calls:", callsError);
-    return jsonResponse({ error: callsError.message }, 500);
-  }
+  const prevStartStr = prevStartDate.toISOString().split("T")[0];
+  const prevEndStr = prevEndDate.toISOString().split("T")[0];
 
-  const calls: CallData[] = (callsRaw || []).map((c: any) => {
-    const analysis = c.ai_call_analysis?.[0] || null;
-    return {
-      id: c.id,
-      call_date: c.call_date,
-      account_name: c.account_name,
-      call_type: c.call_type,
-      potential_revenue: c.potential_revenue,
-      rep_id: c.rep_id,
-      rep_name: c.profiles?.name || "Unknown",
-      effectiveness_score: getEffectivenessScore(analysis),
-      summary: getCallSummary(analysis),
-    };
-  });
+  const [calls, prevCalls] = await Promise.all([
+    fetchCallsForPeriod(supabase, targetRepIds, startDate, endDate),
+    fetchCallsForPeriod(supabase, targetRepIds, prevStartStr, prevEndStr),
+  ]);
 
   // Build per-rep summaries
   const repMap: Record<string, RepSummary> = {};
@@ -321,6 +379,15 @@ async function processReport(
   const totalPipeline = calls.reduce((sum, c) => sum + (c.potential_revenue || 0), 0);
   const hasPipelineData = totalPipeline > 0;
 
+  // Previous period stats for WoW trends
+  const prevScores = prevCalls.map(c => c.effectiveness_score).filter((s): s is number => s !== null);
+  const trend: TrendData = {
+    prevTotalCalls: prevCalls.length,
+    prevAvgEffectiveness: prevScores.length > 0 ? prevScores.reduce((a, b) => a + b, 0) / prevScores.length : 0,
+    prevTotalPipeline: prevCalls.reduce((sum, c) => sum + (c.potential_revenue || 0), 0),
+    hasPrevData: prevCalls.length > 0,
+  };
+
   // Top/bottom calls with summaries
   const scoredCalls = calls.filter(c => c.effectiveness_score !== null).sort((a, b) => b.effectiveness_score! - a.effectiveness_score!);
   const topCalls = scoredCalls.slice(0, 2);
@@ -333,6 +400,11 @@ async function processReport(
 
   const customDomain = Deno.env.get("CUSTOM_DOMAIN") || Deno.env.get("STORMWIND_DOMAIN") || "";
   const dashboardUrl = customDomain ? `https://${customDomain}` : "";
+
+  // *** FIX #5: Generate unsubscribe token ***
+  const unsubscribeToken = await generateUnsubscribeToken(userId);
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+  const unsubscribeUrl = `${supabaseUrl}/functions/v1/unsubscribe-report?token=${encodeURIComponent(unsubscribeToken)}`;
 
   const dateLabel = daysBack > 1 ? `${startDate} – ${endDate}` : startDate;
   const emailHtml = buildEmailHtml({
@@ -350,6 +422,8 @@ async function processReport(
     dashboardUrl,
     isTestMode,
     recipientName: profile.name,
+    trend,
+    unsubscribeUrl,
   });
 
   const subject = isTestMode
@@ -395,13 +469,34 @@ interface EmailParams {
   dashboardUrl: string;
   isTestMode: boolean;
   recipientName: string;
+  trend: TrendData;
+  unsubscribeUrl: string;
+}
+
+/** Build a trend indicator string: arrow + change */
+function trendIndicator(current: number, previous: number, isPercent = true): string {
+  if (previous === 0 && current === 0) return "";
+  const diff = current - previous;
+  if (diff === 0) return `<span style="color:#6b7280;font-size:11px;">→ no change</span>`;
+
+  const arrow = diff > 0 ? "↑" : "↓";
+  const color = diff > 0 ? "#16a34a" : "#dc2626";
+
+  let label: string;
+  if (isPercent && previous > 0) {
+    const pct = Math.round((diff / previous) * 100);
+    label = `${arrow} ${Math.abs(pct)}%`;
+  } else {
+    label = `${arrow} ${Math.abs(Math.round(diff))}`;
+  }
+  return `<span style="color:${color};font-size:11px;font-weight:600;">${label}</span>`;
 }
 
 function buildEmailHtml(params: EmailParams): string {
   const {
     dateLabel, totalCalls, scoredCallCount, avgEffectiveness, totalPipeline, hasPipelineData,
     topPerformers, needsAttention, repBreakdown, topCalls, bottomCalls,
-    dashboardUrl, isTestMode, recipientName,
+    dashboardUrl, isTestMode, recipientName, trend, unsubscribeUrl,
   } = params;
 
   const testBanner = isTestMode ? `
@@ -412,7 +507,6 @@ function buildEmailHtml(params: EmailParams): string {
 
   const scoreColor = (s: number) => s >= 70 ? "#16a34a" : s >= 50 ? "#ca8a04" : "#dc2626";
 
-  // Data quality banner
   const dataQualityBanner = totalCalls > 0 && scoredCallCount < totalCalls ? `
     <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 16px;margin-bottom:20px;font-size:13px;color:#0369a1;">
       📊 ${scoredCallCount} of ${totalCalls} calls have effectiveness scores
@@ -421,19 +515,27 @@ function buildEmailHtml(params: EmailParams): string {
 
   const formatCurrency = (n: number) => "$" + n.toLocaleString("en-US", { maximumFractionDigits: 0 });
 
-  // Call summary snippet helper
-  const callSnippet = (call: CallData, label: string) => {
+  // WoW trend indicators
+  const callsTrend = trend.hasPrevData ? `<div style="margin-top:4px;">${trendIndicator(totalCalls, trend.prevTotalCalls)}</div>` : "";
+  const effectivenessTrend = trend.hasPrevData && scoredCallCount > 0
+    ? `<div style="margin-top:4px;">${trendIndicator(avgEffectiveness, trend.prevAvgEffectiveness, false)}</div>`
+    : "";
+  const pipelineTrend = trend.hasPrevData && hasPipelineData
+    ? `<div style="margin-top:4px;">${trendIndicator(totalPipeline, trend.prevTotalPipeline)}</div>`
+    : "";
+
+  // *** FIX #3: Table-based call snippet for Outlook compatibility ***
+  const callSnippet = (call: CallData) => {
     const scoreStr = call.effectiveness_score !== null ? `${Math.round(call.effectiveness_score)}` : "—";
     const color = call.effectiveness_score !== null ? scoreColor(call.effectiveness_score) : "#6b7280";
-    const summaryText = call.summary ? `<div style="font-size:12px;color:#6b7280;margin-top:4px;">${call.summary.substring(0, 150)}${call.summary.length > 150 ? "…" : ""}</div>` : "";
+    const summaryText = call.summary ? `<tr><td colspan="2" style="padding:0 12px 8px;font-size:12px;color:#6b7280;">${call.summary.substring(0, 150)}${call.summary.length > 150 ? "…" : ""}</td></tr>` : "";
     return `
-      <div style="padding:8px 12px;border-bottom:1px solid #f3f4f6;">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <span style="font-weight:500;">${call.rep_name} — ${call.account_name || "Unknown Account"}</span>
-          <span style="font-weight:600;color:${color};">${scoreStr}</span>
-        </div>
-        ${summaryText}
-      </div>
+      <tr>
+        <td style="padding:8px 12px;font-weight:500;">${call.rep_name} — ${call.account_name || "Unknown Account"}</td>
+        <td style="padding:8px 12px;text-align:right;font-weight:600;color:${color};">${scoreStr}</td>
+      </tr>
+      ${summaryText}
+      <tr><td colspan="2" style="border-bottom:1px solid #f3f4f6;"></td></tr>
     `;
   };
 
@@ -466,26 +568,30 @@ function buildEmailHtml(params: EmailParams): string {
     </tr>
   `).join("");
 
-  // Top/bottom call snippets
+  // Top/bottom call snippets — now table-based
   const topCallsSection = topCalls.length > 0 ? `
     <h2 style="font-size:16px;margin:0 0 8px;color:#16a34a;">🌟 Best Calls</h2>
-    <div style="border:1px solid #e5e7eb;border-radius:8px;margin-bottom:24px;overflow:hidden;">
-      ${topCalls.map(c => callSnippet(c, "top")).join("")}
-    </div>
+    <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:24px;">
+      ${topCalls.map(c => callSnippet(c)).join("")}
+    </table>
   ` : "";
 
   const bottomCallsSection = bottomCalls.length > 0 ? `
     <h2 style="font-size:16px;margin:0 0 8px;color:#dc2626;">🔍 Calls to Review</h2>
-    <div style="border:1px solid #e5e7eb;border-radius:8px;margin-bottom:24px;overflow:hidden;">
-      ${bottomCalls.map(c => callSnippet(c, "bottom")).join("")}
-    </div>
+    <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:24px;">
+      ${bottomCalls.map(c => callSnippet(c)).join("")}
+    </table>
   ` : "";
 
-  const pipelineStatCard = hasPipelineData ? `
-    <div style="flex:1;background:#fefce8;border-radius:8px;padding:16px;text-align:center;">
-      <div style="font-size:28px;font-weight:700;color:#ca8a04;">${formatCurrency(totalPipeline)}</div>
-      <div style="font-size:12px;color:#6b7280;margin-top:4px;">Est. Pipeline</div>
-    </div>
+  // *** FIX #3: Table-based pipeline stat card ***
+  const pipelineStatTd = hasPipelineData ? `
+    <td style="width:33%;padding:0 0 0 8px;">
+      <div style="background:#fefce8;border-radius:8px;padding:16px;text-align:center;">
+        <div style="font-size:28px;font-weight:700;color:#ca8a04;">${formatCurrency(totalPipeline)}</div>
+        <div style="font-size:12px;color:#6b7280;margin-top:4px;">Est. Pipeline</div>
+        ${pipelineTrend}
+      </div>
+    </td>
   ` : "";
 
   const dashboardLink = dashboardUrl
@@ -493,6 +599,14 @@ function buildEmailHtml(params: EmailParams): string {
         <a href="${dashboardUrl}" style="display:inline-block;background:#2563eb;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">View Full Dashboard →</a>
        </div>`
     : "";
+
+  // *** FIX #5: Footer with unsubscribe + settings links ***
+  const settingsLink = dashboardUrl ? `<a href="${dashboardUrl}/settings" style="color:#6b7280;text-decoration:underline;">Manage report settings</a>` : "";
+  const footerHtml = `
+    <p style="text-align:center;color:#9ca3af;font-size:12px;margin-top:16px;">
+      Sent by MindForge${settingsLink ? ` · ${settingsLink}` : ""} · <a href="${unsubscribeUrl}" style="color:#6b7280;text-decoration:underline;">Unsubscribe</a>
+    </p>
+  `;
 
   return `
     <!DOCTYPE html>
@@ -513,18 +627,26 @@ function buildEmailHtml(params: EmailParams): string {
 
           ${dataQualityBanner}
 
-          <!-- Summary Stats -->
-          <div style="display:flex;gap:16px;margin-bottom:32px;">
-            <div style="flex:1;background:#f0f9ff;border-radius:8px;padding:16px;text-align:center;">
-              <div style="font-size:28px;font-weight:700;color:#1e40af;">${totalCalls}</div>
-              <div style="font-size:12px;color:#6b7280;margin-top:4px;">Calls Analyzed</div>
-            </div>
-            <div style="flex:1;background:#f0fdf4;border-radius:8px;padding:16px;text-align:center;">
-              <div style="font-size:28px;font-weight:700;color:${scoreColor(avgEffectiveness)};">${scoredCallCount > 0 ? Math.round(avgEffectiveness) : "—"}</div>
-              <div style="font-size:12px;color:#6b7280;margin-top:4px;">Avg Effectiveness</div>
-            </div>
-            ${pipelineStatCard}
-          </div>
+          <!-- Summary Stats: TABLE-BASED for Outlook compat -->
+          <table style="width:100%;border-collapse:separate;border-spacing:8px 0;margin-bottom:32px;">
+            <tr>
+              <td style="width:${hasPipelineData ? '33%' : '50%'};padding:0;">
+                <div style="background:#f0f9ff;border-radius:8px;padding:16px;text-align:center;">
+                  <div style="font-size:28px;font-weight:700;color:#1e40af;">${totalCalls}</div>
+                  <div style="font-size:12px;color:#6b7280;margin-top:4px;">Calls Analyzed</div>
+                  ${callsTrend}
+                </div>
+              </td>
+              <td style="width:${hasPipelineData ? '33%' : '50%'};padding:0 0 0 8px;">
+                <div style="background:#f0fdf4;border-radius:8px;padding:16px;text-align:center;">
+                  <div style="font-size:28px;font-weight:700;color:${scoreColor(avgEffectiveness)};">${scoredCallCount > 0 ? Math.round(avgEffectiveness) : "—"}</div>
+                  <div style="font-size:12px;color:#6b7280;margin-top:4px;">Avg Effectiveness</div>
+                  ${effectivenessTrend}
+                </div>
+              </td>
+              ${pipelineStatTd}
+            </tr>
+          </table>
 
           ${totalCalls === 0 ? `
             <p style="text-align:center;color:#6b7280;padding:24px 0;">No calls recorded for this period.</p>
@@ -570,9 +692,7 @@ function buildEmailHtml(params: EmailParams): string {
           ${dashboardLink}
         </div>
 
-        <p style="text-align:center;color:#9ca3af;font-size:12px;margin-top:16px;">
-          Sent by MindForge · Manage this report in Settings → Daily Call Report
-        </p>
+        ${footerHtml}
       </div>
     </body>
     </html>
