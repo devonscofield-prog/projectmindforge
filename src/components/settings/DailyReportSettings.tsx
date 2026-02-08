@@ -8,7 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { FileBarChart, Clock, Globe, Users, Calendar, Lightbulb, Send, Loader2 } from 'lucide-react';
+import { FileBarChart, Clock, Globe, Users, Calendar, Lightbulb, Send, Loader2, History } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   getDailyReportConfig,
@@ -17,6 +17,7 @@ import {
   getTeamReps,
   type DailyReportConfigUpdate,
 } from '@/api/dailyReportConfig';
+import { ReportDeliveryHistory } from './ReportDeliveryHistory';
 import {
   detectBrowserTimezone,
   getTimezoneLabel,
@@ -314,6 +315,15 @@ export function DailyReportSettings() {
               <p className="text-sm text-muted-foreground mt-2">
                 Sends a test daily report to your email with yesterday's data
               </p>
+            </div>
+
+            {/* Recent Deliveries */}
+            <div className="pt-4 border-t space-y-3">
+              <Label className="flex items-center gap-2">
+                <History className="h-4 w-4 text-muted-foreground" />
+                Recent Deliveries
+              </Label>
+              <ReportDeliveryHistory />
             </div>
           </>
         )}
