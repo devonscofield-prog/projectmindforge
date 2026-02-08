@@ -1,16 +1,126 @@
 
-# Make the Complete Button More Obvious on My Tasks Page
+# Daily Call Report System
 
-## Change
+## Overview
 
-Update the "mark complete" button in `RepTasks.tsx` (line 565) from a barely-visible ghost icon to a clearly styled button with a green border, green icon color, and a light green background on hover.
+Build an automated daily report that emails managers/admins a summary of the previous day's calls every weekday. The report includes who had good/bad calls, call effectiveness scores, and estimated pipeline created. Managers can customize which reps they receive reports for and when the email arrives.
+
+---
+
+## Database Changes
+
+### New Table: `daily_report_configs`
+
+Stores each manager/admin's report preferences.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | uuid (PK) | Auto-generated |
+| user_id | uuid (FK profiles) | The manager/admin receiving the report |
+| enabled | boolean | Whether reports are active (default true) |
+| delivery_time | text | Time in HH:MM format (default "08:00") |
+| timezone | text | IANA timezone (default "America/New_York") |
+| rep_ids | uuid[] | Array of rep IDs to include; null = all team members |
+| include_weekends | boolean | Whether to send on Mon about Sat/Sun calls (default false) |
+| created_at | timestamptz | Auto-set |
+| updated_at | timestamptz | Auto-set |
+
+RLS: Users can only read/write their own config rows. Service role used by the edge function.
+
+---
+
+## Edge Function: `send-daily-report`
+
+A new scheduled edge function that:
+
+1. Fetches all `daily_report_configs` where `enabled = true`
+2. Filters to users whose local time matches `delivery_time` (same pattern as `send-task-reminders`)
+3. Skips weekends unless `include_weekends` is true
+4. For each config, queries yesterday's calls:
+   - From `call_transcripts` joined with `ai_call_analysis` and `profiles`
+   - Filtered to the configured `rep_ids` (or all team reps if null, determined via `teams.manager_id`)
+   - Extracts: rep name, account name, call type, `call_effectiveness_score`, `potential_revenue`, `deal_heat_analysis`
+5. Builds a summary:
+   - Total calls count
+   - Top performers (highest effectiveness scores)
+   - Calls needing attention (lowest scores)
+   - Estimated pipeline created (sum of `potential_revenue` from yesterday's calls)
+   - Per-rep breakdown table
+6. Sends a styled HTML email via Resend
+7. Logs to `notification_log` table
+
+The function will be registered in `config.toml` with `verify_jwt = false` (called by CRON).
+
+### CRON Schedule
+
+A `pg_cron` job that runs every hour to check if any user's local delivery time matches, identical to the task reminders pattern.
+
+---
+
+## Frontend: Settings UI
+
+### New Section on Settings Page
+
+Add a "Daily Call Report" settings card (for manager/admin roles only) with:
+
+- **Enable/Disable toggle** for the daily report
+- **Delivery time** picker (dropdown of hour slots)
+- **Timezone** selector (auto-detected, editable)
+- **Rep selection** - multi-select checklist of reps on their team(s), with an "All Team Members" option
+- **Send Test Report** button (calls the edge function in test mode, like task reminders)
+
+This section only renders for users with `manager` or `admin` roles.
+
+---
+
+## Report Email Content
+
+The HTML email will include:
+
+```text
++-----------------------------------------------+
+|  Daily Call Report - [Date]                    |
+|  [Team Name]                                   |
++-----------------------------------------------+
+|                                                 |
+|  SUMMARY                                        |
+|  - 12 calls analyzed                           |
+|  - Avg effectiveness: 7.2/10                   |
+|  - Est. pipeline created: $45,000              |
+|                                                 |
+|  TOP PERFORMERS                                 |
+|  - Sarah M. (9.1 avg, 3 calls)                |
+|  - James K. (8.5 avg, 2 calls)                |
+|                                                 |
+|  NEEDS ATTENTION                                |
+|  - Mike R. (4.2 avg, 2 calls)                 |
+|                                                 |
+|  REP BREAKDOWN TABLE                           |
+|  Rep | Calls | Avg Score | Pipeline             |
+|  ----|-------|-----------|----------            |
+|  ... | ...   | ...       | ...                  |
+|                                                 |
+|  [View Full Dashboard ->]                       |
++-----------------------------------------------+
+```
+
+---
 
 ## Technical Details
 
-**File:** `src/pages/rep/RepTasks.tsx` (line 565)
+### Files to Create
+- `supabase/functions/send-daily-report/index.ts` - The edge function
+- `src/components/settings/DailyReportSettings.tsx` - Settings UI component
+- `src/api/dailyReportConfig.ts` - API helpers for CRUD on configs
 
-**Current:** `variant="ghost"` with `className="h-8 w-8 p-0 shrink-0"` and the icon uses `text-muted-foreground hover:text-green-500`
+### Files to Modify
+- `supabase/config.toml` - Add `[functions.send-daily-report]` entry
+- Settings page file - Import and render the new DailyReportSettings component (for manager/admin only)
 
-**New:** `variant="outline"` with `className="h-8 w-8 p-0 shrink-0 border-green-300 dark:border-green-700 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950 hover:text-green-700 dark:hover:text-green-300"` -- remove the inline icon color classes since the button itself will carry the green color.
-
-Also apply the same treatment to the matching button in the `PendingFollowUpsWidget.tsx` (line ~232) for consistency across both the dashboard widget and the full tasks page.
+### Implementation Sequence
+1. Create the `daily_report_configs` table with RLS policies
+2. Create the `send-daily-report` edge function
+3. Build the settings UI component
+4. Wire up the settings component into the existing Settings page
+5. Set up the CRON job (hourly schedule)
+6. Test end-to-end with the "Send Test Report" button
