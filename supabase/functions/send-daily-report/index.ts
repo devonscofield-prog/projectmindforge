@@ -25,6 +25,7 @@ interface CallData {
   rep_id: string;
   rep_name: string;
   effectiveness_score: number | null;
+  summary: string | null;
 }
 
 interface RepSummary {
@@ -37,6 +38,30 @@ interface RepSummary {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyClient = SupabaseClient<any, any, any>;
+
+/** Extract effectiveness score: prefer legacy column, fall back to analysis_behavior.overall_score */
+function getEffectivenessScore(analysis: any): number | null {
+  if (!analysis) return null;
+  if (analysis.call_effectiveness_score != null) return Number(analysis.call_effectiveness_score);
+  try {
+    const behavior = typeof analysis.analysis_behavior === "string"
+      ? JSON.parse(analysis.analysis_behavior)
+      : analysis.analysis_behavior;
+    if (behavior?.overall_score != null) return Number(behavior.overall_score);
+  } catch { /* ignore parse errors */ }
+  return null;
+}
+
+/** Extract call summary from analysis_metadata */
+function getCallSummary(analysis: any): string | null {
+  if (!analysis?.analysis_metadata) return null;
+  try {
+    const meta = typeof analysis.analysis_metadata === "string"
+      ? JSON.parse(analysis.analysis_metadata)
+      : analysis.analysis_metadata;
+    return meta?.summary || null;
+  } catch { return null; }
+}
 
 async function sendEmail(to: string, subject: string, html: string): Promise<void> {
   const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
@@ -109,7 +134,6 @@ const handler = async (req: Request): Promise<Response> => {
         const dayOfWeek = userLocal.getDay();
         const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
-        // Skip weekends (unless include_weekends and it's Monday — handled in report date logic)
         if (isWeekend && !config.include_weekends) continue;
 
         if (userHour === deliveryHour) {
@@ -221,13 +245,13 @@ async function processReport(
     return jsonResponse({ success: true, message: msg, sent: 0 });
   }
 
-  // Determine the report date range (yesterday, or Fri+Sat+Sun for Monday with weekends)
+  // Determine the report date range
   const userLocal = new Date(now.toLocaleString("en-US", { timeZone: config.timezone }));
   const dayOfWeek = userLocal.getDay();
   
   let daysBack = 1;
   if (dayOfWeek === 1 && config.include_weekends) {
-    daysBack = 3; // Monday: cover Fri, Sat, Sun
+    daysBack = 3;
   }
 
   const reportEnd = new Date(userLocal);
@@ -240,13 +264,13 @@ async function processReport(
 
   console.log(`[send-daily-report] Querying calls from ${startDate} to ${endDate} for ${targetRepIds.length} reps`);
 
-  // Fetch calls with analysis data
+  // Fetch calls with analysis data (including analysis_behavior and analysis_metadata)
   const { data: callsRaw, error: callsError } = await supabase
     .from("call_transcripts")
     .select(`
       id, call_date, account_name, call_type, potential_revenue, rep_id,
       profiles!call_transcripts_rep_id_fkey(name),
-      ai_call_analysis(call_effectiveness_score)
+      ai_call_analysis(call_effectiveness_score, analysis_behavior, analysis_metadata)
     `)
     .in("rep_id", targetRepIds)
     .gte("call_date", startDate)
@@ -259,16 +283,20 @@ async function processReport(
     return jsonResponse({ error: callsError.message }, 500);
   }
 
-  const calls: CallData[] = (callsRaw || []).map((c: any) => ({
-    id: c.id,
-    call_date: c.call_date,
-    account_name: c.account_name,
-    call_type: c.call_type,
-    potential_revenue: c.potential_revenue,
-    rep_id: c.rep_id,
-    rep_name: c.profiles?.name || "Unknown",
-    effectiveness_score: c.ai_call_analysis?.[0]?.call_effectiveness_score ?? null,
-  }));
+  const calls: CallData[] = (callsRaw || []).map((c: any) => {
+    const analysis = c.ai_call_analysis?.[0] || null;
+    return {
+      id: c.id,
+      call_date: c.call_date,
+      account_name: c.account_name,
+      call_type: c.call_type,
+      potential_revenue: c.potential_revenue,
+      rep_id: c.rep_id,
+      rep_name: c.profiles?.name || "Unknown",
+      effectiveness_score: getEffectivenessScore(analysis),
+      summary: getCallSummary(analysis),
+    };
+  });
 
   // Build per-rep summaries
   const repMap: Record<string, RepSummary> = {};
@@ -288,28 +316,37 @@ async function processReport(
 
   const totalCalls = calls.length;
   const allScores = calls.map(c => c.effectiveness_score).filter((s): s is number => s !== null);
-  const avgEffectiveness = allScores.length > 0 ? allScores.reduce((a, b) => a + b, 0) / allScores.length : 0;
+  const scoredCallCount = allScores.length;
+  const avgEffectiveness = scoredCallCount > 0 ? allScores.reduce((a, b) => a + b, 0) / scoredCallCount : 0;
   const totalPipeline = calls.reduce((sum, c) => sum + (c.potential_revenue || 0), 0);
+  const hasPipelineData = totalPipeline > 0;
 
-  // Top performers & needs attention
+  // Top/bottom calls with summaries
+  const scoredCalls = calls.filter(c => c.effectiveness_score !== null).sort((a, b) => b.effectiveness_score! - a.effectiveness_score!);
+  const topCalls = scoredCalls.slice(0, 2);
+  const bottomCalls = scoredCalls.length > 2 ? scoredCalls.slice(-2).reverse() : [];
+
+  // Top performers & needs attention (0-100 scale)
   const repList = Object.values(repMap).filter(r => r.scores.length > 0).sort((a, b) => b.avgScore - a.avgScore);
-  const topPerformers = repList.filter(r => r.avgScore >= 7).slice(0, 3);
-  const needsAttention = repList.filter(r => r.avgScore < 5).slice(0, 3);
+  const topPerformers = repList.filter(r => r.avgScore >= 70).slice(0, 3);
+  const needsAttention = repList.filter(r => r.avgScore < 50).slice(0, 3);
 
-  // Get custom domain for dashboard link
   const customDomain = Deno.env.get("CUSTOM_DOMAIN") || Deno.env.get("STORMWIND_DOMAIN") || "";
   const dashboardUrl = customDomain ? `https://${customDomain}` : "";
 
-  // Build and send email
   const dateLabel = daysBack > 1 ? `${startDate} – ${endDate}` : startDate;
   const emailHtml = buildEmailHtml({
     dateLabel,
     totalCalls,
+    scoredCallCount,
     avgEffectiveness,
     totalPipeline,
+    hasPipelineData,
     topPerformers,
     needsAttention,
     repBreakdown: Object.values(repMap).sort((a, b) => b.avgScore - a.avgScore),
+    topCalls,
+    bottomCalls,
     dashboardUrl,
     isTestMode,
     recipientName: profile.name,
@@ -320,7 +357,7 @@ async function processReport(
     : `📊 Daily Call Report – ${dateLabel}`;
 
   await sendEmail(profile.email, subject, emailHtml);
-  console.log(`[send-daily-report] Email sent to ${profile.email} (${totalCalls} calls)`);
+  console.log(`[send-daily-report] Email sent to ${profile.email} (${totalCalls} calls, ${scoredCallCount} scored)`);
 
   // Log to notification_log
   await supabase.from("notification_log").insert({
@@ -328,16 +365,17 @@ async function processReport(
     channel: "email",
     notification_type: "daily_call_report",
     title: subject,
-    summary: `${totalCalls} calls, avg score ${avgEffectiveness.toFixed(1)}, $${totalPipeline.toLocaleString()} pipeline`,
+    summary: `${totalCalls} calls, ${scoredCallCount} scored, avg ${Math.round(avgEffectiveness)}${hasPipelineData ? `, $${totalPipeline.toLocaleString()} pipeline` : ""}`,
     task_count: totalCalls,
   });
 
   return jsonResponse({
     success: true,
     sent: 1,
-    message: `Report sent with ${totalCalls} calls`,
+    message: `Report sent with ${totalCalls} calls (${scoredCallCount} scored)`,
     totalCalls,
-    avgEffectiveness: Math.round(avgEffectiveness * 10) / 10,
+    scoredCallCount,
+    avgEffectiveness: Math.round(avgEffectiveness),
     totalPipeline,
   });
 }
@@ -345,11 +383,15 @@ async function processReport(
 interface EmailParams {
   dateLabel: string;
   totalCalls: number;
+  scoredCallCount: number;
   avgEffectiveness: number;
   totalPipeline: number;
+  hasPipelineData: boolean;
   topPerformers: RepSummary[];
   needsAttention: RepSummary[];
   repBreakdown: RepSummary[];
+  topCalls: CallData[];
+  bottomCalls: CallData[];
   dashboardUrl: string;
   isTestMode: boolean;
   recipientName: string;
@@ -357,8 +399,9 @@ interface EmailParams {
 
 function buildEmailHtml(params: EmailParams): string {
   const {
-    dateLabel, totalCalls, avgEffectiveness, totalPipeline,
-    topPerformers, needsAttention, repBreakdown, dashboardUrl, isTestMode, recipientName,
+    dateLabel, totalCalls, scoredCallCount, avgEffectiveness, totalPipeline, hasPipelineData,
+    topPerformers, needsAttention, repBreakdown, topCalls, bottomCalls,
+    dashboardUrl, isTestMode, recipientName,
   } = params;
 
   const testBanner = isTestMode ? `
@@ -367,14 +410,38 @@ function buildEmailHtml(params: EmailParams): string {
     </div>
   ` : "";
 
+  const scoreColor = (s: number) => s >= 70 ? "#16a34a" : s >= 50 ? "#ca8a04" : "#dc2626";
+
+  // Data quality banner
+  const dataQualityBanner = totalCalls > 0 && scoredCallCount < totalCalls ? `
+    <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 16px;margin-bottom:20px;font-size:13px;color:#0369a1;">
+      📊 ${scoredCallCount} of ${totalCalls} calls have effectiveness scores
+    </div>
+  ` : "";
+
   const formatCurrency = (n: number) => "$" + n.toLocaleString("en-US", { maximumFractionDigits: 0 });
-  const scoreColor = (s: number) => s >= 7 ? "#16a34a" : s >= 5 ? "#ca8a04" : "#dc2626";
+
+  // Call summary snippet helper
+  const callSnippet = (call: CallData, label: string) => {
+    const scoreStr = call.effectiveness_score !== null ? `${Math.round(call.effectiveness_score)}` : "—";
+    const color = call.effectiveness_score !== null ? scoreColor(call.effectiveness_score) : "#6b7280";
+    const summaryText = call.summary ? `<div style="font-size:12px;color:#6b7280;margin-top:4px;">${call.summary.substring(0, 150)}${call.summary.length > 150 ? "…" : ""}</div>` : "";
+    return `
+      <div style="padding:8px 12px;border-bottom:1px solid #f3f4f6;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-weight:500;">${call.rep_name} — ${call.account_name || "Unknown Account"}</span>
+          <span style="font-weight:600;color:${color};">${scoreStr}</span>
+        </div>
+        ${summaryText}
+      </div>
+    `;
+  };
 
   const topPerformerRows = topPerformers.length > 0
     ? topPerformers.map(r => `
         <tr>
           <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">${r.name}</td>
-          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;color:${scoreColor(r.avgScore)};font-weight:600;">${r.avgScore.toFixed(1)}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;color:${scoreColor(r.avgScore)};font-weight:600;">${Math.round(r.avgScore)}</td>
           <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;">${r.callCount}</td>
         </tr>
       `).join("")
@@ -384,7 +451,7 @@ function buildEmailHtml(params: EmailParams): string {
     ? needsAttention.map(r => `
         <tr>
           <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">${r.name}</td>
-          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;color:${scoreColor(r.avgScore)};font-weight:600;">${r.avgScore.toFixed(1)}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;color:${scoreColor(r.avgScore)};font-weight:600;">${Math.round(r.avgScore)}</td>
           <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;">${r.callCount}</td>
         </tr>
       `).join("")
@@ -394,10 +461,32 @@ function buildEmailHtml(params: EmailParams): string {
     <tr>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">${r.name}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;">${r.callCount}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;color:${scoreColor(r.avgScore)};font-weight:600;">${r.scores.length > 0 ? r.avgScore.toFixed(1) : "—"}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right;">${r.totalPipeline > 0 ? formatCurrency(r.totalPipeline) : "—"}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;color:${scoreColor(r.avgScore)};font-weight:600;">${r.scores.length > 0 ? Math.round(r.avgScore) : "—"}</td>
+      ${hasPipelineData ? `<td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right;">${r.totalPipeline > 0 ? formatCurrency(r.totalPipeline) : "—"}</td>` : ""}
     </tr>
   `).join("");
+
+  // Top/bottom call snippets
+  const topCallsSection = topCalls.length > 0 ? `
+    <h2 style="font-size:16px;margin:0 0 8px;color:#16a34a;">🌟 Best Calls</h2>
+    <div style="border:1px solid #e5e7eb;border-radius:8px;margin-bottom:24px;overflow:hidden;">
+      ${topCalls.map(c => callSnippet(c, "top")).join("")}
+    </div>
+  ` : "";
+
+  const bottomCallsSection = bottomCalls.length > 0 ? `
+    <h2 style="font-size:16px;margin:0 0 8px;color:#dc2626;">🔍 Calls to Review</h2>
+    <div style="border:1px solid #e5e7eb;border-radius:8px;margin-bottom:24px;overflow:hidden;">
+      ${bottomCalls.map(c => callSnippet(c, "bottom")).join("")}
+    </div>
+  ` : "";
+
+  const pipelineStatCard = hasPipelineData ? `
+    <div style="flex:1;background:#fefce8;border-radius:8px;padding:16px;text-align:center;">
+      <div style="font-size:28px;font-weight:700;color:#ca8a04;">${formatCurrency(totalPipeline)}</div>
+      <div style="font-size:12px;color:#6b7280;margin-top:4px;">Est. Pipeline</div>
+    </div>
+  ` : "";
 
   const dashboardLink = dashboardUrl
     ? `<div style="text-align:center;margin-top:24px;">
@@ -422,6 +511,8 @@ function buildEmailHtml(params: EmailParams): string {
 
         <div style="background:white;border-radius:0 0 12px 12px;padding:32px;border:1px solid #e5e7eb;border-top:none;">
 
+          ${dataQualityBanner}
+
           <!-- Summary Stats -->
           <div style="display:flex;gap:16px;margin-bottom:32px;">
             <div style="flex:1;background:#f0f9ff;border-radius:8px;padding:16px;text-align:center;">
@@ -429,18 +520,18 @@ function buildEmailHtml(params: EmailParams): string {
               <div style="font-size:12px;color:#6b7280;margin-top:4px;">Calls Analyzed</div>
             </div>
             <div style="flex:1;background:#f0fdf4;border-radius:8px;padding:16px;text-align:center;">
-              <div style="font-size:28px;font-weight:700;color:${scoreColor(avgEffectiveness)};">${avgEffectiveness.toFixed(1)}</div>
+              <div style="font-size:28px;font-weight:700;color:${scoreColor(avgEffectiveness)};">${scoredCallCount > 0 ? Math.round(avgEffectiveness) : "—"}</div>
               <div style="font-size:12px;color:#6b7280;margin-top:4px;">Avg Effectiveness</div>
             </div>
-            <div style="flex:1;background:#fefce8;border-radius:8px;padding:16px;text-align:center;">
-              <div style="font-size:28px;font-weight:700;color:#ca8a04;">${formatCurrency(totalPipeline)}</div>
-              <div style="font-size:12px;color:#6b7280;margin-top:4px;">Est. Pipeline</div>
-            </div>
+            ${pipelineStatCard}
           </div>
 
           ${totalCalls === 0 ? `
             <p style="text-align:center;color:#6b7280;padding:24px 0;">No calls recorded for this period.</p>
           ` : `
+            ${topCallsSection}
+            ${bottomCallsSection}
+
             <!-- Top Performers -->
             <h2 style="font-size:16px;margin:0 0 12px;color:#16a34a;">🏆 Top Performers</h2>
             <table style="width:100%;border-collapse:collapse;margin-bottom:24px;font-size:14px;">
@@ -470,7 +561,7 @@ function buildEmailHtml(params: EmailParams): string {
                 <th style="padding:8px 12px;text-align:left;font-weight:600;border-bottom:2px solid #e5e7eb;">Rep</th>
                 <th style="padding:8px 12px;text-align:center;font-weight:600;border-bottom:2px solid #e5e7eb;">Calls</th>
                 <th style="padding:8px 12px;text-align:center;font-weight:600;border-bottom:2px solid #e5e7eb;">Avg Score</th>
-                <th style="padding:8px 12px;text-align:right;font-weight:600;border-bottom:2px solid #e5e7eb;">Pipeline</th>
+                ${hasPipelineData ? `<th style="padding:8px 12px;text-align:right;font-weight:600;border-bottom:2px solid #e5e7eb;">Pipeline</th>` : ""}
               </tr></thead>
               <tbody>${breakdownRows}</tbody>
             </table>
