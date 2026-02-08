@@ -28,6 +28,7 @@ import {
   GraduationCap,
   Target,
   Database,
+  BarChart3,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -99,6 +100,12 @@ const adminNavGroups = [
     ],
   },
   {
+    label: 'Reporting',
+    items: [
+      { href: '/admin/reporting', label: 'Reporting', icon: BarChart3 },
+    ],
+  },
+  {
     label: 'System',
     items: [
       { href: '/admin/knowledge-base', label: 'Knowledge Base', icon: Database },
@@ -133,6 +140,12 @@ const managerNavGroups = [
       { href: '/manager/playbook', label: 'Sales Playbook', icon: BookOpen },
       { href: '/manager/coaching', label: 'Coaching Sessions', icon: MessageSquare },
       { href: '/admin/competitors', label: 'Competitor Intel', icon: Swords },
+    ],
+  },
+  {
+    label: 'Reporting',
+    items: [
+      { href: '/manager/reporting', label: 'Reporting', icon: BarChart3 },
     ],
   },
 ];
