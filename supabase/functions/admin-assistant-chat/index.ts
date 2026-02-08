@@ -141,7 +141,7 @@ async function fetchCoachHistoryContext(supabase: any): Promise<string> {
     supabase.from('sales_coach_sessions')
       .select('id, user_id, prospect_id, title, messages, created_at, updated_at')
       .order('updated_at', { ascending: false })
-      .limit(30),
+      .limit(20),
     supabase.from('profiles').select('id, name'),
   ]);
 
@@ -185,7 +185,7 @@ async function fetchCallHistoryContext(supabase: any): Promise<string> {
       .select('id, call_date, account_name, call_type, rep_id, analysis_status, prospect_id')
       .is('deleted_at', null)
       .order('call_date', { ascending: false })
-      .limit(50),
+      .limit(30),
     supabase.from('profiles').select('id, name, team_id'),
   ]);
 
@@ -292,7 +292,7 @@ async function fetchAccountsContext(supabase: any): Promise<string> {
       .select('id, prospect_name, account_name, status, heat_score, active_revenue, potential_revenue, last_contact_date, rep_id, industry')
       .is('deleted_at', null)
       .order('last_contact_date', { ascending: false })
-      .limit(50),
+      .limit(30),
     supabase.from('profiles').select('id, name'),
   ]);
 
@@ -321,7 +321,7 @@ async function fetchCoachingTrendsContext(supabase: any): Promise<string> {
     .from('coaching_trend_analyses')
     .select('id, rep_id, title, call_count, date_range_from, date_range_to, analysis_data, created_at')
     .order('created_at', { ascending: false })
-    .limit(20);
+    .limit(10);
   
   const { data: profiles } = await supabase.from('profiles').select('id, name');
   const nameMap = new Map((profiles || []).map((p: any) => [p.id, p.name]));
@@ -358,30 +358,32 @@ async function fetchPerformanceContext(supabase: any): Promise<string> {
   return ctx;
 }
 
-async function fetchDefaultContext(supabase: any): Promise<string> {
-  const { data: stats } = await supabase.rpc('get_cached_admin_stats');
-  let ctx = '## PLATFORM SUMMARY\n';
-  if (stats) {
-    ctx += `Users: ${stats.totalUsers} | Teams: ${stats.totalTeams} | Calls: ${stats.totalCalls} | Accounts: ${stats.totalProspects}\n`;
-  }
-  return ctx;
-}
+// Fetch ALL context in parallel for full platform visibility
+async function fetchAllContext(supabase: any, pageContext: string): Promise<string> {
+  const fetchers = [
+    { name: 'dashboard', fn: () => fetchDashboardContext(supabase) },
+    { name: 'users', fn: () => fetchUsersContext(supabase) },
+    { name: 'teams', fn: () => fetchTeamsContext(supabase) },
+    { name: 'accounts', fn: () => fetchAccountsContext(supabase) },
+    { name: 'callHistory', fn: () => fetchCallHistoryContext(supabase) },
+    { name: 'coachHistory', fn: () => fetchCoachHistoryContext(supabase) },
+    { name: 'coachingTrends', fn: () => fetchCoachingTrendsContext(supabase) },
+    { name: 'performance', fn: () => fetchPerformanceContext(supabase) },
+  ];
 
-// Route to context fetcher
-async function getPageContext(supabase: any, pageContext: string): Promise<string> {
-  const route = pageContext.toLowerCase().replace(/\/$/, '');
-  
-  if (route === '/admin') return fetchDashboardContext(supabase);
-  if (route.includes('/sales-coach')) return fetchCoachHistoryContext(supabase);
-  if (route.includes('/history')) return fetchCallHistoryContext(supabase);
-  if (route.includes('/users')) return fetchUsersContext(supabase);
-  if (route.includes('/teams')) return fetchTeamsContext(supabase);
-  if (route.includes('/accounts')) return fetchAccountsContext(supabase);
-  if (route.includes('/coaching')) return fetchCoachingTrendsContext(supabase);
-  if (route.includes('/performance')) return fetchPerformanceContext(supabase);
-  if (route.includes('/transcripts')) return fetchCallHistoryContext(supabase);
-  
-  return fetchDefaultContext(supabase);
+  const results = await Promise.allSettled(fetchers.map(f => f.fn()));
+
+  const sections: string[] = [];
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i];
+    if (result.status === 'fulfilled' && result.value) {
+      sections.push(result.value);
+    } else if (result.status === 'rejected') {
+      console.warn(`[admin-assistant] Fetcher '${fetchers[i].name}' failed:`, result.reason);
+    }
+  }
+
+  return sections.join('\n\n');
 }
 
 Deno.serve(async (req) => {
@@ -460,9 +462,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch page-specific context
-    console.log(`[admin-assistant] Fetching context for page: ${page_context}`);
-    const contextData = await getPageContext(supabase, page_context);
+    // Fetch ALL platform context in parallel
+    console.log(`[admin-assistant] Fetching all context (current page: ${page_context})`);
+    const contextData = await fetchAllContext(supabase, page_context);
 
     // Call OpenAI
     const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
@@ -479,7 +481,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         model: 'gpt-5.2-2025-12-11',
         messages: [
-          { role: 'system', content: `${SYSTEM_PROMPT}\n\nThe admin is currently viewing: ${page_context}\n\n## CURRENT PAGE DATA\n${contextData}` },
+          { role: 'system', content: `${SYSTEM_PROMPT}\n\nThe admin is currently viewing: ${page_context}\nPrioritize data relevant to this page when answering, but you have visibility into ALL platform data below.\n\n## PLATFORM DATA\n${contextData}` },
           ...messages.slice(-20),
         ],
         stream: true,
