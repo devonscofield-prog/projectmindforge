@@ -1,33 +1,36 @@
 
-# Fix: Coach History Sessions Not Loading
 
-## Root Cause
+# Refine Sales Coach System Prompt for More Nuanced Responses
 
-The `fetchAdminCoachSessions` API query tries to join `profiles` using a foreign key hint: `profiles!sales_coach_sessions_user_id_fkey(name, email)`. However, the `sales_coach_sessions` table has **no foreign key constraint** linking `user_id` to `profiles`. The only FK that exists is `sales_coach_sessions_prospect_id_fkey` (to `prospects`).
+## Problem
 
-This causes the PostgREST query to fail entirely, and the error handler returns `{ sessions: [], total: 0 }` -- resulting in the empty "No conversations found" state.
+The current system prompt explicitly encourages repetitive empathy phrases:
+- Line 98: `"Start responses by briefly acknowledging their question or concern ("That's a tough one..." or "I get it, this is frustrating...")"`
+- Line 91: `"Supportive first, then direct - always acknowledge the rep's situation before offering advice"`
 
-The same missing FK issue also affects `fetchUsersWithCoachSessions` (the user filter dropdown) and `fetchCoachSessionStats`.
+These instructions cause the model to default to the same handful of generic openers ("I totally get it", "That's a tough one", etc.) across nearly every response.
 
-## Fix
+## Changes
 
-### Step 1: Add the missing foreign key constraint
+**File:** `supabase/functions/sales-coach-chat/index.ts` (lines 88-122)
 
-Create a database migration to add a foreign key from `sales_coach_sessions.user_id` to `profiles.id`.
+Replace the system prompt's personality and communication sections with more varied, context-aware guidance:
 
-```sql
-ALTER TABLE public.sales_coach_sessions
-  ADD CONSTRAINT sales_coach_sessions_user_id_fkey
-  FOREIGN KEY (user_id) REFERENCES public.profiles(id);
-```
+**Key adjustments:**
 
-This makes the PostgREST join work as the code already expects.
+1. **Remove the explicit filler phrases** -- no more example phrases like "That's a tough one" or "I get it" that the model parrots.
 
-### Step 2: Verify no orphaned data
+2. **Replace with variety instruction** -- tell the model to vary its openings based on what the rep actually said (reference specifics from their message, not generic empathy).
 
-Before adding the FK, confirm all `user_id` values in `sales_coach_sessions` have matching `profiles` entries. If any don't, those rows need cleanup first.
+3. **Add an anti-repetition rule** -- explicitly instruct the model to never repeat the same opening pattern across consecutive responses.
 
-### Files modified
+4. **Keep the supportive tone** but make it situational -- acknowledge only when genuinely warranted (e.g., a frustrating deal situation), not as a reflexive opener on every message.
 
-- **New migration SQL** -- adds the foreign key constraint
-- No code changes needed -- the existing API code (`src/api/adminSalesCoachSessions.ts`) already references the correct constraint name
+**Updated prompt sections (summary of changes):**
+
+- "Supportive first, then direct" becomes "Match your tone to the moment -- be direct when they need clarity, supportive when they're struggling, and energized when there's momentum"
+- Remove the line that says to start with "That's a tough one..." and replace with: "Jump into the substance quickly. If acknowledgment is warranted, reference something specific they said rather than using generic phrases like 'I totally get it' or 'That's a tough one.'"
+- Add: "Never open two consecutive responses the same way. Vary your style -- sometimes lead with a question, sometimes with a direct suggestion, sometimes with a relevant observation from their account data."
+
+No other files need changes -- this is entirely a prompt refinement in the edge function.
+
