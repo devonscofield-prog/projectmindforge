@@ -72,7 +72,7 @@ export function DailyReportSettings() {
   const handleUpdate = (updates: DailyReportConfigUpdate) => {
     mutation.mutate({
       enabled: config?.enabled ?? true,
-      delivery_time: config?.delivery_time ?? '08:00',
+      delivery_time: config?.delivery_time ?? '17:00',
       timezone: config?.timezone ?? 'America/New_York',
       rep_ids: config?.rep_ids ?? null,
       include_weekends: config?.include_weekends ?? false,
@@ -121,7 +121,7 @@ export function DailyReportSettings() {
   }
 
   const enabled = config?.enabled ?? true;
-  const deliveryTime = config?.delivery_time ?? '08:00';
+  const deliveryTime = config?.delivery_time ?? '17:00';
   const timezone = config?.timezone ?? 'America/New_York';
   const repIds = config?.rep_ids;
   const includeWeekends = config?.include_weekends ?? false;
@@ -145,7 +145,7 @@ export function DailyReportSettings() {
           <div className="space-y-0.5">
             <Label htmlFor="daily-report-enabled">Enable Daily Report</Label>
             <p className="text-sm text-muted-foreground">
-              Get a summary email every weekday morning
+              Get a daily recap email of your team's call activity
             </p>
           </div>
           <Switch
@@ -235,7 +235,7 @@ export function DailyReportSettings() {
                   Include Weekend Reports
                 </Label>
                 <p className="text-sm text-muted-foreground">
-                  Send reports on Monday covering Saturday/Sunday calls
+                  Send reports on Saturday/Sunday as well
                 </p>
               </div>
               <Switch
@@ -313,7 +313,7 @@ export function DailyReportSettings() {
                 )}
               </Button>
               <p className="text-sm text-muted-foreground mt-2">
-                Sends a test daily report to your email with yesterday's data
+                Sends a test daily report to your email with today's data
               </p>
             </div>
 
