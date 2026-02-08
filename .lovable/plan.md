@@ -1,126 +1,68 @@
 
-# Daily Call Report System
 
-## Overview
+# Daily Report Bugs and Improvements
 
-Build an automated daily report that emails managers/admins a summary of the previous day's calls every weekday. The report includes who had good/bad calls, call effectiveness scores, and estimated pipeline created. Managers can customize which reps they receive reports for and when the email arrives.
+## Bugs Found
 
----
+### Bug 1: Scores are all zeros in the report
 
-## Database Changes
+The edge function reads `call_effectiveness_score` from `ai_call_analysis`, but for all recent calls (Jan-Feb 2026), this column is NULL. The analysis pipeline migrated to a new structure where scores live in `analysis_behavior->>'overall_score'` (which has values like 96, 79, 80 for recent calls). The report shows "Avg Effectiveness: 0.0" because it only reads the legacy column.
 
-### New Table: `daily_report_configs`
+**Fix:** Update the edge function to compute a composite score: prefer `call_effectiveness_score` when non-null, otherwise fall back to `analysis_behavior->>'overall_score'`. This handles both old and new data.
 
-Stores each manager/admin's report preferences.
+### Bug 2: Pipeline always shows $0
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | uuid (PK) | Auto-generated |
-| user_id | uuid (FK profiles) | The manager/admin receiving the report |
-| enabled | boolean | Whether reports are active (default true) |
-| delivery_time | text | Time in HH:MM format (default "08:00") |
-| timezone | text | IANA timezone (default "America/New_York") |
-| rep_ids | uuid[] | Array of rep IDs to include; null = all team members |
-| include_weekends | boolean | Whether to send on Mon about Sat/Sun calls (default false) |
-| created_at | timestamptz | Auto-set |
-| updated_at | timestamptz | Auto-set |
+The `potential_revenue` column on `call_transcripts` is NULL for every single call in the database. No call has ever had this populated. The report shows "$0 Pipeline" which is misleading.
 
-RLS: Users can only read/write their own config rows. Service role used by the edge function.
+**Fix:** Two options -- (a) pull estimated deal values from `analysis_metadata->>'user_counts'` or `deal_heat_analysis` if available, or (b) simply hide the pipeline metric when it's $0/$null across all calls, and show a "No pipeline data available" message instead. Option (b) is safer and more honest.
 
----
+### Bug 3: Score scale mismatch
 
-## Edge Function: `send-daily-report`
+The older `call_effectiveness_score` values that do exist are on a 0-100 scale (e.g., 85, 78, 88). But the email template's `scoreColor` function uses thresholds of 7 and 5 (assuming 0-10 scale), meaning every call with an old score would show green. The new `analysis_behavior` scores are also 0-100. The email displays scores with one decimal like "85.0" which looks odd.
 
-A new scheduled edge function that:
+**Fix:** Normalize the display to 0-100 scale. Update `scoreColor` thresholds to 70/50 (instead of 7/5). Display scores as whole numbers (no decimal needed at this scale).
 
-1. Fetches all `daily_report_configs` where `enabled = true`
-2. Filters to users whose local time matches `delivery_time` (same pattern as `send-task-reminders`)
-3. Skips weekends unless `include_weekends` is true
-4. For each config, queries yesterday's calls:
-   - From `call_transcripts` joined with `ai_call_analysis` and `profiles`
-   - Filtered to the configured `rep_ids` (or all team reps if null, determined via `teams.manager_id`)
-   - Extracts: rep name, account name, call type, `call_effectiveness_score`, `potential_revenue`, `deal_heat_analysis`
-5. Builds a summary:
-   - Total calls count
-   - Top performers (highest effectiveness scores)
-   - Calls needing attention (lowest scores)
-   - Estimated pipeline created (sum of `potential_revenue` from yesterday's calls)
-   - Per-rep breakdown table
-6. Sends a styled HTML email via Resend
-7. Logs to `notification_log` table
+### Bug 4: Non-admin/manager users see "No reps configured"
 
-The function will be registered in `config.toml` with `verify_jwt = false` (called by CRON).
+When the edge function runs in test mode for a user who is a "rep" (not admin/manager), it falls through all the rep-finding logic and returns "No reps configured." This is fine behavior but the UI shouldn't show the Daily Report settings card to reps -- which it currently doesn't (gated by role check). However, the edge function itself doesn't validate the caller's role, so a rep could invoke it via API. Not critical but worth a guard.
 
-### CRON Schedule
+## Improvements
 
-A `pg_cron` job that runs every hour to check if any user's local delivery time matches, identical to the task reminders pattern.
+### Improvement 1: Show "no data" state gracefully in the email
 
----
+When all scores are null and pipeline is 0, the email still renders empty tables with "No standout performers" and "No calls flagged for attention." Add a clear banner at the top summarizing data quality: "9 calls recorded, 0 with effectiveness scores."
 
-## Frontend: Settings UI
+### Improvement 2: Include analysis_behavior scores in report data
 
-### New Section on Settings Page
+Pull the richer analysis data (behavior scores, strategy scores) that the new pipeline generates. This makes the report immediately useful with current data rather than waiting for the legacy score column to be backfilled.
 
-Add a "Daily Call Report" settings card (for manager/admin roles only) with:
+### Improvement 3: Add call summary snippets to email
 
-- **Enable/Disable toggle** for the daily report
-- **Delivery time** picker (dropdown of hour slots)
-- **Timezone** selector (auto-detected, editable)
-- **Rep selection** - multi-select checklist of reps on their team(s), with an "All Team Members" option
-- **Send Test Report** button (calls the edge function in test mode, like task reminders)
-
-This section only renders for users with `manager` or `admin` roles.
-
----
-
-## Report Email Content
-
-The HTML email will include:
-
-```text
-+-----------------------------------------------+
-|  Daily Call Report - [Date]                    |
-|  [Team Name]                                   |
-+-----------------------------------------------+
-|                                                 |
-|  SUMMARY                                        |
-|  - 12 calls analyzed                           |
-|  - Avg effectiveness: 7.2/10                   |
-|  - Est. pipeline created: $45,000              |
-|                                                 |
-|  TOP PERFORMERS                                 |
-|  - Sarah M. (9.1 avg, 3 calls)                |
-|  - James K. (8.5 avg, 2 calls)                |
-|                                                 |
-|  NEEDS ATTENTION                                |
-|  - Mike R. (4.2 avg, 2 calls)                 |
-|                                                 |
-|  REP BREAKDOWN TABLE                           |
-|  Rep | Calls | Avg Score | Pipeline             |
-|  ----|-------|-----------|----------            |
-|  ... | ...   | ...       | ...                  |
-|                                                 |
-|  [View Full Dashboard ->]                       |
-+-----------------------------------------------+
-```
+The `analysis_metadata->>'summary'` field has short call summaries. Including 1-2 sentence summaries for top/bottom calls would make the report much more actionable than just showing numbers.
 
 ---
 
 ## Technical Details
 
-### Files to Create
-- `supabase/functions/send-daily-report/index.ts` - The edge function
-- `src/components/settings/DailyReportSettings.tsx` - Settings UI component
-- `src/api/dailyReportConfig.ts` - API helpers for CRUD on configs
+### Files to modify
 
-### Files to Modify
-- `supabase/config.toml` - Add `[functions.send-daily-report]` entry
-- Settings page file - Import and render the new DailyReportSettings component (for manager/admin only)
+**`supabase/functions/send-daily-report/index.ts`**:
+- Update the Supabase query to also select `ai_call_analysis(call_effectiveness_score, analysis_behavior)` 
+- Add a `getEffectivenessScore()` helper that checks `call_effectiveness_score` first, then falls back to `analysis_behavior->overall_score`
+- Update `scoreColor` thresholds from 7/5 to 70/50
+- Change score display from `.toFixed(1)` to `Math.round()`
+- Conditionally hide the "Est. Pipeline" stat card when total pipeline is 0
+- Add a data quality note when scored-call percentage is low
+- Include brief call summaries (from `analysis_metadata`) for top/bottom 2 calls
 
-### Implementation Sequence
-1. Create the `daily_report_configs` table with RLS policies
-2. Create the `send-daily-report` edge function
-3. Build the settings UI component
-4. Wire up the settings component into the existing Settings page
-5. Set up the CRON job (hourly schedule)
-6. Test end-to-end with the "Send Test Report" button
+### Summary of changes
+
+| Issue | Current | Fixed |
+|-------|---------|-------|
+| Score source | `call_effectiveness_score` only (always NULL) | Falls back to `analysis_behavior.overall_score` |
+| Score scale | Thresholds at 7/5 (0-10) | Thresholds at 70/50 (0-100) |
+| Score display | "8.5" | "85" |
+| Pipeline $0 | Shows "$0" | Hides stat when no data |
+| Data quality | No indication | Shows "X of Y calls scored" |
+| Call context | Numbers only | Top/bottom call summaries |
+
