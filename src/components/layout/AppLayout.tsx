@@ -53,6 +53,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { usePullToRefreshOnboarding } from '@/hooks/usePullToRefreshOnboarding';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { useNotificationRealtime } from '@/hooks/useInAppNotifications';
+import { AdminAssistantChat } from '@/components/admin/AdminAssistantChat';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -487,6 +488,9 @@ export function AppLayout({ children }: AppLayoutProps) {
           
           {/* Mobile bottom navigation */}
           <MobileBottomNav />
+          
+          {/* Admin AI Assistant */}
+          <AdminAssistantChat />
         </div>
       </SidebarProvider>
     </PullToRefreshProvider>
