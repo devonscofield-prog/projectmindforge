@@ -286,15 +286,15 @@ function FollowUpRow({
       {!isMobile && (
         <Button
           size="sm"
-          variant="ghost"
-          className="h-8 w-8 p-0 shrink-0"
+          variant="outline"
+          className="h-8 w-8 p-0 shrink-0 border-green-300 dark:border-green-700 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950 hover:text-green-700 dark:hover:text-green-300"
           onClick={(e) => onComplete(followUp.id, e)}
           disabled={isCompleting || isDismissing}
         >
           {isCompleting ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
-            <CheckCircle2 className="h-4 w-4 text-muted-foreground hover:text-green-500" />
+            <CheckCircle2 className="h-4 w-4" />
           )}
         </Button>
       )}
