@@ -3,23 +3,21 @@ import { supabase } from '@/integrations/supabase/client';
 export interface ReportSections {
   summary_stats: boolean;
   wow_trends: boolean;
-  top_calls: boolean;
-  bottom_calls: boolean;
-  top_performers: boolean;
-  needs_attention: boolean;
+  best_deal: boolean;
+  label_breakdown: boolean;
+  close_month_breakdown: boolean;
+  pipeline_integrity: boolean;
   rep_breakdown: boolean;
-  pipeline: boolean;
 }
 
 export const DEFAULT_REPORT_SECTIONS: ReportSections = {
   summary_stats: true,
   wow_trends: true,
-  top_calls: true,
-  bottom_calls: true,
-  top_performers: true,
-  needs_attention: true,
+  best_deal: true,
+  label_breakdown: true,
+  close_month_breakdown: true,
+  pipeline_integrity: true,
   rep_breakdown: true,
-  pipeline: true,
 };
 
 export interface DailyReportConfig {

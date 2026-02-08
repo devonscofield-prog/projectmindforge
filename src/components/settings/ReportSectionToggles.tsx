@@ -1,7 +1,7 @@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { LayoutGrid } from 'lucide-react';
-import { type ReportSections, DEFAULT_REPORT_SECTIONS } from '@/api/dailyReportConfig';
+import { type ReportSections } from '@/api/dailyReportConfig';
 
 interface ReportSectionTogglesProps {
   sections: ReportSections;
@@ -10,14 +10,13 @@ interface ReportSectionTogglesProps {
 }
 
 const SECTION_OPTIONS: { key: keyof ReportSections; label: string; description: string }[] = [
-  { key: 'summary_stats', label: 'Summary Stats', description: 'Calls, effectiveness, and pipeline stat cards' },
+  { key: 'summary_stats', label: 'Summary Stats', description: 'Total calls and opportunity size stat cards' },
   { key: 'wow_trends', label: 'Week-over-Week Trends', description: 'Trend arrows beneath each stat' },
-  { key: 'top_calls', label: 'Best Calls', description: 'Top-scoring call highlights' },
-  { key: 'bottom_calls', label: 'Calls to Review', description: 'Lowest-scoring call highlights' },
-  { key: 'top_performers', label: 'Top Performers', description: 'Reps with scores ≥ 70' },
-  { key: 'needs_attention', label: 'Needs Attention', description: 'Reps with scores < 50' },
-  { key: 'rep_breakdown', label: 'Rep Breakdown', description: 'Full per-rep table' },
-  { key: 'pipeline', label: 'Pipeline Data', description: 'Pipeline/revenue figures throughout the report' },
+  { key: 'best_deal', label: 'Best Deal of the Day', description: 'Highest-value Commit/Best Case opportunity' },
+  { key: 'label_breakdown', label: 'Opportunity by Label', description: 'Revenue grouped by Commit, Best Case, Pipeline, Time Waster' },
+  { key: 'close_month_breakdown', label: 'Revenue by Close Month', description: 'Opportunity size bucketed by expected close month' },
+  { key: 'pipeline_integrity', label: 'Pipeline Integrity Check', description: 'Flags mismatches between rep labels and AI analysis' },
+  { key: 'rep_breakdown', label: 'Rep Breakdown', description: 'Per-rep table with calls, opp size, and label totals' },
 ];
 
 export function ReportSectionToggles({ sections, onChange, disabled }: ReportSectionTogglesProps) {

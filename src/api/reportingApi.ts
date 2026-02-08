@@ -15,6 +15,10 @@ export interface TeamPerformanceRow {
   total_calls: number;
   avg_effectiveness: number | null;
   total_pipeline: number;
+  total_opp_size: number;
+  commit_total: number;
+  best_case_total: number;
+  pipeline_total: number;
 }
 
 export interface IndividualRepRow {
@@ -23,6 +27,9 @@ export interface IndividualRepRow {
   account_name: string | null;
   effectiveness_score: number | null;
   call_summary: string;
+  opportunity_label: string | null;
+  estimated_opportunity_size: number | null;
+  target_close_date: string | null;
 }
 
 export interface PipelineRow {
@@ -68,6 +75,8 @@ async function fetchTeamPerformance(filters: ReportFilters): Promise<TeamPerform
     .select(`
       rep_id,
       potential_revenue,
+      estimated_opportunity_size,
+      opportunity_label,
       profiles!call_transcripts_rep_id_fkey ( name ),
       ai_call_analysis ( call_effectiveness_score )
     `)
@@ -82,16 +91,33 @@ async function fetchTeamPerformance(filters: ReportFilters): Promise<TeamPerform
   const { data, error } = await query;
   if (error) throw error;
 
-  // Aggregate by rep
   const byRep = new Map<string, TeamPerformanceRow>();
   for (const row of data || []) {
     const name = (row as any).profiles?.name || 'Unknown';
     if (!byRep.has(row.rep_id)) {
-      byRep.set(row.rep_id, { rep_id: row.rep_id, rep_name: name, total_calls: 0, avg_effectiveness: null, total_pipeline: 0 });
+      byRep.set(row.rep_id, {
+        rep_id: row.rep_id,
+        rep_name: name,
+        total_calls: 0,
+        avg_effectiveness: null,
+        total_pipeline: 0,
+        total_opp_size: 0,
+        commit_total: 0,
+        best_case_total: 0,
+        pipeline_total: 0,
+      });
     }
     const entry = byRep.get(row.rep_id)!;
     entry.total_calls++;
     entry.total_pipeline += row.potential_revenue || 0;
+
+    const oppSize = (row as any).estimated_opportunity_size || 0;
+    entry.total_opp_size += oppSize;
+    switch ((row as any).opportunity_label) {
+      case 'commit': entry.commit_total += oppSize; break;
+      case 'best_case': entry.best_case_total += oppSize; break;
+      case 'pipeline': entry.pipeline_total += oppSize; break;
+    }
 
     const analyses = (row as any).ai_call_analysis;
     if (Array.isArray(analyses)) {
@@ -105,7 +131,7 @@ async function fetchTeamPerformance(filters: ReportFilters): Promise<TeamPerform
     }
   }
 
-  return Array.from(byRep.values()).sort((a, b) => b.total_calls - a.total_calls);
+  return Array.from(byRep.values()).sort((a, b) => b.total_opp_size - a.total_opp_size);
 }
 
 async function fetchIndividualRep(filters: ReportFilters): Promise<IndividualRepRow[]> {
@@ -118,6 +144,9 @@ async function fetchIndividualRep(filters: ReportFilters): Promise<IndividualRep
       id,
       call_date,
       account_name,
+      opportunity_label,
+      estimated_opportunity_size,
+      target_close_date,
       ai_call_analysis ( call_effectiveness_score, call_summary )
     `)
     .eq('rep_id', repId)
@@ -137,6 +166,9 @@ async function fetchIndividualRep(filters: ReportFilters): Promise<IndividualRep
       account_name: row.account_name,
       effectiveness_score: analysis?.call_effectiveness_score ?? null,
       call_summary: analysis?.call_summary ?? '',
+      opportunity_label: row.opportunity_label,
+      estimated_opportunity_size: row.estimated_opportunity_size,
+      target_close_date: row.target_close_date,
     };
   });
 }
@@ -191,7 +223,6 @@ async function fetchCoachingActivity(filters: ReportFilters): Promise<CoachingAc
   const { data: sessions, error } = await query;
   if (error) throw error;
 
-  // Get profile names
   const userIds = [...new Set((sessions || []).map((s: any) => s.user_id as string))];
   if (userIds.length === 0) return [];
 
