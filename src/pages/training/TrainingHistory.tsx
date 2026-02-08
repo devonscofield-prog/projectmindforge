@@ -117,11 +117,18 @@ export default function TrainingHistory() {
             </div>
           ) : sessions && sessions.length > 0 ? (
             <div className="space-y-4">
-              {sessions.map((session) => (
+              {sessions.map((session) => {
+                const isNonCompleted = session.status === 'abandoned' || session.status === 'pending';
+                return (
                 <Card
                   key={session.id}
-                  className="hover:shadow-md transition-shadow cursor-pointer"
-                  onClick={() => navigate(`/training/session/${session.id}`)}
+                  className={cn(
+                    "transition-shadow",
+                    isNonCompleted 
+                      ? "opacity-60 cursor-default" 
+                      : "hover:shadow-md cursor-pointer"
+                  )}
+                  onClick={() => !isNonCompleted && navigate(`/training/session/${session.id}`)}
                 >
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
@@ -171,7 +178,8 @@ export default function TrainingHistory() {
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <Card className="p-8 text-center">

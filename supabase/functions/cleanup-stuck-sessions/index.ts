@@ -29,11 +29,11 @@ Deno.serve(async (req) => {
     const thresholdMinutes = 10;
     const thresholdTime = new Date(Date.now() - thresholdMinutes * 60 * 1000).toISOString();
 
-    // Get stuck sessions for logging
+    // Get stuck sessions for logging (both in_progress and pending)
     const { data: stuckSessions, error: fetchError } = await supabaseClient
       .from('roleplay_sessions')
-      .select('id, trainee_id, persona_id, started_at')
-      .eq('status', 'in_progress')
+      .select('id, trainee_id, persona_id, started_at, status')
+      .in('status', ['in_progress', 'pending'])
       .lt('started_at', thresholdTime);
 
     if (fetchError) {
@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
         ended_at: new Date().toISOString(),
         session_config: { auto_recovered: true },
       })
-      .eq('status', 'in_progress')
+      .in('status', ['in_progress', 'pending'])
       .lt('started_at', thresholdTime);
 
     if (updateError) {
@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
 
     // Log details for debugging
     stuckSessions.forEach(session => {
-      console.log(`  - Session ${session.id}: started ${session.started_at}`);
+      console.log(`  - Session ${session.id} (${session.status}): started ${session.started_at}`);
     });
 
     return new Response(JSON.stringify({

@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -43,8 +43,21 @@ const discProfileColors: Record<string, string> = {
 
 export default function TrainingDashboard() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const [selectedPersonaId, setSelectedPersonaId] = useState<string | null>(null);
+  const [coachContext, setCoachContext] = useState<string | null>(null);
+
+  // Read coachContext from URL params
+  useEffect(() => {
+    const ctx = searchParams.get('coachContext');
+    if (ctx) {
+      setCoachContext(decodeURIComponent(ctx));
+      // Clean up URL
+      searchParams.delete('coachContext');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   // Fetch available personas
   const { data: personas, isLoading: personasLoading } = useQuery({
@@ -112,6 +125,37 @@ export default function TrainingDashboard() {
               Practice your sales skills with AI-powered prospect simulations
             </p>
           </div>
+
+          {/* Coach Context Card */}
+          {coachContext && (
+            <Card className="mb-8 border-primary/30 bg-primary/5">
+              <CardContent className="pt-6">
+                <div className="flex items-start gap-4">
+                  <div className="p-2 rounded-lg bg-primary/10 shrink-0">
+                    <Sparkles className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold mb-1">Coaching Feedback</h3>
+                    <p className="text-sm text-muted-foreground mb-3">{coachContext}</p>
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={() => {
+                        // Find a relevant persona and start session
+                        if (personas && personas.length > 0) {
+                          handleStartSession(personas[0].id);
+                        }
+                      }}>
+                        <ArrowRight className="h-4 w-4 mr-1" />
+                        Practice Now
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setCoachContext(null)}>
+                        Dismiss
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">

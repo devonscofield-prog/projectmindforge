@@ -261,36 +261,34 @@ export default function SessionDetail() {
               {session.roleplay_personas?.name || 'Unknown Persona'}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            {/* Discuss with Sales Coach Button */}
-            {showFullFeedback && grade?.coaching_prescription && (
-              <Button 
-                variant="secondary"
-                onClick={() => {
-                  // Build context message about the roleplay session
-                  const contextMessage = `I just completed a roleplay training session with ${session.roleplay_personas?.name || 'an AI persona'}. Here's my coaching feedback: "${grade.coaching_prescription}". ${focusAreas?.length ? `Focus areas identified: ${focusAreas.join(', ')}.` : ''} Can you help me practice and improve on this?`;
-                  
-                  // Navigate to an account page with coach context
-                  // Since roleplay isn't tied to a specific account, we'll use a query param to pre-populate
-                  navigate(`/training?coachContext=${encodeURIComponent(contextMessage)}`);
-                  toast.info('Opening Sales Coach with your roleplay feedback...');
-                }}
-              >
-                <Sparkles className="h-4 w-4 mr-2" />
-                Discuss with Coach
-              </Button>
-            )}
-            
-            {session.roleplay_personas && (
-              <Button 
-                variant="outline"
-                onClick={() => navigate(`/training/roleplay/${session.persona_id}`)}
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Practice Again
-              </Button>
-            )}
-          </div>
+          {session.status === 'completed' && (
+            <div className="flex items-center gap-2">
+              {/* Discuss with Sales Coach Button */}
+              {showFullFeedback && grade?.coaching_prescription && (
+                <Button 
+                  variant="secondary"
+                  onClick={() => {
+                    const contextMessage = `I just completed a roleplay training session with ${session.roleplay_personas?.name || 'an AI persona'}. Here's my coaching feedback: "${grade.coaching_prescription}". ${focusAreas?.length ? `Focus areas identified: ${focusAreas.join(', ')}.` : ''} Can you help me practice and improve on this?`;
+                    navigate(`/training?coachContext=${encodeURIComponent(contextMessage)}`);
+                    toast.info('Opening Sales Coach with your roleplay feedback...');
+                  }}
+                >
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Discuss with Coach
+                </Button>
+              )}
+              
+              {session.roleplay_personas && (
+                <Button 
+                  variant="outline"
+                  onClick={() => navigate(`/training/roleplay/${session.persona_id}`)}
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Practice Again
+                </Button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Session Overview */}
@@ -576,6 +574,25 @@ export default function SessionDetail() {
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Non-completed session message */}
+        {(session.status === 'abandoned' || session.status === 'pending') && (
+          <Card className="border-dashed border-muted-foreground/30">
+            <CardContent className="py-8 text-center">
+              <AlertCircle className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+              <p className="font-medium">Session Not Completed</p>
+              <p className="text-sm text-muted-foreground mb-4">
+                This session was {session.status === 'abandoned' ? 'ended early or timed out' : 'never started'}. No feedback is available.
+              </p>
+              {session.roleplay_personas && (
+                <Button onClick={() => navigate(`/training/roleplay/${session.persona_id}`)}>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Try Again
+                </Button>
+              )}
             </CardContent>
           </Card>
         )}

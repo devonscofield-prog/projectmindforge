@@ -576,6 +576,9 @@ export default function RoleplaySession() {
       mediaRecorderRef.current.stop();
     }
     
+    const MIN_DURATION_FOR_GRADING = 15;
+    const isShortSession = elapsedSeconds < MIN_DURATION_FOR_GRADING;
+
     try {
       if (sessionId) {
         // Save the session
@@ -590,14 +593,19 @@ export default function RoleplaySession() {
         // Upload recording in background
         uploadRecording(sessionId);
 
-        // Trigger AI grading asynchronously
-        supabase.functions.invoke('roleplay-grade-session', {
-          body: { sessionId }
-        }).then(() => {
-          console.log('Grading complete');
-        }).catch((err) => {
-          console.error('Grading failed:', err);
-        });
+        // Only trigger grading if session was long enough
+        if (isShortSession) {
+          console.log('Session too short for grading, skipping');
+        } else {
+          // Trigger AI grading asynchronously
+          supabase.functions.invoke('roleplay-grade-session', {
+            body: { sessionId }
+          }).then(() => {
+            console.log('Grading complete');
+          }).catch((err) => {
+            console.error('Grading failed:', err);
+          });
+        }
       }
     } catch (error) {
       console.error('Failed to save session:', error);
@@ -605,7 +613,12 @@ export default function RoleplaySession() {
     
     cleanup();
     setStatus('ended');
-    toast.success('Session completed! Your performance is being evaluated.');
+    
+    if (isShortSession) {
+      toast.info('Session was too short for meaningful feedback. Try practicing for at least 30 seconds.');
+    } else {
+      toast.success('Session completed! Your performance is being evaluated.');
+    }
   };
 
   // Keep endSessionRef in sync so the timer can call it without stale closures
@@ -1019,6 +1032,17 @@ export default function RoleplaySession() {
                         Share Screen
                       </>
                     )}
+                  </Button>
+
+                  {/* Pause/Resume Button */}
+                  <Button
+                    size="lg"
+                    variant={isPaused ? 'default' : 'outline'}
+                    className="gap-2"
+                    onClick={togglePause}
+                  >
+                    {isPaused ? <Play className="h-5 w-5" /> : <Pause className="h-5 w-5" />}
+                    {isPaused ? 'Resume' : 'Pause'}
                   </Button>
                   
                   <Button
