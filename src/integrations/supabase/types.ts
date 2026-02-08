@@ -659,10 +659,12 @@ export type Database = {
           created_at: string
           deleted_at: string | null
           deleted_by: string | null
+          estimated_opportunity_size: number | null
           id: string
           is_unqualified: boolean | null
           manager_id: string | null
           notes: string | null
+          opportunity_label: string | null
           potential_revenue: number | null
           primary_stakeholder_name: string | null
           prospect_id: string | null
@@ -671,6 +673,7 @@ export type Database = {
           salesforce_demo_link: string | null
           source: Database["public"]["Enums"]["call_source_type"]
           suggestions_reviewed_at: string | null
+          target_close_date: string | null
           updated_at: string
         }
         Insert: {
@@ -685,10 +688,12 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           deleted_by?: string | null
+          estimated_opportunity_size?: number | null
           id?: string
           is_unqualified?: boolean | null
           manager_id?: string | null
           notes?: string | null
+          opportunity_label?: string | null
           potential_revenue?: number | null
           primary_stakeholder_name?: string | null
           prospect_id?: string | null
@@ -697,6 +702,7 @@ export type Database = {
           salesforce_demo_link?: string | null
           source?: Database["public"]["Enums"]["call_source_type"]
           suggestions_reviewed_at?: string | null
+          target_close_date?: string | null
           updated_at?: string
         }
         Update: {
@@ -711,10 +717,12 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           deleted_by?: string | null
+          estimated_opportunity_size?: number | null
           id?: string
           is_unqualified?: boolean | null
           manager_id?: string | null
           notes?: string | null
+          opportunity_label?: string | null
           potential_revenue?: number | null
           primary_stakeholder_name?: string | null
           prospect_id?: string | null
@@ -723,6 +731,7 @@ export type Database = {
           salesforce_demo_link?: string | null
           source?: Database["public"]["Enums"]["call_source_type"]
           suggestions_reviewed_at?: string | null
+          target_close_date?: string | null
           updated_at?: string
         }
         Relationships: [

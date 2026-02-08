@@ -293,6 +293,9 @@ export function toCallTranscript(row: CallTranscriptRow, repName?: string | null
     prospect_id: row.prospect_id,
     additional_speakers: row.additional_speakers ?? null,
     is_unqualified: (row as any).is_unqualified ?? false,
+    estimated_opportunity_size: (row as any).estimated_opportunity_size ?? null,
+    target_close_date: (row as any).target_close_date ?? null,
+    opportunity_label: (row as any).opportunity_label ?? null,
   };
 }
 

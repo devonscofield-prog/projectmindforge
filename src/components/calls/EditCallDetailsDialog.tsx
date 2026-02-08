@@ -22,6 +22,7 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CallTranscript, UpdateCallTranscriptParams } from '@/api/aiCallAnalysis';
 import { callTypeOptions, CallType } from '@/constants/callTypes';
+import { OpportunityLabel, opportunityLabelOptions } from '@/constants/opportunityLabels';
 import { format } from 'date-fns';
 import { AlertTriangle, Loader2, Users } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -52,6 +53,9 @@ export function EditCallDetailsDialog({
   const [managerOnCall, setManagerOnCall] = useState(false);
   const [managerId, setManagerId] = useState<string | null>(null);
   const [isUnqualified, setIsUnqualified] = useState(false);
+  const [estimatedOpportunitySize, setEstimatedOpportunitySize] = useState('');
+  const [targetCloseDate, setTargetCloseDate] = useState('');
+  const [opportunityLabel, setOpportunityLabel] = useState<OpportunityLabel | ''>('');
 
   const originalAccountName = transcript.account_name || '';
 
@@ -69,6 +73,9 @@ export function EditCallDetailsDialog({
       setManagerOnCall(!!transcript.manager_id);
       setManagerId(transcript.manager_id);
       setIsUnqualified(transcript.is_unqualified ?? false);
+      setEstimatedOpportunitySize(transcript.estimated_opportunity_size?.toString() || '');
+      setTargetCloseDate(transcript.target_close_date || '');
+      setOpportunityLabel((transcript.opportunity_label as OpportunityLabel) || '');
     }
   }, [open, transcript]);
 
@@ -112,6 +119,9 @@ export function EditCallDetailsDialog({
       notes: notes.trim() || null,
       manager_id: managerOnCall ? managerId : null,
       is_unqualified: isUnqualified,
+      estimated_opportunity_size: estimatedOpportunitySize ? parseFloat(estimatedOpportunitySize) : null,
+      target_close_date: targetCloseDate || null,
+      opportunity_label: opportunityLabel || null,
     };
 
     onSave(updates);
@@ -251,6 +261,49 @@ export function EditCallDetailsDialog({
               onChange={(e) => setPotentialRevenue(e.target.value)}
               placeholder="0.00"
             />
+          </div>
+
+          {/* Estimated Opportunity Size */}
+          <div className="space-y-2">
+            <Label htmlFor="edit_estimated_opportunity_size">Est. Opportunity Size</Label>
+            <Input
+              id="edit_estimated_opportunity_size"
+              type="number"
+              min="0"
+              step="0.01"
+              value={estimatedOpportunitySize}
+              onChange={(e) => setEstimatedOpportunitySize(e.target.value)}
+              placeholder="0.00"
+            />
+          </div>
+
+          {/* Target Close Date */}
+          <div className="space-y-2">
+            <Label htmlFor="edit_target_close_date">Target Close Date</Label>
+            <Input
+              id="edit_target_close_date"
+              type="date"
+              value={targetCloseDate}
+              onChange={(e) => setTargetCloseDate(e.target.value)}
+            />
+          </div>
+
+          {/* Opportunity Label */}
+          <div className="space-y-2">
+            <Label htmlFor="edit_opportunity_label">Opportunity Label</Label>
+            <Select value={opportunityLabel || 'none'} onValueChange={v => setOpportunityLabel(v === 'none' ? '' as any : v as OpportunityLabel)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select label" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                {opportunityLabelOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Notes */}

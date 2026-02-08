@@ -55,6 +55,9 @@ export interface CreateCallTranscriptParams {
   managerOnCall?: boolean;
   additionalSpeakers?: string[];
   isUnqualified?: boolean;
+  estimatedOpportunitySize: number;
+  targetCloseDate: string;
+  opportunityLabel: string;
 }
 
 export interface CallTranscript {
@@ -80,6 +83,9 @@ export interface CallTranscript {
   prospect_id: string | null;
   additional_speakers: string[] | null;
   is_unqualified: boolean;
+  estimated_opportunity_size: number | null;
+  target_close_date: string | null;
+  opportunity_label: string | null;
 }
 
 export interface CallTranscriptWithHeat extends CallTranscript {

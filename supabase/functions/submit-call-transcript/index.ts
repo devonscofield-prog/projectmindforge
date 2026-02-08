@@ -17,6 +17,9 @@ interface SubmitCallTranscriptPayload {
   additionalSpeakers?: string[];
   isUnqualified?: boolean;
   primaryStakeholderName?: string;
+  estimatedOpportunitySize: number;
+  targetCloseDate: string;
+  opportunityLabel: string;
 }
 
 Deno.serve(async (req) => {
@@ -108,6 +111,9 @@ Deno.serve(async (req) => {
       manager_id: payload.managerId || null,
       additional_speakers: payload.additionalSpeakers || [],
       is_unqualified: payload.isUnqualified ?? false,
+      estimated_opportunity_size: payload.estimatedOpportunitySize,
+      target_close_date: payload.targetCloseDate,
+      opportunity_label: payload.opportunityLabel,
     };
 
     console.log("Inserting transcript for rep:", user.id, "account:", payload.accountName);

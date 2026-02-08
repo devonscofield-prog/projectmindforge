@@ -81,6 +81,9 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
         additionalSpeakers: params.additionalSpeakers || [],
         isUnqualified: params.isUnqualified ?? false,
         primaryStakeholderName,
+        estimatedOpportunitySize: params.estimatedOpportunitySize,
+        targetCloseDate: params.targetCloseDate,
+        opportunityLabel: params.opportunityLabel,
       },
     }
   );
@@ -657,6 +660,9 @@ export interface UpdateCallTranscriptParams {
   manager_id?: string | null;
   raw_text?: string;
   is_unqualified?: boolean;
+  estimated_opportunity_size?: number | null;
+  target_close_date?: string | null;
+  opportunity_label?: string | null;
 }
 
 export async function updateCallTranscript(
