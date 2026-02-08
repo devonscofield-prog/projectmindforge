@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -15,12 +14,18 @@ const COLUMNS_BY_TYPE: Record<ReportType, ColumnDef[]> = {
   team_performance: [
     { key: 'rep_name', label: 'Rep' },
     { key: 'total_calls', label: 'Calls' },
+    { key: 'total_opp_size', label: 'Opp Size' },
+    { key: 'commit_total', label: 'Commit' },
+    { key: 'best_case_total', label: 'Best Case' },
+    { key: 'pipeline_total', label: 'Pipeline' },
     { key: 'avg_effectiveness', label: 'Avg Effectiveness' },
-    { key: 'total_pipeline', label: 'Pipeline' },
   ],
   individual_rep: [
     { key: 'call_date', label: 'Date' },
     { key: 'account_name', label: 'Account' },
+    { key: 'opportunity_label', label: 'Label' },
+    { key: 'estimated_opportunity_size', label: 'Opp Size' },
+    { key: 'target_close_date', label: 'Close Date' },
     { key: 'effectiveness_score', label: 'Score' },
     { key: 'call_summary', label: 'Summary' },
   ],
@@ -52,7 +57,6 @@ export function ColumnSelector({ reportType, visibleColumns, onChange }: ColumnS
     if (checked) {
       onChange([...visibleColumns, key]);
     } else {
-      // Prevent deselecting all columns
       if (visibleColumns.length <= 1) return;
       onChange(visibleColumns.filter(c => c !== key));
     }

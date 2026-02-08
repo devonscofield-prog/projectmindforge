@@ -14,6 +14,13 @@ function isVisible(col: string, visibleColumns?: string[]): boolean {
   return !visibleColumns || visibleColumns.includes(col);
 }
 
+const LABEL_DISPLAY: Record<string, string> = {
+  commit: 'Commit',
+  best_case: 'Best Case',
+  pipeline: 'Pipeline',
+  time_waster: 'Time Waster',
+};
+
 export function ReportResultsTable({ data, visibleColumns }: ReportResultsTableProps) {
   const v = (col: string) => isVisible(col, visibleColumns);
 
@@ -24,15 +31,26 @@ export function ReportResultsTable({ data, visibleColumns }: ReportResultsTableP
     switch (data.type) {
       case 'team_performance':
         exportToCsv(
-          filterCols(['rep_name', 'total_calls', 'avg_effectiveness', 'total_pipeline']),
-          data.rows.map(r => ({ ...r, avg_effectiveness: r.avg_effectiveness?.toFixed(1) ?? 'N/A', total_pipeline: `$${r.total_pipeline.toLocaleString()}` })),
+          filterCols(['rep_name', 'total_calls', 'total_opp_size', 'commit_total', 'best_case_total', 'pipeline_total', 'avg_effectiveness']),
+          data.rows.map(r => ({
+            ...r,
+            total_opp_size: `$${r.total_opp_size.toLocaleString()}`,
+            commit_total: `$${r.commit_total.toLocaleString()}`,
+            best_case_total: `$${r.best_case_total.toLocaleString()}`,
+            pipeline_total: `$${r.pipeline_total.toLocaleString()}`,
+            avg_effectiveness: r.avg_effectiveness?.toFixed(1) ?? 'N/A',
+          })),
           `team-performance-${timestamp}`
         );
         break;
       case 'individual_rep':
         exportToCsv(
-          filterCols(['call_date', 'account_name', 'effectiveness_score', 'call_summary']),
-          data.rows,
+          filterCols(['call_date', 'account_name', 'opportunity_label', 'estimated_opportunity_size', 'target_close_date', 'effectiveness_score', 'call_summary']),
+          data.rows.map(r => ({
+            ...r,
+            opportunity_label: LABEL_DISPLAY[r.opportunity_label || ''] || r.opportunity_label || '',
+            estimated_opportunity_size: r.estimated_opportunity_size ? `$${r.estimated_opportunity_size.toLocaleString()}` : '',
+          })),
           `rep-report-${timestamp}`
         );
         break;
@@ -72,8 +90,11 @@ export function ReportResultsTable({ data, visibleColumns }: ReportResultsTableP
             <TableRow>
               {v('rep_name') && <TableHead>Rep</TableHead>}
               {v('total_calls') && <TableHead className="text-right">Calls</TableHead>}
+              {v('total_opp_size') && <TableHead className="text-right">Opp Size</TableHead>}
+              {v('commit_total') && <TableHead className="text-right">Commit</TableHead>}
+              {v('best_case_total') && <TableHead className="text-right">Best Case</TableHead>}
+              {v('pipeline_total') && <TableHead className="text-right">Pipeline</TableHead>}
               {v('avg_effectiveness') && <TableHead className="text-right">Avg Effectiveness</TableHead>}
-              {v('total_pipeline') && <TableHead className="text-right">Pipeline</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -81,8 +102,11 @@ export function ReportResultsTable({ data, visibleColumns }: ReportResultsTableP
               <TableRow key={row.rep_id}>
                 {v('rep_name') && <TableCell className="font-medium">{row.rep_name}</TableCell>}
                 {v('total_calls') && <TableCell className="text-right">{row.total_calls}</TableCell>}
+                {v('total_opp_size') && <TableCell className="text-right">${row.total_opp_size.toLocaleString()}</TableCell>}
+                {v('commit_total') && <TableCell className="text-right">{row.commit_total > 0 ? `$${row.commit_total.toLocaleString()}` : '—'}</TableCell>}
+                {v('best_case_total') && <TableCell className="text-right">{row.best_case_total > 0 ? `$${row.best_case_total.toLocaleString()}` : '—'}</TableCell>}
+                {v('pipeline_total') && <TableCell className="text-right">{row.pipeline_total > 0 ? `$${row.pipeline_total.toLocaleString()}` : '—'}</TableCell>}
                 {v('avg_effectiveness') && <TableCell className="text-right">{row.avg_effectiveness?.toFixed(1) ?? '—'}</TableCell>}
-                {v('total_pipeline') && <TableCell className="text-right">${row.total_pipeline.toLocaleString()}</TableCell>}
               </TableRow>
             ))}
           </TableBody>
@@ -95,6 +119,9 @@ export function ReportResultsTable({ data, visibleColumns }: ReportResultsTableP
             <TableRow>
               {v('call_date') && <TableHead>Date</TableHead>}
               {v('account_name') && <TableHead>Account</TableHead>}
+              {v('opportunity_label') && <TableHead>Label</TableHead>}
+              {v('estimated_opportunity_size') && <TableHead className="text-right">Opp Size</TableHead>}
+              {v('target_close_date') && <TableHead>Close Date</TableHead>}
               {v('effectiveness_score') && <TableHead className="text-right">Score</TableHead>}
               {v('call_summary') && <TableHead className="max-w-xs">Summary</TableHead>}
             </TableRow>
@@ -104,6 +131,9 @@ export function ReportResultsTable({ data, visibleColumns }: ReportResultsTableP
               <TableRow key={row.call_id}>
                 {v('call_date') && <TableCell>{format(new Date(row.call_date), 'MMM d, yyyy')}</TableCell>}
                 {v('account_name') && <TableCell>{row.account_name || '—'}</TableCell>}
+                {v('opportunity_label') && <TableCell>{LABEL_DISPLAY[row.opportunity_label || ''] || '—'}</TableCell>}
+                {v('estimated_opportunity_size') && <TableCell className="text-right">{row.estimated_opportunity_size ? `$${row.estimated_opportunity_size.toLocaleString()}` : '—'}</TableCell>}
+                {v('target_close_date') && <TableCell>{row.target_close_date ? format(new Date(row.target_close_date), 'MMM d, yyyy') : '—'}</TableCell>}
                 {v('effectiveness_score') && <TableCell className="text-right">{row.effectiveness_score ?? '—'}</TableCell>}
                 {v('call_summary') && <TableCell className="max-w-xs truncate">{row.call_summary || '—'}</TableCell>}
               </TableRow>
