@@ -2411,6 +2411,27 @@ export type Database = {
             referencedRelation: "prospects"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "sales_coach_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_coach_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "team_member_names"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_coach_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_with_role"
+            referencedColumns: ["id"]
+          },
         ]
       }
       stakeholder_relationships: {
