@@ -15,7 +15,7 @@ import { getDeviceId } from '@/lib/deviceId';
 import { ColorSchemeSelector } from '@/components/settings/ColorSchemeSelector';
 import { NotificationPreferences } from '@/components/settings/NotificationPreferences';
 import { NotificationHistorySection } from '@/components/notifications/NotificationHistorySection';
-import { DailyReportSettings } from '@/components/settings/DailyReportSettings';
+
 
 const passwordSchema = z.object({
   newPassword: z.string()
@@ -179,9 +179,6 @@ export default function UserSettings() {
 
         <NotificationPreferences />
 
-        {(role === 'manager' || role === 'admin') && (
-          <DailyReportSettings />
-        )}
 
         <NotificationHistorySection />
 

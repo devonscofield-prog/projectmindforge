@@ -123,3 +123,10 @@ export function getCallHistoryLabel(role: UserRole | null): string {
       return 'Call History';
   }
 }
+
+/**
+ * Generates the correct reporting URL based on user role.
+ */
+export function getReportingUrl(role: UserRole | null): string {
+  return role === 'admin' ? '/admin/reporting' : '/manager/reporting';
+}
