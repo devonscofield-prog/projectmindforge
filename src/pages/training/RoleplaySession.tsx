@@ -364,7 +364,6 @@ export default function RoleplaySession() {
           type: 'session.update',
           session: {
             type: 'realtime',
-            modalities: ['text', 'audio'],
             voice,
             instructions,
             input_audio_format: 'pcm16',
