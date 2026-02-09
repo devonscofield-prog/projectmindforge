@@ -360,6 +360,8 @@ export default function RoleplaySession() {
         const instructions = realtime?.instructions;
 
         // Configure session settings (GA nested audio format)
+        // In GA, turn_detection is nested inside audio.input (not session root).
+        // audio.input.format is omitted — WebRTC negotiates codec automatically.
         dc.send(JSON.stringify({
           type: 'session.update',
           session: {
@@ -368,16 +370,15 @@ export default function RoleplaySession() {
             audio: {
               output: { voice },
               input: {
-                format: { type: 'pcm16' },
                 transcription: { model: 'whisper-1' },
-                noise_reduction: { type: 'near_field' }
+                noise_reduction: { type: 'near_field' },
+                turn_detection: {
+                  type: 'server_vad',
+                  threshold: 0.5,
+                  prefix_padding_ms: 300,
+                  silence_duration_ms: silenceDurationMs
+                }
               }
-            },
-            turn_detection: {
-              type: 'server_vad',
-              threshold: 0.5,
-              prefix_padding_ms: 300,
-              silence_duration_ms: silenceDurationMs
             }
           }
         }));
