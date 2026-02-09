@@ -143,34 +143,34 @@ const App = () => (
 
                 {/* User Settings Route (All Roles) */}
                 <Route path="/settings" element={
-                  <ProtectedRoute allowedRoles={['rep', 'manager', 'admin', 'trainee']}>
+                  <ProtectedRoute allowedRoles={['rep', 'manager', 'admin']}>
                     <UserSettings />
                   </ProtectedRoute>
                 } />
 
-                {/* Training Routes (Trainees and Reps can practice) */}
+                {/* Training Routes */}
                 <Route path="/training" element={
-                  <ProtectedRoute allowedRoles={['trainee', 'rep', 'admin']}>
+                  <ProtectedRoute allowedRoles={['rep', 'admin']}>
                     <TrainingDashboard />
                   </ProtectedRoute>
                 } />
                 <Route path="/training/roleplay/:personaId" element={
-                  <ProtectedRoute allowedRoles={['trainee', 'rep', 'admin']}>
+                  <ProtectedRoute allowedRoles={['rep', 'admin']}>
                     <RoleplaySession />
                   </ProtectedRoute>
                 } />
                 <Route path="/training/history" element={
-                  <ProtectedRoute allowedRoles={['trainee', 'rep', 'manager', 'admin']}>
+                  <ProtectedRoute allowedRoles={['rep', 'manager', 'admin']}>
                     <TrainingHistory />
                   </ProtectedRoute>
                 } />
                 <Route path="/training/session/:sessionId" element={
-                  <ProtectedRoute allowedRoles={['trainee', 'rep', 'manager', 'admin']}>
+                  <ProtectedRoute allowedRoles={['rep', 'manager', 'admin']}>
                     <SessionDetail />
                   </ProtectedRoute>
                 } />
                 <Route path="/training/progress" element={
-                  <ProtectedRoute allowedRoles={['trainee', 'rep', 'admin']}>
+                  <ProtectedRoute allowedRoles={['rep', 'admin']}>
                     <TrainingProgress />
                   </ProtectedRoute>
                 } />
@@ -310,7 +310,7 @@ const App = () => (
                   </ProtectedRoute>
                 } />
                 <Route path="/admin/competitors" element={
-                  <ProtectedRoute allowedRoles={['admin', 'manager', 'rep', 'trainee']}>
+                  <ProtectedRoute allowedRoles={['admin', 'manager', 'rep']}>
                     <AdminCompetitors />
                   </ProtectedRoute>
                 } />

@@ -47,7 +47,6 @@ export function getCallDetailUrl(callId: string): string {
  * Generates the correct dashboard URL based on user role.
  * - Admin: /admin
  * - Manager: /manager
- * - Trainee: /training
  * - Rep: /rep
  */
 export function getDashboardUrl(role: UserRole | null): string {
@@ -56,8 +55,6 @@ export function getDashboardUrl(role: UserRole | null): string {
       return '/admin';
     case 'manager':
       return '/manager';
-    case 'trainee':
-      return '/training';
     case 'rep':
     default:
       return '/rep';

@@ -143,6 +143,7 @@ export default function Auth() {
   // Handle celebration complete - navigate to dashboard
   const handleCelebrationComplete = useCallback(() => {
     const redirectPath = role === 'admin' ? '/admin' : role === 'manager' ? '/manager' : '/rep';
+
     navigate(redirectPath, { replace: true });
   }, [role, navigate]);
 
