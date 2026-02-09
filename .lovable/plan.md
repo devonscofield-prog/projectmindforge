@@ -1,31 +1,51 @@
 
-# Fix: Remove Beta Header from Roleplay WebRTC Handshake
+
+# Fix: Add Missing `session.type` to Realtime WebRTC Configuration
 
 ## Problem
 
-The roleplay system uses the **GA (General Availability)** endpoint (`/v1/realtime/calls`) and GA client secrets (`/v1/realtime/client_secrets`), but the WebRTC handshake request still includes the **beta** header `OpenAI-Beta: realtime=v1`. OpenAI rejects this combination with a 400 error: "API version mismatch."
+Two symptoms, one root cause:
+
+1. **"Session type" error** -- The OpenAI Realtime GA API now requires a `type` field inside the `session.update` event. Valid values are `"realtime"` (speech-to-speech) or `"transcription"`. The current code omits this field entirely, causing OpenAI to return an error.
+
+2. **Steven Green acts as a helpful assistant** -- Because the `session.update` fails due to the missing `type` field, the `instructions` (persona system prompt) never get applied. The model falls back to its default behavior: a generic helpful AI assistant.
 
 ## Fix
 
-One-line change in `src/pages/training/RoleplaySession.tsx` -- remove the `'OpenAI-Beta': 'realtime=v1'` header from the fetch call to `/v1/realtime/calls`.
+**File:** `src/pages/training/RoleplaySession.tsx` (around line 363)
 
-### File: `src/pages/training/RoleplaySession.tsx` (line ~403)
+Add `type: 'realtime'` to the session configuration object sent via the data channel:
 
 **Before:**
 ```typescript
-headers: {
-  'Authorization': `Bearer ${sessionData.ephemeralToken}`,
-  'Content-Type': 'application/sdp',
-  'OpenAI-Beta': 'realtime=v1',
-}
+dc.send(JSON.stringify({
+  type: 'session.update',
+  session: {
+    modalities: ['text', 'audio'],
+    voice,
+    instructions,
+    input_audio_format: 'pcm16',
+    output_audio_format: 'pcm16',
+    ...
+  }
+}));
 ```
 
 **After:**
 ```typescript
-headers: {
-  'Authorization': `Bearer ${sessionData.ephemeralToken}`,
-  'Content-Type': 'application/sdp',
-}
+dc.send(JSON.stringify({
+  type: 'session.update',
+  session: {
+    type: 'realtime',           // <-- required by GA API
+    modalities: ['text', 'audio'],
+    voice,
+    instructions,
+    input_audio_format: 'pcm16',
+    output_audio_format: 'pcm16',
+    ...
+  }
+}));
 ```
 
-That's it -- the backend token generation is already correct (no beta header). Only the frontend WebRTC handshake needs the header removed.
+This is a single-line addition. No edge function or database changes needed -- the system prompt construction is already correct. The issue is purely that the frontend fails to deliver it to OpenAI because the `session.update` event is rejected.
+
