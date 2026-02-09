@@ -359,17 +359,19 @@ export default function RoleplaySession() {
         const voice = realtime?.voice || sessionData?.persona?.voice || persona?.voice;
         const instructions = realtime?.instructions;
 
-        // Configure session settings (GA: pass voice + instructions here)
+        // Configure session settings (GA nested audio format)
         dc.send(JSON.stringify({
           type: 'session.update',
           session: {
             type: 'realtime',
-            voice,
             instructions,
-            input_audio_format: 'pcm16',
-            output_audio_format: 'pcm16',
-            input_audio_transcription: {
-              model: 'whisper-1'
+            audio: {
+              output: { voice },
+              input: {
+                format: { type: 'pcm16' },
+                transcription: { model: 'whisper-1' },
+                noise_reduction: { type: 'near_field' }
+              }
             },
             turn_detection: {
               type: 'server_vad',
