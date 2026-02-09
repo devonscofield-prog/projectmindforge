@@ -400,7 +400,6 @@ export default function RoleplaySession() {
         headers: {
           'Authorization': `Bearer ${sessionData.ephemeralToken}`,
           'Content-Type': 'application/sdp',
-          'OpenAI-Beta': 'realtime=v1',
         }
       });
 
