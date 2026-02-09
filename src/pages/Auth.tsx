@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { getDashboardUrl } from '@/lib/routes';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -142,7 +143,7 @@ export default function Auth() {
 
   // Handle celebration complete - navigate to dashboard
   const handleCelebrationComplete = useCallback(() => {
-    const redirectPath = role === 'admin' ? '/admin' : role === 'manager' ? '/manager' : '/rep';
+    const redirectPath = getDashboardUrl(role);
 
     navigate(redirectPath, { replace: true });
   }, [role, navigate]);
