@@ -569,6 +569,8 @@ export default function RoleplaySession() {
   };
 
   const endSession = async () => {
+    // Guard against double-end (auto-end timer + manual end can race)
+    if (statusRef.current === 'ending' || statusRef.current === 'ended') return;
     setStatus('ending');
 
     // Stop recording before uploading
@@ -615,7 +617,7 @@ export default function RoleplaySession() {
     setStatus('ended');
     
     if (isShortSession) {
-      toast.info('Session was too short for meaningful feedback. Try practicing for at least 30 seconds.');
+      toast.info('Session was too short for meaningful feedback. Try practicing for at least 15 seconds.');
     } else {
       toast.success('Session completed! Your performance is being evaluated.');
     }
@@ -677,7 +679,7 @@ export default function RoleplaySession() {
     const abandonViaBeacon = () => {
       const sid = sessionIdRef.current;
       const st = statusRef.current;
-      if (sid && st !== 'briefing' && st !== 'idle' && st !== 'ended') {
+      if (sid && st !== 'briefing' && st !== 'idle' && st !== 'ending' && st !== 'ended') {
         const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/roleplay-abandon-session`;
         navigator.sendBeacon(url, JSON.stringify({ sessionId: sid, traineeId: user?.id }));
       }
@@ -1091,6 +1093,8 @@ export default function RoleplaySession() {
               setElapsedSeconds(0);
               callStartTimeRef.current = null;
               durationWarningShownRef.current = false;
+              pausedTimeRef.current = 0;
+              pauseStartRef.current = null;
             }}
             onBackToTraining={() => navigate('/training')}
           />

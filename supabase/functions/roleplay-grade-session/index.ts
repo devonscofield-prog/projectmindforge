@@ -147,29 +147,31 @@ const DISC_SUCCESS_CRITERIA: Record<string, string[]> = {
 function buildPersonaSpecificGradingPrompt(
   transcript: string,
   persona: Persona,
+  sessionType: string,
   durationSeconds: number,
   gradingCriteria: GradingCriteria
 ): string {
   const durationMinutes = Math.round(durationSeconds / 60);
-  
+
   // Build scoring categories section
-  const categoriesSection = gradingCriteria.scoring_categories?.map(cat => 
+  const categoriesSection = gradingCriteria.scoring_categories?.map(cat =>
     `- **${cat.name}** (${cat.weight}%): ${cat.description}`
   ).join('\n') || '';
-  
+
   // Build negative triggers section
   const triggersSection = gradingCriteria.negative_triggers?.map(trigger =>
     `- NEGATIVE TRIGGER: If "${trigger.trigger}", the maximum grade is ${trigger.max_grade}. Reason: ${trigger.explanation}`
   ).join('\n') || '';
-  
+
   // Build expected scores keys from categories
-  const scoreKeys = gradingCriteria.scoring_categories?.map(cat => 
+  const scoreKeys = gradingCriteria.scoring_categories?.map(cat =>
     `"${cat.key}": <0-100>`
   ).join(',\n    ') || '';
 
   return `${gradingCriteria.role_description || 'You are an expert sales coach evaluating a roleplay practice session.'}
 
 === SESSION CONTEXT ===
+- Session Type: ${sessionType.toUpperCase()}
 - Duration: ${durationMinutes} minutes
 - Prospect Persona: ${persona.name} (${persona.persona_type}, ${persona.industry || 'General'} industry)
 - DISC Profile: ${persona.disc_profile || 'Unknown'}
@@ -370,7 +372,7 @@ async function gradeWithAI(
     persona.grading_criteria.scoring_categories.length > 0;
 
   const prompt = hasCustomCriteria
-    ? buildPersonaSpecificGradingPrompt(transcript, persona, durationSeconds, persona.grading_criteria!)
+    ? buildPersonaSpecificGradingPrompt(transcript, persona, sessionType, durationSeconds, persona.grading_criteria!)
     : buildDefaultGradingPrompt(transcript, persona, sessionType, durationSeconds);
   
   console.log(`Using ${hasCustomCriteria ? 'persona-specific' : 'default'} grading criteria for ${persona.name}`);
