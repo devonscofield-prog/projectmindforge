@@ -91,17 +91,22 @@ export default function AdminTrainingPersonas() {
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       // First, unlink any sessions from this persona
-      await supabase
+      const { error: unlinkError } = await supabase
         .from('roleplay_sessions')
         .update({ persona_id: null as any })
         .eq('persona_id', id);
-      
+
+      if (unlinkError) {
+        console.error('Failed to unlink sessions:', unlinkError);
+        throw new Error('Failed to unlink sessions from persona. Cannot delete.');
+      }
+
       // Then delete the persona
       const { error } = await supabase
         .from('roleplay_personas')
         .delete()
         .eq('id', id);
-      
+
       if (error) throw error;
     },
     onSuccess: () => {

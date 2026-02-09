@@ -151,6 +151,8 @@ export default function TrainingProgress() {
       const scores = s.roleplay_grades[0]?.scores as Record<string, number> | null;
       if (scores) {
         Object.entries(scores).forEach(([key, value]) => {
+          // Skip 'overall' — it's an aggregate, not an individual skill
+          if (key === 'overall') return;
           if (typeof value === 'number') {
             if (!skillTotals[key]) skillTotals[key] = { sum: 0, count: 0 };
             skillTotals[key].sum += value;
@@ -165,13 +167,15 @@ export default function TrainingProgress() {
       skillAverages[key] = Math.round(sum / count);
     });
 
-    // Calculate average overall score
-    const allScores = gradedSessions.flatMap(s => {
-      const scores = s.roleplay_grades[0]?.scores as Record<string, number> | null;
-      return scores ? Object.values(scores).filter(v => typeof v === 'number') : [];
-    });
-    const averageScore = allScores.length > 0 
-      ? Math.round(allScores.reduce((a, b) => a + b, 0) / allScores.length)
+    // Calculate average overall score using the dedicated 'overall' field from each session
+    const overallScores = gradedSessions
+      .map(s => {
+        const scores = s.roleplay_grades[0]?.scores as Record<string, number> | null;
+        return scores?.overall;
+      })
+      .filter((v): v is number => typeof v === 'number');
+    const averageScore = overallScores.length > 0
+      ? Math.round(overallScores.reduce((a, b) => a + b, 0) / overallScores.length)
       : 0;
 
     // Calculate recent trend (last 5 vs previous 5)

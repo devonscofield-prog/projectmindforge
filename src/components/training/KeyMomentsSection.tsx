@@ -24,11 +24,20 @@ export function KeyMomentsSection({ keyMoments }: KeyMomentsSectionProps) {
     return null;
   }
 
-  // Determine if assessment is positive or negative based on keywords
+  // Determine if assessment is positive or negative based on keywords.
+  // Uses word-boundary matching to avoid false positives from substrings
+  // (e.g., "farewell" matching "well") and checks for negation patterns.
   const isPositiveAssessment = (assessment: string): boolean => {
-    const positiveKeywords = ['well', 'good', 'great', 'excellent', 'effective', 'strong', 'correctly', 'successfully', 'nice'];
+    const positiveKeywords = ['well', 'good', 'great', 'excellent', 'effective', 'strong', 'correctly', 'successfully', 'nice', 'impressive', 'solid'];
+    const negativeKeywords = ['poorly', 'weak', 'missed', 'failed', 'lacking', 'inadequate', 'struggled', 'defensive', 'ignored', 'did not', 'didn\'t', 'could not', 'couldn\'t'];
     const lowerAssessment = assessment.toLowerCase();
-    return positiveKeywords.some(kw => lowerAssessment.includes(kw));
+
+    // Check for negation patterns first — these override positive matches
+    const hasNegative = negativeKeywords.some(kw => lowerAssessment.includes(kw));
+    if (hasNegative) return false;
+
+    // Use word-boundary regex to avoid substring false positives
+    return positiveKeywords.some(kw => new RegExp(`\\b${kw}\\b`).test(lowerAssessment));
   };
 
   return (

@@ -61,17 +61,22 @@ export default function ManagerTrainingDashboard() {
     queryFn: async () => {
       if (!user?.id) return [];
 
-      // Get team members (trainees and reps who have done roleplay)
+      // Get the manager's team first, then fetch members separately
+      const { data: team, error: teamError } = await supabase
+        .from('teams')
+        .select('id')
+        .eq('manager_id', user.id)
+        .single();
+
+      if (teamError || !team?.id) {
+        console.error('Team lookup failed:', teamError);
+        return [];
+      }
+
       const { data: teamMembers } = await supabase
         .from('profiles')
         .select('id, name, email, team_id')
-        .eq('team_id', (
-          await supabase
-            .from('teams')
-            .select('id')
-            .eq('manager_id', user.id)
-            .single()
-        ).data?.id || '');
+        .eq('team_id', team.id);
 
       if (!teamMembers?.length) return [];
 
@@ -126,7 +131,7 @@ export default function ManagerTrainingDashboard() {
         }
       });
 
-      return Array.from(statsMap.values()).filter(s => s.total_sessions > 0);
+      return Array.from(statsMap.values());
     },
     enabled: !!user?.id,
   });
