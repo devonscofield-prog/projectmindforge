@@ -47,6 +47,9 @@ export default function TrainingDashboard() {
   const { user } = useAuth();
   const [selectedPersonaId, setSelectedPersonaId] = useState<string | null>(null);
   const [coachContext, setCoachContext] = useState<string | null>(null);
+  const [welcomeDismissed, setWelcomeDismissed] = useState(() =>
+    localStorage.getItem('training-welcome-dismissed') === 'true'
+  );
 
   // Read coachContext from URL params
   useEffect(() => {
@@ -103,6 +106,13 @@ export default function TrainingDashboard() {
     navigate(`/training/roleplay/${personaId}`);
   };
 
+  const handleDismissWelcome = () => {
+    setWelcomeDismissed(true);
+    localStorage.setItem('training-welcome-dismissed', 'true');
+  };
+
+  const isNewUser = (stats?.completed_sessions ?? 0) === 0;
+
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -125,6 +135,31 @@ export default function TrainingDashboard() {
               Practice your sales skills with AI-powered prospect simulations
             </p>
           </div>
+
+          {/* Welcome Card for New Reps */}
+          {isNewUser && !welcomeDismissed && (
+            <Card className="mb-8 border-accent/30 bg-accent/5">
+              <CardContent className="pt-6">
+                <div className="flex items-start gap-4">
+                  <div className="p-2 rounded-lg bg-accent/10 shrink-0">
+                    <Sparkles className="h-5 w-5 text-accent-foreground" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold mb-2">Welcome to Sales Roleplay Training!</h3>
+                    <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside mb-4">
+                      <li>Pick a persona below and click <strong>"Start Practice"</strong></li>
+                      <li>You'll get a briefing before the call begins</li>
+                      <li>The AI responds with real-time voice — talk like a real call</li>
+                      <li>After the call, you'll receive a grade and feedback</li>
+                    </ol>
+                    <Button size="sm" variant="outline" onClick={handleDismissWelcome}>
+                      Got it
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Coach Context Card */}
           {coachContext && (
@@ -276,6 +311,11 @@ export default function TrainingDashboard() {
                       <Badge variant="outline" className={cn("capitalize", difficultyColors[persona.difficulty_level])}>
                         {persona.difficulty_level}
                       </Badge>
+                      {isNewUser && persona.difficulty_level === 'easy' && (
+                        <Badge className="bg-primary/10 text-primary border-primary/20">
+                          ⭐ Recommended for new reps
+                        </Badge>
+                      )}
                       {persona.industry && (
                         <Badge variant="secondary" className="capitalize">
                           {persona.industry}

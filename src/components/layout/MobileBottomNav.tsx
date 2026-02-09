@@ -24,6 +24,7 @@ export function MobileBottomNav() {
         { href: '/rep', label: 'New Call', icon: Mic },
         { href: '/rep/tasks', label: 'Tasks', icon: Target },
         { href: '/rep/prospects', label: 'Accounts', icon: UserCheck },
+        { href: '/training', label: 'Training', icon: GraduationCap },
       ];
 
   const isActive = (href: string) => {
