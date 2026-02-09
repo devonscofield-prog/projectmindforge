@@ -363,6 +363,7 @@ export default function RoleplaySession() {
         dc.send(JSON.stringify({
           type: 'session.update',
           session: {
+            type: 'realtime',
             modalities: ['text', 'audio'],
             voice,
             instructions,
