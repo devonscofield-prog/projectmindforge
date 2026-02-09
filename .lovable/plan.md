@@ -1,51 +1,41 @@
 
 
-# Fix: Add Missing `session.type` to Realtime WebRTC Configuration
+# Remove the Trainee Role
 
-## Problem
+Since no users currently have the `trainee` role assigned, this is a clean removal with no data migration needed.
 
-Two symptoms, one root cause:
+## Changes
 
-1. **"Session type" error** -- The OpenAI Realtime GA API now requires a `type` field inside the `session.update` event. Valid values are `"realtime"` (speech-to-speech) or `"transcription"`. The current code omits this field entirely, causing OpenAI to return an error.
+### 1. Database: Update the `user_role` enum
+Remove `'trainee'` from the `user_role` enum type. This requires creating a new enum, migrating columns, and dropping the old one (standard Postgres enum removal pattern).
 
-2. **Steven Green acts as a helpful assistant** -- Because the `session.update` fails due to the missing `type` field, the `instructions` (persona system prompt) never get applied. The model falls back to its default behavior: a generic helpful AI assistant.
+### 2. RLS Policies: Remove trainee-specific policies
+The `roleplay_personas` table has a dedicated "Trainees can view active personas" RLS policy that needs to be dropped. The existing "Reps can view active personas" policy already covers rep access.
 
-## Fix
+### 3. Frontend: Remove all trainee references
 
-**File:** `src/pages/training/RoleplaySession.tsx` (around line 363)
+| File | Change |
+|------|--------|
+| `src/types/database.ts` | Remove `'trainee'` from `UserRole` type |
+| `src/lib/routes.ts` | Remove `case 'trainee'` from `getDashboardUrl()` |
+| `src/lib/routePreloader.ts` | Remove `trainee` route entry |
+| `src/App.tsx` | Remove `'trainee'` from all `allowedRoles` arrays (training routes already include `'rep'`) |
+| `src/components/layout/MobileBottomNav.tsx` | Remove the `role === 'trainee'` nav block (reps will use their existing nav with training accessible from sidebar) |
+| `src/components/ProtectedRoute.tsx` | No change needed (generic) |
+| `src/pages/Auth.tsx` | Fix the redirect to use `getDashboardUrl(role)` instead of hardcoded ternary (also fixes the existing bug where trainees went to `/rep`) |
+| `src/pages/admin/AdminUserEdit.tsx` | Remove the `"trainee"` option from the role selector |
+| `src/pages/admin/AdminInviteUsers.tsx` | No change needed (already doesn't offer trainee) |
 
-Add `type: 'realtime'` to the session configuration object sent via the data channel:
+### 4. Edge Functions: Remove trainee references
 
-**Before:**
-```typescript
-dc.send(JSON.stringify({
-  type: 'session.update',
-  session: {
-    modalities: ['text', 'audio'],
-    voice,
-    instructions,
-    input_audio_format: 'pcm16',
-    output_audio_format: 'pcm16',
-    ...
-  }
-}));
-```
+| Function | Change |
+|----------|--------|
+| `invite-user` | Remove `'trainee'` from the role type and role label map |
 
-**After:**
-```typescript
-dc.send(JSON.stringify({
-  type: 'session.update',
-  session: {
-    type: 'realtime',           // <-- required by GA API
-    modalities: ['text', 'audio'],
-    voice,
-    instructions,
-    input_audio_format: 'pcm16',
-    output_audio_format: 'pcm16',
-    ...
-  }
-}));
-```
+The `roleplay-session-manager`, `roleplay-grade-session`, `roleplay-abandon-session`, and `cleanup-stuck-sessions` edge functions use `trainee_id` as a **column name** in the `roleplay_sessions` table, not as a role. These do not need to change -- `trainee_id` is just the column that stores the user ID of whoever is doing the roleplay, regardless of their role.
 
-This is a single-line addition. No edge function or database changes needed -- the system prompt construction is already correct. The issue is purely that the frontend fails to deliver it to OpenAI because the `session.update` event is rejected.
+## What stays the same
+- The `roleplay_sessions.trainee_id` column name is kept as-is (renaming a column would require updating all queries, RLS policies, and edge functions for no functional benefit)
+- All training routes remain accessible to reps (they already are)
+- No data migration needed since zero users have the trainee role
 
