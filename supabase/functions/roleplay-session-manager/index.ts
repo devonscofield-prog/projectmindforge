@@ -811,7 +811,7 @@ Deno.serve(async (req) => {
       }
 
       const body: CreateSessionRequest = await req.json();
-      const { personaId, sessionType = 'discovery', scenarioPrompt, screenShareEnabled = false } = body;
+      const { personaId, sessionType = 'full_sales_call', scenarioPrompt, screenShareEnabled = false } = body;
 
       console.log(`Creating session for persona: ${personaId}, type: ${sessionType}, screenShare: ${screenShareEnabled}`);
 
