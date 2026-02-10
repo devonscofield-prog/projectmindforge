@@ -7,7 +7,7 @@ const corsHeaders = {
 
 interface CreateSessionRequest {
   personaId: string;
-  sessionType?: 'discovery' | 'demo' | 'objection_handling' | 'negotiation';
+  sessionType?: string; // kept for backward compat, defaults to 'full_sales_call'
   scenarioPrompt?: string;
   screenShareEnabled?: boolean;
 }
