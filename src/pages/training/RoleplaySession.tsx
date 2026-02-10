@@ -695,8 +695,11 @@ export default function RoleplaySession() {
 
     return () => {
       window.removeEventListener('beforeunload', abandonViaBeacon);
-      // On unmount (e.g. React navigation), also fire the beacon
-      abandonViaBeacon();
+      // Only abandon if user intentionally left (End Call, navigation, etc.)
+      // Tab-switch unmounts (caused by auth flickers) should NOT abandon
+      if (intentionalLeaveRef.current) {
+        abandonViaBeacon();
+      }
       cleanup();
       if (timerRef.current) clearInterval(timerRef.current);
     };
