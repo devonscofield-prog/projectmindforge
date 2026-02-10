@@ -12,6 +12,8 @@ export function getAccountDetailUrl(role: UserRole | null, prospectId: string): 
       return `/admin/accounts/${prospectId}`;
     case 'manager':
       return `/manager/accounts/${prospectId}`;
+    case 'sdr':
+    case 'sdr_manager':
     case 'rep':
     default:
       return `/rep/prospects/${prospectId}`;
@@ -55,6 +57,10 @@ export function getDashboardUrl(role: UserRole | null): string {
       return '/admin';
     case 'manager':
       return '/manager';
+    case 'sdr':
+      return '/sdr';
+    case 'sdr_manager':
+      return '/sdr-manager';
     case 'rep':
     default:
       return '/rep';
@@ -73,6 +79,8 @@ export function getAccountsUrl(role: UserRole | null): string {
       return '/admin/accounts';
     case 'manager':
       return '/manager/accounts';
+    case 'sdr':
+    case 'sdr_manager':
     case 'rep':
     default:
       return '/rep/prospects';
@@ -100,6 +108,10 @@ export function getCallHistoryUrl(role: UserRole | null): string {
       return '/admin/history';
     case 'manager':
       return '/manager/history';
+    case 'sdr':
+      return '/sdr/history';
+    case 'sdr_manager':
+      return '/sdr-manager/transcripts';
     case 'rep':
     default:
       return '/rep/history';

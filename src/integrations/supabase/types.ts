@@ -2492,6 +2492,382 @@ export type Database = {
           },
         ]
       }
+      sdr_call_grades: {
+        Row: {
+          appointment_setting_score: number | null
+          call_id: string
+          call_summary: string | null
+          coaching_notes: string | null
+          created_at: string
+          engagement_score: number | null
+          id: string
+          improvements: Json | null
+          key_moments: Json | null
+          model_name: string
+          objection_handling_score: number | null
+          opener_score: number | null
+          overall_grade: string
+          professionalism_score: number | null
+          raw_json: Json | null
+          sdr_id: string
+          strengths: Json | null
+        }
+        Insert: {
+          appointment_setting_score?: number | null
+          call_id: string
+          call_summary?: string | null
+          coaching_notes?: string | null
+          created_at?: string
+          engagement_score?: number | null
+          id?: string
+          improvements?: Json | null
+          key_moments?: Json | null
+          model_name: string
+          objection_handling_score?: number | null
+          opener_score?: number | null
+          overall_grade: string
+          professionalism_score?: number | null
+          raw_json?: Json | null
+          sdr_id: string
+          strengths?: Json | null
+        }
+        Update: {
+          appointment_setting_score?: number | null
+          call_id?: string
+          call_summary?: string | null
+          coaching_notes?: string | null
+          created_at?: string
+          engagement_score?: number | null
+          id?: string
+          improvements?: Json | null
+          key_moments?: Json | null
+          model_name?: string
+          objection_handling_score?: number | null
+          opener_score?: number | null
+          overall_grade?: string
+          professionalism_score?: number | null
+          raw_json?: Json | null
+          sdr_id?: string
+          strengths?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sdr_call_grades_call_id_fkey"
+            columns: ["call_id"]
+            isOneToOne: false
+            referencedRelation: "sdr_calls"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sdr_call_grades_sdr_id_fkey"
+            columns: ["sdr_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sdr_call_grades_sdr_id_fkey"
+            columns: ["sdr_id"]
+            isOneToOne: false
+            referencedRelation: "team_member_names"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sdr_call_grades_sdr_id_fkey"
+            columns: ["sdr_id"]
+            isOneToOne: false
+            referencedRelation: "user_with_role"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sdr_calls: {
+        Row: {
+          analysis_status: string
+          call_index: number
+          call_type: string
+          created_at: string
+          daily_transcript_id: string
+          duration_estimate_seconds: number | null
+          id: string
+          is_meaningful: boolean
+          prospect_company: string | null
+          prospect_name: string | null
+          raw_text: string
+          sdr_id: string
+          start_timestamp: string | null
+          updated_at: string
+        }
+        Insert: {
+          analysis_status?: string
+          call_index: number
+          call_type?: string
+          created_at?: string
+          daily_transcript_id: string
+          duration_estimate_seconds?: number | null
+          id?: string
+          is_meaningful?: boolean
+          prospect_company?: string | null
+          prospect_name?: string | null
+          raw_text: string
+          sdr_id: string
+          start_timestamp?: string | null
+          updated_at?: string
+        }
+        Update: {
+          analysis_status?: string
+          call_index?: number
+          call_type?: string
+          created_at?: string
+          daily_transcript_id?: string
+          duration_estimate_seconds?: number | null
+          id?: string
+          is_meaningful?: boolean
+          prospect_company?: string | null
+          prospect_name?: string | null
+          raw_text?: string
+          sdr_id?: string
+          start_timestamp?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sdr_calls_daily_transcript_id_fkey"
+            columns: ["daily_transcript_id"]
+            isOneToOne: false
+            referencedRelation: "sdr_daily_transcripts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sdr_calls_sdr_id_fkey"
+            columns: ["sdr_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sdr_calls_sdr_id_fkey"
+            columns: ["sdr_id"]
+            isOneToOne: false
+            referencedRelation: "team_member_names"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sdr_calls_sdr_id_fkey"
+            columns: ["sdr_id"]
+            isOneToOne: false
+            referencedRelation: "user_with_role"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sdr_coaching_prompts: {
+        Row: {
+          agent_key: string
+          created_at: string
+          created_by: string
+          id: string
+          is_active: boolean
+          prompt_name: string
+          scoring_weights: Json | null
+          system_prompt: string
+          team_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          agent_key: string
+          created_at?: string
+          created_by: string
+          id?: string
+          is_active?: boolean
+          prompt_name: string
+          scoring_weights?: Json | null
+          system_prompt: string
+          team_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          agent_key?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          is_active?: boolean
+          prompt_name?: string
+          scoring_weights?: Json | null
+          system_prompt?: string
+          team_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sdr_coaching_prompts_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "sdr_teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sdr_daily_transcripts: {
+        Row: {
+          created_at: string
+          id: string
+          meaningful_calls_count: number
+          processing_error: string | null
+          processing_status: string
+          raw_text: string
+          sdr_id: string
+          total_calls_detected: number
+          transcript_date: string
+          updated_at: string
+          uploaded_by: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          meaningful_calls_count?: number
+          processing_error?: string | null
+          processing_status?: string
+          raw_text: string
+          sdr_id: string
+          total_calls_detected?: number
+          transcript_date?: string
+          updated_at?: string
+          uploaded_by: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          meaningful_calls_count?: number
+          processing_error?: string | null
+          processing_status?: string
+          raw_text?: string
+          sdr_id?: string
+          total_calls_detected?: number
+          transcript_date?: string
+          updated_at?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sdr_daily_transcripts_sdr_id_fkey"
+            columns: ["sdr_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sdr_daily_transcripts_sdr_id_fkey"
+            columns: ["sdr_id"]
+            isOneToOne: false
+            referencedRelation: "team_member_names"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sdr_daily_transcripts_sdr_id_fkey"
+            columns: ["sdr_id"]
+            isOneToOne: false
+            referencedRelation: "user_with_role"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sdr_team_members: {
+        Row: {
+          created_at: string
+          id: string
+          team_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          team_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          team_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sdr_team_members_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "sdr_teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sdr_team_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sdr_team_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "team_member_names"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sdr_team_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_with_role"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sdr_teams: {
+        Row: {
+          created_at: string
+          id: string
+          manager_id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          manager_id: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          manager_id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sdr_teams_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sdr_teams_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "team_member_names"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sdr_teams_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "user_with_role"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stakeholder_relationships: {
         Row: {
           created_at: string
@@ -3018,6 +3394,10 @@ export type Database = {
         Args: { _manager_id: string; _rep_id: string }
         Returns: boolean
       }
+      is_sdr_manager_of: {
+        Args: { manager: string; sdr: string }
+        Returns: boolean
+      }
       log_data_access: {
         Args: {
           p_access_reason?: string
@@ -3094,7 +3474,7 @@ export type Database = {
         | "user_deactivated"
         | "user_reactivated"
         | "user_deleted"
-      user_role: "rep" | "manager" | "admin"
+      user_role: "rep" | "manager" | "admin" | "sdr" | "sdr_manager"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -3268,7 +3648,7 @@ export const Constants = {
         "user_reactivated",
         "user_deleted",
       ],
-      user_role: ["rep", "manager", "admin"],
+      user_role: ["rep", "manager", "admin", "sdr", "sdr_manager"],
     },
   },
 } as const

@@ -67,6 +67,15 @@ const SessionDetail = lazy(() => import("./pages/training/SessionDetail"));
 const TrainingProgress = lazy(() => import("./pages/training/TrainingProgress"));
 const ManagerTrainingDashboard = lazy(() => import("./pages/training/ManagerTrainingDashboard"));
 
+// Lazy load - SDR pages
+const SDRDashboard = lazy(() => import("./pages/sdr/SDRDashboard"));
+const SDRTranscriptDetail = lazy(() => import("./pages/sdr/SDRTranscriptDetail"));
+const SDRCallDetail = lazy(() => import("./pages/sdr/SDRCallDetail"));
+
+// Lazy load - SDR Manager pages
+const SDRManagerDashboard = lazy(() => import("./pages/sdr-manager/SDRManagerDashboard"));
+const SDRManagerCoaching = lazy(() => import("./pages/sdr-manager/SDRManagerCoaching"));
+
 // Lazy load - Marketing pages (public)
 const ROICalculatorPage = lazy(() => import("./pages/marketing/ROICalculatorPage"));
 const PitchDeckPage = lazy(() => import("./pages/marketing/PitchDeckPage"));
@@ -332,6 +341,45 @@ const App = () => (
                 <Route path="/manager/reporting" element={
                   <ProtectedRoute allowedRoles={['manager']}>
                     <AdminReporting />
+                  </ProtectedRoute>
+                } />
+
+                {/* SDR Routes */}
+                <Route path="/sdr" element={
+                  <ProtectedRoute allowedRoles={['sdr']}>
+                    <SDRDashboard />
+                  </ProtectedRoute>
+                } />
+                <Route path="/sdr/history/:transcriptId" element={
+                  <ProtectedRoute allowedRoles={['sdr', 'sdr_manager', 'admin']}>
+                    <SDRTranscriptDetail />
+                  </ProtectedRoute>
+                } />
+                <Route path="/sdr/calls/:callId" element={
+                  <ProtectedRoute allowedRoles={['sdr', 'sdr_manager', 'admin']}>
+                    <SDRCallDetail />
+                  </ProtectedRoute>
+                } />
+
+                {/* SDR Manager Routes */}
+                <Route path="/sdr-manager" element={
+                  <ProtectedRoute allowedRoles={['sdr_manager']}>
+                    <SDRManagerDashboard />
+                  </ProtectedRoute>
+                } />
+                <Route path="/sdr-manager/coaching" element={
+                  <ProtectedRoute allowedRoles={['sdr_manager']}>
+                    <SDRManagerCoaching />
+                  </ProtectedRoute>
+                } />
+                <Route path="/sdr-manager/transcripts" element={
+                  <ProtectedRoute allowedRoles={['sdr_manager']}>
+                    <SDRTranscriptDetail />
+                  </ProtectedRoute>
+                } />
+                <Route path="/sdr-manager/rep/:sdrId" element={
+                  <ProtectedRoute allowedRoles={['sdr_manager', 'admin']}>
+                    <SDRDashboard />
                   </ProtectedRoute>
                 } />
 

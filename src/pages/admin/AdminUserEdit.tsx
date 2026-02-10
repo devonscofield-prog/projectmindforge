@@ -492,6 +492,8 @@ function AdminUserEdit() {
                       <SelectItem value="rep">Sales Rep</SelectItem>
                       <SelectItem value="manager">Manager</SelectItem>
                       <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="sdr">SDR</SelectItem>
+                      <SelectItem value="sdr_manager">SDR Manager</SelectItem>
                     </SelectContent>
                   </Select>
                   {formData.role !== user.role && (
