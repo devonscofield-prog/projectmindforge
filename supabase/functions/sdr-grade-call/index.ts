@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
           improvements: grade.improvements,
           key_moments: grade.key_moments,
           coaching_notes: grade.coaching_notes,
-          model_name: 'gpt-5.2',
+          model_name: 'gpt-5.2-2025-12-11',
           raw_json: grade,
         });
 
@@ -184,12 +184,13 @@ async function gradeCall(openaiApiKey: string, callText: string, customPrompt?: 
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
+    signal: AbortSignal.timeout(55000),
     headers: {
       'Authorization': `Bearer ${openaiApiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'gpt-5.2',
+      model: 'gpt-5.2-2025-12-11',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `Grade this SDR cold call:\n\n${callText}` },

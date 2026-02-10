@@ -184,7 +184,7 @@ async function processTranscriptPipeline(
           improvements: grade.improvements,
           key_moments: grade.key_moments,
           coaching_notes: grade.coaching_notes,
-          model_name: 'gpt-5.2',
+          model_name: 'gpt-5.2-2025-12-11',
           raw_json: grade,
         });
 
@@ -259,12 +259,13 @@ async function runSplitterAgent(
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
+    signal: AbortSignal.timeout(55000),
     headers: {
       'Authorization': `Bearer ${openaiApiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'gpt-5.2',
+      model: 'gpt-5.2-2025-12-11',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `Here is the full-day SDR dialer transcript. Split it into individual segments:\n\n${rawText}` },
@@ -355,12 +356,13 @@ async function runFilterAgent(
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
+    signal: AbortSignal.timeout(55000),
     headers: {
       'Authorization': `Bearer ${openaiApiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'gpt-5.2',
+      model: 'gpt-5.2-2025-12-11',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `Classify these ${segments.length} transcript segments:\n\n${JSON.stringify(segmentInputs)}` },
@@ -475,12 +477,13 @@ async function runGraderAgent(
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
+    signal: AbortSignal.timeout(55000),
     headers: {
       'Authorization': `Bearer ${openaiApiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'gpt-5.2',
+      model: 'gpt-5.2-2025-12-11',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `Grade this SDR cold call:\n\n${callText}` },
