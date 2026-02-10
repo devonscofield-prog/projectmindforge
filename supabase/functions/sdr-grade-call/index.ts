@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
           improvements: grade.improvements,
           key_moments: grade.key_moments,
           coaching_notes: grade.coaching_notes,
-          model_name: 'gpt-5.2',
+          model_name: 'gpt-5.2-2025-12-11',
           raw_json: grade,
         });
 
