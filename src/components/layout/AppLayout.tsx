@@ -174,6 +174,37 @@ const repNavGroups = [
   },
 ];
 
+const sdrNavGroups = [
+  {
+    label: 'Overview',
+    items: [
+      { href: '/sdr', label: 'Dashboard', icon: LayoutDashboard },
+    ],
+  },
+  {
+    label: 'Calls',
+    items: [
+      { href: '/sdr', label: 'Upload Transcript', icon: Upload },
+    ],
+  },
+];
+
+const sdrManagerNavGroups = [
+  {
+    label: 'Overview',
+    items: [
+      { href: '/sdr-manager', label: 'Team Dashboard', icon: LayoutDashboard },
+    ],
+  },
+  {
+    label: 'Management',
+    items: [
+      { href: '/sdr-manager/coaching', label: 'Coaching Prompts', icon: MessageSquare },
+      { href: '/sdr-manager/transcripts', label: 'Transcripts', icon: FileText },
+    ],
+  },
+];
+
 // Quick actions for footer by role
 const adminQuickActions = [
   { href: '/admin/users/invite', label: 'Invite User', icon: UserPlus },
