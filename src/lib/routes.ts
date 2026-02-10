@@ -57,6 +57,10 @@ export function getDashboardUrl(role: UserRole | null): string {
       return '/admin';
     case 'manager':
       return '/manager';
+    case 'sdr':
+      return '/sdr';
+    case 'sdr_manager':
+      return '/sdr-manager';
     case 'rep':
     default:
       return '/rep';
