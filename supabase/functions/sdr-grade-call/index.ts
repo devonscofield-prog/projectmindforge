@@ -6,6 +6,60 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
+// ============================================================
+// Retry helper with exponential backoff
+// ============================================================
+
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  { maxRetries = 3, baseDelayMs = 1000, agentName = 'unknown' } = {},
+): Promise<Response> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+
+      if (response.ok) return response;
+
+      const errorText = await response.text();
+
+      if (response.status === 429 || response.status >= 500) {
+        lastError = new Error(`${agentName} API error (attempt ${attempt}/${maxRetries}): ${response.status} - ${errorText}`);
+        console.warn(`[sdr-grade-call] ${lastError.message}`);
+
+        if (attempt < maxRetries) {
+          const delay = baseDelayMs * Math.pow(2, attempt - 1) + Math.random() * 500;
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+      } else {
+        throw new Error(`${agentName} API error: ${response.status} - ${errorText}`);
+      }
+    } catch (error) {
+      if (error.name === 'TimeoutError' || error.name === 'AbortError' || error.message?.includes('fetch failed')) {
+        lastError = new Error(`${agentName} timeout/network error (attempt ${attempt}/${maxRetries}): ${error.message}`);
+        console.warn(`[sdr-grade-call] ${lastError.message}`);
+
+        if (attempt < maxRetries) {
+          const delay = baseDelayMs * Math.pow(2, attempt - 1) + Math.random() * 500;
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+      } else if (lastError === null) {
+        throw error;
+      }
+    }
+  }
+
+  throw lastError || new Error(`${agentName}: All ${maxRetries} attempts failed`);
+}
+
+// ============================================================
+// Main handler
+// ============================================================
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -114,7 +168,7 @@ Deno.serve(async (req) => {
         await supabase.from('sdr_calls').update({ analysis_status: 'completed' }).eq('id', call.id);
         results.push({ call_id: call.id, status: 'completed', grade: grade.overall_grade });
       } catch (error) {
-        console.error(`[sdr-grade-call] Failed to grade ${call.id}:`, error);
+        console.error(`[sdr-grade-call] Failed to grade ${call.id} after retries:`, error);
         await supabase.from('sdr_calls').update({ analysis_status: 'failed' }).eq('id', call.id);
         results.push({ call_id: call.id, status: 'failed', error: error.message });
       }
@@ -182,29 +236,35 @@ Return ONLY valid JSON.`;
 async function gradeCall(openaiApiKey: string, callText: string, customPrompt?: string): Promise<any> {
   const systemPrompt = customPrompt || DEFAULT_GRADER_PROMPT;
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    signal: AbortSignal.timeout(55000),
-    headers: {
-      'Authorization': `Bearer ${openaiApiKey}`,
-      'Content-Type': 'application/json',
+  const response = await fetchWithRetry(
+    'https://api.openai.com/v1/chat/completions',
+    {
+      method: 'POST',
+      signal: AbortSignal.timeout(55000),
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-5.2-2025-12-11',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: `Grade this SDR cold call:\n\n${callText}` },
+        ],
+        temperature: 0.3,
+        response_format: { type: 'json_object' },
+      }),
     },
-    body: JSON.stringify({
-      model: 'gpt-5.2-2025-12-11',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Grade this SDR cold call:\n\n${callText}` },
-      ],
-      temperature: 0.3,
-      response_format: { type: 'json_object' },
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Grader API error: ${response.status} - ${errorText}`);
-  }
+    { maxRetries: 3, baseDelayMs: 2000, agentName: 'Grader' },
+  );
 
   const data = await response.json();
-  return JSON.parse(data.choices[0].message.content);
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) throw new Error('Grader returned empty response');
+
+  try {
+    return JSON.parse(content);
+  } catch {
+    throw new Error(`Grader returned invalid JSON: ${content.slice(0, 200)}`);
+  }
 }
