@@ -8,7 +8,7 @@ export interface SDRDailyTranscript {
   sdr_id: string;
   transcript_date: string;
   raw_text: string;
-  processing_status: 'pending' | 'processing' | 'completed' | 'failed';
+  processing_status: 'pending' | 'processing' | 'completed' | 'failed' | 'partial';
   processing_error: string | null;
   total_calls_detected: number;
   meaningful_calls_count: number;

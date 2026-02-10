@@ -6,9 +6,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { useSDRStats, useSDRDailyTranscripts, useUploadSDRTranscript } from '@/hooks/useSDR';
+import { useSDRStats, useSDRDailyTranscripts, useUploadSDRTranscript, useRetrySDRTranscript } from '@/hooks/useSDR';
 import { useAuth } from '@/contexts/AuthContext';
-import { Upload, Phone, MessageSquare, TrendingUp, Loader2, FileText, FileUp, ClipboardPaste } from 'lucide-react';
+import { Upload, Phone, MessageSquare, TrendingUp, Loader2, FileText, FileUp, ClipboardPaste, RotateCcw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 
