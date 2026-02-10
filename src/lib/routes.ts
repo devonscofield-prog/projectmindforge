@@ -79,6 +79,8 @@ export function getAccountsUrl(role: UserRole | null): string {
       return '/admin/accounts';
     case 'manager':
       return '/manager/accounts';
+    case 'sdr':
+    case 'sdr_manager':
     case 'rep':
     default:
       return '/rep/prospects';
