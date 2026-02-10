@@ -440,7 +440,7 @@ async function runSplitterOnChunk(
     'https://api.openai.com/v1/chat/completions',
     {
       method: 'POST',
-      signal: AbortSignal.timeout(55000),
+      signal: AbortSignal.timeout(90000),
       headers: {
         'Authorization': `Bearer ${openaiApiKey}`,
         'Content-Type': 'application/json',
