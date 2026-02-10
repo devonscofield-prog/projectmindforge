@@ -524,8 +524,22 @@ async function runFilterAgent(
     throw new Error(`Filter returned invalid JSON: ${content.slice(0, 200)}`);
   }
 
-  const classifications = parsed.calls || parsed.classifications || (Array.isArray(parsed) ? parsed : null);
-  if (!classifications || !Array.isArray(classifications)) {
+  let classifications: any[] | null = null;
+  if (Array.isArray(parsed)) {
+    classifications = parsed;
+  } else {
+    for (const key of ['calls', 'classifications', 'data', 'results']) {
+      if (Array.isArray(parsed[key])) { classifications = parsed[key]; break; }
+    }
+    if (!classifications) {
+      for (const val of Object.values(parsed)) {
+        if (Array.isArray(val) && val.length > 0) { classifications = val as any[]; break; }
+      }
+    }
+  }
+
+  if (!classifications) {
+    console.error(`[sdr-pipeline] Filter raw content: ${content.slice(0, 500)}`);
     throw new Error(`Filter returned unexpected structure: ${Object.keys(parsed).join(', ')}`);
   }
 
