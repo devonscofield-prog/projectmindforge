@@ -10,7 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Upload, Phone, MessageSquare, TrendingUp, Loader2, FileText } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
-import { gradeColors } from '@/constants/training';
+
 
 function SDRDashboard() {
   const { user } = useAuth();
