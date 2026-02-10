@@ -79,6 +79,7 @@ export async function createTaskTemplate(repId: string, params: CreateTaskTempla
       reminder_enabled: params.reminder_enabled ?? false,
       reminder_time: params.reminder_time || null,
       sort_order: nextOrder,
+      sequence_id: params.sequenceId || null,
     })
     .select()
     .single();
