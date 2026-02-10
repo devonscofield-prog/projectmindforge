@@ -235,6 +235,10 @@ function SidebarNav() {
     ? adminNavGroups 
     : role === 'manager' 
     ? managerNavGroups 
+    : role === 'sdr'
+    ? sdrNavGroups
+    : role === 'sdr_manager'
+    ? sdrManagerNavGroups
     : repNavGroups;
 
   // Get quick actions based on role
