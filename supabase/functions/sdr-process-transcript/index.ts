@@ -483,6 +483,12 @@ async function runSplitterOnChunk(
     }
   }
 
+  // Fallback: if no array found, check if the response is a single segment object
+  if (!segments && typeof parsed === 'object' && parsed !== null && (parsed as any).raw_text) {
+    console.log(`[sdr-pipeline] Splitter returned single segment object${chunkLabel}, wrapping in array`);
+    segments = [parsed];
+  }
+
   if (!segments) {
     console.error(`[sdr-pipeline] Splitter raw content${chunkLabel}: ${content.slice(0, 500)}`);
     throw new Error(`Splitter returned unexpected structure${chunkLabel}: ${Object.keys(parsed).join(', ')}`);
