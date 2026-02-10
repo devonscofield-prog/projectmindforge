@@ -104,7 +104,7 @@ export function AddTaskTemplateDialog({ open, onOpenChange, editTemplate, sequen
         { onSuccess: () => onOpenChange(false) }
       );
     } else {
-      createMutation.mutate(params, {
+      createMutation.mutate({ ...params, sequenceId }, {
         onSuccess: () => onOpenChange(false),
       });
     }
