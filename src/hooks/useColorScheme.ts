@@ -86,7 +86,7 @@ export function useColorScheme() {
         return stored as ColorScheme;
       }
     }
-    return 'seattle-seahawks';
+    return 'electric-blue';
   });
 
   useEffect(() => {
