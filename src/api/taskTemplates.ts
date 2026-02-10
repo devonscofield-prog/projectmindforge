@@ -17,6 +17,7 @@ export interface TaskTemplate {
   reminder_time: string | null;
   sort_order: number;
   is_active: boolean;
+  sequence_id: string | null;
   created_at: string;
   updated_at: string;
 }
