@@ -2,8 +2,8 @@ import { useParams, Link } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useSDRDailyTranscripts, useSDRCalls, useSDRStats } from '@/hooks/useSDR';
-import { ArrowLeft, Loader2, Phone, MessageSquare, TrendingUp, FileText } from 'lucide-react';
+import { useSDRDailyTranscripts, useSDRCalls, useSDRStats, useRetrySDRTranscript } from '@/hooks/useSDR';
+import { ArrowLeft, Loader2, Phone, MessageSquare, TrendingUp, FileText, RotateCcw } from 'lucide-react';
 import { format } from 'date-fns';
 import { gradeColors } from '@/constants/training';
 
