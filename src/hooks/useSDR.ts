@@ -302,7 +302,8 @@ export function useSDRStats(sdrId?: string) {
   return useQuery({
     queryKey: ['sdr-stats', sdrId],
     queryFn: async () => {
-      const today = new Date().toISOString().split('T')[0];
+      // Use local timezone for "today" so stats match the user's actual day
+      const today = new Date().toLocaleDateString('en-CA');
       
       // Get today's transcript
       let transcriptQuery = (supabase.from as any)('sdr_daily_transcripts')

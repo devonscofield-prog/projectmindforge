@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,6 +12,7 @@ function SDRHistory() {
   const { user } = useAuth();
   const { data: transcripts = [], isLoading } = useSDRDailyTranscripts(user?.id);
   const retryMutation = useRetrySDRTranscript();
+  const [retryingId, setRetryingId] = useState<string | null>(null);
 
   if (isLoading) {
     return <AppLayout><div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div></AppLayout>;
@@ -46,12 +48,13 @@ function SDRHistory() {
                           size="sm"
                           onClick={(e) => {
                             e.preventDefault();
-                            retryMutation.mutate(t.id);
+                            setRetryingId(t.id);
+                            retryMutation.mutate(t.id, { onSettled: () => setRetryingId(null) });
                           }}
-                          disabled={retryMutation.isPending}
+                          disabled={retryingId === t.id}
                           className="h-7 px-2"
                         >
-                          <RotateCcw className={`h-3.5 w-3.5 ${retryMutation.isPending ? 'animate-spin' : ''}`} />
+                          <RotateCcw className={`h-3.5 w-3.5 ${retryingId === t.id ? 'animate-spin' : ''}`} />
                           <span className="ml-1 text-xs">Retry</span>
                         </Button>
                       )}

@@ -23,6 +23,7 @@ function SDRDashboard() {
   const [transcriptDate, setTranscriptDate] = useState(new Date().toISOString().split('T')[0]);
   const [showUpload, setShowUpload] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -214,12 +215,13 @@ function SDRDashboard() {
                             size="sm"
                             onClick={(e) => {
                               e.preventDefault();
-                              retryMutation.mutate(t.id);
+                              setRetryingId(t.id);
+                              retryMutation.mutate(t.id, { onSettled: () => setRetryingId(null) });
                             }}
-                            disabled={retryMutation.isPending}
+                            disabled={retryingId === t.id}
                             className="h-7 px-2"
                           >
-                            <RotateCcw className={`h-3.5 w-3.5 ${retryMutation.isPending ? 'animate-spin' : ''}`} />
+                            <RotateCcw className={`h-3.5 w-3.5 ${retryingId === t.id ? 'animate-spin' : ''}`} />
                             <span className="ml-1 text-xs">Retry</span>
                           </Button>
                         )}
