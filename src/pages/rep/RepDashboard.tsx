@@ -1104,6 +1104,34 @@ The more detail you include, the better the AI analysis."
                     </div>
                   </FormSection>
 
+                  {/* Section 5: Auto-Task Sequence */}
+                  {taskSequences.length > 0 && (
+                    <FormSection
+                      title="Auto-Task Sequence"
+                      icon={<ClipboardList className="h-4 w-4" />}
+                      isComplete={!!selectedSequenceId}
+                      isRequired={false}
+                      defaultOpen={false}
+                    >
+                      <div className="space-y-2">
+                        <p className="text-sm text-muted-foreground">
+                          Optionally select a task sequence to auto-create follow-up tasks for this call.
+                        </p>
+                        <Select value={selectedSequenceId} onValueChange={setSelectedSequenceId}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="None (no auto-tasks)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">None</SelectItem>
+                            {taskSequences.map(seq => (
+                              <SelectItem key={seq.id} value={seq.id}>{seq.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </FormSection>
+                  )}
+
                   {/* Desktop Submit Button with Glow */}
                   <div className="hidden md:block space-y-3 pt-6 border-t border-border mt-8">
                     <Button 
