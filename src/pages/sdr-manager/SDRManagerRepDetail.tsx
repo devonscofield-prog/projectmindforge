@@ -12,6 +12,7 @@ function SDRManagerRepDetail() {
   const { data: stats } = useSDRStats(sdrId);
   const { data: transcripts = [], isLoading: transcriptsLoading } = useSDRDailyTranscripts(sdrId);
   const { data: allCalls = [] } = useSDRCalls(undefined, sdrId);
+  const retryMutation = useRetrySDRTranscript();
 
   const meaningfulCalls = allCalls.filter(c => c.is_meaningful);
   const gradedCalls = meaningfulCalls.filter(c => c.sdr_call_grades?.length);
