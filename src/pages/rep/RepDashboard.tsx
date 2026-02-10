@@ -115,6 +115,7 @@ function RepDashboard() {
   const [additionalSpeakersText, setAdditionalSpeakersText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastSubmitTime, setLastSubmitTime] = useState(0);
+  const [selectedSequenceId, setSelectedSequenceId] = useState<string>('');
   
   // Draft state
   const [hasDraft, setHasDraft] = useState(false);
