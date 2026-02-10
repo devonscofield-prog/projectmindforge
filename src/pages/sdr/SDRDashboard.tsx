@@ -18,6 +18,7 @@ function SDRDashboard() {
   const { data: stats } = useSDRStats(user?.id);
   const { data: transcripts = [], isLoading: transcriptsLoading } = useSDRDailyTranscripts(user?.id);
   const uploadMutation = useUploadSDRTranscript();
+  const retryMutation = useRetrySDRTranscript();
   const [rawText, setRawText] = useState('');
   const [transcriptDate, setTranscriptDate] = useState(new Date().toISOString().split('T')[0]);
   const [showUpload, setShowUpload] = useState(false);
