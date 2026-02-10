@@ -404,8 +404,22 @@ async function runSplitterAgent(
     throw new Error(`Splitter returned invalid JSON: ${content.slice(0, 200)}`);
   }
   
-  const segments = parsed.segments || parsed.calls || (Array.isArray(parsed) ? parsed : null);
-  if (!segments || !Array.isArray(segments)) {
+  let segments: any[] | null = null;
+  if (Array.isArray(parsed)) {
+    segments = parsed;
+  } else {
+    for (const key of ['segments', 'calls', 'data', 'results']) {
+      if (Array.isArray(parsed[key])) { segments = parsed[key]; break; }
+    }
+    if (!segments) {
+      for (const val of Object.values(parsed)) {
+        if (Array.isArray(val) && val.length > 0) { segments = val as any[]; break; }
+      }
+    }
+  }
+
+  if (!segments) {
+    console.error(`[sdr-pipeline] Splitter raw content: ${content.slice(0, 500)}`);
     throw new Error(`Splitter returned unexpected structure: ${Object.keys(parsed).join(', ')}`);
   }
 
