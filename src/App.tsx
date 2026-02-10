@@ -69,12 +69,15 @@ const ManagerTrainingDashboard = lazy(() => import("./pages/training/ManagerTrai
 
 // Lazy load - SDR pages
 const SDRDashboard = lazy(() => import("./pages/sdr/SDRDashboard"));
+const SDRHistory = lazy(() => import("./pages/sdr/SDRHistory"));
 const SDRTranscriptDetail = lazy(() => import("./pages/sdr/SDRTranscriptDetail"));
 const SDRCallDetail = lazy(() => import("./pages/sdr/SDRCallDetail"));
 
 // Lazy load - SDR Manager pages
 const SDRManagerDashboard = lazy(() => import("./pages/sdr-manager/SDRManagerDashboard"));
 const SDRManagerCoaching = lazy(() => import("./pages/sdr-manager/SDRManagerCoaching"));
+const SDRManagerRepDetail = lazy(() => import("./pages/sdr-manager/SDRManagerRepDetail"));
+const SDRManagerTranscripts = lazy(() => import("./pages/sdr-manager/SDRManagerTranscripts"));
 
 // Lazy load - Marketing pages (public)
 const ROICalculatorPage = lazy(() => import("./pages/marketing/ROICalculatorPage"));
