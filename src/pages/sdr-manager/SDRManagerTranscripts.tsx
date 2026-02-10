@@ -1,8 +1,9 @@
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useSDRDailyTranscripts, useSDRTeams, useSDRTeamMembers } from '@/hooks/useSDR';
+import { Button } from '@/components/ui/button';
+import { useSDRDailyTranscripts, useSDRTeams, useSDRTeamMembers, useRetrySDRTranscript } from '@/hooks/useSDR';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2 } from 'lucide-react';
+import { Loader2, RotateCcw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 
@@ -12,6 +13,7 @@ function SDRManagerTranscripts() {
   const myTeam = teams.find(t => t.manager_id === user?.id);
   const { data: members = [] } = useSDRTeamMembers(myTeam?.id);
   const { data: transcripts = [], isLoading } = useSDRDailyTranscripts();
+  const retryMutation = useRetrySDRTranscript();
 
   // Filter transcripts to team members only
   const memberIds = new Set(members.map((m: any) => m.user_id));
@@ -46,14 +48,32 @@ function SDRManagerTranscripts() {
                           {member?.profiles?.name || 'Unknown'} • {t.total_calls_detected} calls • {t.meaningful_calls_count} meaningful
                         </p>
                       </div>
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        t.processing_status === 'completed' ? 'bg-green-500/10 text-green-500' :
-                        t.processing_status === 'processing' ? 'bg-yellow-500/10 text-yellow-500' :
-                        t.processing_status === 'failed' ? 'bg-red-500/10 text-red-500' :
-                        'bg-muted text-muted-foreground'
-                      }`}>
-                        {t.processing_status}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {(t.processing_status === 'failed' || t.processing_status === 'partial') && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              retryMutation.mutate(t.id);
+                            }}
+                            disabled={retryMutation.isPending}
+                            className="h-7 px-2"
+                          >
+                            <RotateCcw className={`h-3.5 w-3.5 ${retryMutation.isPending ? 'animate-spin' : ''}`} />
+                            <span className="ml-1 text-xs">Retry</span>
+                          </Button>
+                        )}
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          t.processing_status === 'completed' ? 'bg-green-500/10 text-green-500' :
+                          t.processing_status === 'processing' ? 'bg-yellow-500/10 text-yellow-500' :
+                          t.processing_status === 'failed' ? 'bg-red-500/10 text-red-500' :
+                          t.processing_status === 'partial' ? 'bg-orange-500/10 text-orange-500' :
+                          'bg-muted text-muted-foreground'
+                        }`}>
+                          {t.processing_status}
+                        </span>
+                      </div>
                     </Link>
                   );
                 })}

@@ -8,7 +8,7 @@ export interface SDRDailyTranscript {
   sdr_id: string;
   transcript_date: string;
   raw_text: string;
-  processing_status: 'pending' | 'processing' | 'completed' | 'failed';
+  processing_status: 'pending' | 'processing' | 'completed' | 'failed' | 'partial';
   processing_error: string | null;
   total_calls_detected: number;
   meaningful_calls_count: number;
@@ -178,6 +178,28 @@ export function useUploadSDRTranscript() {
     },
     onError: (error) => {
       toast.error('Failed to upload transcript: ' + (error as Error).message);
+    },
+  });
+}
+
+export function useRetrySDRTranscript() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (transcriptId: string) => {
+      const { data, error } = await supabase.functions.invoke('sdr-process-transcript', {
+        body: { daily_transcript_id: transcriptId },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sdr-daily-transcripts'] });
+      queryClient.invalidateQueries({ queryKey: ['sdr-transcript-detail'] });
+      toast.success('Transcript reprocessing started');
+    },
+    onError: (error) => {
+      toast.error('Failed to retry transcript: ' + (error as Error).message);
     },
   });
 }

@@ -6,9 +6,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { useSDRStats, useSDRDailyTranscripts, useUploadSDRTranscript } from '@/hooks/useSDR';
+import { useSDRStats, useSDRDailyTranscripts, useUploadSDRTranscript, useRetrySDRTranscript } from '@/hooks/useSDR';
 import { useAuth } from '@/contexts/AuthContext';
-import { Upload, Phone, MessageSquare, TrendingUp, Loader2, FileText, FileUp, ClipboardPaste } from 'lucide-react';
+import { Upload, Phone, MessageSquare, TrendingUp, Loader2, FileText, FileUp, ClipboardPaste, RotateCcw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 
@@ -18,6 +18,7 @@ function SDRDashboard() {
   const { data: stats } = useSDRStats(user?.id);
   const { data: transcripts = [], isLoading: transcriptsLoading } = useSDRDailyTranscripts(user?.id);
   const uploadMutation = useUploadSDRTranscript();
+  const retryMutation = useRetrySDRTranscript();
   const [rawText, setRawText] = useState('');
   const [transcriptDate, setTranscriptDate] = useState(new Date().toISOString().split('T')[0]);
   const [showUpload, setShowUpload] = useState(false);
@@ -206,14 +207,32 @@ function SDRDashboard() {
                           {t.total_calls_detected} calls detected • {t.meaningful_calls_count} meaningful
                         </p>
                       </div>
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        t.processing_status === 'completed' ? 'bg-green-500/10 text-green-500' :
-                        t.processing_status === 'processing' ? 'bg-yellow-500/10 text-yellow-500' :
-                        t.processing_status === 'failed' ? 'bg-red-500/10 text-red-500' :
-                        'bg-muted text-muted-foreground'
-                      }`}>
-                        {t.processing_status}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {(t.processing_status === 'failed' || t.processing_status === 'partial') && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              retryMutation.mutate(t.id);
+                            }}
+                            disabled={retryMutation.isPending}
+                            className="h-7 px-2"
+                          >
+                            <RotateCcw className={`h-3.5 w-3.5 ${retryMutation.isPending ? 'animate-spin' : ''}`} />
+                            <span className="ml-1 text-xs">Retry</span>
+                          </Button>
+                        )}
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          t.processing_status === 'completed' ? 'bg-green-500/10 text-green-500' :
+                          t.processing_status === 'processing' ? 'bg-yellow-500/10 text-yellow-500' :
+                          t.processing_status === 'failed' ? 'bg-red-500/10 text-red-500' :
+                          t.processing_status === 'partial' ? 'bg-orange-500/10 text-orange-500' :
+                          'bg-muted text-muted-foreground'
+                        }`}>
+                          {t.processing_status}
+                        </span>
+                      </div>
                     </div>
                   </Link>
                 ))}

@@ -2,8 +2,8 @@ import { useParams, Link } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useSDRDailyTranscripts, useSDRCalls, useSDRStats } from '@/hooks/useSDR';
-import { ArrowLeft, Loader2, Phone, MessageSquare, TrendingUp, FileText } from 'lucide-react';
+import { useSDRDailyTranscripts, useSDRCalls, useSDRStats, useRetrySDRTranscript } from '@/hooks/useSDR';
+import { ArrowLeft, Loader2, Phone, MessageSquare, TrendingUp, FileText, RotateCcw } from 'lucide-react';
 import { format } from 'date-fns';
 import { gradeColors } from '@/constants/training';
 
@@ -12,6 +12,7 @@ function SDRManagerRepDetail() {
   const { data: stats } = useSDRStats(sdrId);
   const { data: transcripts = [], isLoading: transcriptsLoading } = useSDRDailyTranscripts(sdrId);
   const { data: allCalls = [] } = useSDRCalls(undefined, sdrId);
+  const retryMutation = useRetrySDRTranscript();
 
   const meaningfulCalls = allCalls.filter(c => c.is_meaningful);
   const gradedCalls = meaningfulCalls.filter(c => c.sdr_call_grades?.length);
@@ -123,14 +124,32 @@ function SDRManagerRepDetail() {
                       <p className="font-medium">{format(new Date(t.transcript_date), 'EEEE, MMM d, yyyy')}</p>
                       <p className="text-sm text-muted-foreground">{t.total_calls_detected} calls • {t.meaningful_calls_count} meaningful</p>
                     </div>
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${
-                      t.processing_status === 'completed' ? 'bg-green-500/10 text-green-500' :
-                      t.processing_status === 'processing' ? 'bg-yellow-500/10 text-yellow-500' :
-                      t.processing_status === 'failed' ? 'bg-red-500/10 text-red-500' :
-                      'bg-muted text-muted-foreground'
-                    }`}>
-                      {t.processing_status}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {(t.processing_status === 'failed' || t.processing_status === 'partial') && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            retryMutation.mutate(t.id);
+                          }}
+                          disabled={retryMutation.isPending}
+                          className="h-7 px-2"
+                        >
+                          <RotateCcw className={`h-3.5 w-3.5 ${retryMutation.isPending ? 'animate-spin' : ''}`} />
+                          <span className="ml-1 text-xs">Retry</span>
+                        </Button>
+                      )}
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        t.processing_status === 'completed' ? 'bg-green-500/10 text-green-500' :
+                        t.processing_status === 'processing' ? 'bg-yellow-500/10 text-yellow-500' :
+                        t.processing_status === 'failed' ? 'bg-red-500/10 text-red-500' :
+                        t.processing_status === 'partial' ? 'bg-orange-500/10 text-orange-500' :
+                        'bg-muted text-muted-foreground'
+                      }`}>
+                        {t.processing_status}
+                      </span>
+                    </div>
                   </Link>
                 ))}
               </div>
