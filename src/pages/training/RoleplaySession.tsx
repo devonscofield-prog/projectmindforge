@@ -70,6 +70,9 @@ export default function RoleplaySession() {
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
 
+  // Flag: only abandon session on unmount if user intentionally left
+  const intentionalLeaveRef = useRef(false);
+
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
@@ -573,6 +576,7 @@ export default function RoleplaySession() {
   const endSession = async () => {
     // Guard against double-end (auto-end timer + manual end can race)
     if (statusRef.current === 'ending' || statusRef.current === 'ended') return;
+    intentionalLeaveRef.current = true;
     setStatus('ending');
 
     // Stop recording before uploading
@@ -691,8 +695,11 @@ export default function RoleplaySession() {
 
     return () => {
       window.removeEventListener('beforeunload', abandonViaBeacon);
-      // On unmount (e.g. React navigation), also fire the beacon
-      abandonViaBeacon();
+      // Only abandon if user intentionally left (End Call, navigation, etc.)
+      // Tab-switch unmounts (caused by auth flickers) should NOT abandon
+      if (intentionalLeaveRef.current) {
+        abandonViaBeacon();
+      }
       cleanup();
       if (timerRef.current) clearInterval(timerRef.current);
     };
