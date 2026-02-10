@@ -12,6 +12,8 @@ export function getAccountDetailUrl(role: UserRole | null, prospectId: string): 
       return `/admin/accounts/${prospectId}`;
     case 'manager':
       return `/manager/accounts/${prospectId}`;
+    case 'sdr':
+    case 'sdr_manager':
     case 'rep':
     default:
       return `/rep/prospects/${prospectId}`;
