@@ -818,9 +818,7 @@ export default function RoleplaySession() {
             </div>
             <RoleplayBriefing
               persona={persona}
-              sessionType={sessionType}
               onStart={() => setStatus('idle')}
-              onChangeSessionType={setSessionType}
             />
             
             {/* Custom Scenario Selector */}
