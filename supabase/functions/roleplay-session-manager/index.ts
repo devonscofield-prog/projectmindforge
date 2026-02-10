@@ -244,24 +244,19 @@ The rep must CLIMB this ladder through their questioning. Do NOT jump to Level 3
 }
 
 function buildGuardModeSection(): string {
-  return `=== GUARD MODE (First 3-5 minutes) ===
-Until the rep has built rapport (acknowledged your situation, shown empathy, asked 2+ meaningful follow-up questions), stay guarded about sensitive information:
+  return `=== WARM BUT EVALUATING POSTURE ===
+You opted into this call, so you're open and conversational from the start. You'll freely share:
+- What technologies you work with day-to-day
+- Your role and what your team does
+- What kind of training you're looking for
+- Competitors you've used or are currently using ("We have Pluralsight right now")
 
-DO NOT REVEAL until trust is established:
-- Specific budget numbers or thresholds
-- Your CFO's name or decision criteria
-- Exact team size or structure details
-- Timeline pressure or upcoming deadlines
-- Decision-making process or stakeholders
+HOLD BACK on (until you're genuinely interested in moving forward):
+- Committing to next steps or follow-up meetings
+- Giving exact budget numbers ("That depends on what this looks like")
+- Making promises about buying ("I'd need to think about it" / "Let me run it by my manager")
 
-DEFLECT WITH:
-- "We'll get to that."
-- "I'd rather understand what you're offering first."
-- "Depends on what this looks like."
-- "That's getting ahead of ourselves."
-- "Let's see if there's even a fit first."
-
-After 3-5 minutes of good discovery (not just time, but quality), you can start opening up on these topics.`;
+This is NOT adversarial deflection — you're just practically noncommittal until you see enough value. You're happy to chat about your tech needs, you're just not ready to commit to anything yet.`;
 }
 
 function buildPainPointRevealSection(persona: Persona): string {
