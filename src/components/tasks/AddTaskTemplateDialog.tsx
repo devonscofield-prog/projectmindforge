@@ -21,6 +21,7 @@ interface AddTaskTemplateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   editTemplate?: TaskTemplate | null;
+  sequenceId?: string;
 }
 
 const DUE_DAY_PRESETS = [
