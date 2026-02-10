@@ -2064,6 +2064,61 @@ export type Database = {
         }
         Relationships: []
       }
+      rep_task_sequences: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          rep_id: string
+          sort_order: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          rep_id: string
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          rep_id?: string
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rep_task_sequences_rep_id_fkey"
+            columns: ["rep_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rep_task_sequences_rep_id_fkey"
+            columns: ["rep_id"]
+            isOneToOne: false
+            referencedRelation: "team_member_names"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rep_task_sequences_rep_id_fkey"
+            columns: ["rep_id"]
+            isOneToOne: false
+            referencedRelation: "user_with_role"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rep_task_template_settings: {
         Row: {
           auto_create_enabled: boolean | null
@@ -2116,6 +2171,7 @@ export type Database = {
           reminder_enabled: boolean | null
           reminder_time: string | null
           rep_id: string
+          sequence_id: string | null
           sort_order: number | null
           title: string
           updated_at: string
@@ -2131,6 +2187,7 @@ export type Database = {
           reminder_enabled?: boolean | null
           reminder_time?: string | null
           rep_id: string
+          sequence_id?: string | null
           sort_order?: number | null
           title: string
           updated_at?: string
@@ -2146,6 +2203,7 @@ export type Database = {
           reminder_enabled?: boolean | null
           reminder_time?: string | null
           rep_id?: string
+          sequence_id?: string | null
           sort_order?: number | null
           title?: string
           updated_at?: string
@@ -2170,6 +2228,13 @@ export type Database = {
             columns: ["rep_id"]
             isOneToOne: false
             referencedRelation: "user_with_role"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rep_task_templates_sequence_id_fkey"
+            columns: ["sequence_id"]
+            isOneToOne: false
+            referencedRelation: "rep_task_sequences"
             referencedColumns: ["id"]
           },
         ]
