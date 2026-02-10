@@ -108,6 +108,10 @@ export function getCallHistoryUrl(role: UserRole | null): string {
       return '/admin/history';
     case 'manager':
       return '/manager/history';
+    case 'sdr':
+      return '/sdr/history';
+    case 'sdr_manager':
+      return '/sdr-manager/transcripts';
     case 'rep':
     default:
       return '/rep/history';
