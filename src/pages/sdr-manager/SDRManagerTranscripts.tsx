@@ -1,8 +1,9 @@
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useSDRDailyTranscripts, useSDRTeams, useSDRTeamMembers } from '@/hooks/useSDR';
+import { Button } from '@/components/ui/button';
+import { useSDRDailyTranscripts, useSDRTeams, useSDRTeamMembers, useRetrySDRTranscript } from '@/hooks/useSDR';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2 } from 'lucide-react';
+import { Loader2, RotateCcw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 
