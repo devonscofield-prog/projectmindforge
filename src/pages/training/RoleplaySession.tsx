@@ -1016,15 +1016,6 @@ export default function RoleplaySession() {
               </CardContent>
             </Card>
 
-            {/* Collapsible Transcript Panel - only during active call */}
-            {(status === 'connected' || status === 'speaking' || status === 'listening') && (
-              <div className="mb-4">
-                <RoleplayTranscriptPanel 
-                  transcript={transcript} 
-                  currentTranscript={currentTranscript}
-                />
-              </div>
-            )}
 
             {/* Controls */}
             <div className="flex items-center justify-center gap-4">
