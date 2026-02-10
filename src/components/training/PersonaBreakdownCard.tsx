@@ -141,7 +141,7 @@ export function PersonaBreakdownCard({ sessions }: PersonaBreakdownCardProps) {
             sessionTypeStats.map(type => (
               <div key={type.type} className="space-y-1">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium capitalize">{type.type.replace('_', ' ')}</span>
+                  <span className="font-medium capitalize">{type.type === 'full_sales_call' ? 'Full Sales Call' : type.type.replace('_', ' ')}</span>
                   <div className="flex items-center gap-2">
                     <Badge variant="outline" className="text-xs">
                       {type.sessions} {type.sessions === 1 ? 'session' : 'sessions'}

@@ -833,9 +833,9 @@ Deno.serve(async (req) => {
       const selectedVoice = getVoiceForPersona(persona as Persona);
       console.log(`Selected voice for ${persona.disc_profile} profile: ${selectedVoice}`);
 
-      // Fetch product knowledge for demo sessions
+      // Fetch product knowledge for full sales calls (needed for demo phase) and legacy demo sessions
       let productKnowledgeContext = '';
-      if (sessionType === 'demo') {
+      if (sessionType === 'full_sales_call' || sessionType === 'demo') {
         try {
           console.log('Fetching product knowledge for demo session...');
           const { data: productChunks, error: pkError } = await supabaseClient.rpc('find_product_knowledge', {
