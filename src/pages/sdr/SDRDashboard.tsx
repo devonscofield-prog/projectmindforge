@@ -38,7 +38,7 @@ function SDRDashboard() {
   const handleUpload = () => {
     if (!rawText.trim()) return;
     uploadMutation.mutate({ rawText, transcriptDate }, {
-      onSuccess: () => { setRawText(''); setShowUpload(false); }
+      onSuccess: () => { setRawText(''); setFileName(null); setShowUpload(false); if (fileInputRef.current) fileInputRef.current.value = ''; }
     });
   };
 
