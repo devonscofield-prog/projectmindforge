@@ -1,81 +1,101 @@
 
 
-# Fix: Migrate Roleplay Session to OpenAI Realtime GA Format
+# Add Rate Limiting to All Unprotected Backend Functions
 
-## Problem
-Starting a roleplay call produces a "Session Voice" validation error. This follows the same pattern as the previous "Session Modalities" error -- the `session.update` payload uses the **legacy flat format** which the GA API rejects.
+## Overview
 
-## Root Cause
-The `session.update` sent over the WebRTC data channel in `src/pages/training/RoleplaySession.tsx` uses legacy top-level fields:
-- `voice` (should be `audio.output.voice`)
-- `input_audio_format` (should be `audio.input.format.type`)
-- `output_audio_format` (removed -- WebRTC determines this)
-- `input_audio_transcription` (should be `audio.input.transcription`)
+A security audit found that 24+ backend functions lack rate limiting, leaving them vulnerable to abuse (API cost exhaustion, denial-of-service, brute-force attacks). This plan adds rate limiting to every unprotected function using the existing shared pattern.
 
-The GA API expects a nested `audio` object structure and rejects unknown top-level fields.
+## Functions to Update
 
-## Fix
+The functions fall into three categories based on risk and appropriate limits:
 
-Single file change in `src/pages/training/RoleplaySession.tsx` (lines 362-381). Convert the session.update payload from legacy to GA format:
+### High Priority -- User-Facing AI Functions (expensive per call)
+These call AI APIs and are the most costly to abuse.
 
-**Before:**
-```typescript
-dc.send(JSON.stringify({
-  type: 'session.update',
-  session: {
-    type: 'realtime',
-    voice,
-    instructions,
-    input_audio_format: 'pcm16',
-    output_audio_format: 'pcm16',
-    input_audio_transcription: {
-      model: 'whisper-1'
-    },
-    turn_detection: {
-      type: 'server_vad',
-      threshold: 0.5,
-      prefix_padding_ms: 300,
-      silence_duration_ms: silenceDurationMs
-    }
-  }
-}));
+| Function | Limit | Window |
+|---|---|---|
+| account-research | 10 req | 1 min |
+| competitor-research | 10 req | 1 min |
+| generate-sales-assets | 10 req | 1 min |
+| generate-call-follow-up-suggestions | 10 req | 1 min |
+| roleplay-grade-session | 10 req | 1 min |
+| calculate-deal-heat | 10 req | 1 min |
+| calculate-account-heat | 10 req | 1 min |
+| analyze-performance | 10 req | 1 min |
+
+### Medium Priority -- Auth/Admin Functions (security-sensitive)
+These modify user accounts and should have stricter limits.
+
+| Function | Limit | Window |
+|---|---|---|
+| generate-password-reset-otp | 5 req | 15 min |
+| complete-password-reset | 5 req | 15 min |
+| invite-user | 10 req | 1 min |
+| delete-user | 5 req | 1 min |
+| set-user-password | 5 req | 1 min |
+| reset-user-password | 5 req | 1 min |
+| admin-reset-mfa | 5 req | 1 min |
+| seed-demo-data | 3 req | 1 min |
+| reanalyze-call | 10 req | 1 min |
+| reset-test-passwords | 3 req | 1 min |
+| unsubscribe-report | 10 req | 1 min |
+| upload-product-knowledge | 10 req | 1 min |
+
+### Lower Priority -- Background/Cron Functions (verify_jwt = false)
+These are typically called by cron jobs or internal services. Rate limiting by IP/source adds a safety net.
+
+| Function | Limit | Window |
+|---|---|---|
+| scrape-product-knowledge | 5 req | 1 min |
+| process-product-knowledge | 5 req | 1 min |
+| submit-call-transcript | 20 req | 1 min |
+| send-task-reminders | 5 req | 1 min |
+| send-daily-report | 5 req | 1 min |
+| trigger-pending-analyses | 5 req | 1 min |
+| cleanup-stuck-sessions | 5 req | 1 min |
+| roleplay-abandon-session | 10 req | 1 min |
+| send-performance-alert | 10 req | 1 min |
+| check-performance-alerts | 5 req | 1 min |
+
+## Implementation Approach
+
+Each function will get the same inline rate-limiting pattern already used throughout the codebase (in-memory Map with sliding window). The pattern is:
+
+1. Add rate limit constants and the `checkRateLimit` function at the top of the file
+2. Extract user ID from the JWT token (for authenticated functions) or use a fallback identifier like IP or "cron" for unauthenticated functions
+3. Check rate limit early in the request handler, returning 429 with `Retry-After` header if exceeded
+
+No new shared modules or dependencies are needed -- each function gets a self-contained rate limiter matching the existing convention.
+
+## Technical Details
+
+For **authenticated functions** (verify_jwt = true), the user ID is extracted from the JWT:
+```text
+const authHeader = req.headers.get('Authorization');
+const token = authHeader?.replace('Bearer ', '') || '';
+let userId = 'anonymous';
+try {
+  const payload = JSON.parse(atob(token.split('.')[1]));
+  userId = payload.sub || 'anonymous';
+} catch { /* use anonymous */ }
 ```
 
-**After:**
-```typescript
-dc.send(JSON.stringify({
-  type: 'session.update',
-  session: {
-    type: 'realtime',
-    instructions,
-    audio: {
-      output: {
-        voice
-      },
-      input: {
-        format: { type: 'pcm16' },
-        transcription: { model: 'whisper-1' },
-        noise_reduction: { type: 'near_field' }
-      }
-    },
-    turn_detection: {
-      type: 'server_vad',
-      threshold: 0.5,
-      prefix_padding_ms: 300,
-      silence_duration_ms: silenceDurationMs
-    }
-  }
-}));
+For **unauthenticated/cron functions** (verify_jwt = false), rate limiting uses a global key:
+```text
+const rateLimitKey = 'global'; // or extract from x-forwarded-for header
 ```
 
-## Key Changes
-- `voice` moved into `audio.output.voice`
-- `input_audio_format` moved into `audio.input.format.type`
-- `output_audio_format` removed (WebRTC handles output format)
-- `input_audio_transcription` moved into `audio.input.transcription`
-- Added `noise_reduction` for cleaner audio input
+The 429 response format is consistent:
+```text
+{ "error": "Rate limit exceeded. Please try again later." }
+Headers: Retry-After: <seconds>
+```
 
 ## Scope
-One file: `src/pages/training/RoleplaySession.tsx`, lines 362-381
 
-No database, edge function, or other changes needed.
+- ~30 edge function files modified (adding rate limiting code)
+- No database changes
+- No frontend changes
+- No new dependencies
+
