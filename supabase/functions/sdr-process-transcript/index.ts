@@ -139,10 +139,33 @@ Deno.serve(async (req) => {
       });
     }
 
+    // If retrying, clean up old calls and grades from previous attempt
+    const isRetry = transcriptRecord.processing_status === 'failed' || transcriptRecord.processing_status === 'partial';
+    if (isRetry || daily_transcript_id) {
+      // Delete old grades first (FK dependency)
+      const { data: oldCalls } = await supabase
+        .from('sdr_calls')
+        .select('id')
+        .eq('daily_transcript_id', transcriptId);
+
+      if (oldCalls && oldCalls.length > 0) {
+        const oldCallIds = oldCalls.map((c: any) => c.id);
+        await supabase
+          .from('sdr_call_grades')
+          .delete()
+          .in('call_id', oldCallIds);
+        await supabase
+          .from('sdr_calls')
+          .delete()
+          .eq('daily_transcript_id', transcriptId);
+        console.log(`[sdr-pipeline] Retry: cleaned up ${oldCalls.length} old calls for transcript ${transcriptId}`);
+      }
+    }
+
     // Mark as processing
     await supabase
       .from('sdr_daily_transcripts')
-      .update({ processing_status: 'processing' })
+      .update({ processing_status: 'processing', processing_error: null })
       .eq('id', transcriptId);
 
     // Start background processing
