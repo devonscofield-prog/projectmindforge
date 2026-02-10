@@ -184,7 +184,7 @@ const sdrNavGroups = [
   {
     label: 'Calls',
     items: [
-      { href: '/sdr', label: 'Upload Transcript', icon: Upload },
+      { href: '/sdr/history', label: 'Transcript History', icon: History },
     ],
   },
 ];

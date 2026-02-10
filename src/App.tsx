@@ -353,6 +353,11 @@ const App = () => (
                     <SDRDashboard />
                   </ProtectedRoute>
                 } />
+                <Route path="/sdr/history" element={
+                  <ProtectedRoute allowedRoles={['sdr']}>
+                    <SDRHistory />
+                  </ProtectedRoute>
+                } />
                 <Route path="/sdr/history/:transcriptId" element={
                   <ProtectedRoute allowedRoles={['sdr', 'sdr_manager', 'admin']}>
                     <SDRTranscriptDetail />
@@ -377,12 +382,12 @@ const App = () => (
                 } />
                 <Route path="/sdr-manager/transcripts" element={
                   <ProtectedRoute allowedRoles={['sdr_manager']}>
-                    <SDRTranscriptDetail />
+                    <SDRManagerTranscripts />
                   </ProtectedRoute>
                 } />
                 <Route path="/sdr-manager/rep/:sdrId" element={
                   <ProtectedRoute allowedRoles={['sdr_manager', 'admin']}>
-                    <SDRDashboard />
+                    <SDRManagerRepDetail />
                   </ProtectedRoute>
                 } />
 
