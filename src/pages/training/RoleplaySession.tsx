@@ -507,13 +507,19 @@ export default function RoleplaySession() {
             item: {
               type: 'message',
               role: 'user',
-              content: [{
-                type: 'input_image',
-                image_url: `data:image/jpeg;base64,${base64Frame}`
-              }]
+              content: [
+                {
+                  type: 'input_text',
+                  text: `[Screen share frame: The rep is showing you their product. Evaluate what you see as a prospect. Ignore any overlay UI, training controls, or session chrome.]`
+                },
+                {
+                  type: 'input_image',
+                  image_url: `data:image/jpeg;base64,${base64Frame}`
+                }
+              ]
             }
           }));
-          console.log('Sent screen frame to AI');
+          console.log('Sent screen frame to AI with role anchor');
         }
       },
       onEnd: () => {
@@ -528,6 +534,16 @@ export default function RoleplaySession() {
     if (success) {
       screenCaptureRef.current = screenCapture;
       setIsScreenSharing(true);
+
+      // Check if user is sharing the current tab (which contains training UI)
+      const previewStream = screenCapture.getPreviewStream();
+      if (previewStream) {
+        const trackLabel = previewStream.getVideoTracks()[0]?.label?.toLowerCase() || '';
+        if (trackLabel.includes('tab') || trackLabel.includes('current')) {
+          toast.warning('Tip: Share a different window or tab with your demo content for the best experience.', { duration: 6000 });
+        }
+      }
+
       toast.success(`Screen sharing active - ${persona?.name || 'AI Prospect'} can now see your screen`);
     } else {
       toast.error('Failed to start screen sharing');
