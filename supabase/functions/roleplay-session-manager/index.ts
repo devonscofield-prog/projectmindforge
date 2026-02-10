@@ -906,7 +906,7 @@ Deno.serve(async (req) => {
 
           if (!pkError && productChunks?.length) {
             productKnowledgeContext = `\n\n=== PRODUCT KNOWLEDGE (What the rep is selling) ===
-You are being shown a product demo. Here is information about what they're selling so you can ask relevant questions:
+You are learning about this training platform for the first time. Here is background info so you can ask relevant, practical questions:
 
 `;
             for (const chunk of productChunks.slice(0, 8)) {
@@ -914,15 +914,17 @@ You are being shown a product demo. Here is information about what they're selli
             }
             productKnowledgeContext += `
 Use this knowledge to:
-- Ask specific questions about features mentioned ("So the Azure Range - does that include Kubernetes or just basic compute?")
-- Challenge claims with realistic follow-ups ("You said hands-on practice - how long does each lab take?")
-- Connect features to YOUR pain points ("Okay, but how does this solve my single-point-of-failure problem with Marcus?")
-- Express skepticism if something sounds too good ("That sounds great on paper, but our team is already stretched thin")
+- Ask practical coverage questions ("Do you have anything for Meraki?" / "What about VMware?")
+- Ask about format and access ("Is this just for certifications or can I do real-world practice?")
+- Compare to competitors ("What's different from Pluralsight?" / "We had LinkedIn Learning — how is this better?")
+- Connect to your team's needs ("My help desk guys need their Security+ — do you cover that?")
+- Ask sincere follow-ups about interesting features ("How do the live classes work — can I ask the instructor questions?")
 
 Do NOT:
 - Recite this information back to the rep
 - Act like you already know about their specific product
 - Ask questions you already know the answer to from this context
+- Ask abstract enterprise architecture questions ("How does this integrate with our software stack?")
 === END PRODUCT KNOWLEDGE ===\n`;
             console.log(`Injected ${productChunks.length} product knowledge chunks for demo session`);
           }
