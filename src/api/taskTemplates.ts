@@ -29,6 +29,7 @@ export interface CreateTaskTemplateParams {
   due_days_offset?: number | null;
   reminder_enabled?: boolean;
   reminder_time?: string;
+  sequenceId?: string;
 }
 
 export interface TaskTemplateSettings {
