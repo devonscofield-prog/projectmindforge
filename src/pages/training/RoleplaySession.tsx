@@ -64,7 +64,7 @@ export default function RoleplaySession() {
   const [isMuted, setIsMuted] = useState(false);
   const [currentTranscript, setCurrentTranscript] = useState('');
   const [isScreenSharing, setIsScreenSharing] = useState(false);
-  const [sessionType, setSessionType] = useState<'discovery' | 'demo' | 'objection_handling' | 'negotiation'>('discovery');
+  const sessionType = 'full_sales_call';
   const [scenarioPrompt, setScenarioPrompt] = useState('');
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
