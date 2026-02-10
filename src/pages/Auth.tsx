@@ -135,18 +135,12 @@ export default function Auth() {
     }
     
     // Only redirect when we have both user and role
-    if (user && role && !isRecoveryMode && !recoveryComplete && !isEnteringOTP && !sessionToken && !showCelebration) {
+    if (user && role && !isRecoveryMode && !recoveryComplete && !isEnteringOTP && !sessionToken) {
       setIsFinishingSignIn(false);
-      setShowCelebration(true); // Show celebration first
+      const redirectPath = getDashboardUrl(role);
+      navigate(redirectPath, { replace: true });
     }
-  }, [user, role, isRecoveryMode, recoveryComplete, isEnteringOTP, sessionToken, signInStartTime, showCelebration]);
-
-  // Handle celebration complete - navigate to dashboard
-  const handleCelebrationComplete = useCallback(() => {
-    const redirectPath = getDashboardUrl(role);
-
-    navigate(redirectPath, { replace: true });
-  }, [role, navigate]);
+  }, [user, role, isRecoveryMode, recoveryComplete, isEnteringOTP, sessionToken, signInStartTime, navigate]);
 
   // Timeout for finishing sign-in state
   useEffect(() => {
