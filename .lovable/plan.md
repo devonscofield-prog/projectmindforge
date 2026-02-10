@@ -1,24 +1,32 @@
 
-# Add File Upload Option to SDR Transcript Upload
 
-## What Changes
-Update the upload form in `SDRDashboard.tsx` to support two input methods via toggle tabs:
-1. **Paste** -- the existing textarea (current behavior)
-2. **Upload File** -- a file input that accepts `.txt` files and reads their content
+# Fix SDR Pipeline: Update OpenAI Model and Add Reliability
 
-## How It Works
-- Add a two-option tab toggle ("Paste Text" / "Upload File") above the input area
-- **Paste tab**: Shows the existing textarea (no change)
-- **Upload file tab**: Shows a file drop zone / file input accepting `.txt` files. When a file is selected, read it with `FileReader.readAsText()` and populate `rawText` state with the contents
-- Both methods feed into the same `rawText` state and `handleUpload()` flow -- zero backend changes needed
+## Problem
+The transcript `3c7a6e87-...` is stuck in "processing" because the pipeline's background worker likely failed calling OpenAI with model string `gpt-5.2` (which may not resolve correctly). No error was captured because the `EdgeRuntime.waitUntil` background task crashed silently.
 
-## Technical Details
+## Changes
 
-### File: `src/pages/sdr/SDRDashboard.tsx`
-- Add `uploadMode` state: `'paste' | 'file'`
-- Add `fileName` state to show which file was loaded
-- Add a `Tabs` component (from `@radix-ui/react-tabs`, already installed) with two tab triggers
-- In the "file" tab, render an `<input type="file" accept=".txt,.text" />` styled as a drop zone
-- On file select, use `FileReader` to read the text content into `rawText`
-- Show the file name and a preview snippet after loading
-- The "Process Transcript" button and date picker remain shared across both modes
+### 1. Update model to `gpt-5.2-2025-12-11` in both edge functions
+
+**`supabase/functions/sdr-process-transcript/index.ts`** -- 3 places:
+- Splitter agent (line 268): `'gpt-5.2'` -> `'gpt-5.2-2025-12-11'`
+- Filter agent (line 364): `'gpt-5.2'` -> `'gpt-5.2-2025-12-11'`
+- Grader agent (line 484): `'gpt-5.2'` -> `'gpt-5.2-2025-12-11'`
+- Also update the `model_name` stored in DB (line 187): `'gpt-5.2'` -> `'gpt-5.2-2025-12-11'`
+
+**`supabase/functions/sdr-grade-call/index.ts`** -- 2 places:
+- Grader function call (line ~200): `'gpt-5.2'` -> `'gpt-5.2-2025-12-11'`
+- `model_name` in DB insert (line 110): `'gpt-5.2'` -> `'gpt-5.2-2025-12-11'`
+
+### 2. Add timeouts to OpenAI fetch calls
+Add `AbortSignal.timeout(55000)` (55-second timeout) to each `fetch()` call to OpenAI so that if a request hangs, it fails with a clear error instead of silently dying.
+
+### 3. Reset the stuck transcript
+Run a SQL update to set the stuck transcript back to `pending` so you can reprocess it after deploying the fix.
+
+## No other changes
+- Prompts stay the same
+- Direct OpenAI API calls stay (no Lovable AI proxy)
+- Pipeline architecture unchanged
+
