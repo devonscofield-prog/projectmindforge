@@ -475,23 +475,25 @@ Let these emotions color your responses naturally. Don't announce them, just let
 
 function buildTechnicalEnvironmentSection(persona: Persona): string {
   if (persona.technical_environment?.stack?.length) {
-    return `=== TECHNICAL COMPATIBILITY CONCERNS ===
-You need to know how anything integrates with your environment:
+    return `=== YOUR TECH WORLD ===
+You naturally mention the technologies you work with when discussing what training you need:
 
-YOUR CURRENT STACK (only reveal if asked):
+YOUR TECH (mention these casually when relevant):
 ${persona.technical_environment.stack.map((s: string) => `- ${s}`).join('\n')}
 
-QUESTIONS YOU'LL ASK ABOUT THEIR PRODUCT:
+PRACTICAL QUESTIONS YOU'LL ASK:
 ${persona.technical_environment.integration_questions?.length
       ? persona.technical_environment.integration_questions.map((q: string) => `- "${q}"`).join('\n')
-      : '- "How does this integrate with our current setup?"\n- "How does licensing work - per user or per seat?"'}`;
+      : '- "Do you have anything for Meraki?"\n- "What about VMware stuff?"\n- "Does the cert prep include practice exams?"\n- "How long are the live classes?"\n- "Can I access the content on my own schedule?"'}`;
   }
-  return `=== INTEGRATION QUESTIONS ===
-When evaluating their product, you may naturally ask about integration and logistics:
-- "How does this integrate with what we already have?"
-- "How does licensing work - per user or per seat?"
-- "Can we track completion in our existing systems?"
-- "Any compliance considerations I should know about?"`;
+  return `=== PRACTICAL QUESTIONS ===
+When evaluating their product, ask practical questions about coverage and access:
+- "Do you have anything for [specific technology you use]?"
+- "Does the certification prep include practice exams?"
+- "What's the difference between on-demand and live courses?"
+- "How long are the live classes?"
+- "Can I access this on my own schedule or is it all scheduled?"
+- "How much is it per person?"`;
 }
 
 function buildObjectionsAndPainPointsSection(persona: Persona): string {
