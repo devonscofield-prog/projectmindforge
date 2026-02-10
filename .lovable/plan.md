@@ -1,31 +1,50 @@
 
 
-# Fix: Reduce Chunk Size Further for Reliable Splitter Output
+# Fix: Handle Single-Segment Splitter Responses
 
 ## Problem
-Even after removing the "chunk 1/2" label from the prompt, the model (gpt-5.2) is refusing to process ~42K character chunks because the **output JSON** would be too large to generate without truncation risk. The error:
+The chunk size reduction to 25K is working (transcript now splits into 4 chunks), but the model sometimes returns a **single segment object** instead of an **array of segments**. When a chunk contains just one call, the model returns:
 
-> "the provided transcript is too long to segment reliably within a single response without risking truncation"
+```json
+{"raw_text": "...", "start_timestamp": "00:00", "approx_duration_seconds": 120}
+```
 
-The 85K transcript splits into 2 chunks at the current 50K threshold, yielding ~42K per chunk — still too large for reliable output generation.
+Instead of:
+
+```json
+[{"raw_text": "...", "start_timestamp": "00:00", "approx_duration_seconds": 120}]
+```
+
+The validation code only looks for arrays, so it rejects this valid single-segment response.
 
 ## Solution
-Lower `SPLITTER_CHUNK_MAX_CHARS` from 50,000 to **25,000**. This will split the 85K transcript into ~4 chunks of ~21K each, which is well within the model's comfortable output range. The existing deduplication logic already handles merging overlapping results across chunks.
+Add a fallback in the segment extraction logic: if the parsed JSON is not an array and none of the known wrapper keys contain arrays, check if the object itself looks like a segment (has a `raw_text` field). If so, wrap it in an array.
 
 ## Changes
 
-### 1. Update chunk threshold in `supabase/functions/sdr-process-transcript/index.ts`
-- Change `SPLITTER_CHUNK_MAX_CHARS` from `50_000` to `25_000`
-- Update the comment to reflect the new sizing rationale
+### 1. Update segment parsing in `supabase/functions/sdr-process-transcript/index.ts` (~line 479-484)
+
+After the existing array-detection logic, add a check before throwing:
+
+```typescript
+// Existing: check for Array.isArray(parsed), then check wrapper keys, then check any array value
+// NEW: if still no segments, check if parsed itself is a single segment object
+if (!segments && typeof parsed === 'object' && parsed.raw_text) {
+  segments = [parsed];
+}
+```
+
+This handles the case where the model returns one segment as a plain object.
 
 ### 2. Reset failed transcripts
-- Reset all failed/pending transcripts (`da96ee0d`, `4da68621`, `3fdfa46b`, `bfdf4522`) to `pending` status so they reprocess with the smaller chunk size
+- Reset `3cd262db`, `da96ee0d`, `4da68621` back to `pending` and clear errors
+- These will reprocess with the fix
 
 ### 3. Deploy and trigger
-- Redeploy the `sdr-process-transcript` edge function
-- Trigger reprocessing for the reset transcripts
+- Redeploy `sdr-process-transcript`
+- Trigger reprocessing
 
-## Technical Detail
-- 85K chars / 25K per chunk = 4 chunks of ~21K each
-- 21K chars is roughly 5K tokens of input, leaving plenty of output token budget for the segmented JSON response
-- More chunks means slightly more API calls, but each completes faster and more reliably
+## Why This Is Safe
+- Only activates when no array is found and the object has `raw_text` (a required segment field)
+- Does not change behavior for normal array responses
+- The downstream pipeline already handles arrays of 1+ segments
