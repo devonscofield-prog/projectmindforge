@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { getDashboardUrl } from '@/lib/routes';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -12,7 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
-import { LoginCelebration } from '@/components/ui/login-celebration';
+
 
 const authSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -41,7 +41,7 @@ export default function Auth() {
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [signInStartTime, setSignInStartTime] = useState<number | null>(null);
   const [isFinishingSignIn, setIsFinishingSignIn] = useState(false);
-  const [showCelebration, setShowCelebration] = useState(false);
+  
   
   // OTP flow states
   const [isEnteringOTP, setIsEnteringOTP] = useState(false);
@@ -135,18 +135,12 @@ export default function Auth() {
     }
     
     // Only redirect when we have both user and role
-    if (user && role && !isRecoveryMode && !recoveryComplete && !isEnteringOTP && !sessionToken && !showCelebration) {
+    if (user && role && !isRecoveryMode && !recoveryComplete && !isEnteringOTP && !sessionToken) {
       setIsFinishingSignIn(false);
-      setShowCelebration(true); // Show celebration first
+      const redirectPath = getDashboardUrl(role);
+      navigate(redirectPath, { replace: true });
     }
-  }, [user, role, isRecoveryMode, recoveryComplete, isEnteringOTP, sessionToken, signInStartTime, showCelebration]);
-
-  // Handle celebration complete - navigate to dashboard
-  const handleCelebrationComplete = useCallback(() => {
-    const redirectPath = getDashboardUrl(role);
-
-    navigate(redirectPath, { replace: true });
-  }, [role, navigate]);
+  }, [user, role, isRecoveryMode, recoveryComplete, isEnteringOTP, sessionToken, signInStartTime, navigate]);
 
   // Timeout for finishing sign-in state
   useEffect(() => {
@@ -393,15 +387,6 @@ export default function Auth() {
     );
   }
 
-  // Celebration UI after successful sign-in
-  if (showCelebration) {
-    return (
-      <LoginCelebration 
-        onComplete={handleCelebrationComplete}
-        userName={user?.user_metadata?.name}
-      />
-    );
-  }
 
   // Link Expired UI
   if (linkExpired && !isResettingPassword) {
