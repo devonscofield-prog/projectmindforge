@@ -10,6 +10,7 @@ import { format } from 'date-fns';
 function SDRHistory() {
   const { user } = useAuth();
   const { data: transcripts = [], isLoading } = useSDRDailyTranscripts(user?.id);
+  const retryMutation = useRetrySDRTranscript();
 
   if (isLoading) {
     return <AppLayout><div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div></AppLayout>;
