@@ -576,6 +576,7 @@ export default function RoleplaySession() {
   const endSession = async () => {
     // Guard against double-end (auto-end timer + manual end can race)
     if (statusRef.current === 'ending' || statusRef.current === 'ended') return;
+    intentionalLeaveRef.current = true;
     setStatus('ending');
 
     // Stop recording before uploading
