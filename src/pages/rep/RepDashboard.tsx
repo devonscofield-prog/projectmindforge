@@ -34,6 +34,7 @@ import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { SalesAssistantChat } from '@/components/SalesAssistantChat';
+import { useActiveTaskSequences } from '@/hooks/useTaskSequences';
 // PostCallTasksDialog removed - suggestions now appear on CallDetailPage after analysis
 import {
   Tooltip,
@@ -92,6 +93,7 @@ function RepDashboard() {
   const queryClient = useQueryClient();
   const callTypeOtherRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const { data: taskSequences = [] } = useActiveTaskSequences();
 
   // Form state
   const [transcript, setTranscript] = useState('');
@@ -114,6 +116,7 @@ function RepDashboard() {
   const [additionalSpeakersText, setAdditionalSpeakersText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastSubmitTime, setLastSubmitTime] = useState(0);
+  const [selectedSequenceId, setSelectedSequenceId] = useState<string>('');
   
   // Draft state
   const [hasDraft, setHasDraft] = useState(false);
@@ -463,6 +466,7 @@ function RepDashboard() {
     setEstimatedOpportunitySize('');
     setTargetCloseDate('');
     setOpportunityLabel('');
+    setSelectedSequenceId('');
     clearDraft();
     toast.success('Form cleared', { description: 'All fields have been reset.' });
   };
@@ -562,6 +566,7 @@ function RepDashboard() {
         estimatedOpportunitySize: parseFloat(estimatedOpportunitySize),
         targetCloseDate,
         opportunityLabel,
+        taskSequenceId: selectedSequenceId && selectedSequenceId !== 'none' ? selectedSequenceId : undefined,
       });
 
       // Clear draft on successful submission
@@ -1100,6 +1105,34 @@ The more detail you include, the better the AI analysis."
                       />
                     </div>
                   </FormSection>
+
+                  {/* Section 5: Auto-Task Sequence */}
+                  {taskSequences.length > 0 && (
+                    <FormSection
+                      title="Auto-Task Sequence"
+                      icon={<ClipboardList className="h-4 w-4" />}
+                      isComplete={!!selectedSequenceId}
+                      isRequired={false}
+                      defaultOpen={false}
+                    >
+                      <div className="space-y-2">
+                        <p className="text-sm text-muted-foreground">
+                          Optionally select a task sequence to auto-create follow-up tasks for this call.
+                        </p>
+                        <Select value={selectedSequenceId} onValueChange={setSelectedSequenceId}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="None (no auto-tasks)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">None</SelectItem>
+                            {taskSequences.map(seq => (
+                              <SelectItem key={seq.id} value={seq.id}>{seq.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </FormSection>
+                  )}
 
                   {/* Desktop Submit Button with Glow */}
                   <div className="hidden md:block space-y-3 pt-6 border-t border-border mt-8">

@@ -165,7 +165,7 @@ export async function createCallTranscriptAndAnalyze(params: CreateCallTranscrip
 
   // Auto-create tasks from rep's task templates (non-blocking)
   if (prospectId) {
-    applyTaskTemplates(repId, prospectId, transcript.id, callDate)
+    applyTaskTemplates(repId, prospectId, transcript.id, callDate, params.taskSequenceId)
       .then(() => log.info('Auto-created tasks from templates', { repId }))
       .catch(err => log.warn('Failed to auto-create template tasks', { error: err }));
   }

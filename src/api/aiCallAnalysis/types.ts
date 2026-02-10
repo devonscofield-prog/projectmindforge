@@ -58,6 +58,7 @@ export interface CreateCallTranscriptParams {
   estimatedOpportunitySize: number;
   targetCloseDate: string;
   opportunityLabel: string;
+  taskSequenceId?: string;
 }
 
 export interface CallTranscript {
