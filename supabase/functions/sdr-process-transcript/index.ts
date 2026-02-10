@@ -364,12 +364,54 @@ Return a JSON array where each element has:
 
 Return ONLY valid JSON. No markdown, no explanation.`;
 
-async function runSplitterAgent(
+// Maximum characters per chunk sent to the Splitter.
+// ~120k chars ≈ ~30k tokens which leaves room for the system prompt + response.
+const SPLITTER_CHUNK_MAX_CHARS = 120_000;
+
+/**
+ * Split a long transcript into overlapping text chunks by finding natural
+ * line-break boundaries. Each chunk shares a small overlap so the Splitter
+ * doesn't miss a call that spans the boundary.
+ */
+function chunkTranscriptText(rawText: string, maxChars: number): string[] {
+  if (rawText.length <= maxChars) return [rawText];
+
+  const lines = rawText.split('\n');
+  const chunks: string[] = [];
+  let currentChunk: string[] = [];
+  let currentLen = 0;
+  const OVERLAP_LINES = 30; // lines of overlap between chunks
+
+  for (const line of lines) {
+    if (currentLen + line.length + 1 > maxChars && currentChunk.length > 0) {
+      chunks.push(currentChunk.join('\n'));
+      // Keep last OVERLAP_LINES lines as overlap for the next chunk
+      const overlap = currentChunk.slice(-OVERLAP_LINES);
+      currentChunk = [...overlap];
+      currentLen = overlap.reduce((sum, l) => sum + l.length + 1, 0);
+    }
+    currentChunk.push(line);
+    currentLen += line.length + 1;
+  }
+
+  if (currentChunk.length > 0) {
+    chunks.push(currentChunk.join('\n'));
+  }
+
+  return chunks;
+}
+
+/**
+ * Send a single text chunk to the Splitter model and return extracted segments.
+ */
+async function runSplitterOnChunk(
   openaiApiKey: string,
-  rawText: string,
-  customPrompt?: string,
+  chunkText: string,
+  systemPrompt: string,
+  chunkIndex: number,
+  totalChunks: number,
 ): Promise<Array<{ raw_text: string; start_timestamp: string; approx_duration_seconds: number | null }>> {
-  const systemPrompt = customPrompt || DEFAULT_SPLITTER_PROMPT;
+  const chunkLabel = totalChunks > 1 ? ` (chunk ${chunkIndex + 1}/${totalChunks})` : '';
 
   const response = await fetchWithRetry(
     'https://api.openai.com/v1/chat/completions',
@@ -384,26 +426,26 @@ async function runSplitterAgent(
         model: 'gpt-5.2-2025-12-11',
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: `Here is the full-day SDR dialer transcript. Split it into individual segments:\n\n${rawText}` },
+          { role: 'user', content: `Here is the full-day SDR dialer transcript${chunkLabel}. Split it into individual segments:\n\n${chunkText}` },
         ],
         temperature: 0.1,
         response_format: { type: 'json_object' },
       }),
     },
-    { maxRetries: 3, baseDelayMs: 2000, agentName: 'Splitter' },
+    { maxRetries: 3, baseDelayMs: 2000, agentName: `Splitter${chunkLabel}` },
   );
 
   const data = await response.json();
   const content = data.choices?.[0]?.message?.content;
-  if (!content) throw new Error('Splitter returned empty response');
+  if (!content) throw new Error(`Splitter returned empty response${chunkLabel}`);
 
   let parsed: any;
   try {
     parsed = JSON.parse(content);
   } catch {
-    throw new Error(`Splitter returned invalid JSON: ${content.slice(0, 200)}`);
+    throw new Error(`Splitter returned invalid JSON${chunkLabel}: ${content.slice(0, 200)}`);
   }
-  
+
   let segments: any[] | null = null;
   if (Array.isArray(parsed)) {
     segments = parsed;
@@ -419,11 +461,59 @@ async function runSplitterAgent(
   }
 
   if (!segments) {
-    console.error(`[sdr-pipeline] Splitter raw content: ${content.slice(0, 500)}`);
-    throw new Error(`Splitter returned unexpected structure: ${Object.keys(parsed).join(', ')}`);
+    console.error(`[sdr-pipeline] Splitter raw content${chunkLabel}: ${content.slice(0, 500)}`);
+    throw new Error(`Splitter returned unexpected structure${chunkLabel}: ${Object.keys(parsed).join(', ')}`);
   }
 
   return segments;
+}
+
+/**
+ * Deduplicate segments that appear in overlapping chunks.
+ * Uses start_timestamp + first 100 chars of raw_text as a fingerprint.
+ */
+function deduplicateSegments(
+  segments: Array<{ raw_text: string; start_timestamp: string; approx_duration_seconds: number | null }>,
+): Array<{ raw_text: string; start_timestamp: string; approx_duration_seconds: number | null }> {
+  const seen = new Set<string>();
+  const unique: typeof segments = [];
+  for (const seg of segments) {
+    const fingerprint = `${seg.start_timestamp}::${(seg.raw_text || '').slice(0, 100)}`;
+    if (!seen.has(fingerprint)) {
+      seen.add(fingerprint);
+      unique.push(seg);
+    }
+  }
+  return unique;
+}
+
+async function runSplitterAgent(
+  openaiApiKey: string,
+  rawText: string,
+  customPrompt?: string,
+): Promise<Array<{ raw_text: string; start_timestamp: string; approx_duration_seconds: number | null }>> {
+  const systemPrompt = customPrompt || DEFAULT_SPLITTER_PROMPT;
+  const chunks = chunkTranscriptText(rawText, SPLITTER_CHUNK_MAX_CHARS);
+
+  console.log(`[sdr-pipeline] Transcript length: ${rawText.length} chars → ${chunks.length} chunk(s)`);
+
+  // Process chunks sequentially to avoid rate limits
+  const allSegments: Array<{ raw_text: string; start_timestamp: string; approx_duration_seconds: number | null }> = [];
+
+  for (let i = 0; i < chunks.length; i++) {
+    const chunkSegments = await runSplitterOnChunk(openaiApiKey, chunks[i], systemPrompt, i, chunks.length);
+    console.log(`[sdr-pipeline] Chunk ${i + 1}/${chunks.length} returned ${chunkSegments.length} segments`);
+    allSegments.push(...chunkSegments);
+  }
+
+  // Deduplicate segments from overlapping regions
+  const deduplicated = chunks.length > 1 ? deduplicateSegments(allSegments) : allSegments;
+
+  if (chunks.length > 1) {
+    console.log(`[sdr-pipeline] After dedup: ${deduplicated.length} segments (from ${allSegments.length} raw)`);
+  }
+
+  return deduplicated;
 }
 
 // ============================================================
