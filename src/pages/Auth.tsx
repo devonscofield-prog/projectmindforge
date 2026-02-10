@@ -12,7 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
-import { LoginCelebration } from '@/components/ui/login-celebration';
+
 
 const authSchema = z.object({
   email: z.string().email('Invalid email address'),
