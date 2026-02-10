@@ -430,6 +430,12 @@ async function runSplitterOnChunk(
     }
   }
 
+  // Fallback: if no array found, check if the response is a single segment object
+  if (!segments && typeof parsed === 'object' && parsed !== null && (parsed as any).raw_text) {
+    console.log(`[sdr-pipeline] Splitter returned single segment object${chunkLabel}, wrapping in array`);
+    segments = [parsed];
+  }
+
   if (!segments) {
     console.error(`[sdr-pipeline] Splitter raw content${chunkLabel}: ${content.slice(0, 500)}`);
     throw new Error(`Splitter returned unexpected structure${chunkLabel}: ${Object.keys(parsed).join(', ')}`);
@@ -506,12 +512,13 @@ You will receive an array of transcript segments from an SDR's day. Classify eac
 
 ## What counts as "meaningful" (is_meaningful = true):
 A call is meaningful if it's a "conversation" type AND:
-- There were at least 3-4 back-and-forth exchanges between rep and prospect
-- The SDR had a chance to pitch, ask questions, or handle objections
-- Even if the prospect said "not interested" — if there was a real exchange, it's meaningful
+- The SDR actually spoke with a prospect (not a voicemail/machine)
+- This includes prospects who declined, agreed to a meeting, gave a quick "not interested," or any other real human interaction
+- Even a brief "no thanks" counts as meaningful — the SDR reached a real person
 
-A reminder call is NOT meaningful (even though the prospect answered).
-Brief "send me an email" with instant brush-off (under 3 exchanges) is borderline — mark as meaningful only if the SDR attempted to re-engage.
+NOT meaningful:
+- Voicemails, hangups, internal chatter, and reminder calls
+- Automated systems / IVR menus with no human contact
 
 ## For each segment, also extract:
 - **prospect_name**: The prospect's name if mentioned (null otherwise)

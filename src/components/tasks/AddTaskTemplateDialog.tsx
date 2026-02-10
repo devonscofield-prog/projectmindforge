@@ -21,6 +21,7 @@ interface AddTaskTemplateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   editTemplate?: TaskTemplate | null;
+  sequenceId?: string;
 }
 
 const DUE_DAY_PRESETS = [
@@ -31,7 +32,7 @@ const DUE_DAY_PRESETS = [
   { label: '14 days after', value: 14 },
 ];
 
-export function AddTaskTemplateDialog({ open, onOpenChange, editTemplate }: AddTaskTemplateDialogProps) {
+export function AddTaskTemplateDialog({ open, onOpenChange, editTemplate, sequenceId }: AddTaskTemplateDialogProps) {
   const createMutation = useCreateTaskTemplate();
   const updateMutation = useUpdateTaskTemplate();
   const isEditing = !!editTemplate;
@@ -103,7 +104,7 @@ export function AddTaskTemplateDialog({ open, onOpenChange, editTemplate }: AddT
         { onSuccess: () => onOpenChange(false) }
       );
     } else {
-      createMutation.mutate(params, {
+      createMutation.mutate({ ...params, sequenceId }, {
         onSuccess: () => onOpenChange(false),
       });
     }

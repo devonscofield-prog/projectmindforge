@@ -1,31 +1,25 @@
 
 
-# Fix: Reduce Chunk Size Further for Reliable Splitter Output
+# Fix: Change Daily Report Delivery Time to 5 PM
 
 ## Problem
-Even after removing the "chunk 1/2" label from the prompt, the model (gpt-5.2) is refusing to process ~42K character chunks because the **output JSON** would be too large to generate without truncation risk. The error:
+The daily report config has `delivery_time` set to `08:00` (8 AM), so the report fires before any calls have happened that day, resulting in an empty email. It should be `17:00` (5 PM) to recap the day's calls.
 
-> "the provided transcript is too long to segment reliably within a single response without risking truncation"
+## Fix
+Update the `daily_report_configs` row to set `delivery_time = '17:00'`.
 
-The 85K transcript splits into 2 chunks at the current 50K threshold, yielding ~42K per chunk — still too large for reliable output generation.
+This is a single SQL update -- no code changes needed. The edge function already correctly matches the user's local hour against `delivery_time`, so changing the value is all that's required.
 
-## Solution
-Lower `SPLITTER_CHUNK_MAX_CHARS` from 50,000 to **25,000**. This will split the 85K transcript into ~4 chunks of ~21K each, which is well within the model's comfortable output range. The existing deduplication logic already handles merging overlapping results across chunks.
+## Technical Details
 
-## Changes
+Run the following update:
 
-### 1. Update chunk threshold in `supabase/functions/sdr-process-transcript/index.ts`
-- Change `SPLITTER_CHUNK_MAX_CHARS` from `50_000` to `25_000`
-- Update the comment to reflect the new sizing rationale
+```sql
+UPDATE daily_report_configs
+SET delivery_time = '17:00', updated_at = now()
+WHERE user_id = 'af4e7fe0-2165-4530-893b-0f665dfacd20';
+```
 
-### 2. Reset failed transcripts
-- Reset all failed/pending transcripts (`da96ee0d`, `4da68621`, `3fdfa46b`, `bfdf4522`) to `pending` status so they reprocess with the smaller chunk size
+Alternatively, you can change this yourself in the app under **Reporting > Daily Email** settings -- just switch the delivery time dropdown to 5:00 PM.
 
-### 3. Deploy and trigger
-- Redeploy the `sdr-process-transcript` edge function
-- Trigger reprocessing for the reset transcripts
-
-## Technical Detail
-- 85K chars / 25K per chunk = 4 chunks of ~21K each
-- 21K chars is roughly 5K tokens of input, leaving plenty of output token budget for the segmented JSON response
-- More chunks means slightly more API calls, but each completes faster and more reliably
+No edge function or frontend code changes are needed.

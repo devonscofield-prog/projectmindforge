@@ -17,6 +17,7 @@ export interface TaskTemplate {
   reminder_time: string | null;
   sort_order: number;
   is_active: boolean;
+  sequence_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -29,6 +30,7 @@ export interface CreateTaskTemplateParams {
   due_days_offset?: number | null;
   reminder_enabled?: boolean;
   reminder_time?: string;
+  sequenceId?: string;
 }
 
 export interface TaskTemplateSettings {
@@ -78,6 +80,7 @@ export async function createTaskTemplate(repId: string, params: CreateTaskTempla
       reminder_enabled: params.reminder_enabled ?? false,
       reminder_time: params.reminder_time || null,
       sort_order: nextOrder,
+      sequence_id: params.sequenceId || null,
     })
     .select()
     .single();
@@ -185,25 +188,63 @@ export async function applyTaskTemplates(
   repId: string,
   prospectId: string,
   callId: string,
-  callDate: string
+  callDate: string,
+  sequenceId?: string
 ): Promise<void> {
-  // Check if auto-create is enabled
-  const enabled = await getAutoCreateSetting(repId);
-  if (!enabled) {
-    log.debug('Auto-create disabled, skipping templates', { repId });
+  // If no sequence selected, skip auto-task creation
+  if (!sequenceId) {
+    // Fallback: check legacy auto-create setting
+    const enabled = await getAutoCreateSetting(repId);
+    if (!enabled) {
+      log.debug('No sequence selected and auto-create disabled, skipping', { repId });
+      return;
+    }
+    // Legacy mode: apply all active templates without a sequence
+    const templates = await fetchTaskTemplates(repId);
+    const activeTemplates = templates.filter(t => t.is_active && !t.sequence_id);
+    if (activeTemplates.length === 0) {
+      log.debug('No active legacy templates', { repId });
+      return;
+    }
+    const callDateObj = new Date(callDate);
+    const tasks: CreateManualFollowUpParams[] = activeTemplates.map(t => ({
+      prospectId,
+      repId,
+      title: t.title,
+      description: t.description || undefined,
+      priority: (t.priority as 'high' | 'medium' | 'low') || 'medium',
+      category: (t.category as 'phone_call' | 'drip_email' | 'text_message' | 'follow_up_email') || undefined,
+      dueDate: t.due_days_offset != null
+        ? format(addDays(callDateObj, t.due_days_offset), 'yyyy-MM-dd')
+        : undefined,
+      reminderEnabled: t.reminder_enabled,
+      reminderTime: t.reminder_time || undefined,
+      sourceCallId: callId,
+    }));
+    const created = await createManualFollowUps(tasks);
+    log.info('Auto-created tasks from legacy templates', { repId, count: created.length });
     return;
   }
 
-  // Fetch active templates
-  const templates = await fetchTaskTemplates(repId);
-  const activeTemplates = templates.filter(t => t.is_active);
+  // Fetch templates belonging to selected sequence
+  const { data: seqTemplates, error } = await supabase
+    .from('rep_task_templates')
+    .select('*')
+    .eq('sequence_id', sequenceId)
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true });
 
+  if (error) {
+    log.error('Error fetching sequence templates', { sequenceId, error });
+    throw error;
+  }
+
+  const activeTemplates = (seqTemplates || []) as TaskTemplate[];
   if (activeTemplates.length === 0) {
-    log.debug('No active templates', { repId });
+    log.debug('No active templates in sequence', { sequenceId });
     return;
   }
 
-  // Build follow-up params from templates
   const callDateObj = new Date(callDate);
   const tasks: CreateManualFollowUpParams[] = activeTemplates.map(t => ({
     prospectId,
@@ -221,5 +262,5 @@ export async function applyTaskTemplates(
   }));
 
   const created = await createManualFollowUps(tasks);
-  log.info('Auto-created tasks from templates', { repId, count: created.length });
+  log.info('Auto-created tasks from sequence', { repId, sequenceId, count: created.length });
 }
