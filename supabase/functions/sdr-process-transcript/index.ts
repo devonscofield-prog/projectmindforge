@@ -449,7 +449,7 @@ async function runSplitterOnChunk(
         model: 'gpt-5.2-2025-12-11',
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: `Here is the full-day SDR dialer transcript${chunkLabel}. Split it into individual segments:\n\n${chunkText}` },
+          { role: 'user', content: `Here is a section of an SDR dialer transcript. Split it into individual call segments:\n\n${chunkText}` },
         ],
         temperature: 0.1,
         response_format: { type: 'json_object' },
