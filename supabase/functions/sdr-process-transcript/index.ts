@@ -6,6 +6,66 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
+// ============================================================
+// Retry helper with exponential backoff
+// ============================================================
+
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  { maxRetries = 3, baseDelayMs = 1000, agentName = 'unknown' } = {},
+): Promise<Response> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+
+      // Retry on rate-limit (429) or server errors (500+), but not on 4xx client errors
+      if (response.ok) return response;
+
+      const errorText = await response.text();
+
+      if (response.status === 429 || response.status >= 500) {
+        lastError = new Error(`${agentName} API error (attempt ${attempt}/${maxRetries}): ${response.status} - ${errorText}`);
+        console.warn(`[sdr-pipeline] ${lastError.message}`);
+
+        if (attempt < maxRetries) {
+          const delay = baseDelayMs * Math.pow(2, attempt - 1) + Math.random() * 500;
+          console.log(`[sdr-pipeline] ${agentName}: Retrying in ${Math.round(delay)}ms...`);
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+      } else {
+        // Non-retryable error (400, 401, 403, etc.)
+        throw new Error(`${agentName} API error: ${response.status} - ${errorText}`);
+      }
+    } catch (error) {
+      // Network errors, timeouts — retryable
+      if (error.name === 'TimeoutError' || error.name === 'AbortError' || error.message?.includes('fetch failed')) {
+        lastError = new Error(`${agentName} timeout/network error (attempt ${attempt}/${maxRetries}): ${error.message}`);
+        console.warn(`[sdr-pipeline] ${lastError.message}`);
+
+        if (attempt < maxRetries) {
+          const delay = baseDelayMs * Math.pow(2, attempt - 1) + Math.random() * 500;
+          console.log(`[sdr-pipeline] ${agentName}: Retrying in ${Math.round(delay)}ms...`);
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+      } else if (lastError === null) {
+        // Non-retryable error
+        throw error;
+      }
+    }
+  }
+
+  throw lastError || new Error(`${agentName}: All ${maxRetries} attempts failed`);
+}
+
+// ============================================================
+// Main handler
+// ============================================================
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -126,14 +186,41 @@ async function processTranscriptPipeline(
 
     // ---- STAGE 1: Split transcript into individual calls ----
     console.log('[sdr-pipeline] Stage 1: Splitting transcript...');
-    const splitCalls = await runSplitterAgent(openaiApiKey, rawText, customPrompts.splitter);
-    console.log(`[sdr-pipeline] Splitter found ${splitCalls.length} segments`);
+    let splitCalls: Array<{ raw_text: string; start_timestamp: string; approx_duration_seconds: number | null }>;
+    try {
+      splitCalls = await runSplitterAgent(openaiApiKey, rawText, customPrompts.splitter);
+      console.log(`[sdr-pipeline] Splitter found ${splitCalls.length} segments`);
+    } catch (error) {
+      console.error(`[sdr-pipeline] Splitter agent failed: ${error.message}`);
+      await updateTranscriptError(supabase, transcriptId, `Splitter failed: ${error.message}`);
+      return;
+    }
+
+    if (!splitCalls || splitCalls.length === 0) {
+      console.warn('[sdr-pipeline] Splitter returned 0 segments');
+      await supabase
+        .from('sdr_daily_transcripts')
+        .update({
+          processing_status: 'completed',
+          total_calls_detected: 0,
+          meaningful_calls_count: 0,
+        })
+        .eq('id', transcriptId);
+      return;
+    }
 
     // ---- STAGE 2: Filter/classify each segment ----
     console.log('[sdr-pipeline] Stage 2: Filtering/classifying segments...');
-    const classifiedCalls = await runFilterAgent(openaiApiKey, splitCalls, customPrompts.filter);
-    const meaningfulCount = classifiedCalls.filter(c => c.is_meaningful).length;
-    console.log(`[sdr-pipeline] Filter found ${meaningfulCount} meaningful calls out of ${classifiedCalls.length}`);
+    let classifiedCalls: Array<any>;
+    try {
+      classifiedCalls = await runFilterAgent(openaiApiKey, splitCalls, customPrompts.filter);
+      const meaningfulCount = classifiedCalls.filter(c => c.is_meaningful).length;
+      console.log(`[sdr-pipeline] Filter found ${meaningfulCount} meaningful calls out of ${classifiedCalls.length}`);
+    } catch (error) {
+      console.error(`[sdr-pipeline] Filter agent failed: ${error.message}`);
+      await updateTranscriptError(supabase, transcriptId, `Filter failed: ${error.message}`);
+      return;
+    }
 
     // ---- Insert all calls into DB ----
     const callInserts = classifiedCalls.map((call, idx) => ({
@@ -155,11 +242,18 @@ async function processTranscriptPipeline(
       .insert(callInserts)
       .select('id, is_meaningful');
 
-    if (insertError) throw insertError;
+    if (insertError) {
+      console.error(`[sdr-pipeline] Failed to insert calls: ${insertError.message}`);
+      await updateTranscriptError(supabase, transcriptId, `DB insert failed: ${insertError.message}`);
+      return;
+    }
 
     // ---- STAGE 3: Grade meaningful calls ----
     const meaningfulCalls = insertedCalls.filter((c: any) => c.is_meaningful);
     console.log(`[sdr-pipeline] Stage 3: Grading ${meaningfulCalls.length} meaningful calls...`);
+
+    let gradedCount = 0;
+    let failedCount = 0;
 
     for (const call of meaningfulCalls) {
       try {
@@ -189,33 +283,53 @@ async function processTranscriptPipeline(
         });
 
         await supabase.from('sdr_calls').update({ analysis_status: 'completed' }).eq('id', call.id);
+        gradedCount++;
       } catch (gradeError) {
-        console.error(`[sdr-pipeline] Failed to grade call ${call.id}:`, gradeError);
-        await supabase.from('sdr_calls').update({ analysis_status: 'failed' }).eq('id', call.id);
+        failedCount++;
+        console.error(`[sdr-pipeline] Failed to grade call ${call.id} after retries:`, gradeError);
+        await supabase.from('sdr_calls').update({
+          analysis_status: 'failed',
+        }).eq('id', call.id);
       }
     }
 
     // ---- Update transcript status ----
+    const meaningfulCount = classifiedCalls.filter(c => c.is_meaningful).length;
+    const finalStatus = failedCount === 0 ? 'completed' : (gradedCount > 0 ? 'partial' : 'failed');
+
     await supabase
       .from('sdr_daily_transcripts')
       .update({
-        processing_status: 'completed',
+        processing_status: finalStatus,
         total_calls_detected: classifiedCalls.length,
         meaningful_calls_count: meaningfulCount,
+        ...(failedCount > 0 ? { processing_error: `${failedCount}/${meaningfulCount} calls failed grading` } : {}),
       })
       .eq('id', transcriptId);
 
-    console.log(`[sdr-pipeline] Pipeline complete for transcript ${transcriptId}`);
+    console.log(`[sdr-pipeline] Pipeline complete for transcript ${transcriptId} — status: ${finalStatus}, graded: ${gradedCount}, failed: ${failedCount}`);
 
   } catch (error) {
     console.error(`[sdr-pipeline] Pipeline failed for transcript ${transcriptId}:`, error);
+    await updateTranscriptError(supabase, transcriptId, error.message || 'Unknown error');
+  }
+}
+
+// ============================================================
+// Helper: Update transcript with error
+// ============================================================
+
+async function updateTranscriptError(supabase: any, transcriptId: string, errorMessage: string) {
+  try {
     await supabase
       .from('sdr_daily_transcripts')
       .update({
         processing_status: 'failed',
-        processing_error: error.message || 'Unknown error',
+        processing_error: errorMessage.slice(0, 1000), // Truncate long errors
       })
       .eq('id', transcriptId);
+  } catch (dbError) {
+    console.error(`[sdr-pipeline] CRITICAL: Failed to update error status for ${transcriptId}:`, dbError);
   }
 }
 
@@ -257,35 +371,45 @@ async function runSplitterAgent(
 ): Promise<Array<{ raw_text: string; start_timestamp: string; approx_duration_seconds: number | null }>> {
   const systemPrompt = customPrompt || DEFAULT_SPLITTER_PROMPT;
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    signal: AbortSignal.timeout(55000),
-    headers: {
-      'Authorization': `Bearer ${openaiApiKey}`,
-      'Content-Type': 'application/json',
+  const response = await fetchWithRetry(
+    'https://api.openai.com/v1/chat/completions',
+    {
+      method: 'POST',
+      signal: AbortSignal.timeout(55000),
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-5.2-2025-12-11',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: `Here is the full-day SDR dialer transcript. Split it into individual segments:\n\n${rawText}` },
+        ],
+        temperature: 0.1,
+        response_format: { type: 'json_object' },
+      }),
     },
-    body: JSON.stringify({
-      model: 'gpt-5.2-2025-12-11',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Here is the full-day SDR dialer transcript. Split it into individual segments:\n\n${rawText}` },
-      ],
-      temperature: 0.1,
-      response_format: { type: 'json_object' },
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Splitter API error: ${response.status} - ${errorText}`);
-  }
+    { maxRetries: 3, baseDelayMs: 2000, agentName: 'Splitter' },
+  );
 
   const data = await response.json();
-  const content = data.choices[0].message.content;
-  const parsed = JSON.parse(content);
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) throw new Error('Splitter returned empty response');
+
+  let parsed: any;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    throw new Error(`Splitter returned invalid JSON: ${content.slice(0, 200)}`);
+  }
   
-  // Handle both { segments: [...] } and direct array formats
-  return parsed.segments || parsed.calls || parsed;
+  const segments = parsed.segments || parsed.calls || (Array.isArray(parsed) ? parsed : null);
+  if (!segments || !Array.isArray(segments)) {
+    throw new Error(`Splitter returned unexpected structure: ${Object.keys(parsed).join(', ')}`);
+  }
+
+  return segments;
 }
 
 // ============================================================
@@ -346,7 +470,6 @@ async function runFilterAgent(
 }>> {
   const systemPrompt = customPrompt || DEFAULT_FILTER_PROMPT;
 
-  // Build segment summaries for the filter (include full text for context)
   const segmentInputs = segments.map((seg, idx) => ({
     index: idx,
     start_timestamp: seg.start_timestamp,
@@ -354,35 +477,44 @@ async function runFilterAgent(
     text: seg.raw_text,
   }));
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    signal: AbortSignal.timeout(55000),
-    headers: {
-      'Authorization': `Bearer ${openaiApiKey}`,
-      'Content-Type': 'application/json',
+  const response = await fetchWithRetry(
+    'https://api.openai.com/v1/chat/completions',
+    {
+      method: 'POST',
+      signal: AbortSignal.timeout(55000),
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-5.2-2025-12-11',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: `Classify these ${segments.length} transcript segments:\n\n${JSON.stringify(segmentInputs)}` },
+        ],
+        temperature: 0.1,
+        response_format: { type: 'json_object' },
+      }),
     },
-    body: JSON.stringify({
-      model: 'gpt-5.2-2025-12-11',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Classify these ${segments.length} transcript segments:\n\n${JSON.stringify(segmentInputs)}` },
-      ],
-      temperature: 0.1,
-      response_format: { type: 'json_object' },
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Filter API error: ${response.status} - ${errorText}`);
-  }
+    { maxRetries: 3, baseDelayMs: 2000, agentName: 'Filter' },
+  );
 
   const data = await response.json();
-  const content = data.choices[0].message.content;
-  const parsed = JSON.parse(content);
-  const classifications = parsed.calls || parsed.classifications || parsed;
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) throw new Error('Filter returned empty response');
 
-  // Merge classification results with original segment data
+  let parsed: any;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    throw new Error(`Filter returned invalid JSON: ${content.slice(0, 200)}`);
+  }
+
+  const classifications = parsed.calls || parsed.classifications || (Array.isArray(parsed) ? parsed : null);
+  if (!classifications || !Array.isArray(classifications)) {
+    throw new Error(`Filter returned unexpected structure: ${Object.keys(parsed).join(', ')}`);
+  }
+
   return segments.map((seg, idx) => {
     const classification = classifications.find((c: any) => c.segment_index === idx) || classifications[idx] || {};
     return {
@@ -475,32 +607,37 @@ async function runGraderAgent(
 ): Promise<any> {
   const systemPrompt = customPrompt || DEFAULT_GRADER_PROMPT;
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    signal: AbortSignal.timeout(55000),
-    headers: {
-      'Authorization': `Bearer ${openaiApiKey}`,
-      'Content-Type': 'application/json',
+  const response = await fetchWithRetry(
+    'https://api.openai.com/v1/chat/completions',
+    {
+      method: 'POST',
+      signal: AbortSignal.timeout(55000),
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-5.2-2025-12-11',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: `Grade this SDR cold call:\n\n${callText}` },
+        ],
+        temperature: 0.3,
+        response_format: { type: 'json_object' },
+      }),
     },
-    body: JSON.stringify({
-      model: 'gpt-5.2-2025-12-11',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Grade this SDR cold call:\n\n${callText}` },
-      ],
-      temperature: 0.3,
-      response_format: { type: 'json_object' },
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Grader API error: ${response.status} - ${errorText}`);
-  }
+    { maxRetries: 3, baseDelayMs: 2000, agentName: 'Grader' },
+  );
 
   const data = await response.json();
-  const content = data.choices[0].message.content;
-  return JSON.parse(content);
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) throw new Error('Grader returned empty response');
+
+  try {
+    return JSON.parse(content);
+  } catch {
+    throw new Error(`Grader returned invalid JSON: ${content.slice(0, 200)}`);
+  }
 }
 
 // ============================================================
@@ -512,7 +649,6 @@ async function loadCustomPrompts(
   sdrId: string,
 ): Promise<{ splitter?: string; filter?: string; grader?: string }> {
   try {
-    // Find the SDR's team
     const { data: membership } = await supabase
       .from('sdr_team_members')
       .select('team_id')
@@ -521,7 +657,6 @@ async function loadCustomPrompts(
 
     if (!membership?.team_id) return {};
 
-    // Load active custom prompts for this team
     const { data: prompts } = await supabase
       .from('sdr_coaching_prompts')
       .select('agent_key, system_prompt')
