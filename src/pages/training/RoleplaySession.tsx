@@ -864,7 +864,7 @@ export default function RoleplaySession() {
                   <div className="w-24 h-24 rounded-full bg-secondary flex items-center justify-center mb-6">
                     <Bot className="h-12 w-12 text-muted-foreground" />
                   </div>
-                  <p>Ready to start your {sessionType} call</p>
+                  <p>Ready to start your sales call</p>
                 </div>
               </CardContent>
             </Card>
