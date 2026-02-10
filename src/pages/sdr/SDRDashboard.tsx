@@ -207,14 +207,32 @@ function SDRDashboard() {
                           {t.total_calls_detected} calls detected • {t.meaningful_calls_count} meaningful
                         </p>
                       </div>
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        t.processing_status === 'completed' ? 'bg-green-500/10 text-green-500' :
-                        t.processing_status === 'processing' ? 'bg-yellow-500/10 text-yellow-500' :
-                        t.processing_status === 'failed' ? 'bg-red-500/10 text-red-500' :
-                        'bg-muted text-muted-foreground'
-                      }`}>
-                        {t.processing_status}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {(t.processing_status === 'failed' || t.processing_status === 'partial') && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              retryMutation.mutate(t.id);
+                            }}
+                            disabled={retryMutation.isPending}
+                            className="h-7 px-2"
+                          >
+                            <RotateCcw className={`h-3.5 w-3.5 ${retryMutation.isPending ? 'animate-spin' : ''}`} />
+                            <span className="ml-1 text-xs">Retry</span>
+                          </Button>
+                        )}
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          t.processing_status === 'completed' ? 'bg-green-500/10 text-green-500' :
+                          t.processing_status === 'processing' ? 'bg-yellow-500/10 text-yellow-500' :
+                          t.processing_status === 'failed' ? 'bg-red-500/10 text-red-500' :
+                          t.processing_status === 'partial' ? 'bg-orange-500/10 text-orange-500' :
+                          'bg-muted text-muted-foreground'
+                        }`}>
+                          {t.processing_status}
+                        </span>
+                      </div>
                     </div>
                   </Link>
                 ))}
