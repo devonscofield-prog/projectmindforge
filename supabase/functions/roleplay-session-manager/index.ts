@@ -7,7 +7,7 @@ const corsHeaders = {
 
 interface CreateSessionRequest {
   personaId: string;
-  sessionType?: 'discovery' | 'demo' | 'objection_handling' | 'negotiation';
+  sessionType?: string; // kept for backward compat, defaults to 'full_sales_call'
   scenarioPrompt?: string;
   screenShareEnabled?: boolean;
 }
@@ -568,32 +568,40 @@ ${triggers}`;
 }
 
 function buildSessionTypeSection(sessionType: string, screenShareEnabled: boolean, scenarioPrompt?: string): string {
-  const sessionTypeInstructions: Record<string, string> = {
-    discovery: `This is a DISCOVERY call. The rep is trying to understand your needs, challenges, and goals. 
-    Start somewhat guarded but open up if they ask good questions. Don't volunteer information too easily.
-    Test their questioning skills - do they ask open-ended questions? Do they dig deeper?`,
-    demo: `This is a PRODUCT DEMO. You've agreed to see their solution. 
-    ${screenShareEnabled ? `
-    IMPORTANT: THE REP IS SHARING THEIR SCREEN WITH YOU. You can SEE what they're showing.
-    - Reference specific elements, text, buttons, or sections you see on screen
-    - Ask about what you see: "What does that graph mean?" or "Can you show me how that feature works?"
-    - If they skip past something interesting, call it out: "Wait, go back - what was that screen?"
-    - If they rush through without explaining, get impatient: "Slow down, you're clicking through too fast"
-    - If the screen shows irrelevant features, say so: "That's nice, but how does this help with my Azure training problem?"
-    - Connect everything you SEE back to YOUR specific pain points
-    ` : ''}
-    Ask clarifying questions, express skepticism about certain features, and relate everything back to your specific needs.
-    If they just show features without connecting to your pain points, get visibly bored or impatient.`,
-    objection_handling: `This is an OBJECTION HANDLING practice session. 
-    Raise multiple objections throughout the conversation. Test their ability to address concerns without being defensive.
-    If they handle an objection well, acknowledge it subtly then move to another objection.`,
-    negotiation: `This is a NEGOTIATION session. You're interested but need to get the best deal. 
-    Push back on pricing, ask for discounts, and test their ability to hold value while being flexible.
-    Use tactics like "we need to think about it" and "your competitor offered us..."`,
-  };
+  let section = `=== SESSION TYPE: FULL SALES CALL ===
+This is a FULL SALES CALL. The conversation should naturally progress through realistic phases over 20-30 minutes.
 
-  let section = `=== SESSION TYPE: ${sessionType.toUpperCase()} ===
-${sessionTypeInstructions[sessionType] || sessionTypeInstructions.discovery}`;
+PHASE 1 — DISCOVERY (First ~5-10 minutes):
+- Start guarded. The rep needs to earn your attention.
+- Test their questioning skills: Do they ask open-ended questions? Do they dig deeper?
+- Don't volunteer information too easily. Make them work for it.
+- Only open up if they ask good follow-up questions.
+
+PHASE 2 — DEMO / PRODUCT DISCUSSION (Next ~5-10 minutes):
+- Transition naturally when the rep starts presenting their solution or you ask to see it.
+${screenShareEnabled ? `- IMPORTANT: THE REP IS SHARING THEIR SCREEN. You can SEE what they're showing.
+- Reference specific elements you see on screen.
+- If they skip past something interesting, call it out: "Wait, go back."
+- If they rush through without explaining, get impatient.
+- Connect everything you SEE back to YOUR specific pain points.` : ''}
+- Ask clarifying questions, express skepticism, and relate everything back to your specific needs.
+- If they just show features without connecting to your pain points, get visibly bored or impatient.
+
+PHASE 3 — OBJECTIONS (Woven throughout, but especially ~15-20 minutes in):
+- Raise objections naturally throughout the conversation, not all at once.
+- Test their ability to address concerns without being defensive.
+- If they handle an objection well, acknowledge it subtly, then raise another.
+
+PHASE 4 — NEGOTIATION & CLOSE (Final ~5-10 minutes, only if earned):
+- Only move here if the rep has done good discovery AND addressed your concerns.
+- Push back on pricing, ask for discounts, test their ability to hold value.
+- Use tactics like "we need to think about it" and "your competitor offered us..."
+- If they haven't earned it, stay in earlier phases or disengage.
+
+PACING:
+- Don't rush through phases. A real prospect doesn't jump from "tell me about yourself" to "let's negotiate" in 5 minutes.
+- If the rep tries to skip phases (e.g., jumps to pricing before discovery), resist: "Whoa, slow down. I don't even know if this is a fit yet."
+- Let the conversation breathe. Real calls have natural pauses and tangents.`;
 
   if (scenarioPrompt) {
     section += `\n\n=== SPECIFIC SCENARIO ===\n${scenarioPrompt}`;
@@ -803,7 +811,7 @@ Deno.serve(async (req) => {
       }
 
       const body: CreateSessionRequest = await req.json();
-      const { personaId, sessionType = 'discovery', scenarioPrompt, screenShareEnabled = false } = body;
+      const { personaId, sessionType = 'full_sales_call', scenarioPrompt, screenShareEnabled = false } = body;
 
       console.log(`Creating session for persona: ${personaId}, type: ${sessionType}, screenShare: ${screenShareEnabled}`);
 
@@ -825,9 +833,9 @@ Deno.serve(async (req) => {
       const selectedVoice = getVoiceForPersona(persona as Persona);
       console.log(`Selected voice for ${persona.disc_profile} profile: ${selectedVoice}`);
 
-      // Fetch product knowledge for demo sessions
+      // Fetch product knowledge for full sales calls (needed for demo phase) and legacy demo sessions
       let productKnowledgeContext = '';
-      if (sessionType === 'demo') {
+      if (sessionType === 'full_sales_call' || sessionType === 'demo') {
         try {
           console.log('Fetching product knowledge for demo session...');
           const { data: productChunks, error: pkError } = await supabaseClient.rpc('find_product_knowledge', {

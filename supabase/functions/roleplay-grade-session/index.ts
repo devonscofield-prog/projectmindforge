@@ -82,6 +82,14 @@ function isGradeLowerOrEqual(grade: string, threshold: string): boolean {
 
 // Session type category weights for more accurate grading
 const SESSION_TYPE_WEIGHTS: Record<string, Record<string, number>> = {
+  full_sales_call: {
+    discovery: 0.20,
+    objection_handling: 0.25,
+    rapport: 0.20,
+    closing: 0.20,
+    persona_adaptation: 0.15,
+  },
+  // Legacy weights kept for backward compatibility with old sessions
   discovery: {
     discovery: 0.35,
     objection_handling: 0.15,

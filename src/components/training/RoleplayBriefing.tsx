@@ -14,64 +14,20 @@ import {
 import { cn } from '@/lib/utils';
 import type { PersonaClient } from '@/types/persona';
 
-type SessionType = 'discovery' | 'demo' | 'objection_handling' | 'negotiation';
-
 interface RoleplayBriefingProps {
   persona: PersonaClient;
-  sessionType: SessionType;
   onStart: () => void;
-  onChangeSessionType: (type: SessionType) => void;
 }
 
-const SESSION_TYPE_TIPS: Record<SessionType, string[]> = {
-  discovery: [
-    'Ask open-ended questions to uncover pain points',
-    'Listen more than you speak - aim for 30/70 talk ratio',
-    'Use SPIN questioning (Situation, Problem, Implication, Need-payoff)',
-    'Take notes on their specific challenges and priorities',
-  ],
-  demo: [
-    'Tailor your demo to their specific use case',
-    'Pause after showing features to check for understanding',
-    'Be prepared for technical questions',
-    'Connect features back to their stated challenges',
-  ],
-  objection_handling: [
-    'Use LAER: Listen, Acknowledge, Explore, Respond',
-    'Stay calm and avoid getting defensive',
-    'Dig into the root concern behind each objection',
-    'Validate their concern before offering a reframe',
-  ],
-  negotiation: [
-    'Anchor on value before discussing price',
-    'Know your walk-away point and hold firm',
-    'Trade concessions rather than giving them away',
-    'Secure clear next steps and commitment',
-  ],
-};
-
-const SESSION_TYPE_LABELS: Record<SessionType, { label: string; emoji: string; description: string }> = {
-  discovery: {
-    label: 'Discovery Call',
-    emoji: '🔍',
-    description: 'Focus on uncovering needs and qualifying the opportunity',
-  },
-  demo: {
-    label: 'Demo Call',
-    emoji: '📺',
-    description: 'Practice presenting features and handling technical questions',
-  },
-  objection_handling: {
-    label: 'Objection Handling',
-    emoji: '🛡️',
-    description: 'Practice addressing concerns and overcoming resistance',
-  },
-  negotiation: {
-    label: 'Negotiation',
-    emoji: '🤝',
-    description: 'Practice holding value, trading concessions, and closing',
-  },
-};
+const FULL_CALL_TIPS: string[] = [
+  'Start with discovery — ask open-ended questions to uncover pain points',
+  'Listen more than you speak — aim for a 30/70 talk ratio early on',
+  'Transition to your demo only after understanding their needs',
+  'Connect every feature back to their stated challenges',
+  'Handle objections with LAER: Listen, Acknowledge, Explore, Respond',
+  'Anchor on value before discussing price',
+  'Secure clear next steps and commitment before ending the call',
+];
 
 const DISC_COMMUNICATION_TIPS: Record<string, string[]> = {
   D: [
@@ -102,13 +58,10 @@ const DISC_COMMUNICATION_TIPS: Record<string, string[]> = {
 
 export function RoleplayBriefing({ 
   persona, 
-  sessionType, 
   onStart,
-  onChangeSessionType 
 }: RoleplayBriefingProps) {
   const discProfile = persona.disc_profile?.toUpperCase() || 'S';
   const discTips = DISC_COMMUNICATION_TIPS[discProfile] || DISC_COMMUNICATION_TIPS['S'];
-  const sessionTips = SESSION_TYPE_TIPS[sessionType];
   
   // Get visible pain points (challenges they'll openly share)
   const visiblePainPoints = persona.pain_points?.filter(p => p.visible).slice(0, 3) || [];
@@ -119,35 +72,6 @@ export function RoleplayBriefing({
 
   return (
     <div className="space-y-6">
-      {/* Session Type Selector */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Session Type</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-3">
-            {(Object.keys(SESSION_TYPE_LABELS) as SessionType[]).map((type) => {
-              const { label, emoji, description } = SESSION_TYPE_LABELS[type];
-              return (
-                <button
-                  key={type}
-                  onClick={() => onChangeSessionType(type)}
-                  className={cn(
-                    "p-4 rounded-lg border text-left transition-all",
-                    sessionType === type
-                      ? "bg-primary/10 border-primary ring-2 ring-primary/20"
-                      : "bg-secondary/50 border-border hover:bg-secondary"
-                  )}
-                >
-                  <div className="font-medium mb-1">{emoji} {label}</div>
-                  <p className="text-sm text-muted-foreground">{description}</p>
-                </button>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Persona Profile */}
       <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
         <CardHeader>
@@ -188,17 +112,17 @@ export function RoleplayBriefing({
 
       {/* Two-column layout for tips */}
       <div className="grid md:grid-cols-2 gap-4">
-        {/* Session Tips */}
+        {/* Full Sales Call Tips */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Target className="h-4 w-4 text-primary" />
-              {SESSION_TYPE_LABELS[sessionType].label} Tips
+              Sales Call Guide
             </CardTitle>
           </CardHeader>
           <CardContent>
             <ul className="space-y-2">
-              {sessionTips.map((tip, i) => (
+              {FULL_CALL_TIPS.map((tip, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm">
                   <ChevronRight className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                   <span>{tip}</span>
@@ -294,7 +218,7 @@ export function RoleplayBriefing({
       <div className="flex justify-center pt-4">
         <Button size="lg" className="gap-2 px-12" onClick={onStart}>
           <Phone className="h-5 w-5" />
-          Start {SESSION_TYPE_LABELS[sessionType].label}
+          Start Sales Call
         </Button>
       </div>
     </div>

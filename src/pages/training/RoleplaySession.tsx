@@ -64,7 +64,7 @@ export default function RoleplaySession() {
   const [isMuted, setIsMuted] = useState(false);
   const [currentTranscript, setCurrentTranscript] = useState('');
   const [isScreenSharing, setIsScreenSharing] = useState(false);
-  const [sessionType, setSessionType] = useState<'discovery' | 'demo' | 'objection_handling' | 'negotiation'>('discovery');
+  const sessionType = 'full_sales_call';
   const [scenarioPrompt, setScenarioPrompt] = useState('');
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -818,9 +818,7 @@ export default function RoleplaySession() {
             </div>
             <RoleplayBriefing
               persona={persona}
-              sessionType={sessionType}
               onStart={() => setStatus('idle')}
-              onChangeSessionType={setSessionType}
             />
             
             {/* Custom Scenario Selector */}
@@ -846,7 +844,7 @@ export default function RoleplaySession() {
                   <div>
                     <CardTitle>{persona.name}</CardTitle>
                     <p className="text-sm text-muted-foreground capitalize">
-                      {persona.persona_type.replace('_', ' ')} • {persona.industry || 'General'} • {sessionType}
+                      {persona.persona_type.replace('_', ' ')} • {persona.industry || 'General'}
                     </p>
                   </div>
                 </div>
@@ -866,7 +864,7 @@ export default function RoleplaySession() {
                   <div className="w-24 h-24 rounded-full bg-secondary flex items-center justify-center mb-6">
                     <Bot className="h-12 w-12 text-muted-foreground" />
                   </div>
-                  <p>Ready to start your {sessionType} call</p>
+                  <p>Ready to start your sales call</p>
                 </div>
               </CardContent>
             </Card>
@@ -898,7 +896,7 @@ export default function RoleplaySession() {
                   <div>
                     <CardTitle>{persona.name}</CardTitle>
                     <p className="text-sm text-muted-foreground capitalize">
-                      {persona.persona_type.replace('_', ' ')} • {persona.industry || 'General'} • {sessionType}
+                      {persona.persona_type.replace('_', ' ')} • {persona.industry || 'General'}
                     </p>
                   </div>
                 </div>
