@@ -1,24 +1,24 @@
 
+# Add File Upload Option to SDR Transcript Upload
 
-# Remove Login Celebration and Forced Seahawks Theme
+## What Changes
+Update the upload form in `SDRDashboard.tsx` to support two input methods via toggle tabs:
+1. **Paste** -- the existing textarea (current behavior)
+2. **Upload File** -- a file input that accepts `.txt` files and reads their content
 
-## Changes
+## How It Works
+- Add a two-option tab toggle ("Paste Text" / "Upload File") above the input area
+- **Paste tab**: Shows the existing textarea (no change)
+- **Upload file tab**: Shows a file drop zone / file input accepting `.txt` files. When a file is selected, read it with `FileReader.readAsText()` and populate `rawText` state with the contents
+- Both methods feed into the same `rawText` state and `handleUpload()` flow -- zero backend changes needed
 
-### 1. Delete the login celebration component
-- Remove `src/components/ui/login-celebration.tsx` entirely
+## Technical Details
 
-### 2. Remove usage of LoginCelebration from the auth flow
-- Find and remove the `<LoginCelebration />` component wherever it's rendered (likely in the auth page or post-login flow)
-
-### 3. Update `src/lib/colorSchemeInit.ts`
-- Remove the hardcoded default of `theme-seattle-seahawks` when no theme is stored
-- Either default to a neutral theme or keep whatever the user last selected (no forced override)
-
-### 4. Clean up any imports
-- Remove unused imports of `LoginCelebration` from any files that reference it
-
-## What stays the same
-- The color scheme system itself (users can still pick themes in settings)
-- All other auth flow logic
-- The theme toggle component
-
+### File: `src/pages/sdr/SDRDashboard.tsx`
+- Add `uploadMode` state: `'paste' | 'file'`
+- Add `fileName` state to show which file was loaded
+- Add a `Tabs` component (from `@radix-ui/react-tabs`, already installed) with two tab triggers
+- In the "file" tab, render an `<input type="file" accept=".txt,.text" />` styled as a drop zone
+- On file select, use `FileReader` to read the text content into `rawText`
+- Show the file name and a preview snippet after loading
+- The "Process Transcript" button and date picker remain shared across both modes
