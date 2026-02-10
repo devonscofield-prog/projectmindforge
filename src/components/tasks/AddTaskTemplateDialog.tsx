@@ -32,7 +32,7 @@ const DUE_DAY_PRESETS = [
   { label: '14 days after', value: 14 },
 ];
 
-export function AddTaskTemplateDialog({ open, onOpenChange, editTemplate }: AddTaskTemplateDialogProps) {
+export function AddTaskTemplateDialog({ open, onOpenChange, editTemplate, sequenceId }: AddTaskTemplateDialogProps) {
   const createMutation = useCreateTaskTemplate();
   const updateMutation = useUpdateTaskTemplate();
   const isEditing = !!editTemplate;
