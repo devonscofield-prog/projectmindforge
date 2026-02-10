@@ -13,6 +13,7 @@ function SDRManagerTranscripts() {
   const myTeam = teams.find(t => t.manager_id === user?.id);
   const { data: members = [] } = useSDRTeamMembers(myTeam?.id);
   const { data: transcripts = [], isLoading } = useSDRDailyTranscripts();
+  const retryMutation = useRetrySDRTranscript();
 
   // Filter transcripts to team members only
   const memberIds = new Set(members.map((m: any) => m.user_id));
