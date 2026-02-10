@@ -41,7 +41,7 @@ export default function Auth() {
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [signInStartTime, setSignInStartTime] = useState<number | null>(null);
   const [isFinishingSignIn, setIsFinishingSignIn] = useState(false);
-  const [showCelebration, setShowCelebration] = useState(false);
+  
   
   // OTP flow states
   const [isEnteringOTP, setIsEnteringOTP] = useState(false);
