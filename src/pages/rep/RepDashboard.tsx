@@ -93,6 +93,7 @@ function RepDashboard() {
   const queryClient = useQueryClient();
   const callTypeOtherRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const { data: taskSequences = [] } = useActiveTaskSequences();
 
   // Form state
   const [transcript, setTranscript] = useState('');
