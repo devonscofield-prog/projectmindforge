@@ -70,6 +70,9 @@ export default function RoleplaySession() {
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
 
+  // Flag: only abandon session on unmount if user intentionally left
+  const intentionalLeaveRef = useRef(false);
+
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
