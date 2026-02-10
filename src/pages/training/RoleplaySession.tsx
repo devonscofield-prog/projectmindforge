@@ -38,7 +38,6 @@ import {
 } from 'lucide-react';
 import { RoleplayBriefing } from '@/components/training/RoleplayBriefing';
 import { RoleplayPostSession } from '@/components/training/RoleplayPostSession';
-import { RoleplayTranscriptPanel } from '@/components/training/RoleplayTranscriptPanel';
 import { RoleplayScenarioSelector } from '@/components/training/RoleplayScenarioSelector';
 import { cn } from '@/lib/utils';
 import { ScreenCapture } from '@/utils/ScreenCapture';
