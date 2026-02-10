@@ -844,7 +844,7 @@ export default function RoleplaySession() {
                   <div>
                     <CardTitle>{persona.name}</CardTitle>
                     <p className="text-sm text-muted-foreground capitalize">
-                      {persona.persona_type.replace('_', ' ')} • {persona.industry || 'General'} • {sessionType}
+                      {persona.persona_type.replace('_', ' ')} • {persona.industry || 'General'}
                     </p>
                   </div>
                 </div>
