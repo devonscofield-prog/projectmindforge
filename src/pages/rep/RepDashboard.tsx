@@ -466,6 +466,7 @@ function RepDashboard() {
     setEstimatedOpportunitySize('');
     setTargetCloseDate('');
     setOpportunityLabel('');
+    setSelectedSequenceId('');
     clearDraft();
     toast.success('Form cleared', { description: 'All fields have been reset.' });
   };
