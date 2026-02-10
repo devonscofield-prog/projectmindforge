@@ -1,6 +1,6 @@
 import { useParams, Link } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useSDRTranscriptDetail, useSDRCalls } from '@/hooks/useSDR';
 import { ArrowLeft, Loader2, Phone, MessageSquare, Voicemail, PhoneOff, Users } from 'lucide-react';

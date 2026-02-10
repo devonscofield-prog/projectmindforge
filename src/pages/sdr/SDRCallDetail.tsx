@@ -1,6 +1,6 @@
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useSDRCallDetail, useReGradeCall } from '@/hooks/useSDR';
 import { ArrowLeft, Loader2, RefreshCw, Star, TrendingUp, MessageSquare, Target, Award } from 'lucide-react';

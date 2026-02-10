@@ -14,7 +14,7 @@ import { format } from 'date-fns';
 
 function SDRDashboard() {
   const { user } = useAuth();
-  const { data: stats, isLoading: statsLoading } = useSDRStats(user?.id);
+  const { data: stats } = useSDRStats(user?.id);
   const { data: transcripts = [], isLoading: transcriptsLoading } = useSDRDailyTranscripts(user?.id);
   const uploadMutation = useUploadSDRTranscript();
   const [rawText, setRawText] = useState('');

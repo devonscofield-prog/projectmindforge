@@ -344,6 +344,45 @@ const App = () => (
                   </ProtectedRoute>
                 } />
 
+                {/* SDR Routes */}
+                <Route path="/sdr" element={
+                  <ProtectedRoute allowedRoles={['sdr']}>
+                    <SDRDashboard />
+                  </ProtectedRoute>
+                } />
+                <Route path="/sdr/history/:transcriptId" element={
+                  <ProtectedRoute allowedRoles={['sdr', 'sdr_manager', 'admin']}>
+                    <SDRTranscriptDetail />
+                  </ProtectedRoute>
+                } />
+                <Route path="/sdr/calls/:callId" element={
+                  <ProtectedRoute allowedRoles={['sdr', 'sdr_manager', 'admin']}>
+                    <SDRCallDetail />
+                  </ProtectedRoute>
+                } />
+
+                {/* SDR Manager Routes */}
+                <Route path="/sdr-manager" element={
+                  <ProtectedRoute allowedRoles={['sdr_manager']}>
+                    <SDRManagerDashboard />
+                  </ProtectedRoute>
+                } />
+                <Route path="/sdr-manager/coaching" element={
+                  <ProtectedRoute allowedRoles={['sdr_manager']}>
+                    <SDRManagerCoaching />
+                  </ProtectedRoute>
+                } />
+                <Route path="/sdr-manager/transcripts" element={
+                  <ProtectedRoute allowedRoles={['sdr_manager']}>
+                    <SDRTranscriptDetail />
+                  </ProtectedRoute>
+                } />
+                <Route path="/sdr-manager/rep/:sdrId" element={
+                  <ProtectedRoute allowedRoles={['sdr_manager', 'admin']}>
+                    <SDRDashboard />
+                  </ProtectedRoute>
+                } />
+
                 {/* Marketing Routes (Public) */}
                 <Route path="/marketing/roi-calculator" element={<ROICalculatorPage />} />
                 <Route path="/marketing/pitch-deck" element={<PitchDeckPage />} />
