@@ -565,6 +565,7 @@ function RepDashboard() {
         estimatedOpportunitySize: parseFloat(estimatedOpportunitySize),
         targetCloseDate,
         opportunityLabel,
+        taskSequenceId: selectedSequenceId && selectedSequenceId !== 'none' ? selectedSequenceId : undefined,
       });
 
       // Clear draft on successful submission
