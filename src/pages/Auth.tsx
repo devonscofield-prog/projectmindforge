@@ -387,15 +387,6 @@ export default function Auth() {
     );
   }
 
-  // Celebration UI after successful sign-in
-  if (showCelebration) {
-    return (
-      <LoginCelebration 
-        onComplete={handleCelebrationComplete}
-        userName={user?.user_metadata?.name}
-      />
-    );
-  }
 
   // Link Expired UI
   if (linkExpired && !isResettingPassword) {
