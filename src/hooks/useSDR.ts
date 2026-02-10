@@ -182,6 +182,28 @@ export function useUploadSDRTranscript() {
   });
 }
 
+export function useRetrySDRTranscript() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (transcriptId: string) => {
+      const { data, error } = await supabase.functions.invoke('sdr-process-transcript', {
+        body: { daily_transcript_id: transcriptId },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sdr-daily-transcripts'] });
+      queryClient.invalidateQueries({ queryKey: ['sdr-transcript-detail'] });
+      toast.success('Transcript reprocessing started');
+    },
+    onError: (error) => {
+      toast.error('Failed to retry transcript: ' + (error as Error).message);
+    },
+  });
+}
+
 export function useReGradeCall() {
   const queryClient = useQueryClient();
 
