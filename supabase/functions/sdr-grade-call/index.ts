@@ -1,60 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
+import { fetchWithRetry } from "../_shared/fetchWithRetry.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
-
-// ============================================================
-// Retry helper with exponential backoff
-// ============================================================
-
-async function fetchWithRetry(
-  url: string,
-  options: RequestInit,
-  { maxRetries = 3, baseDelayMs = 1000, agentName = 'unknown' } = {},
-): Promise<Response> {
-  let lastError: Error | null = null;
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const response = await fetch(url, options);
-
-      if (response.ok) return response;
-
-      const errorText = await response.text();
-
-      if (response.status === 429 || response.status >= 500) {
-        lastError = new Error(`${agentName} API error (attempt ${attempt}/${maxRetries}): ${response.status} - ${errorText}`);
-        console.warn(`[sdr-grade-call] ${lastError.message}`);
-
-        if (attempt < maxRetries) {
-          const delay = baseDelayMs * Math.pow(2, attempt - 1) + Math.random() * 500;
-          await new Promise(r => setTimeout(r, delay));
-          continue;
-        }
-      } else {
-        throw new Error(`${agentName} API error: ${response.status} - ${errorText}`);
-      }
-    } catch (error) {
-      if (error.name === 'TimeoutError' || error.name === 'AbortError' || error.message?.includes('fetch failed')) {
-        lastError = new Error(`${agentName} timeout/network error (attempt ${attempt}/${maxRetries}): ${error.message}`);
-        console.warn(`[sdr-grade-call] ${lastError.message}`);
-
-        if (attempt < maxRetries) {
-          const delay = baseDelayMs * Math.pow(2, attempt - 1) + Math.random() * 500;
-          await new Promise(r => setTimeout(r, delay));
-          continue;
-        }
-      } else if (lastError === null) {
-        throw error;
-      }
-    }
-  }
-
-  throw lastError || new Error(`${agentName}: All ${maxRetries} attempts failed`);
-}
 
 // ============================================================
 // Main handler
@@ -190,33 +141,51 @@ const DEFAULT_GRADER_PROMPT = `You are an expert SDR cold call coach. You grade 
 
 You will receive the transcript of a single SDR cold call. Grade it on these 5 dimensions (each scored 1-10):
 
+## Scoring Dimensions:
+
 ### 1. Opener Score (opener_score)
 - Did the SDR introduce themselves clearly?
 - Did they reference a prior connection or reason for calling?
 - Did they create enough curiosity to keep the prospect on the line?
+- Were they warm and conversational vs robotic and scripted?
 
 ### 2. Engagement Score (engagement_score)
 - Did the SDR ask questions about the prospect's needs/situation?
 - Did they listen and respond to what the prospect said?
-- Did they build rapport?
+- Did they build rapport (casual conversation, empathy, humor)?
+- Did the prospect stay engaged and participatory?
 
 ### 3. Objection Handling Score (objection_handling_score)
-- How well did the SDR handle pushback?
-- Did they offer low-commitment alternatives?
-- Score 5 if no objections occurred
+- If the prospect raised objections ("not interested", "send an email", "too busy"), how well did the SDR handle them?
+- Did they acknowledge the objection before redirecting?
+- Did they offer a low-commitment alternative?
+- If no objections occurred, score based on how well they preempted potential resistance
+- Score N/A as 5 (neutral) if truly no opportunity for objections
 
 ### 4. Appointment Setting Score (appointment_setting_score)
 - Did the SDR attempt to book a meeting/demo?
-- Did they suggest specific times and confirm details?
-- Did they get a firm commitment?
+- Did they suggest specific times?
+- Did they confirm the prospect's email/calendar?
+- Did they get a firm commitment vs a vague "maybe"?
+- If an appointment was set: how smoothly was it handled?
 
 ### 5. Professionalism Score (professionalism_score)
-- Was the SDR courteous and professional throughout?
-- Good pace, clear next steps, friendly close?
+- Was the SDR courteous and professional?
+- Did they maintain a good pace (not rushing, not dragging)?
+- Did they handle the call close well (clear next steps, friendly goodbye)?
+- Were there any unprofessional moments?
 
-## Overall Grade: A+ (9.5-10), A (8.5-9.4), B (7-8.4), C (5.5-6.9), D (4-5.4), F (below 4)
+## Overall Grade
+Based on the weighted scores, assign an overall letter grade:
+- A+ (9.5-10): Exceptional — textbook cold call
+- A (8.5-9.4): Excellent — strong across all dimensions
+- B (7-8.4): Good — solid performance with minor improvements needed
+- C (5.5-6.9): Average — functional but significant improvement areas
+- D (4-5.4): Below average — multiple weaknesses
+- F (below 4): Poor — fundamental issues
 
-Return JSON:
+## Response Format
+Return a JSON object:
 {
   "overall_grade": "A/B/C/D/F/A+",
   "opener_score": 1-10,
@@ -224,11 +193,13 @@ Return JSON:
   "objection_handling_score": 1-10,
   "appointment_setting_score": 1-10,
   "professionalism_score": 1-10,
-  "call_summary": "2-3 sentence summary",
-  "strengths": ["..."],
-  "improvements": ["..."],
-  "key_moments": [{"timestamp": "MM:SS", "description": "...", "sentiment": "positive/negative/neutral"}],
-  "coaching_notes": "Actionable coaching advice"
+  "call_summary": "2-3 sentence summary of what happened on this call",
+  "strengths": ["strength 1", "strength 2", ...],
+  "improvements": ["improvement 1", "improvement 2", ...],
+  "key_moments": [
+    {"timestamp": "MM:SS", "description": "What happened", "sentiment": "positive/negative/neutral"}
+  ],
+  "coaching_notes": "1-2 paragraphs of specific, actionable coaching advice for this SDR based on this call"
 }
 
 Return ONLY valid JSON.`;

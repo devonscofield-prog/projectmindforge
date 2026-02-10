@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,7 @@ function SDRManagerTranscripts() {
   const { data: members = [] } = useSDRTeamMembers(myTeam?.id);
   const { data: transcripts = [], isLoading } = useSDRDailyTranscripts();
   const retryMutation = useRetrySDRTranscript();
+  const [retryingId, setRetryingId] = useState<string | null>(null);
 
   // Filter transcripts to team members only
   const memberIds = new Set(members.map((m: any) => m.user_id));
@@ -55,12 +57,13 @@ function SDRManagerTranscripts() {
                             size="sm"
                             onClick={(e) => {
                               e.preventDefault();
-                              retryMutation.mutate(t.id);
+                              setRetryingId(t.id);
+                              retryMutation.mutate(t.id, { onSettled: () => setRetryingId(null) });
                             }}
-                            disabled={retryMutation.isPending}
+                            disabled={retryingId === t.id}
                             className="h-7 px-2"
                           >
-                            <RotateCcw className={`h-3.5 w-3.5 ${retryMutation.isPending ? 'animate-spin' : ''}`} />
+                            <RotateCcw className={`h-3.5 w-3.5 ${retryingId === t.id ? 'animate-spin' : ''}`} />
                             <span className="ml-1 text-xs">Retry</span>
                           </Button>
                         )}

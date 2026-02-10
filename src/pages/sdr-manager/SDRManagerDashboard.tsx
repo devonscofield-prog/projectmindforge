@@ -1,7 +1,10 @@
+import { useMemo } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useSDRTeamMembers, useSDRTeams, useSDRDailyTranscripts } from '@/hooks/useSDR';
 import { useAuth } from '@/contexts/AuthContext';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { Loader2, Users, Phone, TrendingUp } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -11,6 +14,28 @@ function SDRManagerDashboard() {
   const myTeam = teams.find(t => t.manager_id === user?.id);
   const { data: members = [], isLoading: membersLoading } = useSDRTeamMembers(myTeam?.id);
   const { data: transcripts = [] } = useSDRDailyTranscripts();
+
+  const memberIds = useMemo(() => members.map((m: any) => m.user_id), [members]);
+
+  const { data: teamAvgScore } = useQuery({
+    queryKey: ['sdr-team-avg-score', memberIds],
+    queryFn: async () => {
+      if (memberIds.length === 0) return null;
+      const { data: grades, error } = await (supabase.from as any)('sdr_call_grades')
+        .select('opener_score, engagement_score, objection_handling_score, appointment_setting_score, professionalism_score')
+        .in('sdr_id', memberIds)
+        .order('created_at', { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      if (!grades || grades.length === 0) return null;
+      const avg = grades.reduce((sum: number, g: any) => {
+        const scores = [g.opener_score, g.engagement_score, g.objection_handling_score, g.appointment_setting_score, g.professionalism_score].filter(Boolean);
+        return sum + (scores.reduce((a: number, b: number) => a + b, 0) / scores.length);
+      }, 0) / grades.length;
+      return Math.round(avg * 10) / 10;
+    },
+    enabled: memberIds.length > 0,
+  });
 
   if (teamsLoading || membersLoading) {
     return <AppLayout><div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div></AppLayout>;
@@ -52,7 +77,7 @@ function SDRManagerDashboard() {
               <div className="flex items-center gap-3">
                 <TrendingUp className="h-8 w-8 text-primary" />
                 <div>
-                  <p className="text-2xl font-bold">—</p>
+                  <p className="text-2xl font-bold">{teamAvgScore ?? '—'}</p>
                   <p className="text-sm text-muted-foreground">Avg Team Score</p>
                 </div>
               </div>

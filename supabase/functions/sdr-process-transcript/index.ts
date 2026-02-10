@@ -1,66 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
+import { fetchWithRetry } from "../_shared/fetchWithRetry.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
-
-// ============================================================
-// Retry helper with exponential backoff
-// ============================================================
-
-async function fetchWithRetry(
-  url: string,
-  options: RequestInit,
-  { maxRetries = 3, baseDelayMs = 1000, agentName = 'unknown' } = {},
-): Promise<Response> {
-  let lastError: Error | null = null;
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const response = await fetch(url, options);
-
-      // Retry on rate-limit (429) or server errors (500+), but not on 4xx client errors
-      if (response.ok) return response;
-
-      const errorText = await response.text();
-
-      if (response.status === 429 || response.status >= 500) {
-        lastError = new Error(`${agentName} API error (attempt ${attempt}/${maxRetries}): ${response.status} - ${errorText}`);
-        console.warn(`[sdr-pipeline] ${lastError.message}`);
-
-        if (attempt < maxRetries) {
-          const delay = baseDelayMs * Math.pow(2, attempt - 1) + Math.random() * 500;
-          console.log(`[sdr-pipeline] ${agentName}: Retrying in ${Math.round(delay)}ms...`);
-          await new Promise(r => setTimeout(r, delay));
-          continue;
-        }
-      } else {
-        // Non-retryable error (400, 401, 403, etc.)
-        throw new Error(`${agentName} API error: ${response.status} - ${errorText}`);
-      }
-    } catch (error) {
-      // Network errors, timeouts — retryable
-      if (error.name === 'TimeoutError' || error.name === 'AbortError' || error.message?.includes('fetch failed')) {
-        lastError = new Error(`${agentName} timeout/network error (attempt ${attempt}/${maxRetries}): ${error.message}`);
-        console.warn(`[sdr-pipeline] ${lastError.message}`);
-
-        if (attempt < maxRetries) {
-          const delay = baseDelayMs * Math.pow(2, attempt - 1) + Math.random() * 500;
-          console.log(`[sdr-pipeline] ${agentName}: Retrying in ${Math.round(delay)}ms...`);
-          await new Promise(r => setTimeout(r, delay));
-          continue;
-        }
-      } else if (lastError === null) {
-        // Non-retryable error
-        throw error;
-      }
-    }
-  }
-
-  throw lastError || new Error(`${agentName}: All ${maxRetries} attempts failed`);
-}
 
 // ============================================================
 // Main handler
@@ -224,7 +169,8 @@ async function processTranscriptPipeline(
       await supabase
         .from('sdr_daily_transcripts')
         .update({
-          processing_status: 'completed',
+          processing_status: 'failed',
+          processing_error: 'No calls detected in transcript. The transcript may be empty or in an unrecognized format.',
           total_calls_detected: 0,
           meaningful_calls_count: 0,
         })
@@ -388,8 +334,9 @@ Return a JSON array where each element has:
 Return ONLY valid JSON. No markdown, no explanation.`;
 
 // Maximum characters per chunk sent to the Splitter.
-// ~50k chars ≈ ~12k tokens — keeps each chunk well within the 55-second timeout.
-const SPLITTER_CHUNK_MAX_CHARS = 50_000;
+// ~25k chars ≈ ~6k tokens — keeps each chunk well within the model's reliable output range.
+// Previous value of 50k caused model refusals on ~42k chunks ("too long to segment reliably").
+const SPLITTER_CHUNK_MAX_CHARS = 25_000;
 
 /**
  * Split a long transcript into overlapping text chunks by finding natural
@@ -582,23 +529,19 @@ Return a JSON object with a "calls" array. Each element:
 
 Return ONLY valid JSON.`;
 
-async function runFilterAgent(
-  openaiApiKey: string,
-  segments: Array<{ raw_text: string; start_timestamp: string; approx_duration_seconds: number | null }>,
-  customPrompt?: string,
-): Promise<Array<{
-  raw_text: string;
-  call_type: string;
-  is_meaningful: boolean;
-  prospect_name: string | null;
-  prospect_company: string | null;
-  duration_estimate_seconds: number | null;
-  start_timestamp: string;
-}>> {
-  const systemPrompt = customPrompt || DEFAULT_FILTER_PROMPT;
+// Maximum segments per batch sent to the Filter agent.
+// Keeps each request within token limits for transcripts with many calls.
+const FILTER_BATCH_SIZE = 10;
 
-  const segmentInputs = segments.map((seg, idx) => ({
-    index: idx,
+async function runFilterOnBatch(
+  openaiApiKey: string,
+  batchSegments: Array<{ raw_text: string; start_timestamp: string; approx_duration_seconds: number | null }>,
+  batchStartIndex: number,
+  systemPrompt: string,
+  batchLabel: string,
+): Promise<any[]> {
+  const segmentInputs = batchSegments.map((seg, idx) => ({
+    index: batchStartIndex + idx,
     start_timestamp: seg.start_timestamp,
     approx_duration_seconds: seg.approx_duration_seconds,
     text: seg.raw_text,
@@ -617,24 +560,24 @@ async function runFilterAgent(
         model: 'gpt-5.2-2025-12-11',
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: `Classify these ${segments.length} transcript segments:\n\n${JSON.stringify(segmentInputs)}` },
+          { role: 'user', content: `Classify these ${batchSegments.length} transcript segments:\n\n${JSON.stringify(segmentInputs)}` },
         ],
         temperature: 0.1,
         response_format: { type: 'json_object' },
       }),
     },
-    { maxRetries: 3, baseDelayMs: 2000, agentName: 'Filter' },
+    { maxRetries: 3, baseDelayMs: 2000, agentName: `Filter${batchLabel}` },
   );
 
   const data = await response.json();
   const content = data.choices?.[0]?.message?.content;
-  if (!content) throw new Error('Filter returned empty response');
+  if (!content) throw new Error(`Filter returned empty response${batchLabel}`);
 
   let parsed: any;
   try {
     parsed = JSON.parse(content);
   } catch {
-    throw new Error(`Filter returned invalid JSON: ${content.slice(0, 200)}`);
+    throw new Error(`Filter returned invalid JSON${batchLabel}: ${content.slice(0, 200)}`);
   }
 
   let classifications: any[] | null = null;
@@ -652,12 +595,44 @@ async function runFilterAgent(
   }
 
   if (!classifications) {
-    console.error(`[sdr-pipeline] Filter raw content: ${content.slice(0, 500)}`);
-    throw new Error(`Filter returned unexpected structure: ${Object.keys(parsed).join(', ')}`);
+    console.error(`[sdr-pipeline] Filter raw content${batchLabel}: ${content.slice(0, 500)}`);
+    throw new Error(`Filter returned unexpected structure${batchLabel}: ${Object.keys(parsed).join(', ')}`);
+  }
+
+  return classifications;
+}
+
+async function runFilterAgent(
+  openaiApiKey: string,
+  segments: Array<{ raw_text: string; start_timestamp: string; approx_duration_seconds: number | null }>,
+  customPrompt?: string,
+): Promise<Array<{
+  raw_text: string;
+  call_type: string;
+  is_meaningful: boolean;
+  prospect_name: string | null;
+  prospect_company: string | null;
+  duration_estimate_seconds: number | null;
+  start_timestamp: string;
+}>> {
+  const systemPrompt = customPrompt || DEFAULT_FILTER_PROMPT;
+
+  // Process in batches to avoid token overflow with many segments
+  const allClassifications: any[] = [];
+  const totalBatches = Math.ceil(segments.length / FILTER_BATCH_SIZE);
+
+  for (let i = 0; i < segments.length; i += FILTER_BATCH_SIZE) {
+    const batch = segments.slice(i, i + FILTER_BATCH_SIZE);
+    const batchIndex = Math.floor(i / FILTER_BATCH_SIZE);
+    const batchLabel = totalBatches > 1 ? ` (batch ${batchIndex + 1}/${totalBatches})` : '';
+
+    console.log(`[sdr-pipeline] Filter${batchLabel}: classifying ${batch.length} segments`);
+    const batchClassifications = await runFilterOnBatch(openaiApiKey, batch, i, systemPrompt, batchLabel);
+    allClassifications.push(...batchClassifications);
   }
 
   return segments.map((seg, idx) => {
-    const classification = classifications.find((c: any) => c.segment_index === idx) || classifications[idx] || {};
+    const classification = allClassifications.find((c: any) => c.segment_index === idx) || allClassifications[idx] || {};
     return {
       raw_text: seg.raw_text,
       call_type: classification.call_type || 'internal',

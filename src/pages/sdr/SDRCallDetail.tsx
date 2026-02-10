@@ -3,7 +3,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useSDRCallDetail, useReGradeCall } from '@/hooks/useSDR';
-import { ArrowLeft, Loader2, RefreshCw, Star, TrendingUp, MessageSquare, Target, Award } from 'lucide-react';
+import { ArrowLeft, Loader2, RefreshCw, Star, TrendingUp, MessageSquare, Target, Award, Clock } from 'lucide-react';
 import { gradeColors } from '@/constants/training';
 import { Progress } from '@/components/ui/progress';
 
@@ -96,6 +96,33 @@ function SDRCallDetail() {
                 <Card>
                   <CardHeader><CardTitle>Coaching Notes</CardTitle></CardHeader>
                   <CardContent><p className="text-sm whitespace-pre-wrap">{grade.coaching_notes}</p></CardContent>
+                </Card>
+              )}
+              {grade.key_moments && (grade.key_moments as Array<{ timestamp: string; description: string; sentiment: string }>).length > 0 && (
+                <Card>
+                  <CardHeader><CardTitle>Key Moments</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {(grade.key_moments as Array<{ timestamp: string; description: string; sentiment: string }>).map((moment, i) => (
+                        <div key={i} className="flex items-start gap-3">
+                          <div className="flex items-center gap-1.5 mt-0.5 shrink-0">
+                            <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span className="text-xs font-mono text-muted-foreground">{moment.timestamp}</span>
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm">{moment.description}</p>
+                          </div>
+                          <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${
+                            moment.sentiment === 'positive' ? 'bg-green-500/10 text-green-500' :
+                            moment.sentiment === 'negative' ? 'bg-red-500/10 text-red-500' :
+                            'bg-muted text-muted-foreground'
+                          }`}>
+                            {moment.sentiment}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
                 </Card>
               )}
             </div>

@@ -1,8 +1,11 @@
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useSDRDailyTranscripts, useSDRCalls, useSDRStats, useRetrySDRTranscript } from '@/hooks/useSDR';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, Loader2, Phone, MessageSquare, TrendingUp, FileText, RotateCcw } from 'lucide-react';
 import { format } from 'date-fns';
 import { gradeColors } from '@/constants/training';
@@ -13,6 +16,17 @@ function SDRManagerRepDetail() {
   const { data: transcripts = [], isLoading: transcriptsLoading } = useSDRDailyTranscripts(sdrId);
   const { data: allCalls = [] } = useSDRCalls(undefined, sdrId);
   const retryMutation = useRetrySDRTranscript();
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+
+  const { data: sdrProfile } = useQuery({
+    queryKey: ['sdr-profile', sdrId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('profiles').select('name, email').eq('id', sdrId!).single();
+      if (error) throw error;
+      return data as { name: string | null; email: string | null };
+    },
+    enabled: !!sdrId,
+  });
 
   const meaningfulCalls = allCalls.filter(c => c.is_meaningful);
   const gradedCalls = meaningfulCalls.filter(c => c.sdr_call_grades?.length);
@@ -25,8 +39,8 @@ function SDRManagerRepDetail() {
             <Link to="/sdr-manager"><ArrowLeft className="h-5 w-5" /></Link>
           </Button>
           <div>
-            <h1 className="text-2xl font-bold">SDR Performance</h1>
-            <p className="text-muted-foreground">Individual rep drilldown</p>
+            <h1 className="text-2xl font-bold">{sdrProfile?.name || 'SDR Performance'}</h1>
+            <p className="text-muted-foreground">{sdrProfile?.email || 'Individual rep drilldown'}</p>
           </div>
         </div>
 
@@ -131,12 +145,13 @@ function SDRManagerRepDetail() {
                           size="sm"
                           onClick={(e) => {
                             e.preventDefault();
-                            retryMutation.mutate(t.id);
+                            setRetryingId(t.id);
+                            retryMutation.mutate(t.id, { onSettled: () => setRetryingId(null) });
                           }}
-                          disabled={retryMutation.isPending}
+                          disabled={retryingId === t.id}
                           className="h-7 px-2"
                         >
-                          <RotateCcw className={`h-3.5 w-3.5 ${retryMutation.isPending ? 'animate-spin' : ''}`} />
+                          <RotateCcw className={`h-3.5 w-3.5 ${retryingId === t.id ? 'animate-spin' : ''}`} />
                           <span className="ml-1 text-xs">Retry</span>
                         </Button>
                       )}
