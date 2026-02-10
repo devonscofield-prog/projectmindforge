@@ -34,6 +34,7 @@ import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { SalesAssistantChat } from '@/components/SalesAssistantChat';
+import { useActiveTaskSequences } from '@/hooks/useTaskSequences';
 // PostCallTasksDialog removed - suggestions now appear on CallDetailPage after analysis
 import {
   Tooltip,
