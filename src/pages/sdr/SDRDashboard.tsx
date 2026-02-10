@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useSDRStats, useSDRDailyTranscripts, useUploadSDRTranscript } from '@/hooks/useSDR';
 import { useAuth } from '@/contexts/AuthContext';
-import { Upload, Phone, MessageSquare, TrendingUp, Loader2, FileText } from 'lucide-react';
+import { Upload, Phone, MessageSquare, TrendingUp, Loader2, FileText, FileUp, ClipboardPaste } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 
@@ -20,6 +21,19 @@ function SDRDashboard() {
   const [rawText, setRawText] = useState('');
   const [transcriptDate, setTranscriptDate] = useState(new Date().toISOString().split('T')[0]);
   const [showUpload, setShowUpload] = useState(false);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setRawText((ev.target?.result as string) || '');
+    };
+    reader.readAsText(file);
+  };
 
   const handleUpload = () => {
     if (!rawText.trim()) return;
