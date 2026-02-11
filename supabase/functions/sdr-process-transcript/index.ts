@@ -178,6 +178,12 @@ async function processTranscriptPipeline(
   try {
     console.log(`[sdr-pipeline] Starting pipeline for transcript ${transcriptId}`);
 
+    // Early validation: reject trivially short transcripts
+    if (!rawText || rawText.trim().length < 50) {
+      await updateTranscriptError(supabase, transcriptId, 'Transcript too short to process (minimum 50 characters)');
+      return;
+    }
+
     // Load custom prompts for this SDR's team (if any)
     const customPrompts = await loadCustomPrompts(supabase, sdrId);
 
@@ -191,6 +197,13 @@ async function processTranscriptPipeline(
       console.error(`[sdr-pipeline] Splitter agent failed: ${error.message}`);
       await updateTranscriptError(supabase, transcriptId, `Splitter failed: ${error.message}`);
       return;
+    }
+
+    // Cap the number of calls to prevent runaway grading costs
+    const MAX_CALLS = 100;
+    if (splitCalls.length > MAX_CALLS) {
+      console.warn(`[sdr-pipeline] Splitter returned ${splitCalls.length} segments, capping at ${MAX_CALLS}`);
+      splitCalls = splitCalls.slice(0, MAX_CALLS);
     }
 
     if (!splitCalls || splitCalls.length === 0) {
@@ -238,7 +251,7 @@ async function processTranscriptPipeline(
     const { data: insertedCalls, error: insertError } = await supabase
       .from('sdr_calls')
       .insert(callInserts)
-      .select('id, is_meaningful');
+      .select('id, is_meaningful, call_index, raw_text');
 
     if (insertError) {
       console.error(`[sdr-pipeline] Failed to insert calls: ${insertError.message}`);
@@ -256,11 +269,10 @@ async function processTranscriptPipeline(
     for (const call of meaningfulCalls) {
       try {
         await supabase.from('sdr_calls').update({ analysis_status: 'processing' }).eq('id', call.id);
-        
-        const callData = classifiedCalls.find((_, idx) => insertedCalls[idx]?.id === call.id)
-          || classifiedCalls[insertedCalls.indexOf(call)];
-        
-        const grade = await runGraderAgent(openaiApiKey, callData.raw_text, customPrompts.grader);
+
+        // Use the raw_text directly from the inserted call record — avoids
+        // fragile array-index correlation between classifiedCalls and insertedCalls
+        const grade = await runGraderAgent(openaiApiKey, call.raw_text, customPrompts.grader);
         
         await supabase.from('sdr_call_grades').insert({
           call_id: call.id,
