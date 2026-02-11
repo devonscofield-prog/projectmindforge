@@ -48,9 +48,17 @@ function SDRCallDetail() {
             </p>
           </div>
           {grade && (
-            <span className={`px-4 py-2 rounded-full text-lg font-bold ${gradeColors[grade.overall_grade] || 'bg-muted'}`}>
-              {grade.overall_grade}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className={`px-4 py-2 rounded-full text-lg font-bold ${gradeColors[grade.overall_grade] || 'bg-muted'}`}>
+                {grade.overall_grade}
+              </span>
+              {grade.meeting_scheduled === true && (
+                <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-500/10 text-green-600">Meeting Set</span>
+              )}
+              {grade.meeting_scheduled === false && (
+                <span className="text-sm text-muted-foreground">No Meeting</span>
+              )}
+            </div>
           )}
           <Button variant="outline" size="sm" onClick={() => reGradeMutation.mutate(call.id)} disabled={reGradeMutation.isPending}>
             <RefreshCw className={`h-4 w-4 mr-2 ${reGradeMutation.isPending ? 'animate-spin' : ''}`} />

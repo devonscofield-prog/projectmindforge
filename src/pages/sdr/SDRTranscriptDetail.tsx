@@ -105,9 +105,17 @@ function SDRTranscriptDetail() {
                       </div>
                       <div className="flex items-center gap-2">
                         {grade ? (
-                          <span className={`px-3 py-1 rounded-full text-sm font-bold ${gradeColors[grade.overall_grade] || 'bg-muted'}`}>
-                            {grade.overall_grade}
-                          </span>
+                          <>
+                            <span className={`px-3 py-1 rounded-full text-sm font-bold ${gradeColors[grade.overall_grade] || 'bg-muted'}`}>
+                              {grade.overall_grade}
+                            </span>
+                            {grade.meeting_scheduled === true && (
+                              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-600">Meeting Set</span>
+                            )}
+                            {grade.meeting_scheduled === false && (
+                              <span className="text-xs text-muted-foreground">No Meeting</span>
+                            )}
+                          </>
                         ) : call.analysis_status === 'processing' ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : null}

@@ -49,6 +49,7 @@ export interface SDRCallGrade {
   improvements: string[];
   key_moments: Array<{ timestamp: string; description: string; sentiment: string }>;
   coaching_notes: string | null;
+  meeting_scheduled: boolean | null;
   model_name: string;
   raw_json: any;
   created_at: string;

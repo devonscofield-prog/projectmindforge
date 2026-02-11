@@ -2568,6 +2568,7 @@ export type Database = {
           id: string
           improvements: Json | null
           key_moments: Json | null
+          meeting_scheduled: boolean | null
           model_name: string
           objection_handling_score: number | null
           opener_score: number | null
@@ -2587,6 +2588,7 @@ export type Database = {
           id?: string
           improvements?: Json | null
           key_moments?: Json | null
+          meeting_scheduled?: boolean | null
           model_name: string
           objection_handling_score?: number | null
           opener_score?: number | null
@@ -2606,6 +2608,7 @@ export type Database = {
           id?: string
           improvements?: Json | null
           key_moments?: Json | null
+          meeting_scheduled?: boolean | null
           model_name?: string
           objection_handling_score?: number | null
           opener_score?: number | null
