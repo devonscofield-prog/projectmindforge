@@ -13,7 +13,7 @@ function SDRManagerTranscripts() {
   const { data: teams = [] } = useSDRTeams();
   const myTeam = teams.find(t => t.manager_id === user?.id);
   const { data: members = [] } = useSDRTeamMembers(myTeam?.id);
-  const { data: transcripts = [], isLoading } = useSDRDailyTranscripts();
+  const { data: transcripts = [], isLoading, isError } = useSDRDailyTranscripts();
   const retryMutation = useRetrySDRTranscript();
   const [retryingId, setRetryingId] = useState<string | null>(null);
 
@@ -23,6 +23,10 @@ function SDRManagerTranscripts() {
 
   if (isLoading) {
     return <AppLayout><div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div></AppLayout>;
+  }
+
+  if (isError) {
+    return <AppLayout><div className="text-center py-12"><p className="text-destructive">Failed to load transcripts. Please try refreshing.</p></div></AppLayout>;
   }
 
   return (

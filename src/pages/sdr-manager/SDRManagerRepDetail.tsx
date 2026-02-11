@@ -12,9 +12,9 @@ import { gradeColors } from '@/constants/training';
 
 function SDRManagerRepDetail() {
   const { sdrId } = useParams<{ sdrId: string }>();
-  const { data: stats } = useSDRStats(sdrId);
-  const { data: transcripts = [], isLoading: transcriptsLoading } = useSDRDailyTranscripts(sdrId);
-  const { data: allCalls = [] } = useSDRCalls(undefined, sdrId);
+  const { data: stats, isError: statsError } = useSDRStats(sdrId);
+  const { data: transcripts = [], isLoading: transcriptsLoading, isError: transcriptsError } = useSDRDailyTranscripts(sdrId);
+  const { data: allCalls = [], isError: callsError } = useSDRCalls(undefined, sdrId);
   const retryMutation = useRetrySDRTranscript();
   const [retryingId, setRetryingId] = useState<string | null>(null);
 
@@ -30,6 +30,17 @@ function SDRManagerRepDetail() {
 
   const meaningfulCalls = allCalls.filter(c => c.is_meaningful);
   const gradedCalls = meaningfulCalls.filter(c => c.sdr_call_grades?.length);
+
+  if (statsError || transcriptsError || callsError) {
+    return (
+      <AppLayout>
+        <div className="text-center py-12">
+          <p className="text-destructive">Failed to load rep details. Please try refreshing.</p>
+          <Button asChild className="mt-4"><Link to="/sdr-manager"><ArrowLeft className="h-4 w-4 mr-2" />Back</Link></Button>
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>

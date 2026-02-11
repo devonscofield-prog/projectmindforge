@@ -122,7 +122,11 @@ export function useSDRTranscriptDetail(transcriptId: string | undefined) {
     enabled: !!transcriptId,
     refetchInterval: (query) => {
       const status = query.state.data?.processing_status;
-      return status === 'processing' || status === 'pending' ? 3000 : false;
+      if (status !== 'processing' && status !== 'pending') return false;
+      // Stop polling after 5 minutes to prevent infinite polling if status gets stuck
+      const dataUpdatedAt = query.state.dataUpdatedAt;
+      if (dataUpdatedAt && Date.now() - dataUpdatedAt > 5 * 60 * 1000) return false;
+      return 3000;
     },
   });
 }
@@ -196,6 +200,7 @@ export function useRetrySDRTranscript() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sdr-daily-transcripts'] });
       queryClient.invalidateQueries({ queryKey: ['sdr-transcript-detail'] });
+      queryClient.invalidateQueries({ queryKey: ['sdr-calls'] });
       toast.success('Transcript reprocessing started');
     },
     onError: (error) => {
@@ -218,6 +223,7 @@ export function useReGradeCall() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sdr-calls'] });
       queryClient.invalidateQueries({ queryKey: ['sdr-call-detail'] });
+      queryClient.invalidateQueries({ queryKey: ['sdr-stats'] });
       toast.success('Call re-graded successfully');
     },
     onError: (error) => {

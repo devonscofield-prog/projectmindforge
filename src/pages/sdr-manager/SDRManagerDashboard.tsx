@@ -10,12 +10,18 @@ import { Link } from 'react-router-dom';
 
 function SDRManagerDashboard() {
   const { user } = useAuth();
-  const { data: teams = [], isLoading: teamsLoading } = useSDRTeams();
+  const { data: teams = [], isLoading: teamsLoading, isError: teamsError } = useSDRTeams();
   const myTeam = teams.find(t => t.manager_id === user?.id);
-  const { data: members = [], isLoading: membersLoading } = useSDRTeamMembers(myTeam?.id);
-  const { data: transcripts = [] } = useSDRDailyTranscripts();
+  const { data: members = [], isLoading: membersLoading, isError: membersError } = useSDRTeamMembers(myTeam?.id);
+  const { data: allTranscripts = [] } = useSDRDailyTranscripts();
 
   const memberIds = useMemo(() => members.map((m: any) => m.user_id), [members]);
+
+  // Filter transcripts to team members only so the count is accurate
+  const teamTranscripts = useMemo(() => {
+    const memberSet = new Set(memberIds);
+    return allTranscripts.filter(t => memberSet.has(t.sdr_id));
+  }, [allTranscripts, memberIds]);
 
   const { data: teamAvgScore } = useQuery({
     queryKey: ['sdr-team-avg-score', memberIds],
@@ -39,6 +45,10 @@ function SDRManagerDashboard() {
 
   if (teamsLoading || membersLoading) {
     return <AppLayout><div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div></AppLayout>;
+  }
+
+  if (teamsError || membersError) {
+    return <AppLayout><div className="text-center py-12"><p className="text-destructive">Failed to load team data. Please try refreshing.</p></div></AppLayout>;
   }
 
   return (
@@ -66,7 +76,7 @@ function SDRManagerDashboard() {
               <div className="flex items-center gap-3">
                 <Phone className="h-8 w-8 text-primary" />
                 <div>
-                  <p className="text-2xl font-bold">{transcripts.length}</p>
+                  <p className="text-2xl font-bold">{teamTranscripts.length}</p>
                   <p className="text-sm text-muted-foreground">Transcripts</p>
                 </div>
               </div>

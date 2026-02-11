@@ -10,12 +10,16 @@ import { format } from 'date-fns';
 
 function SDRHistory() {
   const { user } = useAuth();
-  const { data: transcripts = [], isLoading } = useSDRDailyTranscripts(user?.id);
+  const { data: transcripts = [], isLoading, isError } = useSDRDailyTranscripts(user?.id);
   const retryMutation = useRetrySDRTranscript();
   const [retryingId, setRetryingId] = useState<string | null>(null);
 
   if (isLoading) {
     return <AppLayout><div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div></AppLayout>;
+  }
+
+  if (isError) {
+    return <AppLayout><div className="text-center py-12"><p className="text-destructive">Failed to load transcripts. Please try refreshing.</p></div></AppLayout>;
   }
 
   return (
