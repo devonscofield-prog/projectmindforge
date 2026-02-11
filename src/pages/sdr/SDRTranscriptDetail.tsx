@@ -25,14 +25,25 @@ const callTypeLabels: Record<string, string> = {
 
 function SDRTranscriptDetail() {
   const { transcriptId } = useParams<{ transcriptId: string }>();
-  const { data: transcript, isLoading: transcriptLoading } = useSDRTranscriptDetail(transcriptId);
-  const { data: calls = [], isLoading: callsLoading } = useSDRCalls(transcriptId);
+  const { data: transcript, isLoading: transcriptLoading, isError: transcriptError } = useSDRTranscriptDetail(transcriptId);
+  const { data: calls = [], isLoading: callsLoading, isError: callsError } = useSDRCalls(transcriptId);
 
   if (transcriptLoading || callsLoading) {
     return (
       <AppLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (transcriptError || callsError) {
+    return (
+      <AppLayout>
+        <div className="text-center py-12">
+          <p className="text-destructive">Failed to load transcript details. Please try refreshing.</p>
+          <Button asChild className="mt-4"><Link to="/sdr"><ArrowLeft className="h-4 w-4 mr-2" />Back</Link></Button>
         </div>
       </AppLayout>
     );

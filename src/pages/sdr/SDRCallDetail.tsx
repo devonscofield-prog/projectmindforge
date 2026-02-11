@@ -9,11 +9,15 @@ import { Progress } from '@/components/ui/progress';
 
 function SDRCallDetail() {
   const { callId } = useParams<{ callId: string }>();
-  const { data: call, isLoading } = useSDRCallDetail(callId);
+  const { data: call, isLoading, isError } = useSDRCallDetail(callId);
   const reGradeMutation = useReGradeCall();
 
   if (isLoading) {
     return <AppLayout><div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div></AppLayout>;
+  }
+
+  if (isError) {
+    return <AppLayout><div className="text-center py-12"><p className="text-destructive">Failed to load call details. Please try refreshing.</p></div></AppLayout>;
   }
 
   if (!call) {

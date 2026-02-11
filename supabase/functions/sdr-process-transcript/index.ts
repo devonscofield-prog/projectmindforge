@@ -49,6 +49,35 @@ Deno.serve(async (req) => {
     // If raw text provided, create the daily transcript record first
     if (!transcriptId && raw_text) {
       const targetSdrId = sdr_id || user.id;
+
+      // Permission check: uploading for another user requires admin or SDR manager role
+      if (sdr_id && sdr_id !== user.id) {
+        const { data: callerProfile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+
+        const callerRole = callerProfile?.role;
+        if (callerRole !== 'admin') {
+          if (callerRole !== 'sdr_manager') {
+            return new Response(JSON.stringify({ error: 'You do not have permission to upload transcripts for other users' }), {
+              status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+          // Verify the manager actually manages this SDR via is_sdr_manager_of
+          const { data: isManager } = await supabase.rpc('is_sdr_manager_of', {
+            manager: user.id,
+            sdr: sdr_id,
+          });
+          if (!isManager) {
+            return new Response(JSON.stringify({ error: 'You can only upload transcripts for SDRs on your team' }), {
+              status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+        }
+      }
+
       const { data: transcript, error: insertError } = await supabase
         .from('sdr_daily_transcripts')
         .insert({
@@ -149,6 +178,12 @@ async function processTranscriptPipeline(
   try {
     console.log(`[sdr-pipeline] Starting pipeline for transcript ${transcriptId}`);
 
+    // Early validation: reject trivially short transcripts
+    if (!rawText || rawText.trim().length < 50) {
+      await updateTranscriptError(supabase, transcriptId, 'Transcript too short to process (minimum 50 characters)');
+      return;
+    }
+
     // Load custom prompts for this SDR's team (if any)
     const customPrompts = await loadCustomPrompts(supabase, sdrId);
 
@@ -162,6 +197,13 @@ async function processTranscriptPipeline(
       console.error(`[sdr-pipeline] Splitter agent failed: ${error.message}`);
       await updateTranscriptError(supabase, transcriptId, `Splitter failed: ${error.message}`);
       return;
+    }
+
+    // Cap the number of calls to prevent runaway grading costs
+    const MAX_CALLS = 100;
+    if (splitCalls.length > MAX_CALLS) {
+      console.warn(`[sdr-pipeline] Splitter returned ${splitCalls.length} segments, capping at ${MAX_CALLS}`);
+      splitCalls = splitCalls.slice(0, MAX_CALLS);
     }
 
     if (!splitCalls || splitCalls.length === 0) {
@@ -209,7 +251,7 @@ async function processTranscriptPipeline(
     const { data: insertedCalls, error: insertError } = await supabase
       .from('sdr_calls')
       .insert(callInserts)
-      .select('id, is_meaningful');
+      .select('id, is_meaningful, call_index, raw_text');
 
     if (insertError) {
       console.error(`[sdr-pipeline] Failed to insert calls: ${insertError.message}`);
@@ -227,11 +269,10 @@ async function processTranscriptPipeline(
     for (const call of meaningfulCalls) {
       try {
         await supabase.from('sdr_calls').update({ analysis_status: 'processing' }).eq('id', call.id);
-        
-        const callData = classifiedCalls.find((_, idx) => insertedCalls[idx]?.id === call.id)
-          || classifiedCalls[insertedCalls.indexOf(call)];
-        
-        const grade = await runGraderAgent(openaiApiKey, callData.raw_text, customPrompts.grader);
+
+        // Use the raw_text directly from the inserted call record — avoids
+        // fragile array-index correlation between classifiedCalls and insertedCalls
+        const grade = await runGraderAgent(openaiApiKey, call.raw_text, customPrompts.grader);
         
         await supabase.from('sdr_call_grades').insert({
           call_id: call.id,

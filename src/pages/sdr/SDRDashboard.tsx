@@ -15,12 +15,12 @@ import { format } from 'date-fns';
 
 function SDRDashboard() {
   const { user } = useAuth();
-  const { data: stats } = useSDRStats(user?.id);
-  const { data: transcripts = [], isLoading: transcriptsLoading } = useSDRDailyTranscripts(user?.id);
+  const { data: stats, isError: statsError } = useSDRStats(user?.id);
+  const { data: transcripts = [], isLoading: transcriptsLoading, isError: transcriptsError } = useSDRDailyTranscripts(user?.id);
   const uploadMutation = useUploadSDRTranscript();
   const retryMutation = useRetrySDRTranscript();
   const [rawText, setRawText] = useState('');
-  const [transcriptDate, setTranscriptDate] = useState(new Date().toISOString().split('T')[0]);
+  const [transcriptDate, setTranscriptDate] = useState(new Date().toLocaleDateString('en-CA'));
   const [showUpload, setShowUpload] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
   const [retryingId, setRetryingId] = useState<string | null>(null);
@@ -193,7 +193,9 @@ function SDRDashboard() {
             <CardTitle>Recent Transcripts</CardTitle>
           </CardHeader>
           <CardContent>
-            {transcriptsLoading ? (
+            {transcriptsError ? (
+              <p className="text-destructive text-center py-8">Failed to load transcripts. Please try refreshing.</p>
+            ) : transcriptsLoading ? (
               <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
             ) : transcripts.length === 0 ? (
               <p className="text-muted-foreground text-center py-8">No transcripts yet. Upload your first one above!</p>

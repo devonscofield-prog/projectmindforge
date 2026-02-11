@@ -44,8 +44,8 @@ export async function fetchWithRetry(
           await new Promise(r => setTimeout(r, delay));
           continue;
         }
-      } else if (lastError === null) {
-        // Non-retryable error
+      } else {
+        // Non-retryable error — always throw immediately
         throw error;
       }
     }

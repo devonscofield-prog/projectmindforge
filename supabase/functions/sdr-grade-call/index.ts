@@ -95,10 +95,9 @@ Deno.serve(async (req) => {
 
         const grade = await gradeCall(openaiApiKey, call.raw_text, customGraderPrompt);
 
-        // Delete existing grade if re-grading
-        await supabase.from('sdr_call_grades').delete().eq('call_id', call.id);
-
-        await supabase.from('sdr_call_grades').insert({
+        // Insert new grade FIRST, then delete old ones — prevents data loss
+        // if the insert fails (API error, network issue, etc.)
+        const { data: newGrade, error: insertError } = await supabase.from('sdr_call_grades').insert({
           call_id: call.id,
           sdr_id: call.sdr_id,
           overall_grade: grade.overall_grade,
@@ -114,7 +113,15 @@ Deno.serve(async (req) => {
           coaching_notes: grade.coaching_notes,
           model_name: 'gpt-5.2-2025-12-11',
           raw_json: grade,
-        });
+        }).select('id').single();
+
+        if (insertError) throw insertError;
+
+        // Now safe to delete old grades (excluding the one we just inserted)
+        await supabase.from('sdr_call_grades')
+          .delete()
+          .eq('call_id', call.id)
+          .neq('id', newGrade.id);
 
         await supabase.from('sdr_calls').update({ analysis_status: 'completed' }).eq('id', call.id);
         results.push({ call_id: call.id, status: 'completed', grade: grade.overall_grade });
