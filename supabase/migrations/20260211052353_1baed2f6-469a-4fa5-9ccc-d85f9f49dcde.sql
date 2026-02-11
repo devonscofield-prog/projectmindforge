@@ -1,0 +1,1 @@
+ALTER TABLE sdr_call_grades ADD COLUMN meeting_scheduled boolean DEFAULT null;

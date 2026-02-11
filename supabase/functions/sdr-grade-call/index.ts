@@ -111,6 +111,7 @@ Deno.serve(async (req) => {
           improvements: grade.improvements,
           key_moments: grade.key_moments,
           coaching_notes: grade.coaching_notes,
+          meeting_scheduled: grade.meeting_scheduled ?? null,
           model_name: 'gpt-5.2-2025-12-11',
           raw_json: grade,
         }).select('id').single();
@@ -191,6 +192,9 @@ Based on the weighted scores, assign an overall letter grade:
 - D (4-5.4): Below average — multiple weaknesses
 - F (below 4): Poor — fundamental issues
 
+## Meeting Scheduled
+Set meeting_scheduled to true ONLY if a concrete meeting, demo, or appointment was confirmed with a specific date/time. Vague interest or "call me back" does not count.
+
 ## Response Format
 Return a JSON object:
 {
@@ -200,6 +204,7 @@ Return a JSON object:
   "objection_handling_score": 1-10,
   "appointment_setting_score": 1-10,
   "professionalism_score": 1-10,
+  "meeting_scheduled": true/false,
   "call_summary": "2-3 sentence summary of what happened on this call",
   "strengths": ["strength 1", "strength 2", ...],
   "improvements": ["improvement 1", "improvement 2", ...],
