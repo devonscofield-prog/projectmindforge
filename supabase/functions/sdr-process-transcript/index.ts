@@ -49,6 +49,35 @@ Deno.serve(async (req) => {
     // If raw text provided, create the daily transcript record first
     if (!transcriptId && raw_text) {
       const targetSdrId = sdr_id || user.id;
+
+      // Permission check: uploading for another user requires admin or SDR manager role
+      if (sdr_id && sdr_id !== user.id) {
+        const { data: callerProfile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+
+        const callerRole = callerProfile?.role;
+        if (callerRole !== 'admin') {
+          if (callerRole !== 'sdr_manager') {
+            return new Response(JSON.stringify({ error: 'You do not have permission to upload transcripts for other users' }), {
+              status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+          // Verify the manager actually manages this SDR via is_sdr_manager_of
+          const { data: isManager } = await supabase.rpc('is_sdr_manager_of', {
+            manager: user.id,
+            sdr: sdr_id,
+          });
+          if (!isManager) {
+            return new Response(JSON.stringify({ error: 'You can only upload transcripts for SDRs on your team' }), {
+              status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+        }
+      }
+
       const { data: transcript, error: insertError } = await supabase
         .from('sdr_daily_transcripts')
         .insert({
