@@ -62,6 +62,7 @@ function SDRHistory() {
                         t.processing_status === 'completed' ? 'bg-green-500/10 text-green-500' :
                         t.processing_status === 'processing' ? 'bg-yellow-500/10 text-yellow-500' :
                         t.processing_status === 'failed' ? 'bg-red-500/10 text-red-500' :
+                        t.processing_status === 'partial' ? 'bg-orange-500/10 text-orange-500' :
                         'bg-muted text-muted-foreground'
                       }`}>
                         {t.processing_status}
