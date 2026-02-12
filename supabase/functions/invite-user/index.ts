@@ -177,7 +177,7 @@ Deno.serve(async (req) => {
 
     // Generate invite link for the user to set their own password
     const { data: resetData, error: resetError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'invite',
+      type: 'recovery',
       email,
       options: {
         redirectTo: redirectTo || `https://projectmindforge.lovable.app/auth`
