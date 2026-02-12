@@ -33,7 +33,7 @@ function AdminInviteUsers() {
   const [formData, setFormData] = useState({
     email: '',
     name: '',
-    role: 'rep' as 'rep' | 'manager' | 'admin',
+    role: 'rep' as 'rep' | 'manager' | 'admin' | 'sdr' | 'sdr_manager',
     teamId: '',
   });
   const [inviting, setInviting] = useState(false);
@@ -186,7 +186,7 @@ function AdminInviteUsers() {
                   <Label htmlFor="role">Role *</Label>
                   <Select
                     value={formData.role}
-                    onValueChange={(v) => setFormData({ ...formData, role: v as 'rep' | 'manager' | 'admin' })}
+                    onValueChange={(v) => setFormData({ ...formData, role: v as 'rep' | 'manager' | 'admin' | 'sdr' | 'sdr_manager' })}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -195,12 +195,16 @@ function AdminInviteUsers() {
                       <SelectItem value="rep">Sales Rep</SelectItem>
                       <SelectItem value="manager">Manager</SelectItem>
                       <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="sdr">SDR</SelectItem>
+                      <SelectItem value="sdr_manager">SDR Manager</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
                     {formData.role === 'rep' && 'Can submit calls, view own prospects and coaching'}
                     {formData.role === 'manager' && 'Can view team performance and provide coaching'}
                     {formData.role === 'admin' && 'Full access to all features and settings'}
+                    {formData.role === 'sdr' && 'Can submit dialer transcripts, view call grades and coaching'}
+                    {formData.role === 'sdr_manager' && 'Can view SDR team performance, manage coaching prompts'}
                   </p>
                 </div>
 

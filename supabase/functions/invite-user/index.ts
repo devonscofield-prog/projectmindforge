@@ -9,7 +9,7 @@ const corsHeaders = {
 interface InviteRequest {
   email: string;
   name: string;
-  role: 'rep' | 'manager' | 'admin';
+  role: 'rep' | 'manager' | 'admin' | 'sdr' | 'sdr_manager';
   teamId?: string;
   sendEmail?: boolean;
   redirectTo?: string;
@@ -89,9 +89,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (!['rep', 'manager', 'admin'].includes(role)) {
+    if (!['rep', 'manager', 'admin', 'sdr', 'sdr_manager'].includes(role)) {
       return new Response(
-        JSON.stringify({ error: 'Invalid role. Must be rep, manager, or admin' }),
+        JSON.stringify({ error: 'Invalid role. Must be rep, manager, admin, sdr, or sdr_manager' }),
         {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -202,6 +202,8 @@ Deno.serve(async (req) => {
           rep: 'Sales Rep',
           manager: 'Manager',
           admin: 'Administrator',
+          sdr: 'SDR',
+          sdr_manager: 'SDR Manager',
         }[role];
 
         const { error: sendError } = await resend.emails.send({
