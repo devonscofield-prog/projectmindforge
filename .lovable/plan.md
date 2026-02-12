@@ -1,58 +1,54 @@
 
 
-# Add "Meeting Scheduled" Label to SDR Call Grades
+# Show Default Prompts on SDR Manager Coaching Page
 
-## What Changes
+## Problem
+SDR Managers currently see an empty state saying "No custom prompts yet. The system uses default prompts" but have no way to see what those defaults actually are. To customize grading, they must write a prompt from scratch.
 
-Add a `meeting_scheduled` boolean to the grader output so each graded call shows whether a meeting was booked, displayed alongside the letter grade.
+## Solution
+Replace the empty state with a "Default Prompts" section that displays all three default prompts (Splitter, Filter, Grader) as read-only cards. Each card will include:
+- A friendly label (e.g., "Call Grading Criteria" instead of "grader")
+- A short description of what the agent does
+- The full default prompt text (collapsed by default, expandable)
+- A **"Customize"** button that pre-fills the create form with the default prompt text, so managers can make small tweaks instead of starting from scratch
 
-## Changes Required
+When a manager already has a custom prompt for a given agent, that default card will show a subtle "Overridden" badge.
 
-### 1. Database: Add column to `sdr_call_grades`
+## Changes
 
-Add a `meeting_scheduled` boolean column (nullable, defaults to null for existing records):
+### 1. Define default prompt data in `SDRManagerCoaching.tsx`
 
-```sql
-ALTER TABLE sdr_call_grades ADD COLUMN meeting_scheduled boolean DEFAULT null;
-```
+Add a constant mapping the three agent keys to their friendly names, descriptions, and default prompt text (copied from the edge functions as static strings):
 
-### 2. Edge Functions: Update grader prompts to include `meeting_scheduled`
+| Agent Key | Friendly Name | Description |
+|-----------|--------------|-------------|
+| `grader` | Call Grading Criteria | Controls how each call is scored across 5 dimensions (opener, engagement, objection handling, appointment setting, professionalism) and assigns an overall letter grade |
+| `filter` | Call Classification | Determines how transcript segments are categorized (conversation, voicemail, hangup, internal, reminder) and which count as meaningful calls |
+| `splitter` | Transcript Splitting | Controls how a full-day dialer transcript is split into individual call segments based on timestamp gaps, greeting patterns, and speaker changes |
 
-Both `sdr-grade-call/index.ts` and `sdr-process-transcript/index.ts` contain the default grader prompt. Update the JSON response format in both to include:
+### 2. Show default prompts section
 
-```
-"meeting_scheduled": true/false  (was a meeting/demo actually booked on this call?)
-```
+When no custom prompts exist (or even alongside custom prompts), display a "System Defaults" section with collapsible cards for each agent. Each card:
+- Shows the friendly name as the title and the description below it
+- Has a collapsible area (using Collapsible from Radix) showing the full prompt text in a read-only monospace block
+- Has a "Customize" button that opens the create form pre-populated with that agent's default text and a suggested name like "Custom Grading Criteria"
 
-Add a brief instruction in the prompt: "Set meeting_scheduled to true ONLY if a concrete meeting, demo, or appointment was confirmed with a specific date/time. Vague interest or 'call me back' does not count."
+### 3. Pre-fill create form from defaults
 
-Then update the insert statements in both files to include `meeting_scheduled: grade.meeting_scheduled ?? null`.
+When "Customize" is clicked:
+- Set `showCreate` to true
+- Pre-fill `newPrompt` with `agent_key`, a default `prompt_name`, and the full `system_prompt` text from the default
+- The manager can then tweak a few lines and hit "Create"
 
-### 3. Frontend: Display meeting status in 3 locations
+### 4. Show "Overridden" status
 
-**A. `SDRTranscriptDetail.tsx` (call list rows, line ~106-113)**
-Next to the grade badge, add a small label:
-- If `meeting_scheduled === true`: green "Meeting Set" badge
-- If `meeting_scheduled === false`: subtle gray "No Meeting" text
-- If `null` (old data): show nothing
-
-**B. `SDRCallDetail.tsx` (call detail header, line ~50-55)**
-Next to the large grade badge, add the same meeting status indicator.
-
-**C. `useSDR.ts` type definition**
-Add `meeting_scheduled: boolean | null` to the `SDRCallGrade` interface.
-
-### 4. Stats (optional bonus)
-Update `useSDRStats` to also count meetings scheduled today for the stats cards on the dashboard.
+If the manager's team already has an active custom prompt for a given agent key, the default card shows a green "Overridden by: [prompt name]" badge to clarify that the default is not being used.
 
 ## Files Modified
 
 | File | Change |
 |------|--------|
-| Database migration | Add `meeting_scheduled` column |
-| `supabase/functions/sdr-grade-call/index.ts` | Update prompt + insert |
-| `supabase/functions/sdr-process-transcript/index.ts` | Update prompt + insert |
-| `src/hooks/useSDR.ts` | Update `SDRCallGrade` type |
-| `src/pages/sdr/SDRTranscriptDetail.tsx` | Show meeting badge in call list |
-| `src/pages/sdr/SDRCallDetail.tsx` | Show meeting badge in header |
+| `src/pages/sdr-manager/SDRManagerCoaching.tsx` | Add default prompts constant, render default prompt cards with Collapsible, add "Customize" button logic, show override status |
+
+No database or edge function changes needed -- the defaults are embedded as constants in the UI (mirroring what's in the edge functions).
 
