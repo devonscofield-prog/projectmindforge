@@ -1,32 +1,26 @@
 
-# Add SDR and SDR Manager Roles to User Invitation
+# Fix Invite Email for SDR / SDR Manager Roles
 
 ## Problem
-The invite flow (both the Edge Function and the frontend form) only supports three roles: `rep`, `manager`, and `admin`. The `sdr` and `sdr_manager` roles already exist in the database type system but are missing from the invite workflow.
+When a new user is invited, the edge function first calls `createUser` (which registers the email), then calls `generateLink` with `type: 'invite'`. The invite type fails with "A user with this email address has already been registered" because the user was just created moments earlier. This means no invite link is generated and no email is sent.
 
-## Changes Required
+## Fix
+In `supabase/functions/invite-user/index.ts` (line 180), change the `generateLink` call from `type: 'invite'` to `type: 'recovery'`. The recovery link type works for already-registered users and still allows the recipient to set their password when they click it.
 
-### 1. Edge Function: `supabase/functions/invite-user/index.ts`
-- Update the role validation on line 92 from `['rep', 'manager', 'admin']` to `['rep', 'manager', 'admin', 'sdr', 'sdr_manager']`
-- Update the error message on line 94 accordingly
-- Add `sdr` and `sdr_manager` to the `roleDisplayName` map used in the invitation email (e.g., "SDR" and "SDR Manager")
-- Update the `InviteRequest` interface `role` type to include `'sdr' | 'sdr_manager'`
+This is a one-line change:
 
-### 2. Frontend: `src/pages/admin/AdminInviteUsers.tsx`
-- Update the `formData.role` type from `'rep' | 'manager' | 'admin'` to `'rep' | 'manager' | 'admin' | 'sdr' | 'sdr_manager'`
-- Add two new `SelectItem` entries in the role dropdown:
-  - `sdr` -> "SDR"
-  - `sdr_manager` -> "SDR Manager"
-- Add role description text for the new roles:
-  - SDR: "Can submit dialer transcripts, view call grades and coaching"
-  - SDR Manager: "Can view SDR team performance, manage coaching prompts"
-- Update the `onValueChange` type cast to include the new roles
+```
+// Before
+type: 'invite',
+
+// After
+type: 'recovery',
+```
 
 ## Files Modified
 
 | File | Change |
 |------|--------|
-| `supabase/functions/invite-user/index.ts` | Add `sdr` and `sdr_manager` to validation, type, and email display name |
-| `src/pages/admin/AdminInviteUsers.tsx` | Add SDR roles to the dropdown and type definitions |
+| `supabase/functions/invite-user/index.ts` | Change `generateLink` type from `'invite'` to `'recovery'` on line 180 |
 
-No database changes needed -- the `sdr` and `sdr_manager` roles already exist in the system.
+No other changes needed. The recovery link lands on the same auth page and lets the user set their password.
