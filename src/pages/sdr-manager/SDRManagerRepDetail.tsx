@@ -1,14 +1,25 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useSDRDailyTranscripts, useSDRCalls, useSDRStats, useRetrySDRTranscript } from '@/hooks/useSDR';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Loader2, Phone, MessageSquare, TrendingUp, FileText, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Loader2, Phone, MessageSquare, TrendingUp, FileText, RotateCcw, CalendarCheck, Target } from 'lucide-react';
 import { format } from 'date-fns';
 import { gradeColors } from '@/constants/training';
+import { Progress } from '@/components/ui/progress';
+
+const GRADE_ORDER = ['A+', 'A', 'B', 'C', 'D', 'F'];
+const GRADE_BAR_COLORS: Record<string, string> = {
+  'A+': 'bg-green-500',
+  'A': 'bg-green-400',
+  'B': 'bg-blue-500',
+  'C': 'bg-amber-500',
+  'D': 'bg-orange-500',
+  'F': 'bg-red-500',
+};
 
 function SDRManagerRepDetail() {
   const { sdrId } = useParams<{ sdrId: string }>();
@@ -30,6 +41,49 @@ function SDRManagerRepDetail() {
 
   const meaningfulCalls = allCalls.filter(c => c.is_meaningful);
   const gradedCalls = meaningfulCalls.filter(c => c.sdr_call_grades?.length);
+
+  // Meetings count
+  const meetingsSet = useMemo(() => {
+    return gradedCalls.filter(c => c.sdr_call_grades?.[0]?.meeting_scheduled === true).length;
+  }, [gradedCalls]);
+
+  // Grade distribution
+  const gradeDistribution = useMemo(() => {
+    if (!stats?.gradeDistribution) return [];
+    const total = Object.values(stats.gradeDistribution as Record<string, number>).reduce((a, b) => a + b, 0);
+    return GRADE_ORDER
+      .filter(g => (stats.gradeDistribution as Record<string, number>)[g])
+      .map(g => ({
+        grade: g,
+        count: (stats.gradeDistribution as Record<string, number>)[g],
+        pct: Math.round(((stats.gradeDistribution as Record<string, number>)[g] / total) * 100),
+      }));
+  }, [stats?.gradeDistribution]);
+
+  // Dimension averages across all graded calls
+  const dimensionAverages = useMemo(() => {
+    if (gradedCalls.length === 0) return null;
+    const dims = { opener: 0, engagement: 0, objection: 0, appointment: 0, professionalism: 0 };
+    let count = 0;
+    gradedCalls.forEach(c => {
+      const g = c.sdr_call_grades?.[0];
+      if (!g) return;
+      count++;
+      dims.opener += g.opener_score || 0;
+      dims.engagement += g.engagement_score || 0;
+      dims.objection += g.objection_handling_score || 0;
+      dims.appointment += g.appointment_setting_score || 0;
+      dims.professionalism += g.professionalism_score || 0;
+    });
+    if (count === 0) return null;
+    return {
+      opener: Math.round((dims.opener / count) * 10) / 10,
+      engagement: Math.round((dims.engagement / count) * 10) / 10,
+      objection: Math.round((dims.objection / count) * 10) / 10,
+      appointment: Math.round((dims.appointment / count) * 10) / 10,
+      professionalism: Math.round((dims.professionalism / count) * 10) / 10,
+    };
+  }, [gradedCalls]);
 
   if (statsError || transcriptsError || callsError) {
     return (
@@ -56,14 +110,14 @@ function SDRManagerRepDetail() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <Phone className="h-8 w-8 text-primary" />
+                <Phone className="h-7 w-7 text-primary" />
                 <div>
-                  <p className="text-2xl font-bold">{stats?.totalCallsToday ?? '—'}</p>
-                  <p className="text-sm text-muted-foreground">Calls Today</p>
+                  <p className="text-xl font-bold">{stats?.totalCallsToday ?? '—'}</p>
+                  <p className="text-xs text-muted-foreground">Calls Today</p>
                 </div>
               </div>
             </CardContent>
@@ -71,10 +125,10 @@ function SDRManagerRepDetail() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <MessageSquare className="h-8 w-8 text-primary" />
+                <MessageSquare className="h-7 w-7 text-primary" />
                 <div>
-                  <p className="text-2xl font-bold">{stats?.meaningfulCallsToday ?? '—'}</p>
-                  <p className="text-sm text-muted-foreground">Conversations Today</p>
+                  <p className="text-xl font-bold">{stats?.meaningfulCallsToday ?? '—'}</p>
+                  <p className="text-xs text-muted-foreground">Conversations Today</p>
                 </div>
               </div>
             </CardContent>
@@ -82,10 +136,10 @@ function SDRManagerRepDetail() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <TrendingUp className="h-8 w-8 text-primary" />
+                <TrendingUp className="h-7 w-7 text-primary" />
                 <div>
-                  <p className="text-2xl font-bold">{stats?.avgScore ?? '—'}</p>
-                  <p className="text-sm text-muted-foreground">Avg Score</p>
+                  <p className="text-xl font-bold">{stats?.avgScore ?? '—'}</p>
+                  <p className="text-xs text-muted-foreground">Avg Score</p>
                 </div>
               </div>
             </CardContent>
@@ -93,12 +147,87 @@ function SDRManagerRepDetail() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <FileText className="h-8 w-8 text-primary" />
+                <FileText className="h-7 w-7 text-primary" />
                 <div>
-                  <p className="text-2xl font-bold">{stats?.totalGradedCalls ?? '—'}</p>
-                  <p className="text-sm text-muted-foreground">Graded Calls</p>
+                  <p className="text-xl font-bold">{stats?.totalGradedCalls ?? '—'}</p>
+                  <p className="text-xs text-muted-foreground">Graded Calls</p>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <CalendarCheck className="h-7 w-7 text-green-500" />
+                <div>
+                  <p className="text-xl font-bold">{meetingsSet}</p>
+                  <p className="text-xs text-muted-foreground">Meetings Set</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Two-column: Dimension Averages + Grade Distribution */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Dimension Averages */}
+          {dimensionAverages && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Skill Breakdown</CardTitle>
+                <CardDescription>Average scores across {gradedCalls.length} graded calls</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {[
+                  { label: 'Opener', score: dimensionAverages.opener },
+                  { label: 'Engagement', score: dimensionAverages.engagement },
+                  { label: 'Objection Handling', score: dimensionAverages.objection },
+                  { label: 'Appointment Setting', score: dimensionAverages.appointment },
+                  { label: 'Professionalism', score: dimensionAverages.professionalism },
+                ].map(({ label, score }) => (
+                  <div key={label} className="space-y-1.5">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium">{label}</span>
+                      <span className={`font-bold ${
+                        score >= 8 ? 'text-green-500' : score >= 6 ? 'text-blue-500' : score >= 4 ? 'text-amber-500' : 'text-red-500'
+                      }`}>{score}/10</span>
+                    </div>
+                    <Progress value={score * 10} className={`h-2.5 ${
+                      score >= 8 ? '[&>div]:bg-green-500' : score >= 6 ? '[&>div]:bg-blue-500' : score >= 4 ? '[&>div]:bg-amber-500' : '[&>div]:bg-red-500'
+                    }`} />
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Grade Distribution */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Grade Distribution</CardTitle>
+              <CardDescription>Last {stats?.totalGradedCalls ?? 0} graded calls</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {gradeDistribution.length === 0 ? (
+                <p className="text-muted-foreground text-center py-8 text-sm">No grades yet</p>
+              ) : (
+                <div className="space-y-3">
+                  {gradeDistribution.map(({ grade, count, pct }) => (
+                    <div key={grade} className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium">{grade}</span>
+                        <span className="text-muted-foreground">{count} ({pct}%)</span>
+                      </div>
+                      <div className="h-2.5 rounded-full bg-muted overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${GRADE_BAR_COLORS[grade] || 'bg-muted-foreground'}`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -113,18 +242,24 @@ function SDRManagerRepDetail() {
                   const grade = call.sdr_call_grades?.[0];
                   return (
                     <Link key={call.id} to={`/sdr/calls/${call.id}`} className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent/50 transition-colors">
-                      <div>
+                      <div className="min-w-0 flex-1">
                         <p className="font-medium">{call.prospect_name || `Call #${call.call_index}`}</p>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm text-muted-foreground truncate">
                           {call.prospect_company && `${call.prospect_company} • `}
                           {call.start_timestamp}
+                          {grade?.call_summary && ` • ${grade.call_summary.slice(0, 60)}`}
                         </p>
                       </div>
-                      {grade && (
-                        <span className={`px-3 py-1 rounded-full text-sm font-bold ${gradeColors[grade.overall_grade] || 'bg-muted'}`}>
-                          {grade.overall_grade}
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2 shrink-0 ml-3">
+                        {grade?.meeting_scheduled === true && (
+                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-600">Meeting</span>
+                        )}
+                        {grade && (
+                          <span className={`px-3 py-1 rounded-full text-sm font-bold ${gradeColors[grade.overall_grade] || 'bg-muted'}`}>
+                            {grade.overall_grade}
+                          </span>
+                        )}
+                      </div>
                     </Link>
                   );
                 })}
@@ -147,7 +282,10 @@ function SDRManagerRepDetail() {
                   <Link key={t.id} to={`/sdr/history/${t.id}`} className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent/50 transition-colors">
                     <div>
                       <p className="font-medium">{format(new Date(t.transcript_date), 'EEEE, MMM d, yyyy')}</p>
-                      <p className="text-sm text-muted-foreground">{t.total_calls_detected} calls • {t.meaningful_calls_count} meaningful</p>
+                      <p className="text-sm text-muted-foreground">
+                        {t.total_calls_detected} calls • {t.meaningful_calls_count} meaningful
+                        {t.total_calls_detected > 0 && ` • ${Math.round((t.meaningful_calls_count / t.total_calls_detected) * 100)}% connect rate`}
+                      </p>
                     </div>
                     <div className="flex items-center gap-2">
                       {(t.processing_status === 'failed' || t.processing_status === 'partial') && (
