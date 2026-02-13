@@ -207,6 +207,7 @@ const sdrManagerNavGroups = [
     items: [
       { href: '/sdr-manager/transcripts', label: 'Team Transcripts', icon: FileText },
       { href: '/sdr-manager/coaching', label: 'Coaching Prompts', icon: Sparkles },
+      { href: '/sdr-manager/invite', label: 'Invite Members', icon: UserPlus },
     ],
   },
 ];
@@ -229,7 +230,7 @@ const sdrQuickActions = [
 ];
 
 const sdrManagerQuickActions = [
-  { href: '/sdr-manager', label: 'Team Overview', icon: Users },
+  { href: '/sdr-manager/invite', label: 'Invite Member', icon: UserPlus },
 ];
 
 

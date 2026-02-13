@@ -403,7 +403,7 @@ function SDRManagerDashboard() {
         </Card>
 
         {/* Quick Links */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Link to="/sdr-manager/coaching">
             <Card className="hover:bg-accent/30 transition-colors cursor-pointer h-full">
               <CardContent className="pt-6">
@@ -417,6 +417,14 @@ function SDRManagerDashboard() {
               <CardContent className="pt-6">
                 <p className="font-medium">All Team Transcripts</p>
                 <p className="text-sm text-muted-foreground mt-1">Browse and filter all transcripts uploaded by your team</p>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link to="/sdr-manager/invite">
+            <Card className="hover:bg-accent/30 transition-colors cursor-pointer h-full">
+              <CardContent className="pt-6">
+                <p className="font-medium">Invite Team Members</p>
+                <p className="text-sm text-muted-foreground mt-1">Send invitations or generate a signup link for new SDRs</p>
               </CardContent>
             </Card>
           </Link>
