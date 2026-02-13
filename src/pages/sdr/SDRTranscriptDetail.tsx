@@ -59,8 +59,8 @@ function SDRTranscriptDetail() {
   }, [meaningfulCalls]);
 
   // Smart back navigation based on role
-  const backPath = role === 'sdr_manager' ? '/sdr-manager/transcripts' : '/sdr';
-  const backLabel = role === 'sdr_manager' ? 'Transcripts' : 'Dashboard';
+  const backPath = role === 'admin' ? '/admin/sdr' : role === 'sdr_manager' ? '/sdr-manager/transcripts' : '/sdr';
+  const backLabel = role === 'admin' ? 'SDR Oversight' : role === 'sdr_manager' ? 'Transcripts' : 'Dashboard';
 
   if (transcriptLoading || callsLoading) {
     return (
