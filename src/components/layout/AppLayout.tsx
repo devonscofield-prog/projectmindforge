@@ -187,12 +187,6 @@ const sdrNavGroups = [
       { href: '/sdr/history', label: 'Transcript History', icon: History },
     ],
   },
-  {
-    label: 'Resources',
-    items: [
-      { href: '/training', label: 'Practice Roleplay', icon: GraduationCap },
-    ],
-  },
 ];
 
 const sdrManagerNavGroups = [
