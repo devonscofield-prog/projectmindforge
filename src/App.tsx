@@ -55,6 +55,7 @@ const AdminPlaybook = lazy(() => import("./pages/admin/AdminPlaybook"));
 const AdminCompetitors = lazy(() => import("./pages/admin/AdminCompetitors"));
 const AdminTrainingPersonas = lazy(() => import("./pages/admin/AdminTrainingPersonas"));
 const AdminReporting = lazy(() => import("./pages/admin/AdminReporting"));
+const AdminSDROverview = lazy(() => import("./pages/admin/AdminSDROverview"));
 // Lazy load - Shared pages
 const CallDetailPage = lazy(() => import("./pages/calls/CallDetailPage"));
 const UserSettings = lazy(() => import("./pages/UserSettings"));
@@ -348,6 +349,11 @@ const App = () => (
                 <Route path="/manager/reporting" element={
                   <ProtectedRoute allowedRoles={['manager']}>
                     <AdminReporting />
+                  </ProtectedRoute>
+                } />
+                <Route path="/admin/sdr" element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <AdminSDROverview />
                   </ProtectedRoute>
                 } />
 

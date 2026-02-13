@@ -4,6 +4,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useSDRDailyTranscripts, useSDRCalls, useSDRStats, useRetrySDRTranscript } from '@/hooks/useSDR';
+import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, Loader2, Phone, MessageSquare, TrendingUp, FileText, RotateCcw, CalendarCheck, Target } from 'lucide-react';
@@ -23,6 +24,7 @@ const GRADE_BAR_COLORS: Record<string, string> = {
 
 function SDRManagerRepDetail() {
   const { sdrId } = useParams<{ sdrId: string }>();
+  const { role } = useAuth();
   const { data: stats, isError: statsError } = useSDRStats(sdrId);
   const { data: transcripts = [], isLoading: transcriptsLoading, isError: transcriptsError } = useSDRDailyTranscripts(sdrId);
   const { data: allCalls = [], isError: callsError } = useSDRCalls(undefined, sdrId);
@@ -101,7 +103,7 @@ function SDRManagerRepDetail() {
       <div className="space-y-6">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild>
-            <Link to="/sdr-manager"><ArrowLeft className="h-5 w-5" /></Link>
+            <Link to={role === 'admin' ? '/admin/sdr' : '/sdr-manager'}><ArrowLeft className="h-5 w-5" /></Link>
           </Button>
           <div>
             <h1 className="text-2xl font-bold">{sdrProfile?.name || 'SDR Performance'}</h1>

@@ -97,6 +97,7 @@ const adminNavGroups = [
     items: [
       { href: '/admin/users', label: 'Users', icon: Users },
       { href: '/admin/teams', label: 'Teams', icon: Users },
+      { href: '/admin/sdr', label: 'SDR Oversight', icon: Mic },
     ],
   },
   {
