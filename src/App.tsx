@@ -78,6 +78,10 @@ const SDRManagerDashboard = lazy(() => import("./pages/sdr-manager/SDRManagerDas
 const SDRManagerCoaching = lazy(() => import("./pages/sdr-manager/SDRManagerCoaching"));
 const SDRManagerRepDetail = lazy(() => import("./pages/sdr-manager/SDRManagerRepDetail"));
 const SDRManagerTranscripts = lazy(() => import("./pages/sdr-manager/SDRManagerTranscripts"));
+const SDRManagerInvite = lazy(() => import("./pages/sdr-manager/SDRManagerInvite"));
+
+// Lazy load - Public join/signup pages
+const SDRTeamSignup = lazy(() => import("./pages/join/SDRTeamSignup"));
 
 // Lazy load - Marketing pages (public)
 const ROICalculatorPage = lazy(() => import("./pages/marketing/ROICalculatorPage"));
@@ -385,11 +389,19 @@ const App = () => (
                     <SDRManagerTranscripts />
                   </ProtectedRoute>
                 } />
+                <Route path="/sdr-manager/invite" element={
+                  <ProtectedRoute allowedRoles={['sdr_manager']}>
+                    <SDRManagerInvite />
+                  </ProtectedRoute>
+                } />
                 <Route path="/sdr-manager/rep/:sdrId" element={
                   <ProtectedRoute allowedRoles={['sdr_manager', 'admin']}>
                     <SDRManagerRepDetail />
                   </ProtectedRoute>
                 } />
+
+                {/* Public Join/Signup Routes */}
+                <Route path="/join/:token" element={<SDRTeamSignup />} />
 
                 {/* Marketing Routes (Public) */}
                 <Route path="/marketing/roi-calculator" element={<ROICalculatorPage />} />

@@ -11,6 +11,7 @@ interface InviteRequest {
   name: string;
   role: 'rep' | 'manager' | 'admin' | 'sdr' | 'sdr_manager';
   teamId?: string;
+  sdrTeamId?: string;
   sendEmail?: boolean;
   redirectTo?: string;
 }
@@ -59,16 +60,19 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check if user is admin
+    // Check if user is admin or sdr_manager
     const { data: userRole, error: roleError } = await supabaseAdmin
       .from('user_roles')
       .select('role')
       .eq('user_id', user.id)
       .single();
 
-    if (roleError || userRole?.role !== 'admin') {
+    const isAdmin = userRole?.role === 'admin';
+    const isSdrManager = userRole?.role === 'sdr_manager';
+
+    if (roleError || (!isAdmin && !isSdrManager)) {
       return new Response(
-        JSON.stringify({ error: 'Admin access required' }),
+        JSON.stringify({ error: 'Admin or SDR Manager access required' }),
         {
           status: 403,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -76,7 +80,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { email, name, role, teamId, sendEmail = true, redirectTo }: InviteRequest = await req.json();
+    const { email, name, role, teamId, sdrTeamId, sendEmail = true, redirectTo }: InviteRequest = await req.json();
 
     // Validate input
     if (!email || !name || !role) {
@@ -97,6 +101,38 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
       );
+    }
+
+    // SDR Managers can only invite SDR role users to their own team
+    if (isSdrManager && !isAdmin) {
+      if (role !== 'sdr') {
+        return new Response(
+          JSON.stringify({ error: 'SDR Managers can only invite users with the SDR role' }),
+          {
+            status: 403,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
+
+      // Verify the SDR manager owns the specified team
+      if (sdrTeamId) {
+        const { data: sdrTeam, error: sdrTeamError } = await supabaseAdmin
+          .from('sdr_teams')
+          .select('id, manager_id')
+          .eq('id', sdrTeamId)
+          .single();
+
+        if (sdrTeamError || !sdrTeam || sdrTeam.manager_id !== user.id) {
+          return new Response(
+            JSON.stringify({ error: 'You can only invite users to your own SDR team' }),
+            {
+              status: 403,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            }
+          );
+        }
+      }
     }
 
     // Check if user already exists
@@ -174,6 +210,23 @@ Deno.serve(async (req) => {
     }
 
     console.log(`✓ Role assigned: ${role}`);
+
+    // If sdrTeamId is provided, add user to the SDR team
+    if (sdrTeamId) {
+      const { error: sdrMemberError } = await supabaseAdmin
+        .from('sdr_team_members')
+        .insert({
+          team_id: sdrTeamId,
+          user_id: newUser.user.id,
+        });
+
+      if (sdrMemberError) {
+        console.error('Failed to add to SDR team:', sdrMemberError);
+        // Don't fail the entire operation, just log
+      } else {
+        console.log(`✓ Added to SDR team: ${sdrTeamId}`);
+      }
+    }
 
     // Generate invite link for the user to set their own password
     const { data: resetData, error: resetError } = await supabaseAdmin.auth.admin.generateLink({
@@ -288,6 +341,7 @@ Deno.serve(async (req) => {
         target_user_email: email,
         role: role,
         team_id: teamId,
+        sdr_team_id: sdrTeamId,
         email_sent: emailSent,
       },
     });
