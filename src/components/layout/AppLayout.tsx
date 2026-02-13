@@ -187,6 +187,12 @@ const sdrNavGroups = [
       { href: '/sdr/history', label: 'Transcript History', icon: History },
     ],
   },
+  {
+    label: 'Resources',
+    items: [
+      { href: '/training', label: 'Practice Roleplay', icon: GraduationCap },
+    ],
+  },
 ];
 
 const sdrManagerNavGroups = [
@@ -197,10 +203,10 @@ const sdrManagerNavGroups = [
     ],
   },
   {
-    label: 'Management',
+    label: 'Team',
     items: [
-      { href: '/sdr-manager/coaching', label: 'Coaching Prompts', icon: MessageSquare },
-      { href: '/sdr-manager/transcripts', label: 'Transcripts', icon: FileText },
+      { href: '/sdr-manager/transcripts', label: 'Team Transcripts', icon: FileText },
+      { href: '/sdr-manager/coaching', label: 'Coaching Prompts', icon: Sparkles },
     ],
   },
 ];
@@ -216,6 +222,14 @@ const managerQuickActions = [
 
 const repQuickActions = [
   { href: '/rep', label: 'Submit Call', icon: Plus },
+];
+
+const sdrQuickActions = [
+  { href: '/sdr', label: 'Upload Transcript', icon: Upload },
+];
+
+const sdrManagerQuickActions = [
+  { href: '/sdr-manager', label: 'Team Overview', icon: Users },
 ];
 
 
@@ -246,12 +260,16 @@ function SidebarNav() {
     ? adminQuickActions
     : role === 'manager'
     ? managerQuickActions
+    : role === 'sdr'
+    ? sdrQuickActions
+    : role === 'sdr_manager'
+    ? sdrManagerQuickActions
     : repQuickActions;
 
   // Prefix-based active detection (exact match for dashboards)
   const isActive = (href: string) => {
     // Exact match for dashboard routes
-    if (href === '/admin' || href === '/manager' || href === '/rep' || href === '/training') {
+    if (href === '/admin' || href === '/manager' || href === '/rep' || href === '/training' || href === '/sdr' || href === '/sdr-manager') {
       return location.pathname === href;
     }
     // Prefix match for all other routes

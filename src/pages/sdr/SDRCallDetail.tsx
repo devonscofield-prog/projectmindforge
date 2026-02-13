@@ -1,16 +1,47 @@
-import { useParams } from 'react-router-dom';
+import { useMemo } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useSDRCallDetail, useReGradeCall } from '@/hooks/useSDR';
-import { ArrowLeft, Loader2, RefreshCw, Star, TrendingUp, MessageSquare, Target, Award, Clock } from 'lucide-react';
+import { useSDRCallDetail, useSDRCalls, useReGradeCall } from '@/hooks/useSDR';
+import { ArrowLeft, Loader2, RefreshCw, Star, TrendingUp, MessageSquare, Target, Award, Clock, ChevronLeft, ChevronRight, CalendarCheck } from 'lucide-react';
 import { gradeColors } from '@/constants/training';
 import { Progress } from '@/components/ui/progress';
 
+function getScoreColor(score: number | null): string {
+  if (score === null) return 'text-muted-foreground';
+  if (score >= 8) return 'text-green-500';
+  if (score >= 6) return 'text-blue-500';
+  if (score >= 4) return 'text-amber-500';
+  return 'text-red-500';
+}
+
+function getProgressColor(score: number | null): string {
+  if (score === null) return '';
+  if (score >= 8) return '[&>div]:bg-green-500';
+  if (score >= 6) return '[&>div]:bg-blue-500';
+  if (score >= 4) return '[&>div]:bg-amber-500';
+  return '[&>div]:bg-red-500';
+}
+
 function SDRCallDetail() {
   const { callId } = useParams<{ callId: string }>();
+  const navigate = useNavigate();
   const { data: call, isLoading, isError } = useSDRCallDetail(callId);
   const reGradeMutation = useReGradeCall();
+
+  // Fetch sibling calls for prev/next navigation
+  const { data: siblingCalls = [] } = useSDRCalls(call?.daily_transcript_id);
+
+  const { prevCall, nextCall } = useMemo(() => {
+    if (!call || siblingCalls.length === 0) return { prevCall: null, nextCall: null };
+    const meaningfulCalls = siblingCalls.filter(c => c.is_meaningful);
+    const currentIndex = meaningfulCalls.findIndex(c => c.id === call.id);
+    return {
+      prevCall: currentIndex > 0 ? meaningfulCalls[currentIndex - 1] : null,
+      nextCall: currentIndex < meaningfulCalls.length - 1 ? meaningfulCalls[currentIndex + 1] : null,
+    };
+  }, [call, siblingCalls]);
 
   if (isLoading) {
     return <AppLayout><div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div></AppLayout>;
@@ -37,14 +68,23 @@ function SDRCallDetail() {
   return (
     <AppLayout>
       <div className="space-y-6">
+        {/* Header with navigation */}
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => window.history.back()}>
+          <Button variant="ghost" size="icon" onClick={() => {
+            if (call.daily_transcript_id) {
+              navigate(`/sdr/history/${call.daily_transcript_id}`);
+            } else {
+              window.history.back();
+            }
+          }}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div className="flex-1">
             <h1 className="text-2xl font-bold">{call.prospect_name || `Call #${call.call_index}`}</h1>
             <p className="text-muted-foreground">
-              {call.prospect_company && `${call.prospect_company} • `}{call.start_timestamp}
+              {call.prospect_company && `${call.prospect_company} • `}
+              {call.start_timestamp}
+              {call.duration_estimate_seconds && ` • ~${Math.round(call.duration_estimate_seconds / 60)} min`}
             </p>
           </div>
           {grade && (
@@ -53,7 +93,10 @@ function SDRCallDetail() {
                 {grade.overall_grade}
               </span>
               {grade.meeting_scheduled === true && (
-                <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-500/10 text-green-600">Meeting Set</span>
+                <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-500/10 text-green-600 flex items-center gap-1">
+                  <CalendarCheck className="h-3.5 w-3.5" />
+                  Meeting Set
+                </span>
               )}
               {grade.meeting_scheduled === false && (
                 <span className="text-sm text-muted-foreground">No Meeting</span>
@@ -66,6 +109,32 @@ function SDRCallDetail() {
           </Button>
         </div>
 
+        {/* Prev/Next navigation */}
+        {(prevCall || nextCall) && (
+          <div className="flex items-center justify-between">
+            <div>
+              {prevCall && (
+                <Button variant="ghost" size="sm" asChild>
+                  <Link to={`/sdr/calls/${prevCall.id}`}>
+                    <ChevronLeft className="h-4 w-4 mr-1" />
+                    {prevCall.prospect_name || `Call #${prevCall.call_index}`}
+                  </Link>
+                </Button>
+              )}
+            </div>
+            <div>
+              {nextCall && (
+                <Button variant="ghost" size="sm" asChild>
+                  <Link to={`/sdr/calls/${nextCall.id}`}>
+                    {nextCall.prospect_name || `Call #${nextCall.call_index}`}
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                  </Link>
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+
         {grade && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Scores */}
@@ -73,12 +142,15 @@ function SDRCallDetail() {
               <CardHeader><CardTitle>Scores</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 {scoreItems.map(({ label, score, icon: Icon }) => (
-                  <div key={label} className="space-y-1">
+                  <div key={label} className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2"><Icon className="h-4 w-4 text-muted-foreground" /><span className="text-sm font-medium">{label}</span></div>
-                      <span className="text-sm font-bold">{score ?? '—'}/10</span>
+                      <div className="flex items-center gap-2">
+                        <Icon className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">{label}</span>
+                      </div>
+                      <span className={`text-sm font-bold ${getScoreColor(score)}`}>{score ?? '—'}/10</span>
                     </div>
-                    <Progress value={(score ?? 0) * 10} className="h-2" />
+                    <Progress value={(score ?? 0) * 10} className={`h-2.5 ${getProgressColor(score)}`} />
                   </div>
                 ))}
               </CardContent>
@@ -89,25 +161,35 @@ function SDRCallDetail() {
               {grade.call_summary && (
                 <Card>
                   <CardHeader><CardTitle>Summary</CardTitle></CardHeader>
-                  <CardContent><p className="text-sm">{grade.call_summary}</p></CardContent>
+                  <CardContent><p className="text-sm leading-relaxed">{grade.call_summary}</p></CardContent>
                 </Card>
               )}
               {grade.strengths && (grade.strengths as string[]).length > 0 && (
                 <Card>
-                  <CardHeader><CardTitle className="text-green-500">Strengths</CardTitle></CardHeader>
-                  <CardContent><ul className="list-disc list-inside space-y-1 text-sm">{(grade.strengths as string[]).map((s, i) => <li key={i}>{s}</li>)}</ul></CardContent>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-green-500" />
+                      Strengths
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent><ul className="list-disc list-inside space-y-1.5 text-sm">{(grade.strengths as string[]).map((s, i) => <li key={i}>{s}</li>)}</ul></CardContent>
                 </Card>
               )}
               {grade.improvements && (grade.improvements as string[]).length > 0 && (
                 <Card>
-                  <CardHeader><CardTitle className="text-orange-500">Improvements</CardTitle></CardHeader>
-                  <CardContent><ul className="list-disc list-inside space-y-1 text-sm">{(grade.improvements as string[]).map((s, i) => <li key={i}>{s}</li>)}</ul></CardContent>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-orange-500" />
+                      Areas for Improvement
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent><ul className="list-disc list-inside space-y-1.5 text-sm">{(grade.improvements as string[]).map((s, i) => <li key={i}>{s}</li>)}</ul></CardContent>
                 </Card>
               )}
               {grade.coaching_notes && (
                 <Card>
                   <CardHeader><CardTitle>Coaching Notes</CardTitle></CardHeader>
-                  <CardContent><p className="text-sm whitespace-pre-wrap">{grade.coaching_notes}</p></CardContent>
+                  <CardContent><p className="text-sm whitespace-pre-wrap leading-relaxed">{grade.coaching_notes}</p></CardContent>
                 </Card>
               )}
               {grade.key_moments && (grade.key_moments as Array<{ timestamp: string; description: string; sentiment: string }>).length > 0 && (
@@ -139,6 +221,27 @@ function SDRCallDetail() {
               )}
             </div>
           </div>
+        )}
+
+        {!grade && call.analysis_status === 'processing' && (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-3" />
+              <p className="text-muted-foreground">This call is being analyzed...</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {!grade && call.analysis_status === 'failed' && (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <p className="text-destructive mb-3">Grading failed for this call.</p>
+              <Button variant="outline" onClick={() => reGradeMutation.mutate(call.id)} disabled={reGradeMutation.isPending}>
+                <RefreshCw className={`h-4 w-4 mr-2 ${reGradeMutation.isPending ? 'animate-spin' : ''}`} />
+                Retry Grading
+              </Button>
+            </CardContent>
+          </Card>
         )}
 
         {/* Raw Transcript */}

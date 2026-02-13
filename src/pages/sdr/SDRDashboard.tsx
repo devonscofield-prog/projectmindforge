@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,17 +6,31 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { useSDRStats, useSDRDailyTranscripts, useUploadSDRTranscript, useRetrySDRTranscript } from '@/hooks/useSDR';
+import { Progress } from '@/components/ui/progress';
+import { useSDRStats, useSDRDailyTranscripts, useSDRCalls, useUploadSDRTranscript, useRetrySDRTranscript } from '@/hooks/useSDR';
 import { useAuth } from '@/contexts/AuthContext';
-import { Upload, Phone, MessageSquare, TrendingUp, Loader2, FileText, FileUp, ClipboardPaste, RotateCcw } from 'lucide-react';
+import { Upload, Phone, MessageSquare, TrendingUp, Loader2, FileText, FileUp, ClipboardPaste, RotateCcw, ArrowRight, CalendarCheck, Target } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
+import { gradeColors } from '@/constants/training';
 
+
+// Grade order for sorting in distribution chart
+const GRADE_ORDER = ['A+', 'A', 'B', 'C', 'D', 'F'];
+const GRADE_BAR_COLORS: Record<string, string> = {
+  'A+': 'bg-green-500',
+  'A': 'bg-green-400',
+  'B': 'bg-blue-500',
+  'C': 'bg-amber-500',
+  'D': 'bg-orange-500',
+  'F': 'bg-red-500',
+};
 
 function SDRDashboard() {
   const { user } = useAuth();
   const { data: stats, isError: statsError } = useSDRStats(user?.id);
   const { data: transcripts = [], isLoading: transcriptsLoading, isError: transcriptsError } = useSDRDailyTranscripts(user?.id);
+  const { data: recentCalls = [] } = useSDRCalls(undefined, user?.id);
   const uploadMutation = useUploadSDRTranscript();
   const retryMutation = useRetrySDRTranscript();
   const [rawText, setRawText] = useState('');
@@ -44,6 +58,36 @@ function SDRDashboard() {
     });
   };
 
+  // Compute conversation rate
+  const conversationRate = stats?.totalCallsToday && stats.totalCallsToday > 0
+    ? Math.round((stats.meaningfulCallsToday / stats.totalCallsToday) * 100)
+    : null;
+
+  // Grade distribution chart data
+  const gradeDistribution = useMemo(() => {
+    if (!stats?.gradeDistribution) return [];
+    const total = Object.values(stats.gradeDistribution as Record<string, number>).reduce((a, b) => a + b, 0);
+    return GRADE_ORDER
+      .filter(g => (stats.gradeDistribution as Record<string, number>)[g])
+      .map(g => ({
+        grade: g,
+        count: (stats.gradeDistribution as Record<string, number>)[g],
+        pct: Math.round(((stats.gradeDistribution as Record<string, number>)[g] / total) * 100),
+      }));
+  }, [stats?.gradeDistribution]);
+
+  // Recent graded calls for quick view
+  const recentGradedCalls = useMemo(() => {
+    return recentCalls
+      .filter(c => c.is_meaningful && c.sdr_call_grades?.length)
+      .slice(0, 5);
+  }, [recentCalls]);
+
+  // Meetings set count
+  const meetingsSet = useMemo(() => {
+    return recentCalls.filter(c => c.sdr_call_grades?.[0]?.meeting_scheduled === true).length;
+  }, [recentCalls]);
+
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -59,7 +103,7 @@ function SDRDashboard() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
@@ -85,6 +129,17 @@ function SDRDashboard() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
+                <Target className="h-8 w-8 text-primary" />
+                <div>
+                  <p className="text-2xl font-bold">{conversationRate !== null ? `${conversationRate}%` : '—'}</p>
+                  <p className="text-sm text-muted-foreground">Connect Rate</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
                 <TrendingUp className="h-8 w-8 text-primary" />
                 <div>
                   <p className="text-2xl font-bold">{stats?.avgScore ?? '—'}</p>
@@ -96,10 +151,10 @@ function SDRDashboard() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <FileText className="h-8 w-8 text-primary" />
+                <CalendarCheck className="h-8 w-8 text-green-500" />
                 <div>
-                  <p className="text-2xl font-bold">{stats?.totalGradedCalls ?? '—'}</p>
-                  <p className="text-sm text-muted-foreground">Graded Calls</p>
+                  <p className="text-2xl font-bold">{meetingsSet}</p>
+                  <p className="text-sm text-muted-foreground">Meetings Set</p>
                 </div>
               </div>
             </CardContent>
@@ -187,10 +242,101 @@ function SDRDashboard() {
           </Card>
         )}
 
+        {/* Two-column layout: Recent Calls + Grade Distribution */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Recent Graded Calls */}
+          <div className="lg:col-span-2">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>Recent Graded Calls</CardTitle>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link to="/sdr/history" className="text-muted-foreground hover:text-foreground">
+                    View All <ArrowRight className="h-4 w-4 ml-1" />
+                  </Link>
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {recentGradedCalls.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">No graded calls yet. Upload a transcript to get started!</p>
+                ) : (
+                  <div className="space-y-2">
+                    {recentGradedCalls.map((call) => {
+                      const grade = call.sdr_call_grades?.[0];
+                      return (
+                        <Link key={call.id} to={`/sdr/calls/${call.id}`} className="block">
+                          <div className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent/50 transition-colors">
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              <MessageSquare className="h-5 w-5 text-primary shrink-0" />
+                              <div className="min-w-0">
+                                <p className="font-medium truncate">{call.prospect_name || `Call #${call.call_index}`}</p>
+                                <p className="text-sm text-muted-foreground truncate">
+                                  {call.prospect_company && `${call.prospect_company} • `}
+                                  {grade?.call_summary?.slice(0, 80)}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0 ml-3">
+                              {grade?.meeting_scheduled === true && (
+                                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-600">Meeting</span>
+                              )}
+                              {grade && (
+                                <span className={`px-3 py-1 rounded-full text-sm font-bold ${gradeColors[grade.overall_grade] || 'bg-muted'}`}>
+                                  {grade.overall_grade}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Grade Distribution */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Grade Distribution</CardTitle>
+              <CardDescription>Last {stats?.totalGradedCalls ?? 0} graded calls</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {gradeDistribution.length === 0 ? (
+                <p className="text-muted-foreground text-center py-8 text-sm">No grades yet</p>
+              ) : (
+                <div className="space-y-3">
+                  {gradeDistribution.map(({ grade, count, pct }) => (
+                    <div key={grade} className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium">{grade}</span>
+                        <span className="text-muted-foreground">{count} ({pct}%)</span>
+                      </div>
+                      <div className="h-2.5 rounded-full bg-muted overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${GRADE_BAR_COLORS[grade] || 'bg-muted-foreground'}`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Recent Transcripts */}
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Recent Transcripts</CardTitle>
+            {transcripts.length > 5 && (
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/sdr/history" className="text-muted-foreground hover:text-foreground">
+                  View All ({transcripts.length}) <ArrowRight className="h-4 w-4 ml-1" />
+                </Link>
+              </Button>
+            )}
           </CardHeader>
           <CardContent>
             {transcriptsError ? (
@@ -201,7 +347,7 @@ function SDRDashboard() {
               <p className="text-muted-foreground text-center py-8">No transcripts yet. Upload your first one above!</p>
             ) : (
               <div className="space-y-3">
-                {transcripts.slice(0, 10).map((t) => (
+                {transcripts.slice(0, 5).map((t) => (
                   <Link key={t.id} to={`/sdr/history/${t.id}`} className="block">
                     <div className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent/50 transition-colors">
                       <div>
