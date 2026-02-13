@@ -177,10 +177,12 @@ export default function UserSettings() {
 
         <ColorSchemeSelector />
 
-        <NotificationPreferences />
-
-
-        <NotificationHistorySection />
+        {role && !['sdr', 'sdr_manager'].includes(role) && (
+          <>
+            <NotificationPreferences />
+            <NotificationHistorySection />
+          </>
+        )}
 
         <Card>
           <CardHeader>
