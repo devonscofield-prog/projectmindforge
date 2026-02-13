@@ -159,7 +159,7 @@ const App = () => (
 
                 {/* User Settings Route (All Roles) */}
                 <Route path="/settings" element={
-                  <ProtectedRoute allowedRoles={['rep', 'manager', 'admin']}>
+                  <ProtectedRoute allowedRoles={['rep', 'manager', 'admin', 'sdr', 'sdr_manager']}>
                     <UserSettings />
                   </ProtectedRoute>
                 } />
