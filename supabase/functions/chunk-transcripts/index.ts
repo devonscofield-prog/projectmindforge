@@ -75,14 +75,16 @@ const chunkTranscriptsSchema = z.object({
   reset_all_chunks: z.boolean().optional(),
   full_reindex: z.boolean().optional(),
   ner_batch: z.boolean().optional(),
+  embedding_batch: z.boolean().optional(),
   batch_size: z.number().min(1).max(50).optional(),
   job_id: z.string().uuid().optional(),
 }).refine(
   (data) => data.backfill_all === true || data.backfill_embeddings === true || 
             data.backfill_entities === true || data.reset_all_chunks === true ||
             data.full_reindex === true || data.ner_batch === true ||
+            data.embedding_batch === true ||
             (data.transcript_ids && data.transcript_ids.length > 0),
-  { message: "Either transcript_ids, a backfill mode, reset_all_chunks, full_reindex, or ner_batch is required" }
+  { message: "Either transcript_ids, a backfill mode, reset_all_chunks, full_reindex, ner_batch, or embedding_batch is required" }
 );
 
 // Constants
@@ -1274,7 +1276,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { transcript_ids, backfill_all, backfill_embeddings, backfill_entities, reset_all_chunks, full_reindex, ner_batch, batch_size, job_id } = parseResult.data;
+    const { transcript_ids, backfill_all, backfill_embeddings, backfill_entities, reset_all_chunks, full_reindex, ner_batch, embedding_batch, batch_size, job_id } = parseResult.data;
 
     // Helper function to update job status
     const updateJobStatus = async (status: 'processing' | 'completed' | 'failed', error?: string) => {
@@ -1503,6 +1505,92 @@ Deno.serve(async (req) => {
       const elapsedMs = Date.now() - batchStartTime;
       const remaining = Math.max(0, (pendingChunks || 0) - processed);
       console.log(`[chunk-transcripts] NER batch complete in ${elapsedMs}ms: ${processed} processed, ${errors} errors, ${remaining} remaining`);
+
+      return new Response(
+        JSON.stringify({
+          processed,
+          remaining,
+          total: totalChunks || 0,
+          errors,
+          complete: remaining === 0
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ========== EMBEDDING BATCH MODE (Frontend-driven, synchronous) ==========
+    if (embedding_batch) {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ error: 'Only admins can use embedding_batch mode' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const effectiveBatchSize = Math.min(batch_size || 10, 50);
+      console.log(`[chunk-transcripts] Admin ${userId} processing embedding batch (size: ${effectiveBatchSize})`);
+
+      // Get total counts
+      const { count: totalChunks } = await supabase
+        .from('transcript_chunks')
+        .select('*', { count: 'exact', head: true });
+
+      const { count: missingEmbeddings } = await supabase
+        .from('transcript_chunks')
+        .select('*', { count: 'exact', head: true })
+        .is('embedding', null);
+
+      // Fetch chunks needing embeddings
+      const { data: chunksNeedingEmbeddings, error: fetchError } = await supabase
+        .from('transcript_chunks')
+        .select('id, chunk_text')
+        .is('embedding', null)
+        .limit(effectiveBatchSize);
+
+      if (fetchError) {
+        console.error('[chunk-transcripts] Error fetching chunks for embedding batch:', fetchError);
+        throw new Error('Failed to fetch chunks for embeddings');
+      }
+
+      if (!chunksNeedingEmbeddings || chunksNeedingEmbeddings.length === 0) {
+        console.log(`[chunk-transcripts] No more chunks need embeddings`);
+        return new Response(
+          JSON.stringify({
+            processed: 0,
+            remaining: 0,
+            total: totalChunks || 0,
+            errors: 0,
+            complete: true
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      let processed = 0;
+      let errors = 0;
+
+      for (const chunk of chunksNeedingEmbeddings) {
+        try {
+          const embedding = await generateEmbedding(chunk.chunk_text, openaiApiKey);
+          const { error: updateError } = await supabase
+            .from('transcript_chunks')
+            .update({ embedding })
+            .eq('id', chunk.id);
+
+          if (updateError) {
+            console.error(`[chunk-transcripts] DB update failed for embedding chunk ${chunk.id.slice(0, 8)}:`, updateError.message);
+            errors++;
+          } else {
+            processed++;
+          }
+        } catch (error) {
+          console.error(`[chunk-transcripts] Embedding failed for chunk ${chunk.id.slice(0, 8)}:`, error);
+          errors++;
+        }
+      }
+
+      const remaining = Math.max(0, (missingEmbeddings || 0) - processed);
+      console.log(`[chunk-transcripts] Embedding batch complete: ${processed} processed, ${errors} errors, ${remaining} remaining`);
 
       return new Response(
         JSON.stringify({
