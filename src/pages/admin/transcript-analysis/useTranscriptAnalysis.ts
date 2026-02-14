@@ -14,14 +14,12 @@ import {
   fetchActiveJob, 
   cancelBackgroundJob, 
   cancelStalledJob,
-  startEmbeddingsBackfillJob,
   startFullReindexJob,
   isJobStalled,
   processNERBatch,
+  processEmbeddingBatch,
   processDealHeatBatch,
   fetchMissingDealHeatCount,
-  NERBatchResult,
-  DealHeatBatchResult
 } from '@/api/backgroundJobs';
 
 const log = createLogger('transcriptAnalysis');
@@ -73,8 +71,16 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
   const [savedSelectionsOpen, setSavedSelectionsOpen] = useState(false);
   const [savedInsightsOpen, setSavedInsightsOpen] = useState(false);
   
-  // Background job state for embeddings/reindex (still uses database polling)
-  const [activeEmbeddingsJobId, setActiveEmbeddingsJobId] = useState<string | null>(null);
+  // Frontend-driven embeddings backfill state
+  const [isEmbeddingsBackfillRunning, setIsEmbeddingsBackfillRunning] = useState(false);
+  const [embeddingsProgressState, setEmbeddingsProgressState] = useState<{ processed: number; total: number } | null>(null);
+  const [embeddingsLastUpdateTime, setEmbeddingsLastUpdateTime] = useState<number | null>(null);
+  const shouldStopEmbeddingsRef = useRef(false);
+  const embeddingsRetryCountRef = useRef(0);
+  const embeddingsBatchCountRef = useRef(0);
+  const MAX_EMBEDDINGS_RETRIES = 3;
+  
+  // Background job state for reindex (still uses database polling)
   const [activeReindexJobId, setActiveReindexJobId] = useState<string | null>(null);
   
   // Frontend-driven NER backfill state (using useRef to avoid stale closure issues)
@@ -355,21 +361,6 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     staleTime: 2 * 60 * 1000, // 2 minutes
   });
 
-  // Check for existing active embeddings job on page load
-  const { data: existingEmbeddingsJob } = useQuery({
-    queryKey: ['active-job', 'embedding_backfill'],
-    queryFn: () => fetchActiveJob('embedding_backfill'),
-    enabled: role === 'admin' && !activeEmbeddingsJobId,
-    staleTime: 0,
-  });
-
-  useEffect(() => {
-    if (existingEmbeddingsJob && !activeEmbeddingsJobId) {
-      setActiveEmbeddingsJobId(existingEmbeddingsJob.id);
-      toast.info('Found active embeddings backfill job, resuming tracking...');
-    }
-  }, [existingEmbeddingsJob, activeEmbeddingsJobId]);
-
   // Check for existing active reindex job on page load
   const { data: existingReindexJob } = useQuery({
     queryKey: ['active-job', 'full_reindex'],
@@ -386,20 +377,6 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     }
   }, [existingReindexJob, activeReindexJobId]);
 
-  // Poll embeddings job status
-  const { data: embeddingsJobStatus } = useQuery({
-    queryKey: ['background-job', 'embeddings', activeEmbeddingsJobId],
-    queryFn: () => fetchBackgroundJob(activeEmbeddingsJobId!),
-    enabled: !!activeEmbeddingsJobId,
-    refetchInterval: (query) => {
-      const status = query.state.data?.status;
-      if (status === 'completed' || status === 'failed' || status === 'cancelled') {
-        return false;
-      }
-      return 3000; // Poll every 3 seconds
-    },
-  });
-
   // Poll reindex job status
   const { data: reindexJobStatus } = useQuery({
     queryKey: ['background-job', 'reindex', activeReindexJobId],
@@ -410,34 +387,19 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
       if (status === 'completed' || status === 'failed' || status === 'cancelled') {
         return false;
       }
-      return 3000; // Poll every 3 seconds
+      return 3000;
     },
   });
 
-  // Check if jobs are stalled (no update in 60+ seconds)
-  const isEmbeddingsJobStalled = embeddingsJobStatus ? isJobStalled(embeddingsJobStatus) : false;
+  // Check if jobs are stalled
+  const isEmbeddingsJobStalled = isEmbeddingsBackfillRunning && embeddingsLastUpdateTime !== null && (Date.now() - embeddingsLastUpdateTime > 60000);
   const isReindexJobStalled = reindexJobStatus ? isJobStalled(reindexJobStatus) : false;
 
-  // Auto-cancel stalled jobs after 2 minutes of no updates
-  useEffect(() => {
-    if (isEmbeddingsJobStalled && embeddingsJobStatus && activeEmbeddingsJobId) {
-      const stalledMs = Date.now() - new Date(embeddingsJobStatus.updated_at).getTime();
-      if (stalledMs > 120000) { // 2 minutes
-        cancelStalledJob(activeEmbeddingsJobId).then(cancelled => {
-          if (cancelled) {
-            toast.warning('Embeddings job was stalled and has been cancelled. You can restart it.');
-            setActiveEmbeddingsJobId(null);
-            refetchGlobalChunkStatus();
-          }
-        });
-      }
-    }
-  }, [isEmbeddingsJobStalled, embeddingsJobStatus, activeEmbeddingsJobId, refetchGlobalChunkStatus]);
-
+  // Auto-cancel stalled reindex jobs after 2 minutes
   useEffect(() => {
     if (isReindexJobStalled && reindexJobStatus && activeReindexJobId) {
       const stalledMs = Date.now() - new Date(reindexJobStatus.updated_at).getTime();
-      if (stalledMs > 120000) { // 2 minutes
+      if (stalledMs > 120000) {
         cancelStalledJob(activeReindexJobId).then(cancelled => {
           if (cancelled) {
             toast.warning('Reindex job was stalled and has been cancelled. You can restart it.');
@@ -450,24 +412,6 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
       }
     }
   }, [isReindexJobStalled, reindexJobStatus, activeReindexJobId, refetchGlobalChunkStatus]);
-
-  // Handle embeddings job status changes
-  useEffect(() => {
-    if (embeddingsJobStatus) {
-      if (embeddingsJobStatus.status === 'completed') {
-        toast.success('Embeddings backfill complete!');
-        setActiveEmbeddingsJobId(null);
-        refetchGlobalChunkStatus();
-      } else if (embeddingsJobStatus.status === 'failed') {
-        toast.error(`Embeddings backfill failed: ${embeddingsJobStatus.error || 'Unknown error'}`);
-        setActiveEmbeddingsJobId(null);
-      } else if (embeddingsJobStatus.status === 'cancelled') {
-        toast.info('Embeddings backfill cancelled');
-        setActiveEmbeddingsJobId(null);
-        refetchGlobalChunkStatus();
-      }
-    }
-  }, [embeddingsJobStatus?.status, embeddingsJobStatus?.error, refetchGlobalChunkStatus]);
 
   // Handle reindex job status changes
   useEffect(() => {
@@ -496,12 +440,11 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     }
   }, [reindexJobStatus?.status, reindexJobStatus?.error, reindexJobStatus?.progress, refetchGlobalChunkStatus]);
 
-  // Derived state from job polling and frontend state
+  // Derived state from frontend-driven backfills
   const isBackfillingEntities = isNERBackfillRunning;
-  const isBackfillingEmbeddings = embeddingsJobStatus?.status === 'processing' || embeddingsJobStatus?.status === 'pending';
+  const isBackfillingEmbeddings = isEmbeddingsBackfillRunning;
   const entitiesProgress = nerProgress;
-  const embeddingsProgress = embeddingsJobStatus?.progress as { processed: number; total: number } | null;
-  const reindexProgress = reindexJobStatus?.progress as { message?: string; overall_percent?: number; stage?: string } | null;
+  const embeddingsProgress = embeddingsProgressState;
 
   // Helper to get a fresh access token with session refresh
   const getFreshToken = async (): Promise<string | null> => {
@@ -672,7 +615,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     }
   };
 
-  // Start embeddings backfill - now uses background job system
+  // Start embeddings backfill - frontend-driven pattern
   const handleBackfillEmbeddings = async () => {
     if (role !== 'admin') {
       toast.error('Only admins can backfill embeddings');
@@ -680,42 +623,138 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
     }
     
     // Check if already running
-    if (activeEmbeddingsJobId) {
+    if (isEmbeddingsBackfillRunning) {
       toast.info('Embeddings backfill is already in progress');
       return;
     }
     
-    try {
-      const token = await getFreshToken();
-      if (!token) {
-        toast.error('Your session has expired. Please sign in again.');
-        return;
+    const initialToken = await getFreshToken();
+    if (!initialToken) {
+      toast.error('Your session has expired. Please sign in again.');
+      return;
+    }
+    
+    // Reset stop flag, retry count, and batch count
+    shouldStopEmbeddingsRef.current = false;
+    embeddingsRetryCountRef.current = 0;
+    embeddingsBatchCountRef.current = 0;
+    setIsEmbeddingsBackfillRunning(true);
+    
+    // Set initial progress
+    const initialMissing = globalChunkStatus?.missingEmbeddings || 0;
+    const initialTotal = globalChunkStatus?.totalChunks || 0;
+    setEmbeddingsProgressState({
+      processed: initialTotal - initialMissing,
+      total: initialTotal
+    });
+    setEmbeddingsLastUpdateTime(Date.now());
+    
+    toast.success('Embeddings backfill started...');
+    
+    // Frontend-driven loop with token refresh
+    const runEmbeddingsLoop = async () => {
+      let currentToken = initialToken;
+      
+      while (!shouldStopEmbeddingsRef.current) {
+        try {
+          // Refresh token periodically
+          if (embeddingsBatchCountRef.current > 0 && embeddingsBatchCountRef.current % TOKEN_REFRESH_INTERVAL === 0) {
+            log.info('Refreshing auth token for embeddings', { batchCount: embeddingsBatchCountRef.current });
+            const freshToken = await getFreshToken();
+            if (!freshToken) {
+              toast.error('Session expired. Please sign in again and restart.');
+              break;
+            }
+            currentToken = freshToken;
+          }
+          
+          const result = await processEmbeddingBatch(currentToken, 10);
+          embeddingsBatchCountRef.current++;
+          
+          // Update progress
+          setEmbeddingsProgressState({
+            processed: result.total - result.remaining,
+            total: result.total
+          });
+          setEmbeddingsLastUpdateTime(Date.now());
+          
+          // Reset retry count on success
+          embeddingsRetryCountRef.current = 0;
+          
+          // Check if complete
+          if (result.complete || result.remaining === 0) {
+            toast.success(`Embeddings backfill complete! Processed ${result.total} chunks`);
+            break;
+          }
+          
+          // Small delay between batches
+          await new Promise(r => setTimeout(r, 500));
+          
+        } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : '';
+          
+          // Check for auth errors
+          const isAuthError = errorMessage.includes('[401]') || 
+                              errorMessage.includes('[403]') || 
+                              errorMessage.toLowerCase().includes('unauthorized') ||
+                              errorMessage.toLowerCase().includes('jwt');
+          
+          if (isAuthError) {
+            log.info('Auth error detected, refreshing token for embeddings');
+            const freshToken = await getFreshToken();
+            if (freshToken) {
+              currentToken = freshToken;
+              toast.info('Refreshed authentication, continuing...');
+              continue;
+            } else {
+              toast.error('Session expired. Please sign in again.');
+              break;
+            }
+          }
+          
+          // Retry logic with exponential backoff
+          embeddingsRetryCountRef.current++;
+          log.error('Embedding batch failed', { error: err, retryCount: embeddingsRetryCountRef.current });
+          
+          const errMsg = err instanceof Error ? err.message : '';
+          const isNetworkError = errMsg.includes('Failed to fetch') || 
+                                 errMsg.includes('timed out') ||
+                                 errMsg.includes('NetworkError');
+          
+          const effectiveMaxRetries = isNetworkError ? MAX_EMBEDDINGS_RETRIES * 2 : MAX_EMBEDDINGS_RETRIES;
+          
+          if (embeddingsRetryCountRef.current >= effectiveMaxRetries) {
+            toast.error(`Embeddings backfill stopped after ${embeddingsRetryCountRef.current} consecutive failures. Click "Backfill Embeddings" to resume.`);
+            break;
+          }
+          
+          const backoffDelay = Math.min(2000 * Math.pow(2, embeddingsRetryCountRef.current - 1), 30000);
+          toast.warning(`Embedding batch failed, retrying in ${backoffDelay / 1000}s... (${embeddingsRetryCountRef.current}/${effectiveMaxRetries})`);
+          await new Promise(r => setTimeout(r, backoffDelay));
+        }
       }
       
-      const { jobId } = await startEmbeddingsBackfillJob(token);
-      setActiveEmbeddingsJobId(jobId);
-      toast.success('Embeddings backfill started in background');
-    } catch (err) {
-      log.error('Failed to start embeddings backfill', { error: err });
-      if (err instanceof Error && err.message.includes('already in progress')) {
-        toast.info('An embeddings backfill is already in progress');
-      } else {
-        toast.error(err instanceof Error ? err.message : 'Failed to start embeddings backfill');
+      // Cleanup
+      const wasStopped = shouldStopEmbeddingsRef.current;
+      setIsEmbeddingsBackfillRunning(false);
+      shouldStopEmbeddingsRef.current = false;
+      embeddingsBatchCountRef.current = 0;
+      refetchGlobalChunkStatus();
+      
+      if (wasStopped) {
+        toast.info('Embeddings backfill stopped');
       }
-    }
+    };
+    
+    // Start the loop (don't await - runs in background)
+    runEmbeddingsLoop();
   };
 
-  // Stop embeddings backfill
-  const stopEmbeddingsBackfill = async () => {
-    if (!activeEmbeddingsJobId) return;
-    
-    try {
-      await cancelBackgroundJob(activeEmbeddingsJobId);
-      toast.info('Cancellation requested...');
-    } catch (err) {
-      log.error('Failed to cancel embeddings backfill', { error: err });
-      toast.error('Failed to cancel backfill');
-    }
+  // Stop embeddings backfill - frontend-driven pattern
+  const stopEmbeddingsBackfill = () => {
+    if (!isEmbeddingsBackfillRunning) return;
+    shouldStopEmbeddingsRef.current = true;
+    toast.info('Stopping embeddings backfill...');
   };
 
   // Reset and reindex all handler (admin only - now uses background job system)

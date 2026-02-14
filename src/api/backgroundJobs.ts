@@ -128,7 +128,53 @@ export async function processNERBatch(
   }
 }
 
-// Process a single batch of Deal Heat calculation (frontend-driven pattern)
+// Process a single batch of embedding generation synchronously (frontend-driven pattern)
+export interface EmbeddingBatchResult {
+  processed: number;
+  remaining: number;
+  total: number;
+  errors: number;
+  complete?: boolean;
+}
+
+const EMBEDDING_BATCH_TIMEOUT_MS = 90000;
+
+export async function processEmbeddingBatch(
+  token: string,
+  batchSize: number = 10
+): Promise<EmbeddingBatchResult> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), EMBEDDING_BATCH_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chunk-transcripts`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ embedding_batch: true, batch_size: batchSize }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`[${response.status}] ${errorText || 'Failed to process embedding batch'}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Embedding batch request timed out - will retry');
+    }
+    throw error;
+  }
+}
+
+
 export interface DealHeatBatchResult {
   processed: number;
   remaining: number;
