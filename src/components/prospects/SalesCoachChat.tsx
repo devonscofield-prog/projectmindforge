@@ -628,7 +628,7 @@ export function SalesCoachChat({ prospectId, accountName, heatScore, lastContact
               <span className="sm:hidden font-medium">Coach</span>
             </Button>
           </SheetTrigger>
-          <SheetContent className="w-full sm:max-w-lg flex flex-col p-0 h-full max-h-[100dvh] overflow-hidden">
+          <SheetContent className="w-full sm:max-w-2xl flex flex-col p-0 h-full max-h-[100dvh] overflow-hidden">
             {/* Glassmorphism Header */}
             <SheetHeader className="relative px-4 py-4 border-b border-primary-foreground/10 bg-gradient-to-r from-primary via-primary/95 to-accent text-primary-foreground overflow-hidden">
               {/* Animated background glow */}
