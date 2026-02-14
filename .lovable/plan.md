@@ -1,35 +1,62 @@
 
+# Fix: Embedding Backfill Stalling Due to Edge Function Timeout
 
-# Remove Transcript Limit for RAG-Based Analysis
+## Root Cause
 
-## Problem
-When using "Analyze with AI" with RAG mode enabled, the system caps transcript selection at 50. This limit is enforced by the Zod validation schema on the backend edge function. Since RAG mode uses semantic search over pre-indexed chunks (not direct transcript injection), there is no technical reason to restrict the number of transcripts.
+The embedding backfill uses `EdgeRuntime.waitUntil()` to run a long-lived background loop inside a single edge function invocation. This loop processes chunks one at a time with 500ms delays between each. For 8,542 chunks, this requires a minimum of ~71 minutes of wall-clock time (not counting API call latency). Edge functions have a hard wall-clock limit and silently terminate, leaving the job stuck in "processing" forever.
+
+This is the same problem that was already solved for NER backfill -- NER was converted to a **frontend-driven batch pattern** where the browser loops through small synchronous batches. Embeddings backfill was never migrated to this pattern.
+
+## Solution
+
+Convert the embedding backfill from `EdgeRuntime.waitUntil()` background processing to the same **frontend-driven batch pattern** used by NER backfill. Each call processes a small batch (e.g., 10 embeddings), returns progress, and the frontend loops until complete.
 
 ## Changes
 
-### 1. Backend Schema - Remove the 50-transcript cap for RAG
-**File:** `supabase/functions/_shared/schemas.ts` (line 138)
+### 1. Edge Function: Add `embedding_batch` mode (`supabase/functions/chunk-transcripts/index.ts`)
 
-Change the `.max(50)` validation to a higher limit (e.g., 500) so RAG-based analysis can work across the full transcript library.
+Add a new request mode alongside the existing `ner_batch`:
 
-```
-// Before
-transcript_ids: z.array(uuidSchema).min(1).max(50, "Maximum 50 transcripts allowed")
+- Accept `embedding_batch: true` and optional `batch_size` (default 10, max 50)
+- Query chunks where `embedding IS NULL`, limited to batch size
+- Generate embeddings synchronously for the batch
+- Return `{ processed, remaining, total, errors, complete }` -- same shape as NER batch responses
 
-// After
-transcript_ids: z.array(uuidSchema).min(1).max(500, "Maximum 500 transcripts allowed")
-```
+This replaces the `backfill_embeddings` + `EdgeRuntime.waitUntil()` path.
 
-### 2. Redeploy Edge Function
-The `admin-transcript-chat` edge function will be redeployed to pick up the updated schema.
+### 2. Frontend API: Add `processEmbeddingBatch` function (`src/api/backgroundJobs.ts`)
 
-No other changes are needed -- the client-side code already shows "RAG Mode - Unlimited" in the UI and has no hard cap on selection count. The RAG path in the edge function queries pre-indexed chunks filtered by transcript IDs, so scaling to hundreds of transcripts is handled efficiently by the database.
+Create a new function mirroring `processNERBatch`:
+
+- Calls the edge function with `{ embedding_batch: true, batch_size: 10 }`
+- Has a 90-second timeout
+- Returns the same `{ processed, remaining, total, errors, complete }` shape
+
+### 3. Frontend Hook: Convert embedding backfill to loop pattern (`src/pages/admin/transcript-analysis/useTranscriptAnalysis.ts`)
+
+Replace `startEmbeddingsBackfillJob` usage with a frontend loop that:
+
+- Calls `processEmbeddingBatch` repeatedly
+- Updates progress state between batches
+- Stops when `complete === true` or on error
+- Supports cancellation via a ref flag
+
+### 4. Schema Update (`supabase/functions/chunk-transcripts/index.ts`)
+
+Add `embedding_batch` to the Zod validation schema's `.refine()` check.
+
+### 5. Clean Up Stalled Job
+
+Reset the currently stuck job (id: `4a5d5c8f-...`) to `failed` status so it no longer blocks new attempts.
 
 ## Technical Details
 
-| Layer | Current Limit | New Limit | Reason |
-|-------|--------------|-----------|--------|
-| Zod schema (`_shared/schemas.ts`) | 50 | 500 | Only hard blocker; RAG doesn't need this cap |
-| Direct injection threshold | 20 transcripts | No change | Below 20 uses full text; above uses RAG chunks |
-| RAG chunk retrieval | 100 chunks | No change | Semantic search returns top-100 relevant chunks regardless of transcript count |
+| Aspect | Old (broken) | New (fixed) |
+|--------|-------------|-------------|
+| Processing model | `EdgeRuntime.waitUntil()` in single invocation | Frontend-driven loop of short HTTP calls |
+| Batch size per call | All remaining (thousands) | 10 chunks per call |
+| Wall-clock per call | Hours | ~10-15 seconds |
+| Failure mode | Silent termination, stuck job | Retryable, resumable |
+| Progress updates | Heartbeat inside background loop | Real progress after each batch |
 
+The `backfill_embeddings` and `backfill_entities` legacy paths (using `EdgeRuntime.waitUntil()`) will be kept for backward compatibility but are effectively deprecated. The `processEmbeddingsBackfillJob` and `processNERBackfillJob` background functions remain in code but are no longer the primary path.
