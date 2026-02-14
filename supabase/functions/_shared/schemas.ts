@@ -135,7 +135,7 @@ export const chatMessageSchema = z.object({
 });
 
 export const adminTranscriptChatSchema = z.object({
-  transcript_ids: z.array(uuidSchema).min(1, "At least one transcript required").max(500, "Maximum 500 transcripts allowed"),
+  transcript_ids: z.array(uuidSchema).min(1, "At least one transcript required").max(5000, "Maximum 5000 transcripts allowed"),
   messages: z.array(chatMessageSchema).min(1, "At least one message required").max(100, "Too many messages in conversation"),
   analysis_mode: z.enum([
     'coaching',
