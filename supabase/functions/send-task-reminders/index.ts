@@ -61,6 +61,18 @@ interface RequestBody {
 // Priority ordering for filtering
 const PRIORITY_ORDER: Record<string, number> = { high: 3, medium: 2, low: 1 };
 
+// Default preferences for users who haven't configured them
+const DEFAULT_PREFERENCES: Omit<UserPreferences, "user_id"> = {
+  reminder_time: "09:00",
+  secondary_reminder_time: null,
+  timezone: "America/Phoenix",
+  notify_due_today: true,
+  notify_due_tomorrow: true,
+  notify_overdue: true,
+  exclude_weekends: false,
+  min_priority: null,
+};
+
 // Dynamic import for Resend to avoid module resolution issues
 async function sendEmail(to: string, subject: string, html: string): Promise<void> {
   const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
@@ -109,9 +121,8 @@ const handler = async (req: Request): Promise<Response> => {
     const testUserId = body.userId;
 
     const now = new Date();
-    const currentHour = now.getUTCHours();
 
-    console.log(`[send-task-reminders] Running at ${now.toISOString()}, UTC hour: ${currentHour}, testMode: ${isTestMode}`);
+    console.log(`[send-task-reminders] Running at ${now.toISOString()}, testMode: ${isTestMode}`);
 
     // In test mode, we target a specific user
     if (isTestMode && testUserId) {
@@ -119,56 +130,150 @@ const handler = async (req: Request): Promise<Response> => {
       return await handleTestMode(supabase, testUserId, now);
     }
 
-    // Get users with email notifications enabled
-    const { data: prefsData, error: prefsError } = await supabase
-      .from("notification_preferences")
-      .select("user_id, reminder_time, secondary_reminder_time, timezone, notify_due_today, notify_due_tomorrow, notify_overdue, exclude_weekends, min_priority")
-      .eq("email_enabled", true);
+    // ===== NEW FLOW: Start from eligible tasks, not preferences =====
 
-    if (prefsError) {
-      console.error("[send-task-reminders] Error fetching preferences:", prefsError);
-      return new Response(JSON.stringify({ error: prefsError.message }), {
+    const today = now.toISOString().split("T")[0];
+    const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+    // Step 1: Get ALL eligible follow-ups (pending, reminder_enabled, due <= tomorrow)
+    const { data: followUpsData, error: followUpsError } = await supabase
+      .from("account_follow_ups")
+      .select("id, title, description, priority, due_date, prospect_id, rep_id, reminder_sent_at")
+      .eq("status", "pending")
+      .eq("reminder_enabled", true)
+      .not("due_date", "is", null)
+      .lte("due_date", tomorrow);
+
+    if (followUpsError) {
+      console.error("[send-task-reminders] Error fetching follow-ups:", followUpsError);
+      return new Response(JSON.stringify({ error: followUpsError.message }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    if (!prefsData || prefsData.length === 0) {
-      console.log("[send-task-reminders] No users with email notifications enabled");
-      return new Response(JSON.stringify({ message: "No users to notify", sent: 0 }), {
+    const followUps = (followUpsData || []) as FollowUp[];
+
+    if (followUps.length === 0) {
+      console.log("[send-task-reminders] No eligible follow-ups found");
+      return new Response(JSON.stringify({ message: "No eligible follow-ups", sent: 0 }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Filter users whose local time matches their reminder time (primary or secondary)
+    // Filter out tasks where reminder was already sent today
+    const todayStart = new Date(today).toISOString();
+    const eligibleFollowUps = followUps.filter(f => {
+      if (!f.reminder_sent_at) return true;
+      return new Date(f.reminder_sent_at) < new Date(todayStart);
+    });
+
+    if (eligibleFollowUps.length === 0) {
+      console.log("[send-task-reminders] All reminders already sent today");
+      return new Response(JSON.stringify({ message: "All reminders already sent today", sent: 0 }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Step 2: Get unique rep_ids from eligible tasks
+    const uniqueRepIds = [...new Set(eligibleFollowUps.map(f => f.rep_id))];
+    console.log(`[send-task-reminders] ${eligibleFollowUps.length} eligible tasks from ${uniqueRepIds.length} users`);
+
+    // Step 3: Get existing notification preferences for these users
+    const { data: existingPrefs } = await supabase
+      .from("notification_preferences")
+      .select("user_id, reminder_time, secondary_reminder_time, timezone, notify_due_today, notify_due_tomorrow, notify_overdue, exclude_weekends, min_priority, email_enabled")
+      .in("user_id", uniqueRepIds);
+
+    const prefsMap = new Map<string, UserPreferences & { email_enabled: boolean }>();
+    for (const p of (existingPrefs || [])) {
+      prefsMap.set(p.user_id, {
+        user_id: p.user_id,
+        reminder_time: p.reminder_time || DEFAULT_PREFERENCES.reminder_time,
+        secondary_reminder_time: p.secondary_reminder_time,
+        timezone: p.timezone || DEFAULT_PREFERENCES.timezone,
+        notify_due_today: p.notify_due_today ?? DEFAULT_PREFERENCES.notify_due_today,
+        notify_due_tomorrow: p.notify_due_tomorrow ?? DEFAULT_PREFERENCES.notify_due_tomorrow,
+        notify_overdue: p.notify_overdue ?? DEFAULT_PREFERENCES.notify_overdue,
+        exclude_weekends: p.exclude_weekends ?? DEFAULT_PREFERENCES.exclude_weekends,
+        min_priority: p.min_priority,
+        email_enabled: p.email_enabled ?? true,
+      });
+    }
+
+    // Step 4: Auto-provision default preferences for users missing them
+    const usersWithoutPrefs = uniqueRepIds.filter(id => !prefsMap.has(id));
+    if (usersWithoutPrefs.length > 0) {
+      console.log(`[send-task-reminders] Auto-provisioning preferences for ${usersWithoutPrefs.length} users: ${usersWithoutPrefs.join(", ")}`);
+
+      const defaultRows = usersWithoutPrefs.map(userId => ({
+        user_id: userId,
+        email_enabled: true,
+        reminder_time: DEFAULT_PREFERENCES.reminder_time,
+        secondary_reminder_time: DEFAULT_PREFERENCES.secondary_reminder_time,
+        timezone: DEFAULT_PREFERENCES.timezone,
+        notify_due_today: DEFAULT_PREFERENCES.notify_due_today,
+        notify_due_tomorrow: DEFAULT_PREFERENCES.notify_due_tomorrow,
+        notify_overdue: DEFAULT_PREFERENCES.notify_overdue,
+        exclude_weekends: DEFAULT_PREFERENCES.exclude_weekends,
+        min_priority: DEFAULT_PREFERENCES.min_priority,
+      }));
+
+      const { error: insertErr } = await supabase
+        .from("notification_preferences")
+        .insert(defaultRows);
+
+      if (insertErr) {
+        console.error("[send-task-reminders] Error auto-provisioning preferences:", insertErr);
+        // Continue anyway — we can still use in-memory defaults
+      }
+
+      // Add to prefsMap so they're included in the notification loop
+      for (const userId of usersWithoutPrefs) {
+        prefsMap.set(userId, {
+          user_id: userId,
+          ...DEFAULT_PREFERENCES,
+          email_enabled: true,
+        });
+      }
+    }
+
+    // Step 5: Filter users by time window and preferences
     const usersToNotify: string[] = [];
-    for (const pref of prefsData as UserPreferences[]) {
+    for (const [userId, pref] of prefsMap.entries()) {
+      // Skip users who have explicitly disabled email
+      if (!pref.email_enabled) {
+        console.log(`[send-task-reminders] Skipping user ${userId} - email disabled`);
+        continue;
+      }
+
       try {
         // Convert current UTC time to user's timezone
         const userLocalTime = new Date(now.toLocaleString("en-US", { timeZone: pref.timezone }));
         const userHour = userLocalTime.getHours();
-        const dayOfWeek = userLocalTime.getDay(); // 0 = Sunday, 6 = Saturday
+        const dayOfWeek = userLocalTime.getDay();
 
         // Check weekend exclusion
         const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
         if (pref.exclude_weekends && isWeekend) {
-          console.log(`[send-task-reminders] Skipping user ${pref.user_id} - weekend exclusion enabled`);
+          console.log(`[send-task-reminders] Skipping user ${userId} - weekend exclusion`);
           continue;
         }
 
         // Parse reminder hours
         const primaryHour = parseInt(pref.reminder_time.split(":")[0], 10);
-        const secondaryHour = pref.secondary_reminder_time 
+        const secondaryHour = pref.secondary_reminder_time
           ? parseInt(pref.secondary_reminder_time.split(":")[0], 10)
           : null;
 
         // Check if current hour matches primary OR secondary reminder time
         if (userHour === primaryHour || (secondaryHour !== null && userHour === secondaryHour)) {
-          usersToNotify.push(pref.user_id);
+          usersToNotify.push(userId);
         }
       } catch {
-        console.warn(`[send-task-reminders] Invalid timezone for user ${pref.user_id}:`, pref.timezone);
+        console.warn(`[send-task-reminders] Invalid timezone for user ${userId}:`, pref.timezone);
       }
     }
 
@@ -182,7 +287,23 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`[send-task-reminders] ${usersToNotify.length} users to notify`);
 
-    return await sendRemindersToUsers(supabase, usersToNotify, prefsData as UserPreferences[], now, false);
+    // Build full prefsData array for sendRemindersToUsers
+    const prefsDataArray: UserPreferences[] = usersToNotify.map(id => {
+      const p = prefsMap.get(id)!;
+      return {
+        user_id: p.user_id,
+        reminder_time: p.reminder_time,
+        secondary_reminder_time: p.secondary_reminder_time,
+        timezone: p.timezone,
+        notify_due_today: p.notify_due_today,
+        notify_due_tomorrow: p.notify_due_tomorrow,
+        notify_overdue: p.notify_overdue,
+        exclude_weekends: p.exclude_weekends,
+        min_priority: p.min_priority,
+      };
+    });
+
+    return await sendRemindersToUsers(supabase, usersToNotify, prefsDataArray, now, false, eligibleFollowUps);
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error("[send-task-reminders] Unexpected error:", error);
@@ -215,7 +336,7 @@ async function handleTestMode(
     user_id: prefData.user_id,
     reminder_time: prefData.reminder_time || "09:00",
     secondary_reminder_time: prefData.secondary_reminder_time,
-    timezone: prefData.timezone || "America/New_York",
+    timezone: prefData.timezone || "America/Phoenix",
     notify_due_today: prefData.notify_due_today ?? true,
     notify_due_tomorrow: prefData.notify_due_tomorrow ?? true,
     notify_overdue: prefData.notify_overdue ?? true,
@@ -225,7 +346,7 @@ async function handleTestMode(
     user_id: userId,
     reminder_time: "09:00",
     secondary_reminder_time: null,
-    timezone: "America/New_York",
+    timezone: "America/Phoenix",
     notify_due_today: true,
     notify_due_tomorrow: true,
     notify_overdue: true,
@@ -237,14 +358,16 @@ async function handleTestMode(
 }
 
 /**
- * Core logic to send reminders to specified users
+ * Core logic to send reminders to specified users.
+ * Optionally accepts pre-fetched followUps to avoid re-querying.
  */
 async function sendRemindersToUsers(
   supabase: AnySupabaseClient,
   userIds: string[],
   prefsData: UserPreferences[],
   now: Date,
-  isTestMode: boolean
+  isTestMode: boolean,
+  prefetchedFollowUps?: FollowUp[]
 ): Promise<Response> {
   // Get user profiles
   const { data: profiles } = await supabase
@@ -257,56 +380,63 @@ async function sendRemindersToUsers(
     return acc;
   }, {} as Record<string, { name: string; email: string }>);
 
-  // Get follow-ups with reminder_enabled and due dates
   const today = now.toISOString().split("T")[0];
   const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
-  const { data: followUpsData, error: followUpsError } = await supabase
-    .from("account_follow_ups")
-    .select("id, title, description, priority, due_date, prospect_id, rep_id, reminder_sent_at")
-    .in("rep_id", userIds)
-    .eq("status", "pending")
-    .eq("reminder_enabled", true)
-    .not("due_date", "is", null)
-    .lte("due_date", tomorrow);
+  // Use pre-fetched follow-ups or query fresh
+  let eligibleFollowUps: FollowUp[];
+  if (prefetchedFollowUps) {
+    // Filter to only the users we're notifying
+    eligibleFollowUps = prefetchedFollowUps.filter(f => userIds.includes(f.rep_id));
+  } else {
+    const { data: followUpsData, error: followUpsError } = await supabase
+      .from("account_follow_ups")
+      .select("id, title, description, priority, due_date, prospect_id, rep_id, reminder_sent_at")
+      .in("rep_id", userIds)
+      .eq("status", "pending")
+      .eq("reminder_enabled", true)
+      .not("due_date", "is", null)
+      .lte("due_date", tomorrow);
 
-  if (followUpsError) {
-    console.error("[send-task-reminders] Error fetching follow-ups:", followUpsError);
-    return new Response(JSON.stringify({ error: followUpsError.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
+    if (followUpsError) {
+      console.error("[send-task-reminders] Error fetching follow-ups:", followUpsError);
+      return new Response(JSON.stringify({ error: followUpsError.message }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
-  const followUps = (followUpsData || []) as FollowUp[];
+    const followUps = (followUpsData || []) as FollowUp[];
 
-  if (followUps.length === 0) {
-    console.log("[send-task-reminders] No follow-ups to remind about");
-    return new Response(JSON.stringify({ 
-      success: true,
-      message: "No follow-ups with reminders enabled found. Create a task with a due date and reminders enabled.", 
-      sent: 0 
-    }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
-  // In test mode, skip the "already sent today" check
-  let eligibleFollowUps = followUps;
-  if (!isTestMode) {
-    const todayStart = new Date(today).toISOString();
-    eligibleFollowUps = followUps.filter(f => {
-      if (!f.reminder_sent_at) return true;
-      return new Date(f.reminder_sent_at) < new Date(todayStart);
-    });
-
-    if (eligibleFollowUps.length === 0) {
-      console.log("[send-task-reminders] All reminders already sent today");
-      return new Response(JSON.stringify({ message: "All reminders already sent today", sent: 0 }), {
+    if (followUps.length === 0) {
+      console.log("[send-task-reminders] No follow-ups to remind about");
+      return new Response(JSON.stringify({ 
+        success: true,
+        message: "No follow-ups with reminders enabled found. Create a task with a due date and reminders enabled.", 
+        sent: 0 
+      }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // In test mode, skip the "already sent today" check
+    if (!isTestMode) {
+      const todayStart = new Date(today).toISOString();
+      eligibleFollowUps = followUps.filter(f => {
+        if (!f.reminder_sent_at) return true;
+        return new Date(f.reminder_sent_at) < new Date(todayStart);
+      });
+
+      if (eligibleFollowUps.length === 0) {
+        console.log("[send-task-reminders] All reminders already sent today");
+        return new Response(JSON.stringify({ message: "All reminders already sent today", sent: 0 }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } else {
+      eligibleFollowUps = followUps;
     }
   }
 
