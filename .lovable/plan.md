@@ -1,64 +1,66 @@
 
-# Fix: Users Not Receiving Reminder Emails
 
-## Root Cause
+# Add Reminder Email Delivery Status Page
 
-The reminder system only sends emails to users who have a row in the `notification_preferences` table. Currently, only **5 out of ~15+ users** have this row. Preference rows are only created when a user manually visits the Notification Settings page — most users never do this.
+## Overview
 
-As a result, 6 users with eligible tasks (due today/tomorrow/overdue with reminders enabled) are completely invisible to the hourly cron job and never receive emails.
+Create a new admin page at `/admin/email-delivery` that shows per-user reminder email delivery status, including preferences configuration, pending task counts, and latest delivery attempt details.
 
-## Evidence
+## What You'll See
 
-- **5 users** have notification_preferences rows (Devon test, Melisa, Devon Scofield, Grant, Danae)
-- **6 users** currently have eligible reminder tasks (Sebastian, Christopher, Katelyn, Andrew, Devon test, Devon Farnsworth)
-- Only **1 user** (Devon test) overlaps between both groups -- and that user IS receiving emails correctly
-- The remaining 5 users with tasks are silently skipped
+A table showing every active user with columns for:
+- **User name and email**
+- **Email status**: Whether reminders are enabled, configured, or not set up
+- **Reminder schedule**: Time and timezone
+- **Pending tasks**: Count of reminder-eligible tasks
+- **Total emails sent**: Lifetime count
+- **Last delivery**: When the most recent reminder was sent (with relative time)
+- **Status indicator**: Visual badge showing Active (receiving emails), Configured (set up but no tasks), Not configured (no preferences row), or Disabled
 
-## Solution
+A search/filter bar to quickly find specific users.
 
-Modify the edge function to auto-provision default preferences for any user who has reminder-eligible tasks but no preferences row. This ensures all users receive emails without needing to visit the settings page first.
+## Technical Details
 
-## Technical Changes
+### New Files
 
-### 1. Edge Function Update (`supabase/functions/send-task-reminders/index.ts`)
+1. **`src/pages/admin/AdminEmailDelivery.tsx`**
+   - Admin-only page using `AppLayout`, `PageBreadcrumb`, and the existing table/card UI components
+   - Uses a single `useQuery` hook calling a new API function
+   - Displays a searchable, sortable table of all active users with their delivery status
+   - Shows summary stats at the top (total users configured, emails sent today, users with pending tasks)
 
-In the `sendRemindersToUsers` function, after fetching follow-ups and identifying unique `rep_id` values:
+2. **`src/api/emailDeliveryStatus.ts`**
+   - `fetchEmailDeliveryStatus()` function that queries:
+     - `profiles` (all active users)
+     - `notification_preferences` (left join for email config)
+     - `notification_log` (aggregate counts and latest sent_at for task_reminder type)
+     - `account_follow_ups` (count of pending reminder-eligible tasks)
+   - Returns a typed array with per-user delivery status
 
-- Cross-reference user IDs from follow-ups against existing notification_preferences rows
-- For any user with eligible tasks but NO preferences row, auto-insert a default row:
-  - `email_enabled: true`
-  - `reminder_time: '09:00'`
-  - `timezone: 'America/Phoenix'` (matching the org's primary timezone)
-  - All notification types enabled, no weekend exclusion, no priority filter
-- Include these newly created users in the notification loop
+### Modified Files
 
-Alternatively (simpler approach): move the user-discovery logic to start from **users who have pending reminder-eligible tasks**, then left-join their preferences (using defaults for missing rows), rather than starting from the preferences table.
+3. **`src/App.tsx`**
+   - Add lazy import for `AdminEmailDelivery`
+   - Add route `/admin/email-delivery` wrapped in `ProtectedRoute` with `allowedRoles={['admin']}`
 
-### 2. Approach Details
+4. **`src/lib/breadcrumbConfig.ts`**
+   - Add `'emailDelivery'` to the `getAdminPageBreadcrumb` union type
+   - Add label `'Email Delivery Status'`
 
-The cleaner fix is to restructure the query flow:
+### Data Source
 
-```text
-Current flow (broken for new users):
-  1. Query notification_preferences where email_enabled = true  -->  5 users
-  2. Filter by time window  -->  subset
-  3. Query follow-ups for those users  -->  misses everyone else
+All data is already available in existing tables -- no database changes needed. The page will query:
+- `profiles` for user identity
+- `notification_preferences` for email config (left join, may be null)
+- `notification_log` for delivery history (aggregated)
+- `account_follow_ups` for pending task count (aggregated)
 
-Fixed flow:
-  1. Query account_follow_ups that are pending + reminder_enabled + due soon  -->  all eligible tasks
-  2. Get unique rep_ids from those tasks
-  3. Query notification_preferences for those rep_ids (may return fewer rows)
-  4. For users WITHOUT a preferences row, use sensible defaults
-  5. Apply time-window filtering using actual or default preferences
-  6. Send emails
-```
+### Status Logic
 
-This ensures any user who creates a task with reminders enabled will automatically receive notifications, even if they never configured preferences.
+Each user gets a visual status badge:
+- **Active** (green): `email_enabled = true` AND has received at least one email
+- **Pending** (yellow): Has pending tasks but no preferences configured yet (will be auto-provisioned on next cron run)
+- **Configured** (blue): Preferences set up but no pending tasks
+- **Disabled** (gray): `email_enabled = false`
+- **No Tasks** (neutral): No preferences and no pending tasks
 
-### 3. Auto-Provision Preferences Row
-
-After identifying users missing preferences, insert default rows into `notification_preferences` so they appear in future runs without repeating this logic. This also means users can later customize their settings.
-
-## Files Modified
-
-- `supabase/functions/send-task-reminders/index.ts` -- restructure query flow and add auto-provisioning
