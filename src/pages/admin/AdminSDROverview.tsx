@@ -15,6 +15,7 @@ import {
   useRetrySDRTranscript,
 } from '@/hooks/useSDR';
 import { useQuery } from '@tanstack/react-query';
+import { useProfilesByIds } from '@/hooks/useProfiles';
 import { supabase } from '@/integrations/supabase/client';
 import {
   Loader2, Users, TrendingUp, MessageSquare,
@@ -62,6 +63,30 @@ function AdminSDROverview() {
   }, [allMembers]);
 
   const allMemberIds = useMemo(() => new Set(Object.keys(memberMap)), [memberMap]);
+
+  // Collect unique SDR IDs from transcripts that aren't in memberMap
+  const unassignedSdrIds = useMemo(() => {
+    const ids: string[] = [];
+    transcripts.forEach(t => {
+      if (!allMemberIds.has(t.sdr_id) && !ids.includes(t.sdr_id)) {
+        ids.push(t.sdr_id);
+      }
+    });
+    return ids;
+  }, [transcripts, allMemberIds]);
+
+  // Fetch profiles for unassigned SDRs
+  const { data: unassignedProfiles = [] } = useProfilesByIds(unassignedSdrIds);
+  const unassignedProfileMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    unassignedProfiles.forEach(p => { map[p.id] = p.name; });
+    return map;
+  }, [unassignedProfiles]);
+
+  // Helper to get SDR name from either memberMap or unassigned profiles
+  const getSdrName = (sdrId: string) => {
+    return memberMap[sdrId]?.name || unassignedProfileMap[sdrId] || 'Unknown SDR';
+  };
 
   // Team lookup
   const teamMap = useMemo(() => {
@@ -152,9 +177,9 @@ function AdminSDROverview() {
       }));
   }, [orgStats?.gradeDistribution]);
 
-  // Filtered transcripts
+  // Filtered transcripts — admins see all transcripts, no team-membership gate
   const filteredTranscripts = useMemo(() => {
-    let result = transcripts.filter(t => allMemberIds.has(t.sdr_id));
+    let result = [...transcripts];
 
     if (teamFilter !== 'all') {
       result = result.filter(t => filteredMemberIds.has(t.sdr_id));
@@ -174,14 +199,24 @@ function AdminSDROverview() {
       result = result.filter(t => !isAfter(parseISO(t.transcript_date), to));
     }
     return result;
-  }, [transcripts, allMemberIds, filteredMemberIds, teamFilter, repFilter, statusFilter, dateFrom, dateTo]);
+  }, [transcripts, filteredMemberIds, teamFilter, repFilter, statusFilter, dateFrom, dateTo]);
 
   const hasFilters = teamFilter !== 'all' || repFilter !== 'all' || statusFilter !== 'all' || dateFrom || dateTo;
 
-  // Members visible in current team filter
+  // Members visible in current team filter + unassigned SDRs for the dropdown
   const visibleMembers = useMemo(() => {
-    return allMembers.filter((m: any) => teamFilter === 'all' || m.team_id === teamFilter);
-  }, [allMembers, teamFilter]);
+    const members = allMembers.filter((m: any) => teamFilter === 'all' || m.team_id === teamFilter);
+    // When showing all teams, also include unassigned SDRs in the dropdown
+    if (teamFilter === 'all') {
+      const unassignedEntries = unassignedSdrIds.map(id => ({
+        user_id: id,
+        profiles: { name: unassignedProfileMap[id] || 'Unknown SDR', email: '' },
+        team_id: null,
+      }));
+      return [...members, ...unassignedEntries];
+    }
+    return members;
+  }, [allMembers, teamFilter, unassignedSdrIds, unassignedProfileMap]);
 
   if (teamsLoading || membersLoading) {
     return <AppLayout><div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div></AppLayout>;
@@ -460,11 +495,15 @@ function AdminSDROverview() {
                             <div className="flex items-center gap-2">
                               <p className="font-medium">{format(new Date(t.transcript_date), 'MMM d, yyyy')}</p>
                               <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                                {member?.name || 'Unknown'}
+                                {getSdrName(t.sdr_id)}
                               </span>
-                              {teamName && (
+                              {teamName ? (
                                 <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">
                                   {teamName}
+                                </span>
+                              ) : (
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-600">
+                                  Unassigned
                                 </span>
                               )}
                             </div>
