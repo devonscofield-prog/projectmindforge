@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useSDRTranscriptDetail, useSDRCalls } from '@/hooks/useSDR';
+import { useSDRTranscriptDetail, useSDRCallList } from '@/hooks/useSDR';
 import { useAuth } from '@/contexts/AuthContext';
 import { ArrowLeft, Loader2, Phone, MessageSquare, Voicemail, PhoneOff, Users, TrendingUp, CalendarCheck, Target } from 'lucide-react';
 import { format } from 'date-fns';
@@ -29,7 +29,11 @@ function SDRTranscriptDetail() {
   const { transcriptId } = useParams<{ transcriptId: string }>();
   const { role } = useAuth();
   const { data: transcript, isLoading: transcriptLoading, isError: transcriptError } = useSDRTranscriptDetail(transcriptId);
-  const { data: calls = [], isLoading: callsLoading, isError: callsError } = useSDRCalls(transcriptId);
+  const { data: calls = [], isLoading: callsLoading, isError: callsError } = useSDRCallList({
+    transcriptId,
+    orderBy: 'call_index',
+    enabled: !!transcriptId,
+  });
 
   const meaningfulCalls = calls.filter(c => c.is_meaningful);
   const otherCalls = calls.filter(c => !c.is_meaningful);

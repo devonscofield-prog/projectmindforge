@@ -18,6 +18,21 @@ interface MetricEntry {
 let metricsQueue: MetricEntry[] = [];
 let flushTimeout: NodeJS.Timeout | null = null;
 
+function getMetricNameFromQueryKey(queryKey: unknown): string {
+  const keyParts = Array.isArray(queryKey) ? queryKey : [queryKey];
+  const stringParts = keyParts.filter((part): part is string => typeof part === 'string');
+
+  if (stringParts.length === 0) return 'unknown';
+
+  // SDR keys are hierarchical (e.g. ['sdr', 'calls', 'list', {...}]).
+  // Keep a stable, descriptive prefix instead of collapsing to just 'sdr'.
+  if (stringParts[0] === 'sdr') {
+    return stringParts.slice(0, 3).join('.');
+  }
+
+  return stringParts[0];
+}
+
 /**
  * Get current user ID from Supabase session
  */
@@ -101,9 +116,7 @@ export function trackQueryPerformance(
   status: 'success' | 'error',
   errorMessage?: string
 ): void {
-  const keyString = Array.isArray(queryKey) 
-    ? queryKey[0]?.toString() || 'unknown'
-    : String(queryKey);
+  const keyString = getMetricNameFromQueryKey(queryKey);
   
   queueMetric({
     metric_type: 'query',

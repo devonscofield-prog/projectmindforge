@@ -7,6 +7,40 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
+const DEFAULT_GRADING_CONCURRENCY = 3;
+const MAX_GRADING_CONCURRENCY = 10;
+
+function getGradingConcurrency(): number {
+  const raw = Deno.env.get('SDR_GRADING_CONCURRENCY');
+  const parsed = raw ? Number.parseInt(raw, 10) : NaN;
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return DEFAULT_GRADING_CONCURRENCY;
+  }
+
+  return Math.min(parsed, MAX_GRADING_CONCURRENCY);
+}
+
+async function logEdgeMetric(
+  supabase: any,
+  metricName: string,
+  durationMs: number,
+  status: 'success' | 'error',
+  metadata: Record<string, unknown> = {},
+) {
+  try {
+    await supabase.from('performance_metrics').insert({
+      metric_type: 'edge_function',
+      metric_name: metricName,
+      duration_ms: Math.round(durationMs),
+      status,
+      metadata,
+    });
+  } catch (metricError) {
+    console.warn(`[sdr-process-transcript] Failed to write metric ${metricName}:`, metricError);
+  }
+}
+
 // ============================================================
 // Main handler
 // ============================================================
@@ -45,6 +79,7 @@ Deno.serve(async (req) => {
     const { daily_transcript_id, raw_text, sdr_id, transcript_date } = body;
 
     let transcriptId = daily_transcript_id;
+    let createdTranscriptInRequest = false;
 
     // If raw text provided, create the daily transcript record first
     if (!transcriptId && raw_text) {
@@ -92,6 +127,7 @@ Deno.serve(async (req) => {
 
       if (insertError) throw insertError;
       transcriptId = transcript.id;
+      createdTranscriptInRequest = true;
     }
 
     if (!transcriptId) {
@@ -110,6 +146,17 @@ Deno.serve(async (req) => {
     if (fetchError || !transcriptRecord) {
       return new Response(JSON.stringify({ error: 'Transcript not found' }), {
         status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Retry guard: do not allow destructive cleanup while already processing.
+    if (!createdTranscriptInRequest && transcriptRecord.processing_status === 'processing') {
+      return new Response(JSON.stringify({
+        error: 'Transcript is already processing',
+        daily_transcript_id: transcriptId,
+      }), {
+        status: 409,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -158,7 +205,8 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error('[sdr-process-transcript] Error:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return new Response(JSON.stringify({ error: message }), {
       status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
@@ -175,11 +223,24 @@ async function processTranscriptPipeline(
   rawText: string,
   sdrId: string,
 ) {
+  const pipelineStartedAt = performance.now();
+  let pipelineStatus: 'success' | 'error' = 'success';
+  let pipelineMetadata: Record<string, unknown> = {
+    transcript_id: transcriptId,
+    sdr_id: sdrId,
+  };
+
   try {
     console.log(`[sdr-pipeline] Starting pipeline for transcript ${transcriptId}`);
 
     // Early validation: reject trivially short transcripts
     if (!rawText || rawText.trim().length < 50) {
+      pipelineStatus = 'error';
+      pipelineMetadata = {
+        ...pipelineMetadata,
+        stage: 'validate',
+        error: 'Transcript too short',
+      };
       await updateTranscriptError(supabase, transcriptId, 'Transcript too short to process (minimum 50 characters)');
       return;
     }
@@ -190,12 +251,41 @@ async function processTranscriptPipeline(
     // ---- STAGE 1: Split transcript into individual calls ----
     console.log('[sdr-pipeline] Stage 1: Splitting transcript...');
     let splitCalls: Array<{ raw_text: string; start_timestamp: string; approx_duration_seconds: number | null }>;
+    const splitStartedAt = performance.now();
     try {
       splitCalls = await runSplitterAgent(openaiApiKey, rawText, customPrompts.splitter);
       console.log(`[sdr-pipeline] Splitter found ${splitCalls.length} segments`);
+      await logEdgeMetric(
+        supabase,
+        'sdr-process-transcript.split',
+        performance.now() - splitStartedAt,
+        'success',
+        {
+          transcript_id: transcriptId,
+          segment_count: splitCalls.length,
+          raw_text_length: rawText.length,
+        },
+      );
     } catch (error) {
-      console.error(`[sdr-pipeline] Splitter agent failed: ${error.message}`);
-      await updateTranscriptError(supabase, transcriptId, `Splitter failed: ${error.message}`);
+      const message = error instanceof Error ? error.message : 'Unknown splitter error';
+      pipelineStatus = 'error';
+      pipelineMetadata = {
+        ...pipelineMetadata,
+        stage: 'split',
+        error: message,
+      };
+      console.error(`[sdr-pipeline] Splitter agent failed: ${message}`);
+      await logEdgeMetric(
+        supabase,
+        'sdr-process-transcript.split',
+        performance.now() - splitStartedAt,
+        'error',
+        {
+          transcript_id: transcriptId,
+          error: message,
+        },
+      );
+      await updateTranscriptError(supabase, transcriptId, `Splitter failed: ${message}`);
       return;
     }
 
@@ -207,6 +297,12 @@ async function processTranscriptPipeline(
     }
 
     if (!splitCalls || splitCalls.length === 0) {
+      pipelineStatus = 'error';
+      pipelineMetadata = {
+        ...pipelineMetadata,
+        stage: 'split',
+        error: 'No call segments detected',
+      };
       console.warn('[sdr-pipeline] Splitter returned 0 segments');
       await supabase
         .from('sdr_daily_transcripts')
@@ -223,13 +319,42 @@ async function processTranscriptPipeline(
     // ---- STAGE 2: Filter/classify each segment ----
     console.log('[sdr-pipeline] Stage 2: Filtering/classifying segments...');
     let classifiedCalls: Array<any>;
+    const filterStartedAt = performance.now();
     try {
       classifiedCalls = await runFilterAgent(openaiApiKey, splitCalls, customPrompts.filter);
       const meaningfulCount = classifiedCalls.filter(c => c.is_meaningful).length;
       console.log(`[sdr-pipeline] Filter found ${meaningfulCount} meaningful calls out of ${classifiedCalls.length}`);
+      await logEdgeMetric(
+        supabase,
+        'sdr-process-transcript.filter',
+        performance.now() - filterStartedAt,
+        'success',
+        {
+          transcript_id: transcriptId,
+          segment_count: classifiedCalls.length,
+          meaningful_count: meaningfulCount,
+        },
+      );
     } catch (error) {
-      console.error(`[sdr-pipeline] Filter agent failed: ${error.message}`);
-      await updateTranscriptError(supabase, transcriptId, `Filter failed: ${error.message}`);
+      const message = error instanceof Error ? error.message : 'Unknown filter error';
+      pipelineStatus = 'error';
+      pipelineMetadata = {
+        ...pipelineMetadata,
+        stage: 'filter',
+        error: message,
+      };
+      console.error(`[sdr-pipeline] Filter agent failed: ${message}`);
+      await logEdgeMetric(
+        supabase,
+        'sdr-process-transcript.filter',
+        performance.now() - filterStartedAt,
+        'error',
+        {
+          transcript_id: transcriptId,
+          error: message,
+        },
+      );
+      await updateTranscriptError(supabase, transcriptId, `Filter failed: ${message}`);
       return;
     }
 
@@ -254,55 +379,104 @@ async function processTranscriptPipeline(
       .select('id, is_meaningful, call_index, raw_text');
 
     if (insertError) {
+      pipelineStatus = 'error';
+      pipelineMetadata = {
+        ...pipelineMetadata,
+        stage: 'insert_calls',
+        error: insertError.message,
+      };
       console.error(`[sdr-pipeline] Failed to insert calls: ${insertError.message}`);
       await updateTranscriptError(supabase, transcriptId, `DB insert failed: ${insertError.message}`);
       return;
     }
 
     // ---- STAGE 3: Grade meaningful calls ----
-    const meaningfulCalls = insertedCalls.filter((c: any) => c.is_meaningful);
+    const meaningfulCalls = (insertedCalls ?? []).filter((c: any) => c.is_meaningful);
     console.log(`[sdr-pipeline] Stage 3: Grading ${meaningfulCalls.length} meaningful calls...`);
+    const gradeStartedAt = performance.now();
+    const gradingConcurrency = getGradingConcurrency();
 
     let gradedCount = 0;
     let failedCount = 0;
 
-    for (const call of meaningfulCalls) {
-      try {
-        await supabase.from('sdr_calls').update({ analysis_status: 'processing' }).eq('id', call.id);
+    let nextCallIndex = 0;
+    const workerCount = Math.min(Math.max(gradingConcurrency, 1), Math.max(meaningfulCalls.length, 1));
 
-        // Use the raw_text directly from the inserted call record — avoids
-        // fragile array-index correlation between classifiedCalls and insertedCalls
-        const grade = await runGraderAgent(openaiApiKey, call.raw_text, customPrompts.grader);
-        
-        await supabase.from('sdr_call_grades').insert({
-          call_id: call.id,
-          sdr_id: sdrId,
-          overall_grade: grade.overall_grade,
-          opener_score: grade.opener_score,
-          engagement_score: grade.engagement_score,
-          objection_handling_score: grade.objection_handling_score,
-          appointment_setting_score: grade.appointment_setting_score,
-          professionalism_score: grade.professionalism_score,
-          call_summary: grade.call_summary,
-          strengths: grade.strengths,
-          improvements: grade.improvements,
-          key_moments: grade.key_moments,
-          coaching_notes: grade.coaching_notes,
-          meeting_scheduled: grade.meeting_scheduled ?? null,
-          model_name: 'gpt-5.2-2025-12-11',
-          raw_json: grade,
-        });
+    const gradeWorker = async () => {
+      while (true) {
+        const currentIndex = nextCallIndex;
+        nextCallIndex += 1;
+        const call = meaningfulCalls[currentIndex];
+        if (!call) break;
 
-        await supabase.from('sdr_calls').update({ analysis_status: 'completed' }).eq('id', call.id);
-        gradedCount++;
-      } catch (gradeError) {
-        failedCount++;
-        console.error(`[sdr-pipeline] Failed to grade call ${call.id} after retries:`, gradeError);
-        await supabase.from('sdr_calls').update({
-          analysis_status: 'failed',
-        }).eq('id', call.id);
+        try {
+          const { error: markProcessingError } = await supabase
+            .from('sdr_calls')
+            .update({ analysis_status: 'processing' })
+            .eq('id', call.id);
+          if (markProcessingError) throw markProcessingError;
+
+          // Use raw_text from inserted call to avoid index mismatch against classifiedCalls.
+          const grade = await runGraderAgent(openaiApiKey, call.raw_text, customPrompts.grader);
+
+          const { error: gradeInsertError } = await supabase.from('sdr_call_grades').insert({
+            call_id: call.id,
+            sdr_id: sdrId,
+            overall_grade: grade.overall_grade,
+            opener_score: grade.opener_score,
+            engagement_score: grade.engagement_score,
+            objection_handling_score: grade.objection_handling_score,
+            appointment_setting_score: grade.appointment_setting_score,
+            professionalism_score: grade.professionalism_score,
+            call_summary: grade.call_summary,
+            strengths: grade.strengths,
+            improvements: grade.improvements,
+            key_moments: grade.key_moments,
+            coaching_notes: grade.coaching_notes,
+            meeting_scheduled: grade.meeting_scheduled ?? null,
+            model_name: 'gpt-5.2-2025-12-11',
+            raw_json: grade,
+          });
+          if (gradeInsertError) throw gradeInsertError;
+
+          const { error: markCompletedError } = await supabase
+            .from('sdr_calls')
+            .update({ analysis_status: 'completed' })
+            .eq('id', call.id);
+          if (markCompletedError) throw markCompletedError;
+
+          gradedCount += 1;
+        } catch (gradeError) {
+          failedCount += 1;
+          console.error(`[sdr-pipeline] Failed to grade call ${call.id} after retries:`, gradeError);
+          const { error: markFailedError } = await supabase
+            .from('sdr_calls')
+            .update({ analysis_status: 'failed' })
+            .eq('id', call.id);
+          if (markFailedError) {
+            console.error(`[sdr-pipeline] Failed to mark call ${call.id} as failed:`, markFailedError);
+          }
+        }
       }
+    };
+
+    if (meaningfulCalls.length > 0) {
+      await Promise.all(Array.from({ length: workerCount }, () => gradeWorker()));
     }
+
+    await logEdgeMetric(
+      supabase,
+      'sdr-process-transcript.grade',
+      performance.now() - gradeStartedAt,
+      failedCount > 0 ? 'error' : 'success',
+      {
+        transcript_id: transcriptId,
+        meaningful_count: meaningfulCalls.length,
+        graded_count: gradedCount,
+        failed_count: failedCount,
+        concurrency: gradingConcurrency,
+      },
+    );
 
     // ---- Update transcript status ----
     const meaningfulCount = classifiedCalls.filter(c => c.is_meaningful).length;
@@ -318,11 +492,37 @@ async function processTranscriptPipeline(
       })
       .eq('id', transcriptId);
 
+    pipelineStatus = finalStatus === 'completed' ? 'success' : 'error';
+    pipelineMetadata = {
+      ...pipelineMetadata,
+      final_status: finalStatus,
+      total_calls_detected: classifiedCalls.length,
+      meaningful_calls_count: meaningfulCount,
+      graded_count: gradedCount,
+      failed_count: failedCount,
+      grading_concurrency: gradingConcurrency,
+    };
+
     console.log(`[sdr-pipeline] Pipeline complete for transcript ${transcriptId} — status: ${finalStatus}, graded: ${gradedCount}, failed: ${failedCount}`);
 
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    pipelineStatus = 'error';
+    pipelineMetadata = {
+      ...pipelineMetadata,
+      stage: 'pipeline',
+      error: message,
+    };
     console.error(`[sdr-pipeline] Pipeline failed for transcript ${transcriptId}:`, error);
-    await updateTranscriptError(supabase, transcriptId, error.message || 'Unknown error');
+    await updateTranscriptError(supabase, transcriptId, message);
+  } finally {
+    await logEdgeMetric(
+      supabase,
+      'sdr-process-transcript.total',
+      performance.now() - pipelineStartedAt,
+      pipelineStatus,
+      pipelineMetadata,
+    );
   }
 }
 
