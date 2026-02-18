@@ -586,9 +586,9 @@ Return a JSON array where each element has:
 Return ONLY valid JSON. No markdown, no explanation.`;
 
 // Maximum characters per chunk sent to the Splitter.
-// ~25k chars ≈ ~6k tokens — keeps each chunk well within the model's reliable output range.
-// Previous value of 50k caused model refusals on ~42k chunks ("too long to segment reliably").
-const SPLITTER_CHUNK_MAX_CHARS = 25_000;
+// ~15k chars ≈ ~3.5k tokens — reduced from 25k to prevent model refusals and timeouts on large transcripts.
+// Previous values: 50k (model refusals), 25k (timeouts/refusals on 69k-114k transcripts).
+const SPLITTER_CHUNK_MAX_CHARS = 15_000;
 
 /**
  * Split a long transcript into overlapping text chunks by finding natural
