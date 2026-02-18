@@ -7,10 +7,14 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useSDRTeamMembers, useSDRTeams, useSDRDailyTranscripts, useSDRCalls, useUploadSDRTranscript } from '@/hooks/useSDR';
+import {
+  useSDRTeamMembers,
+  useSDRTeams,
+  useSDRTranscriptList,
+  useSDRTeamGradeSummary,
+  useUploadSDRTranscript,
+} from '@/hooks/useSDR';
 import { useAuth } from '@/contexts/AuthContext';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { Loader2, Users, Phone, TrendingUp, MessageSquare, CalendarCheck, Upload, FileUp, ClipboardPaste, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -31,7 +35,6 @@ function SDRManagerDashboard() {
   const { data: teams = [], isLoading: teamsLoading, isError: teamsError } = useSDRTeams();
   const myTeam = teams.find(t => t.manager_id === user?.id);
   const { data: members = [], isLoading: membersLoading, isError: membersError } = useSDRTeamMembers(myTeam?.id);
-  const { data: allTranscripts = [] } = useSDRDailyTranscripts();
 
   // Upload for rep state
   const [showUpload, setShowUpload] = useState(false);
@@ -44,61 +47,25 @@ function SDRManagerDashboard() {
 
   const memberIds = useMemo(() => members.map((m: any) => m.user_id), [members]);
 
-  // Filter transcripts to team members only
-  const teamTranscripts = useMemo(() => {
-    const memberSet = new Set(memberIds);
-    return allTranscripts.filter(t => memberSet.has(t.sdr_id));
-  }, [allTranscripts, memberIds]);
+  const { data: teamTranscripts = [] } = useSDRTranscriptList({
+    sdrIds: memberIds,
+    enabled: memberIds.length > 0,
+    pollWhileProcessing: false,
+  });
 
-  // Recent team transcripts
-  const recentTeamTranscripts = teamTranscripts.slice(0, 5);
+  const {
+    data: recentTeamTranscripts = [],
+    isLoading: recentTeamTranscriptsLoading,
+    isError: recentTeamTranscriptsError,
+  } = useSDRTranscriptList({
+    sdrIds: memberIds,
+    limit: 5,
+    enabled: memberIds.length > 0,
+  });
 
-  // Team average score
-  const { data: teamGradeData } = useQuery({
-    queryKey: ['sdr-team-grades', memberIds],
-    queryFn: async () => {
-      if (memberIds.length === 0) return null;
-      const { data: grades, error } = await (supabase.from as any)('sdr_call_grades')
-        .select('sdr_id, overall_grade, opener_score, engagement_score, objection_handling_score, appointment_setting_score, professionalism_score, meeting_scheduled')
-        .in('sdr_id', memberIds)
-        .order('created_at', { ascending: false })
-        .limit(200);
-      if (error) throw error;
-      if (!grades || grades.length === 0) return null;
-
-      const avgScore = grades.reduce((sum: number, g: any) => {
-        const scores = [g.opener_score, g.engagement_score, g.objection_handling_score, g.appointment_setting_score, g.professionalism_score].filter(Boolean);
-        return sum + (scores.reduce((a: number, b: number) => a + b, 0) / scores.length);
-      }, 0) / grades.length;
-
-      const meetingsSet = grades.filter((g: any) => g.meeting_scheduled === true).length;
-
-      // Grade distribution
-      const gradeDistribution: Record<string, number> = {};
-      grades.forEach((g: any) => {
-        gradeDistribution[g.overall_grade] = (gradeDistribution[g.overall_grade] || 0) + 1;
-      });
-
-      // Per-member stats
-      const memberStats: Record<string, { count: number; totalScore: number; meetings: number; grades: Record<string, number> }> = {};
-      grades.forEach((g: any) => {
-        if (!memberStats[g.sdr_id]) memberStats[g.sdr_id] = { count: 0, totalScore: 0, meetings: 0, grades: {} };
-        const s = memberStats[g.sdr_id];
-        s.count++;
-        const scores = [g.opener_score, g.engagement_score, g.objection_handling_score, g.appointment_setting_score, g.professionalism_score].filter(Boolean);
-        s.totalScore += scores.reduce((a: number, b: number) => a + b, 0) / scores.length;
-        if (g.meeting_scheduled) s.meetings++;
-        s.grades[g.overall_grade] = (s.grades[g.overall_grade] || 0) + 1;
-      });
-
-      return {
-        avgScore: Math.round(avgScore * 10) / 10,
-        meetingsSet,
-        totalGraded: grades.length,
-        gradeDistribution,
-        memberStats,
-      };
-    },
+  const { data: teamGradeData } = useSDRTeamGradeSummary({
+    memberIds,
+    lookbackLimit: 200,
     enabled: memberIds.length > 0,
   });
 
@@ -130,11 +97,11 @@ function SDRManagerDashboard() {
     });
   };
 
-  if (teamsLoading || membersLoading) {
+  if (teamsLoading || membersLoading || recentTeamTranscriptsLoading) {
     return <AppLayout><div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div></AppLayout>;
   }
 
-  if (teamsError || membersError) {
+  if (teamsError || membersError || recentTeamTranscriptsError) {
     return <AppLayout><div className="text-center py-12"><p className="text-destructive">Failed to load team data. Please try refreshing.</p></div></AppLayout>;
   }
 

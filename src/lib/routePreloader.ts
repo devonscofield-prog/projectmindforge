@@ -25,6 +25,19 @@ const routeModules: Record<string, ModuleLoader> = {
   "/admin/accounts": () => import("@/pages/admin/AdminAccounts"),
   "/admin/coaching": () => import("@/pages/admin/AdminCoachingTrends"),
   "/admin/transcripts": () => import("@/pages/admin/AdminTranscriptAnalysis"),
+
+  // SDR routes
+  "/sdr": () => import("@/pages/sdr/SDRDashboard"),
+  "/sdr/history": () => import("@/pages/sdr/SDRHistory"),
+  "/sdr/history/:transcriptId": () => import("@/pages/sdr/SDRTranscriptDetail"),
+  "/sdr/calls/:callId": () => import("@/pages/sdr/SDRCallDetail"),
+
+  // SDR manager routes
+  "/sdr-manager": () => import("@/pages/sdr-manager/SDRManagerDashboard"),
+  "/sdr-manager/transcripts": () => import("@/pages/sdr-manager/SDRManagerTranscripts"),
+  "/sdr-manager/coaching": () => import("@/pages/sdr-manager/SDRManagerCoaching"),
+  "/sdr-manager/invite": () => import("@/pages/sdr-manager/SDRManagerInvite"),
+  "/sdr-manager/rep/:sdrId": () => import("@/pages/sdr-manager/SDRManagerRepDetail"),
 };
 
 // Track preloaded routes to avoid duplicate requests
@@ -92,8 +105,8 @@ export function preloadRoleRoutes(role: string): void {
     rep: ["/rep", "/rep/history", "/rep/prospects"],
     manager: ["/manager", "/manager/accounts", "/manager/coaching"],
     admin: ["/admin", "/admin/teams", "/admin/users", "/admin/accounts"],
-    sdr: ["/sdr", "/sdr/upload", "/sdr/history"],
-    sdr_manager: ["/sdr-manager", "/sdr-manager/team", "/sdr-manager/coaching"],
+    sdr: ["/sdr", "/sdr/history"],
+    sdr_manager: ["/sdr-manager", "/sdr-manager/transcripts", "/sdr-manager/coaching", "/sdr-manager/invite"],
   };
 
   const routes = roleRoutes[role] || [];

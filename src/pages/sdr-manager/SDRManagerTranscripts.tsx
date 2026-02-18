@@ -1,22 +1,21 @@
-import { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useSDRDailyTranscripts, useSDRTeams, useSDRTeamMembers, useRetrySDRTranscript } from '@/hooks/useSDR';
+import { useSDRTeams, useSDRTeamMembers, useSDRTranscriptList, useRetrySDRTranscript } from '@/hooks/useSDR';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2, RotateCcw, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { format, parseISO, startOfDay, endOfDay, isBefore, isAfter } from 'date-fns';
+import { format } from 'date-fns';
 
 function SDRManagerTranscripts() {
   const { user } = useAuth();
   const { data: teams = [] } = useSDRTeams();
   const myTeam = teams.find(t => t.manager_id === user?.id);
   const { data: members = [] } = useSDRTeamMembers(myTeam?.id);
-  const { data: transcripts = [], isLoading, isError } = useSDRDailyTranscripts();
   const retryMutation = useRetrySDRTranscript();
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [repFilter, setRepFilter] = useState<string>('all');
@@ -24,36 +23,35 @@ function SDRManagerTranscripts() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
-  // Filter transcripts to team members only
-  const memberIds = new Set(members.map((m: any) => m.user_id));
+  const memberIds = useMemo(() => members.map((m: any) => m.user_id), [members]);
+  const sdrIdsForFilter = repFilter !== 'all' ? [repFilter] : memberIds;
+  const statusesForFilter = statusFilter !== 'all' ? [statusFilter as 'pending' | 'processing' | 'completed' | 'failed' | 'partial'] : undefined;
 
-  const filteredTranscripts = useMemo(() => {
-    let result = transcripts.filter(t => memberIds.has(t.sdr_id));
+  const {
+    data: teamTranscripts = [],
+    isLoading: teamTranscriptsLoading,
+    isError: teamTranscriptsError,
+  } = useSDRTranscriptList({
+    sdrIds: memberIds,
+    enabled: memberIds.length > 0,
+    pollWhileProcessing: false,
+  });
 
-    // Rep filter
-    if (repFilter !== 'all') {
-      result = result.filter(t => t.sdr_id === repFilter);
-    }
+  const {
+    data: filteredTranscripts = [],
+    isLoading: filteredTranscriptsLoading,
+    isError: filteredTranscriptsError,
+  } = useSDRTranscriptList({
+    sdrIds: sdrIdsForFilter,
+    statuses: statusesForFilter,
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo || undefined,
+    enabled: sdrIdsForFilter.length > 0,
+  });
 
-    // Status filter
-    if (statusFilter !== 'all') {
-      result = result.filter(t => t.processing_status === statusFilter);
-    }
-
-    // Date range filter
-    if (dateFrom) {
-      const from = startOfDay(parseISO(dateFrom));
-      result = result.filter(t => !isBefore(parseISO(t.transcript_date), from));
-    }
-    if (dateTo) {
-      const to = endOfDay(parseISO(dateTo));
-      result = result.filter(t => !isAfter(parseISO(t.transcript_date), to));
-    }
-
-    return result;
-  }, [transcripts, memberIds, repFilter, statusFilter, dateFrom, dateTo]);
-
-  const totalTeamTranscripts = transcripts.filter(t => memberIds.has(t.sdr_id)).length;
+  const isLoading = teamTranscriptsLoading || filteredTranscriptsLoading;
+  const isError = teamTranscriptsError || filteredTranscriptsError;
+  const totalTeamTranscripts = teamTranscripts.length;
   const hasFilters = repFilter !== 'all' || statusFilter !== 'all' || dateFrom || dateTo;
 
   if (isLoading) {

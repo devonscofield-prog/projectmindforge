@@ -3,11 +3,14 @@ import { useParams, Link } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useSDRDailyTranscripts, useSDRCalls, useSDRStats, useRetrySDRTranscript } from '@/hooks/useSDR';
+import {
+  useSDRTranscriptList,
+  useSDRCallList,
+  useSDRProfile,
+  useRetrySDRTranscript,
+} from '@/hooks/useSDR';
 import { useAuth } from '@/contexts/AuthContext';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Loader2, Phone, MessageSquare, TrendingUp, FileText, RotateCcw, CalendarCheck, Target } from 'lucide-react';
+import { ArrowLeft, Loader2, Phone, MessageSquare, TrendingUp, FileText, RotateCcw, CalendarCheck } from 'lucide-react';
 import { format } from 'date-fns';
 import { gradeColors } from '@/constants/training';
 import { Progress } from '@/components/ui/progress';
@@ -25,42 +28,80 @@ const GRADE_BAR_COLORS: Record<string, string> = {
 function SDRManagerRepDetail() {
   const { sdrId } = useParams<{ sdrId: string }>();
   const { role } = useAuth();
-  const { data: stats, isError: statsError } = useSDRStats(sdrId);
-  const { data: transcripts = [], isLoading: transcriptsLoading, isError: transcriptsError } = useSDRDailyTranscripts(sdrId);
-  const { data: allCalls = [], isError: callsError } = useSDRCalls(undefined, sdrId);
-  const retryMutation = useRetrySDRTranscript();
-  const [retryingId, setRetryingId] = useState<string | null>(null);
-
-  const { data: sdrProfile } = useQuery({
-    queryKey: ['sdr-profile', sdrId],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('profiles').select('name, email').eq('id', sdrId!).single();
-      if (error) throw error;
-      return data as { name: string | null; email: string | null };
-    },
+  const { data: transcripts = [], isLoading: transcriptsLoading, isError: transcriptsError } = useSDRTranscriptList({
+    sdrId,
     enabled: !!sdrId,
   });
+  const { data: allCalls = [], isError: callsError } = useSDRCallList({
+    sdrId,
+    orderBy: 'recency',
+    limit: 200,
+    enabled: !!sdrId,
+  });
+  const retryMutation = useRetrySDRTranscript();
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+  const { data: sdrProfile } = useSDRProfile(sdrId);
 
   const meaningfulCalls = allCalls.filter(c => c.is_meaningful);
   const gradedCalls = meaningfulCalls.filter(c => c.sdr_call_grades?.length);
+  const todayDate = useMemo(() => new Date().toLocaleDateString('en-CA'), []);
+  const todayTranscripts = useMemo(
+    () => transcripts.filter((transcript) => transcript.transcript_date === todayDate),
+    [todayDate, transcripts],
+  );
+  const totalCallsToday = useMemo(
+    () => todayTranscripts.reduce((sum, transcript) => sum + transcript.total_calls_detected, 0),
+    [todayTranscripts],
+  );
+  const meaningfulCallsToday = useMemo(
+    () => todayTranscripts.reduce((sum, transcript) => sum + transcript.meaningful_calls_count, 0),
+    [todayTranscripts],
+  );
 
   // Meetings count
   const meetingsSet = useMemo(() => {
     return gradedCalls.filter(c => c.sdr_call_grades?.[0]?.meeting_scheduled === true).length;
   }, [gradedCalls]);
 
-  // Grade distribution
+  const avgScore = useMemo(() => {
+    if (gradedCalls.length === 0) return null;
+    const total = gradedCalls.reduce((sum, call) => {
+      const grade = call.sdr_call_grades?.[0];
+      if (!grade) return sum;
+
+      const dimensions = [
+        grade.opener_score,
+        grade.engagement_score,
+        grade.objection_handling_score,
+        grade.appointment_setting_score,
+        grade.professionalism_score,
+      ].filter((score): score is number => typeof score === 'number');
+
+      if (dimensions.length === 0) return sum;
+      return sum + dimensions.reduce((a, b) => a + b, 0) / dimensions.length;
+    }, 0);
+
+    return Math.round((total / gradedCalls.length) * 10) / 10;
+  }, [gradedCalls]);
+
+  // Grade distribution from the same graded-call window used across this screen.
   const gradeDistribution = useMemo(() => {
-    if (!stats?.gradeDistribution) return [];
-    const total = Object.values(stats.gradeDistribution as Record<string, number>).reduce((a, b) => a + b, 0);
+    const gradeCounts = gradedCalls.reduce<Record<string, number>>((acc, call) => {
+      const grade = call.sdr_call_grades?.[0]?.overall_grade;
+      if (grade) acc[grade] = (acc[grade] || 0) + 1;
+      return acc;
+    }, {});
+    const total = Object.values(gradeCounts).reduce((a, b) => a + b, 0);
+    if (total === 0) return [];
+
     return GRADE_ORDER
-      .filter(g => (stats.gradeDistribution as Record<string, number>)[g])
+      .filter((grade) => gradeCounts[grade])
       .map(g => ({
         grade: g,
-        count: (stats.gradeDistribution as Record<string, number>)[g],
-        pct: Math.round(((stats.gradeDistribution as Record<string, number>)[g] / total) * 100),
+        count: gradeCounts[g],
+        pct: Math.round((gradeCounts[g] / total) * 100),
       }));
-  }, [stats?.gradeDistribution]);
+  }, [gradedCalls]);
 
   // Dimension averages across all graded calls
   const dimensionAverages = useMemo(() => {
@@ -87,7 +128,7 @@ function SDRManagerRepDetail() {
     };
   }, [gradedCalls]);
 
-  if (statsError || transcriptsError || callsError) {
+  if (transcriptsError || callsError) {
     return (
       <AppLayout>
         <div className="text-center py-12">
@@ -118,7 +159,7 @@ function SDRManagerRepDetail() {
               <div className="flex items-center gap-3">
                 <Phone className="h-7 w-7 text-primary" />
                 <div>
-                  <p className="text-xl font-bold">{stats?.totalCallsToday ?? '—'}</p>
+                  <p className="text-xl font-bold">{totalCallsToday}</p>
                   <p className="text-xs text-muted-foreground">Calls Today</p>
                 </div>
               </div>
@@ -129,7 +170,7 @@ function SDRManagerRepDetail() {
               <div className="flex items-center gap-3">
                 <MessageSquare className="h-7 w-7 text-primary" />
                 <div>
-                  <p className="text-xl font-bold">{stats?.meaningfulCallsToday ?? '—'}</p>
+                  <p className="text-xl font-bold">{meaningfulCallsToday}</p>
                   <p className="text-xs text-muted-foreground">Conversations Today</p>
                 </div>
               </div>
@@ -140,7 +181,7 @@ function SDRManagerRepDetail() {
               <div className="flex items-center gap-3">
                 <TrendingUp className="h-7 w-7 text-primary" />
                 <div>
-                  <p className="text-xl font-bold">{stats?.avgScore ?? '—'}</p>
+                  <p className="text-xl font-bold">{avgScore ?? '—'}</p>
                   <p className="text-xs text-muted-foreground">Avg Score</p>
                 </div>
               </div>
@@ -151,7 +192,7 @@ function SDRManagerRepDetail() {
               <div className="flex items-center gap-3">
                 <FileText className="h-7 w-7 text-primary" />
                 <div>
-                  <p className="text-xl font-bold">{stats?.totalGradedCalls ?? '—'}</p>
+                  <p className="text-xl font-bold">{gradedCalls.length}</p>
                   <p className="text-xs text-muted-foreground">Graded Calls</p>
                 </div>
               </div>
@@ -207,7 +248,7 @@ function SDRManagerRepDetail() {
           <Card>
             <CardHeader>
               <CardTitle>Grade Distribution</CardTitle>
-              <CardDescription>Last {stats?.totalGradedCalls ?? 0} graded calls</CardDescription>
+              <CardDescription>Last {gradedCalls.length} graded calls</CardDescription>
             </CardHeader>
             <CardContent>
               {gradeDistribution.length === 0 ? (

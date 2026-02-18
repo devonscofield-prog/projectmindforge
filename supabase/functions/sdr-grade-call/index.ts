@@ -7,6 +7,26 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
+async function logEdgeMetric(
+  supabase: any,
+  metricName: string,
+  durationMs: number,
+  status: 'success' | 'error',
+  metadata: Record<string, unknown> = {},
+) {
+  try {
+    await supabase.from('performance_metrics').insert({
+      metric_type: 'edge_function',
+      metric_name: metricName,
+      duration_ms: Math.round(durationMs),
+      status,
+      metadata,
+    });
+  } catch (metricError) {
+    console.warn(`[sdr-grade-call] Failed to write metric ${metricName}:`, metricError);
+  }
+}
+
 // ============================================================
 // Main handler
 // ============================================================
@@ -15,6 +35,9 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
+
+  const requestStartedAt = performance.now();
+  let supabase: any = null;
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -39,7 +62,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    supabase = createClient(supabaseUrl, supabaseServiceKey);
     const body = await req.json();
     const { call_id, call_ids } = body;
 
@@ -64,6 +87,7 @@ Deno.serve(async (req) => {
     }
 
     const meaningfulCalls = calls.filter((c: any) => c.is_meaningful);
+    const skippedCalls = calls.filter((c: any) => !c.is_meaningful);
 
     // Load custom prompts
     const sdrId = meaningfulCalls[0]?.sdr_id;
@@ -87,11 +111,34 @@ Deno.serve(async (req) => {
       }
     }
 
-    const results: any[] = [];
+    const results: Array<{
+      call_id: string;
+      status: 'completed' | 'failed' | 'skipped';
+      grade?: string;
+      error?: string;
+    }> = [];
+
+    if (skippedCalls.length > 0) {
+      const skippedIds = skippedCalls.map((call: any) => call.id);
+      const { error: markSkippedError } = await supabase
+        .from('sdr_calls')
+        .update({ analysis_status: 'skipped' })
+        .in('id', skippedIds);
+      if (markSkippedError) {
+        console.warn('[sdr-grade-call] Failed to mark skipped calls:', markSkippedError);
+      }
+      skippedCalls.forEach((call: any) => {
+        results.push({ call_id: call.id, status: 'skipped' });
+      });
+    }
 
     for (const call of meaningfulCalls) {
       try {
-        await supabase.from('sdr_calls').update({ analysis_status: 'processing' }).eq('id', call.id);
+        const { error: markProcessingError } = await supabase
+          .from('sdr_calls')
+          .update({ analysis_status: 'processing' })
+          .eq('id', call.id);
+        if (markProcessingError) throw markProcessingError;
 
         const grade = await gradeCall(openaiApiKey, call.raw_text, customGraderPrompt);
 
@@ -119,27 +166,69 @@ Deno.serve(async (req) => {
         if (insertError) throw insertError;
 
         // Now safe to delete old grades (excluding the one we just inserted)
-        await supabase.from('sdr_call_grades')
+        const { error: deleteOldGradesError } = await supabase.from('sdr_call_grades')
           .delete()
           .eq('call_id', call.id)
           .neq('id', newGrade.id);
+        if (deleteOldGradesError) throw deleteOldGradesError;
 
-        await supabase.from('sdr_calls').update({ analysis_status: 'completed' }).eq('id', call.id);
+        const { error: markCompletedError } = await supabase
+          .from('sdr_calls')
+          .update({ analysis_status: 'completed' })
+          .eq('id', call.id);
+        if (markCompletedError) throw markCompletedError;
+
         results.push({ call_id: call.id, status: 'completed', grade: grade.overall_grade });
       } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown grading error';
         console.error(`[sdr-grade-call] Failed to grade ${call.id} after retries:`, error);
-        await supabase.from('sdr_calls').update({ analysis_status: 'failed' }).eq('id', call.id);
-        results.push({ call_id: call.id, status: 'failed', error: error.message });
+        const { error: markFailedError } = await supabase
+          .from('sdr_calls')
+          .update({ analysis_status: 'failed' })
+          .eq('id', call.id);
+        if (markFailedError) {
+          console.error(`[sdr-grade-call] Failed to mark ${call.id} as failed:`, markFailedError);
+        }
+        results.push({ call_id: call.id, status: 'failed', error: message });
       }
     }
+
+    const completedCount = results.filter((result) => result.status === 'completed').length;
+    const failedCount = results.filter((result) => result.status === 'failed').length;
+    const skippedCount = results.filter((result) => result.status === 'skipped').length;
+
+    await logEdgeMetric(
+      supabase,
+      'sdr-grade-call.total',
+      performance.now() - requestStartedAt,
+      failedCount > 0 ? 'error' : 'success',
+      {
+        requested_count: idsToGrade.length,
+        fetched_count: calls.length,
+        meaningful_count: meaningfulCalls.length,
+        completed_count: completedCount,
+        failed_count: failedCount,
+        skipped_count: skippedCount,
+      },
+    );
 
     return new Response(JSON.stringify({ results }), {
       status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('[sdr-grade-call] Error:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    if (supabase) {
+      await logEdgeMetric(
+        supabase,
+        'sdr-grade-call.total',
+        performance.now() - requestStartedAt,
+        'error',
+        { error: message },
+      );
+    }
+    return new Response(JSON.stringify({ error: message }), {
       status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }

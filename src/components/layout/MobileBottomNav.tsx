@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
-import { Mic, UserCheck, LayoutDashboard, MessageSquare, TrendingUp, GraduationCap, Target } from 'lucide-react';
+import { Mic, UserCheck, LayoutDashboard, MessageSquare, TrendingUp, GraduationCap, Target, FileText, Sparkles, UserPlus, Settings } from 'lucide-react';
 
 export function MobileBottomNav() {
   const { role } = useAuth();
@@ -20,6 +20,19 @@ export function MobileBottomNav() {
         { href: '/manager/accounts', label: 'Accounts', icon: UserCheck },
         { href: '/manager/coaching', label: 'Coaching', icon: MessageSquare },
       ]
+    : role === 'sdr'
+    ? [
+        { href: '/sdr', label: 'Dashboard', icon: LayoutDashboard },
+        { href: '/sdr/history', label: 'History', icon: FileText },
+        { href: '/settings', label: 'Settings', icon: Settings },
+      ]
+    : role === 'sdr_manager'
+    ? [
+        { href: '/sdr-manager', label: 'Dashboard', icon: LayoutDashboard },
+        { href: '/sdr-manager/transcripts', label: 'Transcripts', icon: FileText },
+        { href: '/sdr-manager/coaching', label: 'Coaching', icon: Sparkles },
+        { href: '/sdr-manager/invite', label: 'Invite', icon: UserPlus },
+      ]
     : [
         { href: '/rep', label: 'New Call', icon: Mic },
         { href: '/rep/tasks', label: 'Tasks', icon: Target },
@@ -28,7 +41,7 @@ export function MobileBottomNav() {
       ];
 
   const isActive = (href: string) => {
-    if (href === '/admin' || href === '/manager' || href === '/rep' || href === '/training') {
+    if (href === '/admin' || href === '/manager' || href === '/rep' || href === '/training' || href === '/sdr' || href === '/sdr-manager') {
       return location.pathname === href;
     }
     return location.pathname.startsWith(href);
