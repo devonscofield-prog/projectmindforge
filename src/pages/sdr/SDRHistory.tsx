@@ -1,47 +1,52 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useSDRDailyTranscripts, useRetrySDRTranscript } from '@/hooks/useSDR';
+import { useSDRTranscriptList, useRetrySDRTranscript } from '@/hooks/useSDR';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, RotateCcw, Search, X } from 'lucide-react';
+import { Loader2, RotateCcw, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { format, isAfter, isBefore, parseISO, startOfDay, endOfDay } from 'date-fns';
+import { format } from 'date-fns';
 
 function SDRHistory() {
   const { user } = useAuth();
-  const { data: transcripts = [], isLoading, isError } = useSDRDailyTranscripts(user?.id);
-  const retryMutation = useRetrySDRTranscript();
-  const [retryingId, setRetryingId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const statusesForFilter = statusFilter !== 'all'
+    ? [statusFilter as 'pending' | 'processing' | 'completed' | 'failed' | 'partial']
+    : undefined;
 
-  const filteredTranscripts = useMemo(() => {
-    let result = transcripts;
+  const {
+    data: transcripts = [],
+    isLoading: transcriptsLoading,
+    isError: transcriptsError,
+  } = useSDRTranscriptList({
+    sdrId: user?.id,
+    enabled: !!user?.id,
+    pollWhileProcessing: false,
+  });
 
-    // Date range filter
-    if (dateFrom) {
-      const from = startOfDay(parseISO(dateFrom));
-      result = result.filter(t => !isBefore(parseISO(t.transcript_date), from));
-    }
-    if (dateTo) {
-      const to = endOfDay(parseISO(dateTo));
-      result = result.filter(t => !isAfter(parseISO(t.transcript_date), to));
-    }
+  const {
+    data: filteredTranscripts = [],
+    isLoading: filteredLoading,
+    isError: filteredError,
+  } = useSDRTranscriptList({
+    sdrId: user?.id,
+    statuses: statusesForFilter,
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo || undefined,
+    enabled: !!user?.id,
+  });
 
-    // Status filter
-    if (statusFilter !== 'all') {
-      result = result.filter(t => t.processing_status === statusFilter);
-    }
-
-    return result;
-  }, [transcripts, dateFrom, dateTo, statusFilter]);
+  const retryMutation = useRetrySDRTranscript();
+  const [retryingId, setRetryingId] = useState<string | null>(null);
 
   const hasFilters = dateFrom || dateTo || statusFilter !== 'all';
+  const isLoading = transcriptsLoading || filteredLoading;
+  const isError = transcriptsError || filteredError;
 
   if (isLoading) {
     return <AppLayout><div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div></AppLayout>;

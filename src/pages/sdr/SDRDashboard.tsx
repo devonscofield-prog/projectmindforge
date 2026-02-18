@@ -7,9 +7,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
-import { useSDRStats, useSDRDailyTranscripts, useSDRCalls, useUploadSDRTranscript, useRetrySDRTranscript } from '@/hooks/useSDR';
+import {
+  useSDRTranscriptList,
+  useSDRCallList,
+  useUploadSDRTranscript,
+  useRetrySDRTranscript,
+} from '@/hooks/useSDR';
 import { useAuth } from '@/contexts/AuthContext';
-import { Upload, Phone, MessageSquare, TrendingUp, Loader2, FileText, FileUp, ClipboardPaste, RotateCcw, ArrowRight, CalendarCheck, Target } from 'lucide-react';
+import { Upload, Phone, MessageSquare, TrendingUp, Loader2, FileUp, ClipboardPaste, RotateCcw, ArrowRight, CalendarCheck, Target } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { gradeColors } from '@/constants/training';
@@ -28,9 +33,29 @@ const GRADE_BAR_COLORS: Record<string, string> = {
 
 function SDRDashboard() {
   const { user } = useAuth();
-  const { data: stats, isError: statsError } = useSDRStats(user?.id);
-  const { data: transcripts = [], isLoading: transcriptsLoading, isError: transcriptsError } = useSDRDailyTranscripts(user?.id);
-  const { data: recentCalls = [] } = useSDRCalls(undefined, user?.id);
+  const {
+    data: transcripts = [],
+  } = useSDRTranscriptList({
+    sdrId: user?.id,
+    enabled: !!user?.id,
+    pollWhileProcessing: false,
+  });
+  const {
+    data: recentTranscripts = [],
+    isLoading: recentTranscriptsLoading,
+    isError: recentTranscriptsError,
+  } = useSDRTranscriptList({
+    sdrId: user?.id,
+    limit: 5,
+    enabled: !!user?.id,
+  });
+  const { data: recentCalls = [] } = useSDRCallList({
+    sdrId: user?.id,
+    onlyMeaningful: true,
+    orderBy: 'recency',
+    limit: 100,
+    enabled: !!user?.id,
+  });
   const uploadMutation = useUploadSDRTranscript();
   const retryMutation = useRetrySDRTranscript();
   const [rawText, setRawText] = useState('');
@@ -58,35 +83,79 @@ function SDRDashboard() {
     });
   };
 
-  // Compute conversation rate
-  const conversationRate = stats?.totalCallsToday && stats.totalCallsToday > 0
-    ? Math.round((stats.meaningfulCallsToday / stats.totalCallsToday) * 100)
+  // Keep dashboard metrics on one consistent "today + recent graded calls" snapshot.
+  const todayDate = useMemo(() => new Date().toLocaleDateString('en-CA'), []);
+  const todayTranscripts = useMemo(
+    () => transcripts.filter((transcript) => transcript.transcript_date === todayDate),
+    [todayDate, transcripts],
+  );
+  const totalCallsToday = useMemo(
+    () => todayTranscripts.reduce((sum, transcript) => sum + transcript.total_calls_detected, 0),
+    [todayTranscripts],
+  );
+  const meaningfulCallsToday = useMemo(
+    () => todayTranscripts.reduce((sum, transcript) => sum + transcript.meaningful_calls_count, 0),
+    [todayTranscripts],
+  );
+  const conversationRate = totalCallsToday > 0
+    ? Math.round((meaningfulCallsToday / totalCallsToday) * 100)
     : null;
+
+  const gradedCallsWindow = useMemo(
+    () => recentCalls.filter((call) => call.sdr_call_grades?.[0]),
+    [recentCalls],
+  );
 
   // Grade distribution chart data
   const gradeDistribution = useMemo(() => {
-    if (!stats?.gradeDistribution) return [];
-    const total = Object.values(stats.gradeDistribution as Record<string, number>).reduce((a, b) => a + b, 0);
+    const gradeCounts = gradedCallsWindow.reduce<Record<string, number>>((acc, call) => {
+      const grade = call.sdr_call_grades?.[0]?.overall_grade;
+      if (grade) acc[grade] = (acc[grade] || 0) + 1;
+      return acc;
+    }, {});
+    const total = Object.values(gradeCounts).reduce((a, b) => a + b, 0);
+    if (total === 0) return [];
+
     return GRADE_ORDER
-      .filter(g => (stats.gradeDistribution as Record<string, number>)[g])
+      .filter((grade) => gradeCounts[grade])
       .map(g => ({
         grade: g,
-        count: (stats.gradeDistribution as Record<string, number>)[g],
-        pct: Math.round(((stats.gradeDistribution as Record<string, number>)[g] / total) * 100),
+        count: gradeCounts[g],
+        pct: Math.round((gradeCounts[g] / total) * 100),
       }));
-  }, [stats?.gradeDistribution]);
+  }, [gradedCallsWindow]);
+
+  const avgScore = useMemo(() => {
+    if (gradedCallsWindow.length === 0) return null;
+
+    const total = gradedCallsWindow.reduce((sum, call) => {
+      const grade = call.sdr_call_grades?.[0];
+      if (!grade) return sum;
+
+      const dimensions = [
+        grade.opener_score,
+        grade.engagement_score,
+        grade.objection_handling_score,
+        grade.appointment_setting_score,
+        grade.professionalism_score,
+      ].filter((score): score is number => typeof score === 'number');
+
+      if (dimensions.length === 0) return sum;
+      return sum + dimensions.reduce((a, b) => a + b, 0) / dimensions.length;
+    }, 0);
+
+    return Math.round((total / gradedCallsWindow.length) * 10) / 10;
+  }, [gradedCallsWindow]);
 
   // Recent graded calls for quick view
   const recentGradedCalls = useMemo(() => {
-    return recentCalls
-      .filter(c => c.is_meaningful && c.sdr_call_grades?.length)
-      .slice(0, 5);
-  }, [recentCalls]);
+    return gradedCallsWindow.slice(0, 5);
+  }, [gradedCallsWindow]);
 
   // Meetings set count
   const meetingsSet = useMemo(() => {
-    return recentCalls.filter(c => c.sdr_call_grades?.[0]?.meeting_scheduled === true).length;
-  }, [recentCalls]);
+    return gradedCallsWindow.filter((call) => call.sdr_call_grades?.[0]?.meeting_scheduled === true).length;
+  }, [gradedCallsWindow]);
 
   return (
     <AppLayout>
@@ -109,7 +178,7 @@ function SDRDashboard() {
               <div className="flex items-center gap-3">
                 <Phone className="h-8 w-8 text-primary" />
                 <div>
-                  <p className="text-2xl font-bold">{stats?.totalCallsToday ?? '—'}</p>
+                  <p className="text-2xl font-bold">{totalCallsToday}</p>
                   <p className="text-sm text-muted-foreground">Calls Today</p>
                 </div>
               </div>
@@ -120,7 +189,7 @@ function SDRDashboard() {
               <div className="flex items-center gap-3">
                 <MessageSquare className="h-8 w-8 text-primary" />
                 <div>
-                  <p className="text-2xl font-bold">{stats?.meaningfulCallsToday ?? '—'}</p>
+                  <p className="text-2xl font-bold">{meaningfulCallsToday}</p>
                   <p className="text-sm text-muted-foreground">Conversations</p>
                 </div>
               </div>
@@ -142,7 +211,7 @@ function SDRDashboard() {
               <div className="flex items-center gap-3">
                 <TrendingUp className="h-8 w-8 text-primary" />
                 <div>
-                  <p className="text-2xl font-bold">{stats?.avgScore ?? '—'}</p>
+                  <p className="text-2xl font-bold">{avgScore ?? '—'}</p>
                   <p className="text-sm text-muted-foreground">Avg Score</p>
                 </div>
               </div>
@@ -299,7 +368,7 @@ function SDRDashboard() {
           <Card>
             <CardHeader>
               <CardTitle>Grade Distribution</CardTitle>
-              <CardDescription>Last {stats?.totalGradedCalls ?? 0} graded calls</CardDescription>
+              <CardDescription>Last {gradedCallsWindow.length} graded calls</CardDescription>
             </CardHeader>
             <CardContent>
               {gradeDistribution.length === 0 ? (
@@ -339,15 +408,15 @@ function SDRDashboard() {
             )}
           </CardHeader>
           <CardContent>
-            {transcriptsError ? (
+            {recentTranscriptsError ? (
               <p className="text-destructive text-center py-8">Failed to load transcripts. Please try refreshing.</p>
-            ) : transcriptsLoading ? (
+            ) : recentTranscriptsLoading ? (
               <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
-            ) : transcripts.length === 0 ? (
+            ) : recentTranscripts.length === 0 ? (
               <p className="text-muted-foreground text-center py-8">No transcripts yet. Upload your first one above!</p>
             ) : (
               <div className="space-y-3">
-                {transcripts.slice(0, 5).map((t) => (
+                {recentTranscripts.map((t) => (
                   <Link key={t.id} to={`/sdr/history/${t.id}`} className="block">
                     <div className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent/50 transition-colors">
                       <div>

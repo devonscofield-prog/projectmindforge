@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { createLogger } from '@/lib/logger';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 import { useAuth } from '@/contexts/AuthContext';
-import { useSDRTeams } from '@/hooks/useSDR';
+import { sdrKeys, useSDRTeams } from '@/hooks/useSDR';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -54,7 +54,7 @@ function SDRManagerInvite() {
 
   // Fetch existing team invite links
   const { data: teamInviteLinks = [], isLoading: linksLoading } = useQuery({
-    queryKey: ['sdr-team-invite-links', myTeam?.id],
+    queryKey: sdrKeys.teamInviteLinks(myTeam?.id),
     queryFn: async () => {
       if (!myTeam?.id) return [];
       const { data, error } = await (supabase.from as any)('sdr_team_invites')
@@ -85,7 +85,7 @@ function SDRManagerInvite() {
       return data as TeamInviteLink;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sdr-team-invite-links'] });
+      queryClient.invalidateQueries({ queryKey: sdrKeys.teamInviteLinks(myTeam?.id) });
       toast.success('Team signup link generated');
     },
     onError: (error) => {
@@ -102,7 +102,7 @@ function SDRManagerInvite() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sdr-team-invite-links'] });
+      queryClient.invalidateQueries({ queryKey: sdrKeys.teamInviteLinks(myTeam?.id) });
       toast.success('Invite link deactivated');
     },
   });

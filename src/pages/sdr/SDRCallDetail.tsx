@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useSDRCallDetail, useSDRCalls, useReGradeCall } from '@/hooks/useSDR';
+import { useSDRCallDetail, useSDRCallList, useReGradeCall } from '@/hooks/useSDR';
 import { ArrowLeft, Loader2, RefreshCw, Star, TrendingUp, MessageSquare, Target, Award, Clock, ChevronLeft, ChevronRight, CalendarCheck } from 'lucide-react';
 import { gradeColors } from '@/constants/training';
 import { Progress } from '@/components/ui/progress';
@@ -31,7 +31,11 @@ function SDRCallDetail() {
   const reGradeMutation = useReGradeCall();
 
   // Fetch sibling calls for prev/next navigation
-  const { data: siblingCalls = [] } = useSDRCalls(call?.daily_transcript_id);
+  const { data: siblingCalls = [] } = useSDRCallList({
+    transcriptId: call?.daily_transcript_id,
+    orderBy: 'call_index',
+    enabled: !!call?.daily_transcript_id,
+  });
 
   const { prevCall, nextCall } = useMemo(() => {
     if (!call || siblingCalls.length === 0) return { prevCall: null, nextCall: null };

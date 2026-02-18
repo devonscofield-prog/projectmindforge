@@ -1,15 +1,17 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { Menu, Plus, TrendingUp, UserPlus, Mic } from 'lucide-react';
+import { Menu, TrendingUp, UserPlus, Mic, Upload } from 'lucide-react';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 
 // Map routes to page titles
 function getPageTitle(pathname: string, role: string | null): string {
   // Handle dynamic routes first (with IDs)
   if (pathname.match(/\/calls\/[^/]+/)) return 'Call Details';
+  if (pathname.match(/\/sdr\/history\/[^/]+/)) return 'Transcript Details';
+  if (pathname.match(/\/sdr-manager\/rep\/[^/]+/)) return 'Rep Details';
   if (pathname.match(/\/prospects\/[^/]+/) || pathname.match(/\/accounts\/[^/]+/)) return 'Account Details';
   if (pathname.match(/\/users\/[^/]+/)) return 'User Details';
   if (pathname.match(/\/rep\/[^/]+/) && pathname.includes('/manager/')) return 'Rep Details';
@@ -26,7 +28,7 @@ function getPageTitle(pathname: string, role: string | null): string {
     '/admin/coaching': 'Coaching Trends',
     '/admin/users': 'Users',
     '/admin/teams': 'Teams',
-    '/admin/invite': 'Invite User',
+    '/admin/users/invite': 'Invite User',
     '/admin/bulk-upload': 'Bulk Upload',
     '/admin/performance': 'Performance',
     '/admin/audit-log': 'Audit Log',
@@ -42,6 +44,14 @@ function getPageTitle(pathname: string, role: string | null): string {
     '/rep/history': 'Call History',
     '/rep/prospects': 'Accounts',
     '/rep/coaching': 'My Coaching',
+    // SDR routes
+    '/sdr': 'SDR Dashboard',
+    '/sdr/history': 'Transcript History',
+    // SDR manager routes
+    '/sdr-manager': 'Team Dashboard',
+    '/sdr-manager/transcripts': 'Team Transcripts',
+    '/sdr-manager/coaching': 'Coaching Prompts',
+    '/sdr-manager/invite': 'Invite Members',
     // Settings
     '/settings': 'Settings',
     // Training routes
@@ -61,7 +71,11 @@ function getPrimaryAction(role: string | null): { href: string; label: string; i
     case 'manager':
       return { href: '/manager/coaching', label: 'Coaching', icon: TrendingUp };
     case 'admin':
-      return { href: '/admin/invite', label: 'Invite', icon: UserPlus };
+      return { href: '/admin/users/invite', label: 'Invite', icon: UserPlus };
+    case 'sdr':
+      return { href: '/sdr', label: 'Upload', icon: Upload };
+    case 'sdr_manager':
+      return { href: '/sdr-manager/invite', label: 'Invite', icon: UserPlus };
     default:
       return null;
   }
