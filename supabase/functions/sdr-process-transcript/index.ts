@@ -3,7 +3,7 @@ import { fetchWithRetry } from "../_shared/fetchWithRetry.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
@@ -114,7 +114,17 @@ Deno.serve(async (req) => {
     }
 
     // If retrying, clean up old calls and grades from previous attempt
-    const isRetry = transcriptRecord.processing_status === 'failed' || transcriptRecord.processing_status === 'partial';
+    // Also allow retry if stuck in "processing" for more than 10 minutes
+    const stuckThreshold = 10 * 60 * 1000; // 10 minutes
+    const isStuck = transcriptRecord.processing_status === 'processing' &&
+      transcriptRecord.updated_at &&
+      (Date.now() - new Date(transcriptRecord.updated_at).getTime()) > stuckThreshold;
+    const isRetry = transcriptRecord.processing_status === 'failed' || transcriptRecord.processing_status === 'partial' || isStuck;
+
+    if (isStuck) {
+      console.log(`[sdr-pipeline] Transcript ${transcriptId} was stuck in processing for >10 min, allowing retry`);
+    }
+
     if (isRetry || daily_transcript_id) {
       // Delete old grades first (FK dependency)
       const { data: oldCalls } = await supabase
@@ -476,6 +486,12 @@ async function runSplitterOnChunk(
   if (!segments && typeof parsed === 'object' && parsed !== null && (parsed as any).raw_text) {
     console.log(`[sdr-pipeline] Splitter returned single segment object${chunkLabel}, wrapping in array`);
     segments = [parsed];
+  }
+
+  // Handle model error responses: { "error": "..." } with no useful data
+  if (!segments && typeof parsed === 'object' && parsed !== null && parsed.error && typeof parsed.error === 'string') {
+    console.error(`[sdr-pipeline] Splitter model returned error${chunkLabel}: ${parsed.error}`);
+    throw new Error(`Splitter model refused${chunkLabel}: ${parsed.error.slice(0, 200)}`);
   }
 
   if (!segments) {
