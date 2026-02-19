@@ -1,67 +1,56 @@
 
 
-# Fix SDR System: Manager Visibility + Pipeline Recovery
+# Add SDR Team Management to Admin SDR Oversight
 
-## Problem Summary
+## Current State
 
-Three interconnected issues need fixing:
+The SDR team data (Lonnell's team with 7 members) was set up via direct database inserts. There is currently **no admin UI** to manage SDR teams -- the existing Admin Teams page at `/admin/teams` manages the regular sales rep `teams` table, not the `sdr_teams` / `sdr_team_members` tables that control SDR manager visibility.
 
-1. **Lonnell can't see team transcripts** -- The `sdr_teams` and `sdr_team_members` tables are completely empty. All manager pages filter by team membership, so Lonnell (and Devon test) see zero transcripts despite having the `sdr_manager` role.
+Without this UI, admins cannot:
+- Create or edit SDR teams
+- Assign/change team managers
+- Add or remove SDR members from teams
 
-2. **Stuck transcripts** -- 2 transcripts are stuck in "processing" and 6 in "pending" with no recovery mechanism.
+## Solution
 
-3. **Splitter failures on large transcripts** -- The splitter uses `response_format: { type: 'json_object' }` which forces a JSON *object* (not array), causing the model to sometimes wrap results in `{ "error": "..." }` instead of returning segments.
+Add an **SDR Teams management tab** to the existing Admin SDR Oversight page (`/admin/sdr`), which already has tabs for "Teams and SDRs", "All Transcripts", and "Grade Distribution".
 
----
+### What will be built
 
-## Fix 1: Create Team + Assign Members (Data Insert)
+**A new "Manage Teams" tab** on the Admin SDR Oversight page with:
 
-Insert into `sdr_teams` to create Lonnell's team, then insert all 7 SDRs into `sdr_team_members`.
+1. **Team list** showing each SDR team with its manager name, member count, and created date
+2. **Create Team** dialog -- name field + manager dropdown (filtered to users with `sdr_manager` role)
+3. **Edit Team** dialog -- update name and manager assignment
+4. **Delete Team** confirmation with member-unassign warning
+5. **Member management** -- clicking a team expands to show members with ability to add/remove SDRs (users with `sdr` role)
 
-- **Team**: Create team for Lonnell Holman (`05687c5a-4326-4fee-885f-3bbb7277587b`)
-- **Members**: Add all 7 SDR-role users to his team:
-  - Matthew Verville, Cole Buck, Kiara Contreras, Caleb Thompson, Devon Scofield, Jack Bamis, Brenndan Valenzuela
+### Manager dropdown
 
-This immediately fixes RLS visibility -- the `is_sdr_manager_of()` function will return true for Lonnell's queries.
+The manager selector will query `user_roles` for users with the `sdr_manager` role and join with `profiles` for their names, ensuring only valid SDR managers can be assigned.
 
----
+### Member management
 
-## Fix 2: Reset Stuck Transcripts (Data Update)
+The member add dialog will show users with the `sdr` role who are not already assigned to a team, allowing the admin to assign them.
 
-- Reset 2 "processing" transcripts (`fee7f249`, `f489e7ce`) to "failed" status so they can be retried
-- Reset 6 "pending" transcripts to "failed" so they surface in the UI with retry buttons
-- Reset 10 stuck calls (2 "processing", 8 "pending") to appropriate statuses
+## Technical Details
 
----
+### Files to modify
 
-## Fix 3: Improve Splitter Error Handling (Code Change)
+- **`src/pages/admin/AdminSDROverview.tsx`** -- Add a fourth tab "Manage Teams" with CRUD for `sdr_teams` and `sdr_team_members`
 
-**File: `supabase/functions/sdr-process-transcript/index.ts`**
+### Files to create
 
-In `runSplitterOnChunk()`, add handling for when the model returns `{ "error": "..." }` instead of segments:
-- If parsed JSON has an `error` key and no array values, log the model's error message and throw a descriptive error instead of a cryptic "unexpected structure" message
-- This provides better diagnostics for future failures
+- **`src/components/admin/sdr/SDRTeamManagement.tsx`** -- New component containing the team management UI (table, create/edit/delete dialogs, member management)
 
-Also update the CORS headers to match the standardized pattern (missing several required Supabase client headers).
+### Data queries
 
----
+- Teams: `SELECT * FROM sdr_teams`
+- Members: `SELECT stm.*, p.name, p.email FROM sdr_team_members stm JOIN profiles p ON p.id = stm.user_id WHERE stm.team_id = ?`
+- Manager options: `SELECT p.id, p.name FROM profiles p JOIN user_roles ur ON ur.user_id = p.id WHERE ur.role = 'sdr_manager'`
+- SDR options (for adding): `SELECT p.id, p.name FROM profiles p JOIN user_roles ur ON ur.user_id = p.id WHERE ur.role = 'sdr' AND p.id NOT IN (SELECT user_id FROM sdr_team_members)`
 
-## Fix 4: Add Stuck-Transcript Cleanup Logic (Code Change)
+### RLS
 
-**File: `supabase/functions/sdr-process-transcript/index.ts`**
-
-At the start of `processTranscriptPipeline()`, add a guard: if the transcript has been in "processing" for more than 10 minutes (based on `updated_at`), allow retry even if status isn't explicitly "failed". This prevents transcripts from getting permanently stuck.
-
----
-
-## Technical Summary
-
-| Change | Type | Details |
-|--------|------|---------|
-| Create Lonnell's team + assign 7 SDRs | Data insert | `sdr_teams` + `sdr_team_members` |
-| Reset 8 stuck transcripts | Data update | Set status to "failed" |
-| Reset 10 stuck calls | Data update | Set status to "failed" |
-| Better splitter error handling | Code | `sdr-process-transcript/index.ts` |
-| Fix CORS headers | Code | `sdr-process-transcript/index.ts` |
-| Stuck-state recovery guard | Code | `sdr-process-transcript/index.ts` |
+No changes needed -- existing RLS policies on `sdr_teams` and `sdr_team_members` already allow admins full access via the `has_role(auth.uid(), 'admin')` policies.
 
