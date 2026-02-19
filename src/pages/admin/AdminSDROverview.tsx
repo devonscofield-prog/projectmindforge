@@ -24,6 +24,7 @@ import {
 import { format, parseISO, startOfDay, endOfDay, isBefore, isAfter } from 'date-fns';
 import { gradeColors } from '@/constants/training';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
+import { SDRTeamManagement } from '@/components/admin/sdr/SDRTeamManagement';
 
 const GRADE_ORDER = ['A+', 'A', 'B', 'C', 'D', 'F'];
 const GRADE_BAR_COLORS: Record<string, string> = {
@@ -301,6 +302,7 @@ function AdminSDROverview() {
             <TabsTrigger value="teams">Teams & SDRs</TabsTrigger>
             <TabsTrigger value="transcripts">All Transcripts</TabsTrigger>
             <TabsTrigger value="grades">Grade Distribution</TabsTrigger>
+            <TabsTrigger value="manage">Manage Teams</TabsTrigger>
           </TabsList>
 
           {/* Teams & SDRs Tab */}
@@ -655,6 +657,11 @@ function AdminSDROverview() {
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+
+          {/* Manage Teams Tab */}
+          <TabsContent value="manage">
+            <SDRTeamManagement />
           </TabsContent>
         </Tabs>
       </div>
