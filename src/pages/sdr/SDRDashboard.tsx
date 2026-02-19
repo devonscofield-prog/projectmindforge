@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo } from 'react';
+import { SDRAssistantChat } from '@/components/SDRAssistantChat';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -460,6 +461,7 @@ function SDRDashboard() {
           </CardContent>
         </Card>
       </div>
+      <SDRAssistantChat />
     </AppLayout>
   );
 }

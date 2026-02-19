@@ -2557,6 +2557,36 @@ export type Database = {
           },
         ]
       }
+      sdr_assistant_sessions: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          messages: Json
+          title: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          messages?: Json
+          title?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          messages?: Json
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       sdr_call_grades: {
         Row: {
           appointment_setting_score: number | null
