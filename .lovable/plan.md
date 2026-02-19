@@ -1,56 +1,117 @@
 
 
-# Add SDR Team Management to Admin SDR Oversight
+# SDR Assistant Chatbots: Manager + Rep
 
-## Current State
+## Overview
 
-The SDR team data (Lonnell's team with 7 members) was set up via direct database inserts. There is currently **no admin UI** to manage SDR teams -- the existing Admin Teams page at `/admin/teams` manages the regular sales rep `teams` table, not the `sdr_teams` / `sdr_team_members` tables that control SDR manager visibility.
+Create two AI chatbots following the exact same pattern as the existing Sales Assistant Chat -- floating button, slide-out sheet, streaming responses, session persistence -- but tailored for the SDR module:
 
-Without this UI, admins cannot:
-- Create or edit SDR teams
-- Assign/change team managers
-- Add or remove SDR members from teams
+1. **SDR Manager Assistant** -- Helps managers identify coaching opportunities, analyze team performance, and ask questions about their team's transcripts/grades
+2. **SDR Rep Assistant** -- Helps individual SDRs get coaching advice, review their call grades, and improve their performance
 
-## Solution
+Both will use the same OpenAI `gpt-5.2` API as the Sales Assistant (not Lovable AI Gateway), matching the existing architecture.
 
-Add an **SDR Teams management tab** to the existing Admin SDR Oversight page (`/admin/sdr`), which already has tabs for "Teams and SDRs", "All Transcripts", and "Grade Distribution".
+---
 
-### What will be built
+## What Gets Built
 
-**A new "Manage Teams" tab** on the Admin SDR Oversight page with:
+### 1. Edge Function: `sdr-assistant-chat`
 
-1. **Team list** showing each SDR team with its manager name, member count, and created date
-2. **Create Team** dialog -- name field + manager dropdown (filtered to users with `sdr_manager` role)
-3. **Edit Team** dialog -- update name and manager assignment
-4. **Delete Team** confirmation with member-unassign warning
-5. **Member management** -- clicking a team expands to show members with ability to add/remove SDRs (users with `sdr` role)
+A single edge function that handles both SDR and SDR Manager chat, differentiating by the caller's role.
 
-### Manager dropdown
+**For SDR Managers:**
+- Fetches all team members via `sdr_teams` + `sdr_team_members`
+- Fetches recent transcripts for all team SDRs
+- Fetches all calls + grades for the team
+- Builds context showing: team roster, grade distribution per rep, recent coaching notes, lowest-performing areas, reps with the most D/F grades, meetings scheduled rate
+- System prompt focused on identifying coaching opportunities, comparing rep performance, and surfacing patterns
 
-The manager selector will query `user_roles` for users with the `sdr_manager` role and join with `profiles` for their names, ensuring only valid SDR managers can be assigned.
+**For SDRs:**
+- Fetches only that SDR's transcripts, calls, and grades
+- Builds context showing: their grade history, strengths/improvements from grading, call summaries, trends over time
+- System prompt focused on personal coaching, skill improvement, and call review
 
-### Member management
+### 2. Database: `sdr_assistant_sessions` table
 
-The member add dialog will show users with the `sdr` role who are not already assigned to a team, allowing the admin to assign them.
+New table mirroring `sales_assistant_sessions` structure for session persistence:
+- `id`, `user_id`, `messages` (jsonb), `title`, `is_active`, `created_at`, `updated_at`
+- RLS: users can only access their own sessions
+
+### 3. Client API: `src/api/sdrAssistant.ts`
+
+Streaming client matching `salesAssistant.ts` pattern -- calls the `sdr-assistant-chat` edge function with message windowing and truncation.
+
+### 4. Session API: `src/api/sdrAssistantSessions.ts`
+
+Session management matching `salesAssistantSessions.ts` -- fetch, save, archive, switch, delete sessions from `sdr_assistant_sessions`.
+
+### 5. Chat Component: `src/components/SDRAssistantChat.tsx`
+
+Floating chat component matching `SalesAssistantChat.tsx` UI:
+- Floating sparkle button in bottom-right
+- Slide-out sheet with streaming markdown responses
+- Quick actions tailored per role:
+  - **Manager**: "Team Performance", "Coaching Opportunities", "Grade Trends", "Weakest Areas"
+  - **SDR**: "My Performance", "Improve My Calls", "Recent Grades", "Best Practices"
+- Session history, new chat, delete chat
+- Rate limit handling
+
+### 6. Integration
+
+- Add `<SDRAssistantChat />` to `SDRManagerDashboard.tsx` and related manager pages
+- Add `<SDRAssistantChat />` to `SDRDashboard.tsx` and SDR history page
+
+---
 
 ## Technical Details
 
-### Files to modify
+### Edge Function Context Building
 
-- **`src/pages/admin/AdminSDROverview.tsx`** -- Add a fourth tab "Manage Teams" with CRUD for `sdr_teams` and `sdr_team_members`
+**Manager context includes:**
+```
+TEAM OVERVIEW
+- Team name, member count
+- Per-rep stats: total calls, meaningful calls, grade distribution, avg scores, meetings booked
 
-### Files to create
+COACHING PRIORITIES  
+- Reps with lowest average grades
+- Most common improvement areas across team
+- Reps trending down vs up
 
-- **`src/components/admin/sdr/SDRTeamManagement.tsx`** -- New component containing the team management UI (table, create/edit/delete dialogs, member management)
+RECENT CALL DETAILS
+- Last 5 graded calls per rep with summaries, grades, coaching notes
+```
 
-### Data queries
+**SDR context includes:**
+```
+PERFORMANCE SUMMARY
+- Total transcripts, calls detected, meaningful calls
+- Grade distribution, average scores per category
+- Meetings scheduled count
 
-- Teams: `SELECT * FROM sdr_teams`
-- Members: `SELECT stm.*, p.name, p.email FROM sdr_team_members stm JOIN profiles p ON p.id = stm.user_id WHERE stm.team_id = ?`
-- Manager options: `SELECT p.id, p.name FROM profiles p JOIN user_roles ur ON ur.user_id = p.id WHERE ur.role = 'sdr_manager'`
-- SDR options (for adding): `SELECT p.id, p.name FROM profiles p JOIN user_roles ur ON ur.user_id = p.id WHERE ur.role = 'sdr' AND p.id NOT IN (SELECT user_id FROM sdr_team_members)`
+RECENT CALLS
+- Last 20 graded calls with summaries, grades, strengths, improvements, coaching notes
 
-### RLS
+TRENDS
+- Score trends over time
+- Most frequent improvement areas
+```
 
-No changes needed -- existing RLS policies on `sdr_teams` and `sdr_team_members` already allow admins full access via the `has_role(auth.uid(), 'admin')` policies.
+### Files to Create
+| File | Purpose |
+|------|---------|
+| `supabase/functions/sdr-assistant-chat/index.ts` | Edge function |
+| `src/api/sdrAssistant.ts` | Streaming client |
+| `src/api/sdrAssistantSessions.ts` | Session persistence |
+| `src/components/SDRAssistantChat.tsx` | Chat UI component |
+
+### Files to Modify
+| File | Change |
+|------|--------|
+| `src/pages/sdr-manager/SDRManagerDashboard.tsx` | Add `<SDRAssistantChat />` |
+| `src/pages/sdr/SDRDashboard.tsx` | Add `<SDRAssistantChat />` |
+| `supabase/config.toml` | Not edited (auto-configured) |
+
+### Database Migration
+- Create `sdr_assistant_sessions` table with RLS policies (users read/write own rows only)
 
