@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,7 +9,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { SwipeableCard } from '@/components/ui/swipeable-card';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useCompleteFollowUp, useDismissFollowUp, useRestoreFollowUp, useReopenFollowUp } from '@/hooks/useFollowUpMutations';
@@ -41,9 +43,13 @@ import {
   RotateCcw,
   AlertTriangle,
   Calendar as CalendarIcon,
+  Clock,
   Inbox,
+  Search,
+  ChevronDown,
 } from 'lucide-react';
-import { format, isToday, isTomorrow, isPast, parseISO } from 'date-fns';
+import { format, isToday, isTomorrow, isPast, parseISO, startOfDay, endOfWeek, startOfWeek, addWeeks, endOfMonth } from 'date-fns';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 import {
@@ -91,6 +97,11 @@ function RepTasks() {
   const [showBulkReschedule, setShowBulkReschedule] = useState(false);
   const [confirmBulkDismiss, setConfirmBulkDismiss] = useState(false);
   const [bulkActioning, setBulkActioning] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [dateRange, setDateRange] = useState('all');
+  const [quickAddTitle, setQuickAddTitle] = useState('');
+  const [quickAddDialogOpen, setQuickAddDialogOpen] = useState(false);
+  const [quickAddInitialTitle, setQuickAddInitialTitle] = useState('');
 
   const repId = user?.id || '';
 
@@ -127,24 +138,75 @@ function RepTasks() {
   const dueTodayTasks = pendingTasks.filter(t => t.due_date && isToday(parseISO(t.due_date)));
 
   // Filtered and sorted pending tasks
-  const filteredPending = pendingTasks
-    .filter(t => priorityFilter === 'all' || t.priority === priorityFilter)
-    .filter(t => categoryFilter === 'all' || t.category === categoryFilter)
-    .sort((a, b) => {
-      if (sortBy === 'due_date') {
-        const aHas = !!a.due_date;
-        const bHas = !!b.due_date;
-        if (aHas && !bHas) return -1;
-        if (!aHas && bHas) return 1;
-        if (aHas && bHas) return new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime();
-        return 0;
+  const filteredPending = useMemo(() => {
+    const today = startOfDay(new Date());
+    return pendingTasks
+      .filter(t => priorityFilter === 'all' || t.priority === priorityFilter)
+      .filter(t => categoryFilter === 'all' || t.category === categoryFilter)
+      .filter(t => {
+        if (!searchQuery.trim()) return true;
+        const q = searchQuery.toLowerCase();
+        const title = (t.title || '').toLowerCase();
+        const desc = (t.description || '').toLowerCase();
+        const account = (t.account_name || t.prospect_name || '').toLowerCase();
+        return title.includes(q) || desc.includes(q) || account.includes(q);
+      })
+      .filter(t => {
+        if (dateRange === 'all') return true;
+        if (dateRange === 'no_date') return !t.due_date;
+        if (!t.due_date) return false;
+        const due = startOfDay(parseISO(t.due_date));
+        if (dateRange === 'overdue') return due < today;
+        if (dateRange === 'this_week') return due >= today && due <= endOfWeek(today, { weekStartsOn: 1 });
+        if (dateRange === 'next_week') {
+          const nextWeekStart = startOfWeek(addWeeks(today, 1), { weekStartsOn: 1 });
+          return due >= nextWeekStart && due <= endOfWeek(nextWeekStart, { weekStartsOn: 1 });
+        }
+        if (dateRange === 'this_month') return due >= today && due <= endOfMonth(today);
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortBy === 'due_date') {
+          const aHas = !!a.due_date;
+          const bHas = !!b.due_date;
+          if (aHas && !bHas) return -1;
+          if (!aHas && bHas) return 1;
+          if (aHas && bHas) return new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime();
+          return 0;
+        }
+        if (sortBy === 'priority') {
+          const order: Record<string, number> = { high: 0, medium: 1, low: 2 };
+          return (order[a.priority as string] ?? 2) - (order[b.priority as string] ?? 2);
+        }
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+  }, [pendingTasks, priorityFilter, categoryFilter, searchQuery, dateRange, sortBy]);
+
+  // Group filtered tasks by urgency
+  const urgencyGroups = useMemo(() => {
+    const today = startOfDay(new Date());
+    const overdue: AccountFollowUpWithProspect[] = [];
+    const dueToday: AccountFollowUpWithProspect[] = [];
+    const upcoming: AccountFollowUpWithProspect[] = [];
+    const noDueDate: AccountFollowUpWithProspect[] = [];
+
+    for (const t of filteredPending) {
+      if (!t.due_date) {
+        noDueDate.push(t);
+      } else {
+        const due = startOfDay(parseISO(t.due_date));
+        if (due < today) overdue.push(t);
+        else if (isToday(parseISO(t.due_date))) dueToday.push(t);
+        else upcoming.push(t);
       }
-      if (sortBy === 'priority') {
-        const order: Record<string, number> = { high: 0, medium: 1, low: 2 };
-        return (order[a.priority as string] ?? 2) - (order[b.priority as string] ?? 2);
-      }
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-    });
+    }
+    return [
+      { key: 'overdue', title: 'Overdue', icon: AlertTriangle, iconClass: 'text-destructive', tasks: overdue, defaultOpen: true },
+      { key: 'dueToday', title: 'Due Today', icon: CalendarIcon, iconClass: 'text-amber-600 dark:text-amber-400', tasks: dueToday, defaultOpen: true },
+      { key: 'upcoming', title: 'Upcoming', icon: Clock, iconClass: 'text-blue-600 dark:text-blue-400', tasks: upcoming, defaultOpen: true },
+      { key: 'noDueDate', title: 'No Due Date', icon: Inbox, iconClass: 'text-muted-foreground', tasks: noDueDate, defaultOpen: false },
+    ].filter(g => g.tasks.length > 0);
+  }, [filteredPending]);
 
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ['rep-tasks'] });
@@ -310,8 +372,46 @@ function RepTasks() {
           </TabsList>
 
           <TabsContent value="pending" className="space-y-4">
-            {/* Filters */}
+            {/* Quick add */}
+            <div className="relative">
+              <Plus className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Quick add: type task title and press Enter..."
+                value={quickAddTitle}
+                onChange={(e) => setQuickAddTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && quickAddTitle.trim()) {
+                    setQuickAddInitialTitle(quickAddTitle.trim());
+                    setQuickAddDialogOpen(true);
+                    setQuickAddTitle('');
+                  }
+                }}
+                className="pl-9"
+              />
+            </div>
+
+            {/* Search and filters */}
             <div className="flex flex-wrap gap-2">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search tasks..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Select value={dateRange} onValueChange={setDateRange}>
+                <SelectTrigger className="w-[140px]"><SelectValue placeholder="Date range" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Dates</SelectItem>
+                  <SelectItem value="overdue">Overdue</SelectItem>
+                  <SelectItem value="this_week">This Week</SelectItem>
+                  <SelectItem value="next_week">Next Week</SelectItem>
+                  <SelectItem value="this_month">This Month</SelectItem>
+                  <SelectItem value="no_date">No Date</SelectItem>
+                </SelectContent>
+              </Select>
               <Select value={priorityFilter} onValueChange={setPriorityFilter}>
                 <SelectTrigger className="w-[130px]"><SelectValue placeholder="Priority" /></SelectTrigger>
                 <SelectContent>
@@ -368,28 +468,41 @@ function RepTasks() {
             {pendingLoading ? (
               <TaskListSkeleton />
             ) : filteredPending.length === 0 ? (
-              <EmptyState icon={CheckCircle2} message="No pending tasks" description="Create a task to get started" />
+              <EmptyState icon={CheckCircle2} message="No pending tasks" description={searchQuery || dateRange !== 'all' ? 'Try adjusting your filters' : 'Create a task to get started'} />
             ) : (
-              <div className="space-y-2">
-                {filteredPending.map(task => (
-                  <TaskRow
-                    key={task.id}
-                    task={task}
-                    variant="pending"
-                    isMobile={isMobile}
-                    selected={selectedIds.has(task.id)}
-                    onToggleSelect={() => toggleSelect(task.id)}
-                    onComplete={(id, e) => handleComplete(id, e)}
-                    onDismissClick={(t, e) => handleDismissClick(t, e)}
-                    onEdit={(t) => setEditTask(t)}
-                    onNavigate={handleNavigate}
-                    isActioning={
-                      (completeMutation.isPending && completeMutation.variables === task.id) ||
-                      (dismissMutation.isPending && dismissMutation.variables === task.id)
-                    }
-                    onSwipeComplete={() => completeMutation.mutate(task.id, { onSettled: invalidateAll })}
-                    onSwipeDismiss={() => dismissMutation.mutate(task.id, { onSettled: invalidateAll })}
-                  />
+              <div className="space-y-3">
+                {urgencyGroups.map(group => (
+                  <TaskSection
+                    key={group.key}
+                    title={group.title}
+                    icon={group.icon}
+                    iconClass={group.iconClass}
+                    count={group.tasks.length}
+                    defaultOpen={group.defaultOpen}
+                  >
+                    <div className="space-y-2">
+                      {group.tasks.map(task => (
+                        <TaskRow
+                          key={task.id}
+                          task={task}
+                          variant="pending"
+                          isMobile={isMobile}
+                          selected={selectedIds.has(task.id)}
+                          onToggleSelect={() => toggleSelect(task.id)}
+                          onComplete={(id, e) => handleComplete(id, e)}
+                          onDismissClick={(t, e) => handleDismissClick(t, e)}
+                          onEdit={(t) => setEditTask(t)}
+                          onNavigate={handleNavigate}
+                          isActioning={
+                            (completeMutation.isPending && completeMutation.variables === task.id) ||
+                            (dismissMutation.isPending && dismissMutation.variables === task.id)
+                          }
+                          onSwipeComplete={() => completeMutation.mutate(task.id, { onSettled: invalidateAll })}
+                          onSwipeDismiss={() => dismissMutation.mutate(task.id, { onSettled: invalidateAll })}
+                        />
+                      ))}
+                    </div>
+                  </TaskSection>
                 ))}
               </div>
             )}
@@ -457,6 +570,18 @@ function RepTasks() {
             onOpenChange={setShowCreateDialog}
             repId={repId}
             onTaskCreated={invalidateAll}
+          />
+        </Suspense>
+      )}
+
+      {quickAddDialogOpen && (
+        <Suspense fallback={null}>
+          <StandaloneTaskDialog
+            open={quickAddDialogOpen}
+            onOpenChange={setQuickAddDialogOpen}
+            repId={repId}
+            onTaskCreated={invalidateAll}
+            initialTitle={quickAddInitialTitle}
           />
         </Suspense>
       )}
@@ -672,6 +797,39 @@ function TaskRow({
   }
 
   return content;
+}
+
+function TaskSection({
+  title,
+  icon: Icon,
+  iconClass,
+  count,
+  defaultOpen = true,
+  children,
+}: {
+  title: string;
+  icon: React.ElementType;
+  iconClass: string;
+  count: number;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <CollapsibleTrigger asChild>
+        <button className="flex items-center gap-2 w-full py-2 px-1 text-left hover:bg-accent/50 rounded-md transition-colors">
+          <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform duration-200', isOpen && 'rotate-180')} />
+          <Icon className={cn('h-4 w-4', iconClass)} />
+          <span className="text-sm font-medium">{title}</span>
+          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 ml-1">{count}</Badge>
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="pl-1 pt-1">{children}</div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
 }
 
 function EmptyState({ icon: Icon, message, description }: { icon: React.ElementType; message: string; description?: string }) {

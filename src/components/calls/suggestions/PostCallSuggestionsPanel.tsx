@@ -10,7 +10,8 @@ import { SuggestionCard } from './SuggestionCard';
 import { AddCustomTaskDialog } from './AddCustomTaskDialog';
 import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
-import { createManualFollowUp, type FollowUpPriority, type FollowUpCategory } from '@/api/accountFollowUps';
+import { createManualFollowUp, createManualFollowUps, type FollowUpPriority, type FollowUpCategory, type CreateManualFollowUpParams } from '@/api/accountFollowUps';
+import { mapAiCategoryToTaskCategory } from '@/lib/taskConstants';
 import { addDays, format } from 'date-fns';
 import { createLogger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
@@ -40,11 +41,10 @@ export function PostCallSuggestionsPanel({
   const queryClient = useQueryClient();
   const [suggestions, setSuggestions] = useState<FollowUpSuggestion[]>(initialSuggestions || []);
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
-  const [creatingTaskId, setCreatingTaskId] = useState<string | null>(null);
   const [isAcceptingAll, setIsAcceptingAll] = useState(false);
   const [isDismissingAll, setIsDismissingAll] = useState(false);
   const [showAddTaskDialog, setShowAddTaskDialog] = useState(false);
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
 
   // Filter to only show pending suggestions
   const pendingSuggestions = useMemo(() => 
@@ -84,20 +84,22 @@ export function PostCallSuggestionsPanel({
         ? format(addDays(new Date(), suggestion.suggested_due_days), 'yyyy-MM-dd')
         : undefined;
 
+      const taskCategory = mapAiCategoryToTaskCategory(suggestion.category) as FollowUpCategory;
+
       await createManualFollowUp({
         prospectId,
         repId,
         title: suggestion.title,
         description: suggestion.description,
         priority: suggestion.priority as FollowUpPriority,
-        category: suggestion.category as FollowUpCategory,
+        category: taskCategory,
         dueDate,
         reminderEnabled: suggestion.suggested_due_days !== null,
         sourceCallId: callId,
       });
 
       // Update local state
-      const updated = suggestions.map(s => 
+      const updated = suggestions.map(s =>
         s.id === suggestion.id ? { ...s, status: 'accepted' as const } : s
       );
       setSuggestions(updated);
@@ -127,50 +129,6 @@ export function PostCallSuggestionsPanel({
     onSuggestionsUpdated?.();
   };
 
-  const handleCreateTask = async (suggestion: FollowUpSuggestion) => {
-    if (!prospectId) {
-      toast.error('Cannot create task', { description: 'This call is not linked to an account' });
-      return;
-    }
-
-    setCreatingTaskId(suggestion.id);
-
-    try {
-      const dueDate = format(addDays(new Date(), 3), 'yyyy-MM-dd');
-
-      await createManualFollowUp({
-        prospectId,
-        repId,
-        title: suggestion.title,
-        description: suggestion.description,
-        priority: suggestion.priority as FollowUpPriority,
-        category: suggestion.category as FollowUpCategory,
-        dueDate,
-        reminderEnabled: true,
-        sourceCallId: callId,
-      });
-
-      // Mark as accepted
-      const updated = suggestions.map(s =>
-        s.id === suggestion.id ? { ...s, status: 'accepted' as const } : s
-      );
-      setSuggestions(updated);
-      await updateSuggestionsInDB(updated);
-
-      toast.success('Task created', { description: `${suggestion.title} (due in 3 days)` });
-      queryClient.invalidateQueries({ queryKey: ['followUps'] });
-      queryClient.invalidateQueries({ queryKey: ['prospect-follow-ups'] });
-      queryClient.invalidateQueries({ queryKey: ['rep-tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['rep-tasks-count'] });
-      onSuggestionsUpdated?.();
-    } catch (error) {
-      log.error('Failed to create task from suggestion', { error, suggestion });
-      toast.error('Failed to create task');
-    } finally {
-      setCreatingTaskId(null);
-    }
-  };
-
   const handleAcceptAll = async () => {
     if (!prospectId) {
       toast.error('Cannot create tasks', { description: 'This call is not linked to an account' });
@@ -178,43 +136,43 @@ export function PostCallSuggestionsPanel({
     }
 
     setIsAcceptingAll(true);
-    let successCount = 0;
 
     try {
-      for (const suggestion of pendingSuggestions) {
-        try {
-          const dueDate = suggestion.suggested_due_days !== null
-            ? format(addDays(new Date(), suggestion.suggested_due_days), 'yyyy-MM-dd')
-            : undefined;
+      const tasks: CreateManualFollowUpParams[] = pendingSuggestions.map(suggestion => {
+        const dueDate = suggestion.suggested_due_days !== null
+          ? format(addDays(new Date(), suggestion.suggested_due_days), 'yyyy-MM-dd')
+          : undefined;
+        const taskCategory = mapAiCategoryToTaskCategory(suggestion.category) as FollowUpCategory;
 
-          await createManualFollowUp({
-            prospectId,
-            repId,
-            title: suggestion.title,
-            description: suggestion.description,
-            priority: suggestion.priority as FollowUpPriority,
-            category: suggestion.category as FollowUpCategory,
-            dueDate,
-            reminderEnabled: suggestion.suggested_due_days !== null,
-            sourceCallId: callId,
-          });
-          successCount++;
-        } catch {
-          log.warn('Failed to accept one suggestion', { id: suggestion.id });
-        }
-      }
+        return {
+          prospectId,
+          repId,
+          title: suggestion.title,
+          description: suggestion.description,
+          priority: suggestion.priority as FollowUpPriority,
+          category: taskCategory,
+          dueDate,
+          reminderEnabled: suggestion.suggested_due_days !== null,
+          sourceCallId: callId,
+        };
+      });
+
+      const created = await createManualFollowUps(tasks);
 
       // Update all to accepted
-      const updated = suggestions.map(s => 
+      const updated = suggestions.map(s =>
         s.status === 'pending' ? { ...s, status: 'accepted' as const } : s
       );
       setSuggestions(updated);
       await updateSuggestionsInDB(updated);
 
-      toast.success(`Created ${successCount} tasks`);
+      toast.success(`Created ${created.length} tasks`);
       queryClient.invalidateQueries({ queryKey: ['followUps'] });
       queryClient.invalidateQueries({ queryKey: ['prospect-follow-ups'] });
       onSuggestionsUpdated?.();
+    } catch (error) {
+      log.error('Failed to accept all suggestions', { error });
+      toast.error('Failed to create tasks');
     } finally {
       setIsAcceptingAll(false);
     }
@@ -311,9 +269,7 @@ export function PostCallSuggestionsPanel({
                   suggestion={suggestion}
                   onAccept={handleAccept}
                   onDismiss={handleDismiss}
-                  onCreateTask={handleCreateTask}
                   isAccepting={acceptingId === suggestion.id}
-                  isCreatingTask={creatingTaskId === suggestion.id}
                 />
               ))}
 

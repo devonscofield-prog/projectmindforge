@@ -31,6 +31,7 @@ interface StandaloneTaskDialogProps {
   onOpenChange: (open: boolean) => void;
   repId: string;
   onTaskCreated?: () => void;
+  initialTitle?: string;
 }
 
 const quickDueDates = [
@@ -49,7 +50,7 @@ const categoryOptions: { value: FollowUpCategory; label: string }[] = [
 
 const DEFAULT_REMINDER_TIME = '09:00';
 
-export function StandaloneTaskDialog({ open, onOpenChange, repId, onTaskCreated }: StandaloneTaskDialogProps) {
+export function StandaloneTaskDialog({ open, onOpenChange, repId, onTaskCreated, initialTitle }: StandaloneTaskDialogProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<FollowUpPriority>('medium');
@@ -79,8 +80,12 @@ export function StandaloneTaskDialog({ open, onOpenChange, repId, onTaskCreated 
 
   // Reset form when dialog opens
   useEffect(() => {
-    if (open) resetForm();
-  }, [open]);
+    if (open) {
+      resetForm();
+      if (initialTitle) setTitle(initialTitle);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialTitle]);
 
   useEffect(() => {
     if (dueDate && !reminderEnabled) {

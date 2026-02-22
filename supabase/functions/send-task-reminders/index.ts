@@ -11,6 +11,8 @@ interface FollowUp {
   prospect_id: string;
   rep_id: string;
   reminder_sent_at: string | null;
+  secondary_reminder_sent_at: string | null;
+  reminder_time: string | null;
 }
 
 interface UserReminders {
@@ -61,13 +63,19 @@ const PRIORITY_ORDER: Record<string, number> = { high: 3, medium: 2, low: 1 };
 const DEFAULT_PREFERENCES: Omit<UserPreferences, "user_id"> = {
   reminder_time: "09:00",
   secondary_reminder_time: null,
-  timezone: "America/Phoenix",
+  timezone: "America/New_York",
   notify_due_today: true,
   notify_due_tomorrow: true,
   notify_overdue: true,
   exclude_weekends: false,
   min_priority: null,
 };
+
+// Convert "HH:MM" to total minutes since midnight
+function toMinutes(timeStr: string): number {
+  const [h, m] = timeStr.split(":").map(Number);
+  return h * 60 + (m || 0);
+}
 
 // Dynamic import for Resend to avoid module resolution issues
 async function sendEmail(to: string, subject: string, html: string): Promise<void> {
@@ -76,26 +84,43 @@ async function sendEmail(to: string, subject: string, html: string): Promise<voi
     throw new Error("RESEND_API_KEY not configured");
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${RESEND_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: "MindForge Reminders <reminders@mindforgenotifications.com>",
-      to: [to],
-      subject,
-      html,
-    }),
+  const payload = JSON.stringify({
+    from: "MindForge Reminders <reminders@mindforgenotifications.com>",
+    to: [to],
+    subject,
+    html,
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Resend API error: ${response.status} ${errorText}`);
+  const doFetch = async () => {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: payload,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw Object.assign(new Error(`Resend API error: ${response.status} ${errorText}`), { status: response.status });
+    }
+
+    await response.text(); // Consume response body
+  };
+
+  try {
+    await doFetch();
+  } catch (err: unknown) {
+    const status = (err as { status?: number }).status;
+    if (status && status >= 500) {
+      console.warn(`[send-task-reminders] Resend 5xx error (${status}), retrying in 2s...`);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      await doFetch();
+    } else {
+      throw err;
+    }
   }
-  
-  await response.text(); // Consume response body
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -168,7 +193,7 @@ const handler = async (req: Request): Promise<Response> => {
     // Step 1: Get ALL eligible follow-ups (pending, reminder_enabled, due <= tomorrow)
     const { data: followUpsData, error: followUpsError } = await supabase
       .from("account_follow_ups")
-      .select("id, title, description, priority, due_date, prospect_id, rep_id, reminder_sent_at")
+      .select("id, title, description, priority, due_date, prospect_id, rep_id, reminder_sent_at, secondary_reminder_sent_at, reminder_time")
       .eq("status", "pending")
       .eq("reminder_enabled", true)
       .not("due_date", "is", null)
@@ -192,11 +217,13 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    // Filter out tasks where reminder was already sent today
+    // Filter out tasks where BOTH primary and secondary reminders were already sent today
     const todayStart = new Date(today).toISOString();
     const eligibleFollowUps = followUps.filter(f => {
-      if (!f.reminder_sent_at) return true;
-      return new Date(f.reminder_sent_at) < new Date(todayStart);
+      const primarySentToday = f.reminder_sent_at && new Date(f.reminder_sent_at) >= new Date(todayStart);
+      const secondarySentToday = f.secondary_reminder_sent_at && new Date(f.secondary_reminder_sent_at) >= new Date(todayStart);
+      // Allow through if either reminder hasn't been sent today
+      return !primarySentToday || !secondarySentToday;
     });
 
     if (eligibleFollowUps.length === 0) {
@@ -270,44 +297,48 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
-    // Step 5: Filter users by time window and preferences
-    const usersToNotify: string[] = [];
-    for (const [userId, pref] of prefsMap.entries()) {
+    // Step 5: Filter tasks by time window and preferences (per-task reminder_time support)
+    const matchedTasksByUser = new Map<string, FollowUp[]>();
+
+    for (const task of eligibleFollowUps) {
+      const pref = prefsMap.get(task.rep_id);
+      if (!pref) continue;
+
       // Skip users who have explicitly disabled email
-      if (!pref.email_enabled) {
-        console.log(`[send-task-reminders] Skipping user ${userId} - email disabled`);
-        continue;
-      }
+      if (!pref.email_enabled) continue;
 
       try {
         // Convert current UTC time to user's timezone
         const userLocalTime = new Date(now.toLocaleString("en-US", { timeZone: pref.timezone }));
-        const userHour = userLocalTime.getHours();
+        const currentMinutes = userLocalTime.getHours() * 60 + userLocalTime.getMinutes();
         const dayOfWeek = userLocalTime.getDay();
 
         // Check weekend exclusion
         const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-        if (pref.exclude_weekends && isWeekend) {
-          console.log(`[send-task-reminders] Skipping user ${userId} - weekend exclusion`);
-          continue;
-        }
+        if (pref.exclude_weekends && isWeekend) continue;
 
-        // Parse reminder hours
-        const primaryHour = parseInt(pref.reminder_time.split(":")[0], 10);
-        const secondaryHour = pref.secondary_reminder_time
-          ? parseInt(pref.secondary_reminder_time.split(":")[0], 10)
+        // Determine which time to match against: per-task override or user global
+        const targetTime = task.reminder_time || pref.reminder_time;
+        const primaryMinutes = toMinutes(targetTime);
+        const secondaryMinutes = pref.secondary_reminder_time
+          ? toMinutes(pref.secondary_reminder_time)
           : null;
 
-        // Check if current hour matches primary OR secondary reminder time
-        if (userHour === primaryHour || (secondaryHour !== null && userHour === secondaryHour)) {
-          usersToNotify.push(userId);
+        // Match if current user-local time is within +/-15 minutes of target (covers 30-min cron)
+        const primaryMatch = Math.abs(currentMinutes - primaryMinutes) <= 15;
+        const secondaryMatch = secondaryMinutes !== null && Math.abs(currentMinutes - secondaryMinutes) <= 15;
+
+        if (primaryMatch || secondaryMatch) {
+          const existing = matchedTasksByUser.get(task.rep_id) || [];
+          existing.push(task);
+          matchedTasksByUser.set(task.rep_id, existing);
         }
       } catch {
-        console.warn(`[send-task-reminders] Invalid timezone for user ${userId}:`, pref.timezone);
+        console.warn(`[send-task-reminders] Invalid timezone for user ${task.rep_id}:`, pref.timezone);
       }
     }
 
-    if (usersToNotify.length === 0) {
+    if (matchedTasksByUser.size === 0) {
       console.log("[send-task-reminders] No users match current time window");
       return new Response(JSON.stringify({ message: "No users in current time window", sent: 0 }), {
         status: 200,
@@ -315,7 +346,9 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    console.log(`[send-task-reminders] ${usersToNotify.length} users to notify`);
+    const usersToNotify = [...matchedTasksByUser.keys()];
+    const matchedFollowUps = [...matchedTasksByUser.values()].flat();
+    console.log(`[send-task-reminders] ${usersToNotify.length} users to notify, ${matchedFollowUps.length} matched tasks`);
 
     // Build full prefsData array for sendRemindersToUsers
     const prefsDataArray: UserPreferences[] = usersToNotify.map(id => {
@@ -333,7 +366,7 @@ const handler = async (req: Request): Promise<Response> => {
       };
     });
 
-    return await sendRemindersToUsers(supabase, usersToNotify, prefsDataArray, now, false, eligibleFollowUps);
+    return await sendRemindersToUsers(supabase, usersToNotify, prefsDataArray, now, false, matchedFollowUps);
   } catch (error: unknown) {
     const requestId = crypto.randomUUID().slice(0, 8);
     console.error(`[send-task-reminders] Error ${requestId}:`, error instanceof Error ? error.message : error);
@@ -366,7 +399,7 @@ async function handleTestMode(
     user_id: prefData.user_id,
     reminder_time: prefData.reminder_time || "09:00",
     secondary_reminder_time: prefData.secondary_reminder_time,
-    timezone: prefData.timezone || "America/Phoenix",
+    timezone: prefData.timezone || "America/New_York",
     notify_due_today: prefData.notify_due_today ?? true,
     notify_due_tomorrow: prefData.notify_due_tomorrow ?? true,
     notify_overdue: prefData.notify_overdue ?? true,
@@ -376,7 +409,7 @@ async function handleTestMode(
     user_id: userId,
     reminder_time: "09:00",
     secondary_reminder_time: null,
-    timezone: "America/Phoenix",
+    timezone: "America/New_York",
     notify_due_today: true,
     notify_due_tomorrow: true,
     notify_overdue: true,
@@ -421,7 +454,7 @@ async function sendRemindersToUsers(
   } else {
     const { data: followUpsData, error: followUpsError } = await supabase
       .from("account_follow_ups")
-      .select("id, title, description, priority, due_date, prospect_id, rep_id, reminder_sent_at")
+      .select("id, title, description, priority, due_date, prospect_id, rep_id, reminder_sent_at, secondary_reminder_sent_at, reminder_time")
       .in("rep_id", userIds)
       .eq("status", "pending")
       .eq("reminder_enabled", true)
@@ -454,8 +487,9 @@ async function sendRemindersToUsers(
     if (!isTestMode) {
       const todayStart = new Date(today).toISOString();
       eligibleFollowUps = followUps.filter(f => {
-        if (!f.reminder_sent_at) return true;
-        return new Date(f.reminder_sent_at) < new Date(todayStart);
+        const primarySentToday = f.reminder_sent_at && new Date(f.reminder_sent_at) >= new Date(todayStart);
+        const secondarySentToday = f.secondary_reminder_sent_at && new Date(f.secondary_reminder_sent_at) >= new Date(todayStart);
+        return !primarySentToday || !secondarySentToday;
       });
 
       if (eligibleFollowUps.length === 0) {
@@ -537,10 +571,11 @@ async function sendRemindersToUsers(
 
   // Send emails + in-app notifications
   let sentCount = 0;
-  const followUpIdsToUpdate: string[] = [];
+  let totalTasksNotified = 0;
 
   for (const [userId, reminders] of Object.entries(userReminders)) {
-    const totalTasks = reminders.overdue.length + reminders.dueToday.length + reminders.dueTomorrow.length;
+    const allUserTasks = [...reminders.overdue, ...reminders.dueToday, ...reminders.dueTomorrow];
+    const totalTasks = allUserTasks.length;
     if (totalTasks === 0) continue;
 
     // --- In-app notifications: one per task ---
@@ -581,7 +616,7 @@ async function sendRemindersToUsers(
 
     // Build email HTML
     const emailHtml = buildEmailHtml(reminders, isTestMode);
-    const subject = isTestMode 
+    const subject = isTestMode
       ? `🧪 [TEST] MindForge: ${totalTasks} follow-up${totalTasks > 1 ? "s" : ""} need your attention`
       : `📋 MindForge: ${totalTasks} follow-up${totalTasks > 1 ? "s" : ""} need your attention`;
 
@@ -590,12 +625,57 @@ async function sendRemindersToUsers(
 
       console.log(`[send-task-reminders] Email sent to ${reminders.email} with ${totalTasks} tasks`);
       sentCount++;
+      totalTasksNotified += totalTasks;
 
-      // Collect follow-up IDs to mark as sent (skip in test mode)
+      // Update reminder_sent_at per-user immediately after successful email (crash resilience)
       if (!isTestMode) {
-        [...reminders.overdue, ...reminders.dueToday, ...reminders.dueTomorrow].forEach(f => {
-          followUpIdsToUpdate.push(f.id);
-        });
+        // Determine primary vs secondary match for each task
+        const userPrefs = prefsData.find(p => p.user_id === userId);
+        const userLocalTime = new Date(now.toLocaleString("en-US", { timeZone: userPrefs?.timezone || "America/New_York" }));
+        const currentMinutes = userLocalTime.getHours() * 60 + userLocalTime.getMinutes();
+
+        const primaryIds: string[] = [];
+        const secondaryIds: string[] = [];
+
+        for (const task of allUserTasks) {
+          const targetTime = task.reminder_time || userPrefs?.reminder_time || "09:00";
+          const primaryMinutes = toMinutes(targetTime);
+          const secondaryMinutes = userPrefs?.secondary_reminder_time
+            ? toMinutes(userPrefs.secondary_reminder_time)
+            : null;
+
+          const primaryMatch = Math.abs(currentMinutes - primaryMinutes) <= 15;
+          const secondaryMatch = secondaryMinutes !== null && Math.abs(currentMinutes - secondaryMinutes) <= 15;
+
+          if (primaryMatch) {
+            primaryIds.push(task.id);
+          } else if (secondaryMatch) {
+            secondaryIds.push(task.id);
+          } else {
+            // Fallback: treat as primary (e.g. test mode edge case)
+            primaryIds.push(task.id);
+          }
+        }
+
+        if (primaryIds.length > 0) {
+          const { error: primaryErr } = await supabase
+            .from("account_follow_ups")
+            .update({ reminder_sent_at: now.toISOString() })
+            .in("id", primaryIds);
+          if (primaryErr) {
+            console.error(`[send-task-reminders] Error updating reminder_sent_at for user ${userId}:`, primaryErr);
+          }
+        }
+
+        if (secondaryIds.length > 0) {
+          const { error: secondaryErr } = await supabase
+            .from("account_follow_ups")
+            .update({ secondary_reminder_sent_at: now.toISOString() })
+            .in("id", secondaryIds);
+          if (secondaryErr) {
+            console.error(`[send-task-reminders] Error updating secondary_reminder_sent_at for user ${userId}:`, secondaryErr);
+          }
+        }
       }
 
       // --- Notification log entries ---
@@ -613,23 +693,11 @@ async function sendRemindersToUsers(
     }
   }
 
-  // Update reminder_sent_at for sent reminders (skip in test mode)
-  if (!isTestMode && followUpIdsToUpdate.length > 0) {
-    const { error: updateError } = await supabase
-      .from("account_follow_ups")
-      .update({ reminder_sent_at: now.toISOString() })
-      .in("id", followUpIdsToUpdate);
-
-    if (updateError) {
-      console.error("[send-task-reminders] Error updating reminder_sent_at:", updateError);
-    }
-  }
-
   return new Response(
-    JSON.stringify({ 
-      success: true, 
-      sent: sentCount, 
-      tasksNotified: followUpIdsToUpdate.length,
+    JSON.stringify({
+      success: true,
+      sent: sentCount,
+      tasksNotified: totalTasksNotified,
       inAppCreated: Object.values(userReminders).reduce((sum, r) => sum + r.overdue.length + r.dueToday.length + r.dueTomorrow.length, 0),
       message: sentCount > 0 ? `Email sent + in-app notifications created` : "No emails sent"
     }),
@@ -698,7 +766,7 @@ function buildEmailHtml(reminders: UserReminders, isTestMode = false): string {
 
   html += `
       <div style="margin-top: 32px; padding-top: 24px; border-top: 1px solid #e5e5e5;">
-        <a href="https://projectmindforge.lovable.app" style="display: inline-block; background: #6366f1; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 500;">View All Tasks →</a>
+        <a href="https://projectmindforge.lovable.app/rep/tasks" style="display: inline-block; background: #6366f1; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 500;">View All Tasks →</a>
       </div>
       <p style="margin-top: 32px; color: #666; font-size: 12px;">
         <a href="https://projectmindforge.lovable.app/settings" style="color: #6366f1; text-decoration: underline;">
@@ -716,7 +784,7 @@ function taskHtml(followUp: FollowUp, accountName: string, prospectId: string, s
   const emoji = priorityEmoji[followUp.priority] || "🔵";
   
   // MindForge account link - always available since prospect_id is required
-  const mindforgeAccountUrl = `https://projectmindforge.lovable.app/rep/prospects/${prospectId}`;
+  const mindforgeAccountUrl = `https://projectmindforge.lovable.app/rep/tasks`;
   const accountNameHtml = `<a href="${mindforgeAccountUrl}" target="_blank" style="color: #6366f1; text-decoration: none; font-weight: 500;">${accountName}</a>`;
   
   const salesforceLinkHtml = salesforceLink 

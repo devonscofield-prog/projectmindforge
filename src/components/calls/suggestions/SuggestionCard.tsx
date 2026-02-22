@@ -2,7 +2,7 @@ import { useState, memo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Check, X, ChevronDown, Clock, Lightbulb, ListTodo } from 'lucide-react';
+import { Check, X, ChevronDown, Clock, Lightbulb } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { FollowUpSuggestion } from './types';
 
@@ -10,9 +10,7 @@ interface SuggestionCardProps {
   suggestion: FollowUpSuggestion;
   onAccept: (suggestion: FollowUpSuggestion) => void;
   onDismiss: (suggestionId: string) => void;
-  onCreateTask?: (suggestion: FollowUpSuggestion) => void;
   isAccepting?: boolean;
-  isCreatingTask?: boolean;
 }
 
 const priorityConfig = {
@@ -43,9 +41,7 @@ export const SuggestionCard = memo(function SuggestionCard({
   suggestion,
   onAccept,
   onDismiss,
-  onCreateTask,
   isAccepting,
-  isCreatingTask
 }: SuggestionCardProps) {
   const [isReasoningOpen, setIsReasoningOpen] = useState(false);
   const priority = priorityConfig[suggestion.priority] || priorityConfig.medium;
@@ -99,35 +95,17 @@ export const SuggestionCard = memo(function SuggestionCard({
             size="sm"
             className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
             onClick={() => onDismiss(suggestion.id)}
-            disabled={isAccepting || isCreatingTask}
+            disabled={isAccepting}
           >
             <X className="h-4 w-4" />
             <span className="sr-only">Dismiss</span>
           </Button>
-          {onCreateTask && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8"
-              onClick={() => onCreateTask(suggestion)}
-              disabled={isAccepting || isCreatingTask}
-            >
-              {isCreatingTask ? (
-                <span className="animate-pulse">...</span>
-              ) : (
-                <>
-                  <ListTodo className="h-4 w-4 mr-1" />
-                  Create Task
-                </>
-              )}
-            </Button>
-          )}
           <Button
             variant="default"
             size="sm"
             className="h-8"
             onClick={() => onAccept(suggestion)}
-            disabled={isAccepting || isCreatingTask}
+            disabled={isAccepting}
           >
             {isAccepting ? (
               <span className="animate-pulse">...</span>
