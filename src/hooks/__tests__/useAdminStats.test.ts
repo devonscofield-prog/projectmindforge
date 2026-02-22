@@ -20,6 +20,7 @@ function createCountMock(count: number) {
 // Mock the supabase client with Promise.all support
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
+    rpc: vi.fn().mockResolvedValue({ data: null, error: { message: 'not implemented' } }),
     from: vi.fn((table: string) => {
       switch (table) {
         case 'profiles':

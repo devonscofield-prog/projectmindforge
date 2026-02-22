@@ -9,6 +9,7 @@ import { Sparkles, CheckCheck, X, Plus, ChevronDown } from 'lucide-react';
 import { SuggestionCard } from './SuggestionCard';
 import { AddCustomTaskDialog } from './AddCustomTaskDialog';
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 import { createManualFollowUp, type FollowUpPriority, type FollowUpCategory } from '@/api/accountFollowUps';
 import { addDays, format } from 'date-fns';
 import { createLogger } from '@/lib/logger';
@@ -39,6 +40,7 @@ export function PostCallSuggestionsPanel({
   const queryClient = useQueryClient();
   const [suggestions, setSuggestions] = useState<FollowUpSuggestion[]>(initialSuggestions || []);
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
+  const [creatingTaskId, setCreatingTaskId] = useState<string | null>(null);
   const [isAcceptingAll, setIsAcceptingAll] = useState(false);
   const [isDismissingAll, setIsDismissingAll] = useState(false);
   const [showAddTaskDialog, setShowAddTaskDialog] = useState(false);
@@ -57,11 +59,9 @@ export function PostCallSuggestionsPanel({
 
   const updateSuggestionsInDB = async (updatedSuggestions: FollowUpSuggestion[]) => {
     try {
-      // Cast to unknown first then to any for Supabase JSONB compatibility
       const { error } = await supabase
         .from('ai_call_analysis')
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .update({ follow_up_suggestions: updatedSuggestions as any })
+        .update({ follow_up_suggestions: updatedSuggestions as unknown as Json })
         .eq('id', analysisId);
       
       if (error) throw error;
@@ -118,13 +118,57 @@ export function PostCallSuggestionsPanel({
   };
 
   const handleDismiss = async (suggestionId: string) => {
-    const updated = suggestions.map(s => 
+    const updated = suggestions.map(s =>
       s.id === suggestionId ? { ...s, status: 'dismissed' as const } : s
     );
     setSuggestions(updated);
     await updateSuggestionsInDB(updated);
     toast.info('Suggestion dismissed');
     onSuggestionsUpdated?.();
+  };
+
+  const handleCreateTask = async (suggestion: FollowUpSuggestion) => {
+    if (!prospectId) {
+      toast.error('Cannot create task', { description: 'This call is not linked to an account' });
+      return;
+    }
+
+    setCreatingTaskId(suggestion.id);
+
+    try {
+      const dueDate = format(addDays(new Date(), 3), 'yyyy-MM-dd');
+
+      await createManualFollowUp({
+        prospectId,
+        repId,
+        title: suggestion.title,
+        description: suggestion.description,
+        priority: suggestion.priority as FollowUpPriority,
+        category: suggestion.category as FollowUpCategory,
+        dueDate,
+        reminderEnabled: true,
+        sourceCallId: callId,
+      });
+
+      // Mark as accepted
+      const updated = suggestions.map(s =>
+        s.id === suggestion.id ? { ...s, status: 'accepted' as const } : s
+      );
+      setSuggestions(updated);
+      await updateSuggestionsInDB(updated);
+
+      toast.success('Task created', { description: `${suggestion.title} (due in 3 days)` });
+      queryClient.invalidateQueries({ queryKey: ['followUps'] });
+      queryClient.invalidateQueries({ queryKey: ['prospect-follow-ups'] });
+      queryClient.invalidateQueries({ queryKey: ['rep-tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['rep-tasks-count'] });
+      onSuggestionsUpdated?.();
+    } catch (error) {
+      log.error('Failed to create task from suggestion', { error, suggestion });
+      toast.error('Failed to create task');
+    } finally {
+      setCreatingTaskId(null);
+    }
   };
 
   const handleAcceptAll = async () => {
@@ -267,7 +311,9 @@ export function PostCallSuggestionsPanel({
                   suggestion={suggestion}
                   onAccept={handleAccept}
                   onDismiss={handleDismiss}
+                  onCreateTask={handleCreateTask}
                   isAccepting={acceptingId === suggestion.id}
+                  isCreatingTask={creatingTaskId === suggestion.id}
                 />
               ))}
 

@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { cn } from '@/lib/utils';
 
 interface StatusBadgeProps {
@@ -6,7 +7,7 @@ interface StatusBadgeProps {
   className?: string;
 }
 
-export function StatusBadge({ status, children, className }: StatusBadgeProps) {
+export const StatusBadge = memo(function StatusBadge({ status, children, className }: StatusBadgeProps) {
   return (
     <span
       className={cn(
@@ -20,7 +21,7 @@ export function StatusBadge({ status, children, className }: StatusBadgeProps) {
       {children}
     </span>
   );
-}
+});
 
 export function getPerformanceStatus(actual: number, goal: number): 'on-track' | 'at-risk' | 'off-track' {
   if (goal === 0) return 'on-track';

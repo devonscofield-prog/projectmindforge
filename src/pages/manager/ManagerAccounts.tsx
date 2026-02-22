@@ -27,8 +27,9 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { TableSkeleton } from '@/components/ui/skeletons';
-import { Search, Users, Calendar, DollarSign, ChevronRight, Building2, Flame, RefreshCw } from 'lucide-react';
-import { format } from 'date-fns';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Search, Users, Calendar, DollarSign, ChevronRight, Building2, Flame, RefreshCw, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { format, differenceInDays } from 'date-fns';
 import { 
   useTeamProspects,
   useCallCounts,
@@ -249,15 +250,13 @@ function ManagerAccounts() {
             {isLoading ? (
               <TableSkeleton rows={5} columns={11} />
             ) : filteredProspects.length === 0 ? (
-              <div className="text-center py-12">
-                <Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium">No accounts found</h3>
-                <p className="text-muted-foreground mt-1">
-                  {teamReps.length === 0 
-                    ? "No reps are assigned to your team yet"
-                    : "No accounts match your current filters"}
-                </p>
-              </div>
+              <EmptyState
+                icon={Building2}
+                title="No accounts found"
+                description={teamReps.length === 0
+                  ? "No reps are assigned to your team yet"
+                  : "No accounts match your current filters"}
+              />
             ) : (
               <Table>
                 <TableHeader>
@@ -268,10 +267,11 @@ function ManagerAccounts() {
                     <TableHead>Status</TableHead>
                     <TableHead>Industry</TableHead>
                     <TableHead>Heat</TableHead>
+                    <TableHead>Momentum</TableHead>
                     <TableHead>Revenue</TableHead>
                     <TableHead>Stakeholders</TableHead>
                     <TableHead>Calls</TableHead>
-                    <TableHead>Last Contact</TableHead>
+                    <TableHead>Days Silent</TableHead>
                     <TableHead className="w-10"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -322,6 +322,30 @@ function ManagerAccounts() {
                         <HeatScoreBadge score={prospect.account_heat_score} />
                       </TableCell>
                       <TableCell>
+                        {(() => {
+                          const trend = (prospect.account_heat_analysis as { trend?: string } | null)?.trend;
+                          if (!trend) return <span className="text-muted-foreground">--</span>;
+                          if (trend === 'Heating Up') return (
+                            <div className="flex items-center gap-1 text-success">
+                              <TrendingUp className="h-4 w-4" />
+                              <span className="text-xs">Up</span>
+                            </div>
+                          );
+                          if (trend === 'Cooling Down') return (
+                            <div className="flex items-center gap-1 text-destructive">
+                              <TrendingDown className="h-4 w-4" />
+                              <span className="text-xs">Down</span>
+                            </div>
+                          );
+                          return (
+                            <div className="flex items-center gap-1 text-muted-foreground">
+                              <Minus className="h-4 w-4" />
+                              <span className="text-xs">Stable</span>
+                            </div>
+                          );
+                        })()}
+                      </TableCell>
+                      <TableCell>
                         {formatCurrency(prospect.active_revenue)}
                       </TableCell>
                       <TableCell>
@@ -335,12 +359,17 @@ function ManagerAccounts() {
                       </TableCell>
                       <TableCell>
                         {prospect.last_contact_date ? (
-                          <div className="flex items-center gap-1 text-muted-foreground">
-                            <Calendar className="h-3 w-3" />
-                            {format(new Date(prospect.last_contact_date), 'MMM d, yyyy')}
-                          </div>
+                          (() => {
+                            const days = differenceInDays(new Date(), new Date(prospect.last_contact_date));
+                            return (
+                              <div className={`flex items-center gap-1 ${days > 14 ? 'text-destructive font-medium' : days > 7 ? 'text-warning' : 'text-muted-foreground'}`}>
+                                <Calendar className="h-3 w-3" />
+                                {days === 0 ? 'Today' : days === 1 ? '1 day' : `${days} days`}
+                              </div>
+                            );
+                          })()
                         ) : (
-                          '—'
+                          <span className="text-destructive font-medium">Never</span>
                         )}
                       </TableCell>
                       <TableCell>

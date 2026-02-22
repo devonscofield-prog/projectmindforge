@@ -97,7 +97,8 @@ export function useUpdateCoachingPrompt() {
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<SDRCoachingPrompt> & { id: string }) => {
-      const { error } = await (supabase.from as any)('sdr_coaching_prompts')
+      const { error } = await supabase
+        .from('sdr_coaching_prompts')
         .update(updates)
         .eq('id', id);
 
@@ -117,7 +118,7 @@ export function useCreateCoachingPrompt() {
     mutationFn: async (
       prompt: Omit<SDRCoachingPrompt, 'id' | 'created_at' | 'updated_at'>,
     ) => {
-      const { error } = await (supabase.from as any)('sdr_coaching_prompts').insert(prompt);
+      const { error } = await supabase.from('sdr_coaching_prompts').insert(prompt);
       if (error) throw error;
     },
     onSuccess: async () => {

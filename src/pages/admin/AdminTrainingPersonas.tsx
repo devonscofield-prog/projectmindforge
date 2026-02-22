@@ -20,7 +20,8 @@ import {
   Users,
   AlertCircle,
 } from 'lucide-react';
-import { PersonaFormDialog } from '@/components/admin/PersonaFormDialog';
+import { lazy, Suspense } from 'react';
+const PersonaFormDialog = lazy(() => import('@/components/admin/PersonaFormDialog').then(m => ({ default: m.PersonaFormDialog })));
 import {
   AlertDialog,
   AlertDialogAction,
@@ -93,7 +94,7 @@ export default function AdminTrainingPersonas() {
       // First, unlink any sessions from this persona
       const { error: unlinkError } = await supabase
         .from('roleplay_sessions')
-        .update({ persona_id: null as any })
+        .update({ persona_id: null })
         .eq('persona_id', id);
 
       if (unlinkError) {
@@ -318,12 +319,16 @@ export default function AdminTrainingPersonas() {
         )}
 
         {/* Form Dialog */}
-        <PersonaFormDialog
-          open={isFormOpen}
-          onClose={handleFormClose}
-          onSuccess={handleFormSuccess}
-          persona={selectedPersona}
-        />
+        {isFormOpen && (
+          <Suspense fallback={null}>
+            <PersonaFormDialog
+              open={isFormOpen}
+              onClose={handleFormClose}
+              onSuccess={handleFormSuccess}
+              persona={selectedPersona}
+            />
+          </Suspense>
+        )}
 
         {/* Delete Confirmation */}
         <AlertDialog open={!!deletePersonaId} onOpenChange={() => setDeletePersonaId(null)}>

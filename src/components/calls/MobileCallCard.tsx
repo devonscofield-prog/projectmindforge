@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { format } from 'date-fns';
 import { parseDateOnly } from '@/lib/formatters';
 import { Card, CardContent } from '@/components/ui/card';
@@ -25,7 +26,7 @@ interface MobileCallCardProps {
   onClick: () => void;
 }
 
-export function MobileCallCard({ call, onClick }: MobileCallCardProps) {
+export const MobileCallCard = memo(function MobileCallCard({ call, onClick }: MobileCallCardProps) {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'completed':
@@ -140,4 +141,4 @@ export function MobileCallCard({ call, onClick }: MobileCallCardProps) {
       </CardContent>
     </Card>
   );
-}
+});

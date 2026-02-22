@@ -12,14 +12,18 @@ import {
   useSDRTeamMembers,
   useSDRTeams,
   useSDRTranscriptList,
+  useSDRCallList,
   useSDRTeamGradeSummary,
   useUploadSDRTranscript,
 } from '@/hooks/useSDR';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, Users, Phone, TrendingUp, MessageSquare, CalendarCheck, Upload, FileUp, ClipboardPaste, ArrowRight } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { format } from 'date-fns';
+import { Loader2, Users, Phone, TrendingUp, MessageSquare, CalendarCheck, Upload, FileUp, ClipboardPaste, ArrowRight, BarChart3, FileText, ChevronDown, ChevronRight, Target, ArrowUp, ArrowDown } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
+import { SDRLeaderboard } from '@/components/sdr/SDRLeaderboard';
+import { Link, useSearchParams } from 'react-router-dom';
+import { format, subDays, parseISO } from 'date-fns';
 import { gradeColors } from '@/constants/training';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
 
 const GRADE_ORDER = ['A+', 'A', 'B', 'C', 'D', 'F'];
 const GRADE_BAR_COLORS: Record<string, string> = {
@@ -33,20 +37,22 @@ const GRADE_BAR_COLORS: Record<string, string> = {
 
 function SDRManagerDashboard() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const uploadForParam = searchParams.get('uploadFor');
   const { data: teams = [], isLoading: teamsLoading, isError: teamsError } = useSDRTeams();
   const myTeam = teams.find(t => t.manager_id === user?.id);
   const { data: members = [], isLoading: membersLoading, isError: membersError } = useSDRTeamMembers(myTeam?.id);
 
   // Upload for rep state
-  const [showUpload, setShowUpload] = useState(false);
-  const [selectedSdrId, setSelectedSdrId] = useState<string>('');
+  const [showUpload, setShowUpload] = useState(!!uploadForParam);
+  const [selectedSdrId, setSelectedSdrId] = useState<string>(uploadForParam || '');
   const [rawText, setRawText] = useState('');
   const [transcriptDate, setTranscriptDate] = useState(new Date().toLocaleDateString('en-CA'));
   const [fileName, setFileName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadMutation = useUploadSDRTranscript();
 
-  const memberIds = useMemo(() => members.map((m: any) => m.user_id), [members]);
+  const memberIds = useMemo(() => members.map((m) => m.user_id), [members]);
 
   const { data: teamTranscripts = [] } = useSDRTranscriptList({
     sdrIds: memberIds,
@@ -81,6 +87,178 @@ function SDRManagerDashboard() {
         pct: Math.round((teamGradeData.gradeDistribution[g] / total) * 100),
       }));
   }, [teamGradeData?.gradeDistribution]);
+
+  // Fetch calls for sparklines and trend chart
+  const { data: teamCalls = [] } = useSDRCallList({
+    sdrIds: memberIds,
+    onlyMeaningful: true,
+    orderBy: 'recency',
+    limit: 500,
+    enabled: memberIds.length > 0,
+  });
+
+  // Team trend chart data (Task 8)
+  const [trendPeriod, setTrendPeriod] = useState<7 | 30>(30);
+  const teamTrendData = useMemo(() => {
+    const cutoff = subDays(new Date(), trendPeriod).toLocaleDateString('en-CA');
+    const byDate: Record<string, { total: number; count: number }> = {};
+
+    teamCalls.forEach(call => {
+      const grade = call.sdr_call_grades?.[0];
+      if (!grade) return;
+      const dateStr = call.created_at.slice(0, 10);
+      if (dateStr < cutoff) return;
+
+      const dims = [
+        grade.opener_score,
+        grade.engagement_score,
+        grade.objection_handling_score,
+        grade.appointment_setting_score,
+        grade.professionalism_score,
+      ].filter((s): s is number => typeof s === 'number');
+      if (dims.length === 0) return;
+      const avg = dims.reduce((a, b) => a + b, 0) / dims.length;
+
+      if (!byDate[dateStr]) byDate[dateStr] = { total: 0, count: 0 };
+      byDate[dateStr].total += avg;
+      byDate[dateStr].count += 1;
+    });
+
+    return Object.entries(byDate)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, { total, count }]) => ({
+        date: format(parseISO(date), 'MMM d'),
+        avg: Math.round((total / count) * 10) / 10,
+      }));
+  }, [teamCalls, trendPeriod]);
+
+  // Per-member sparkline data (Task 5)
+  const memberSparklines = useMemo(() => {
+    const cutoff = subDays(new Date(), 30).toLocaleDateString('en-CA');
+    const byMember: Record<string, Record<string, { total: number; count: number }>> = {};
+
+    teamCalls.forEach(call => {
+      const grade = call.sdr_call_grades?.[0];
+      if (!grade) return;
+      const dateStr = call.created_at.slice(0, 10);
+      if (dateStr < cutoff) return;
+
+      const dims = [
+        grade.opener_score,
+        grade.engagement_score,
+        grade.objection_handling_score,
+        grade.appointment_setting_score,
+        grade.professionalism_score,
+      ].filter((s): s is number => typeof s === 'number');
+      if (dims.length === 0) return;
+      const avg = dims.reduce((a, b) => a + b, 0) / dims.length;
+
+      if (!byMember[call.sdr_id]) byMember[call.sdr_id] = {};
+      if (!byMember[call.sdr_id][dateStr]) byMember[call.sdr_id][dateStr] = { total: 0, count: 0 };
+      byMember[call.sdr_id][dateStr].total += avg;
+      byMember[call.sdr_id][dateStr].count += 1;
+    });
+
+    const result: Record<string, Array<{ date: string; avg: number }>> = {};
+    Object.entries(byMember).forEach(([sdrId, dateMap]) => {
+      result[sdrId] = Object.entries(dateMap)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([, { total, count }]) => ({ date: '', avg: Math.round((total / count) * 10) / 10 }));
+    });
+    return result;
+  }, [teamCalls]);
+
+  // Performance Analytics state
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
+
+  // Per-SDR comparison data for bar chart
+  const perSdrComparison = useMemo(() => {
+    if (!teamGradeData?.memberStats) return [];
+    return members
+      .map(m => {
+        const stats = teamGradeData.memberStats[m.user_id];
+        if (!stats || stats.count === 0) return null;
+        return {
+          name: m.profiles?.name || m.profiles?.email || 'Unknown',
+          avg: Math.round((stats.totalScore / stats.count) * 10) / 10,
+          count: stats.count,
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null)
+      .sort((a, b) => b.avg - a.avg);
+  }, [members, teamGradeData?.memberStats]);
+
+  // Meeting conversion rate
+  const meetingConversion = useMemo(() => {
+    const totalGraded = teamGradeData?.totalGraded ?? 0;
+    const meetings = teamGradeData?.meetingsSet ?? 0;
+    if (totalGraded === 0) return { rate: 0, meetings, totalGraded };
+    return {
+      rate: Math.round((meetings / totalGraded) * 1000) / 10,
+      meetings,
+      totalGraded,
+    };
+  }, [teamGradeData]);
+
+  // Improvement tracking: current 30d vs previous 30d per SDR
+  const improvementTracking = useMemo(() => {
+    const now = new Date();
+    const cutoff30 = subDays(now, 30).toLocaleDateString('en-CA');
+    const cutoff60 = subDays(now, 60).toLocaleDateString('en-CA');
+
+    return members
+      .map(m => {
+        const memberCalls = teamCalls.filter(c => c.sdr_id === m.user_id);
+
+        const currentGrades = memberCalls
+          .filter(c => c.created_at.slice(0, 10) >= cutoff30)
+          .flatMap(c => c.sdr_call_grades ?? []);
+
+        const prevGrades = memberCalls
+          .filter(c => {
+            const d = c.created_at.slice(0, 10);
+            return d >= cutoff60 && d < cutoff30;
+          })
+          .flatMap(c => c.sdr_call_grades ?? []);
+
+        const avgForGrades = (grades: typeof currentGrades) => {
+          if (grades.length === 0) return null;
+          let total = 0;
+          let count = 0;
+          for (const g of grades) {
+            const dims = [
+              g.opener_score,
+              g.engagement_score,
+              g.objection_handling_score,
+              g.appointment_setting_score,
+              g.professionalism_score,
+            ].filter((s): s is number => typeof s === 'number');
+            if (dims.length > 0) {
+              total += dims.reduce((a, b) => a + b, 0) / dims.length;
+              count += 1;
+            }
+          }
+          return count > 0 ? total / count : null;
+        };
+
+        const currentAvg = avgForGrades(currentGrades);
+        const prevAvg = avgForGrades(prevGrades);
+
+        if (currentAvg === null) return null;
+
+        const change = prevAvg !== null ? Math.round((currentAvg - prevAvg) * 10) / 10 : null;
+
+        return {
+          name: m.profiles?.name || m.profiles?.email || 'Unknown',
+          userId: m.user_id,
+          currentAvg: Math.round(currentAvg * 10) / 10,
+          prevAvg: prevAvg !== null ? Math.round(prevAvg * 10) / 10 : null,
+          change,
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null)
+      .sort((a, b) => (b.change ?? -999) - (a.change ?? -999));
+  }, [members, teamCalls]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -193,7 +371,7 @@ function SDRManagerDashboard() {
                   <Select value={selectedSdrId} onValueChange={setSelectedSdrId}>
                     <SelectTrigger><SelectValue placeholder="Select SDR..." /></SelectTrigger>
                     <SelectContent>
-                      {members.map((m: any) => (
+                      {members.map((m) => (
                         <SelectItem key={m.user_id} value={m.user_id}>
                           {m.profiles?.name || m.profiles?.email || 'Unknown'}
                         </SelectItem>
@@ -243,10 +421,14 @@ function SDRManagerDashboard() {
               </CardHeader>
               <CardContent>
                 {members.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-4">No team members assigned yet</p>
+                  <EmptyState
+                    icon={Users}
+                    title="No team members assigned yet"
+                    description="Invite SDRs to your team to see their performance here."
+                  />
                 ) : (
                   <div className="space-y-2">
-                    {members.map((m: any) => {
+                    {members.map((m) => {
                       const ms = teamGradeData?.memberStats?.[m.user_id];
                       const memberAvg = ms ? Math.round((ms.totalScore / ms.count) * 10) / 10 : null;
                       // Find most common grade for this member
@@ -271,6 +453,16 @@ function SDRManagerDashboard() {
                               <p className="text-muted-foreground">{memberTranscriptCount} transcripts</p>
                               <p className="text-muted-foreground">{ms?.count ?? 0} graded calls</p>
                             </div>
+                            {/* Sparkline */}
+                            {memberSparklines[m.user_id] && memberSparklines[m.user_id].length >= 2 && (
+                              <div className="hidden md:block w-20 h-8">
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <LineChart data={memberSparklines[m.user_id]}>
+                                    <Line type="monotone" dataKey="avg" stroke="hsl(var(--primary))" strokeWidth={1.5} dot={false} />
+                                  </LineChart>
+                                </ResponsiveContainer>
+                              </div>
+                            )}
                             {ms?.meetings ? (
                               <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-600">
                                 {ms.meetings} mtg{ms.meetings > 1 ? 's' : ''}
@@ -305,7 +497,11 @@ function SDRManagerDashboard() {
             </CardHeader>
             <CardContent>
               {gradeDistribution.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8 text-sm">No grades yet</p>
+                <EmptyState
+                  icon={BarChart3}
+                  title="No grades yet"
+                  description="Grade distribution will appear once team calls are graded."
+                />
               ) : (
                 <div className="space-y-3">
                   {gradeDistribution.map(({ grade, count, pct }) => (
@@ -328,6 +524,119 @@ function SDRManagerDashboard() {
           </Card>
         </div>
 
+        {/* Team Leaderboard */}
+        <SDRLeaderboard members={members} teamCalls={teamCalls} />
+
+        {/* Performance Analytics (collapsible) */}
+        <Card>
+          <CardHeader
+            className="cursor-pointer select-none"
+            onClick={() => setAnalyticsOpen(!analyticsOpen)}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5 text-primary" />
+                  Performance Analytics
+                </CardTitle>
+                <CardDescription>Detailed performance comparisons and trends</CardDescription>
+              </div>
+              {analyticsOpen ? (
+                <ChevronDown className="h-5 w-5 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              )}
+            </div>
+          </CardHeader>
+          {analyticsOpen && (
+            <CardContent className="space-y-6">
+              {/* Per-SDR Comparison Bar Chart */}
+              {perSdrComparison.length > 0 ? (
+                <div>
+                  <h3 className="text-sm font-semibold mb-3">Average Score per SDR</h3>
+                  <div style={{ height: Math.max(200, perSdrComparison.length * 48) }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={perSdrComparison} layout="vertical" margin={{ left: 0, right: 20, top: 5, bottom: 5 }}>
+                        <XAxis type="number" domain={[0, 10]} tick={{ fontSize: 12 }} />
+                        <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} width={120} />
+                        <Tooltip
+                          formatter={(value: number) => [`${value}/10`, 'Avg Score']}
+                          contentStyle={{
+                            backgroundColor: 'hsl(var(--card))',
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '8px',
+                            fontSize: '12px',
+                          }}
+                        />
+                        <Bar dataKey="avg" radius={[0, 4, 4, 0]}>
+                          {perSdrComparison.map((entry, idx) => (
+                            <Cell
+                              key={idx}
+                              fill={entry.avg >= 8 ? '#22c55e' : entry.avg >= 6 ? '#3b82f6' : entry.avg >= 4 ? '#f59e0b' : '#ef4444'}
+                            />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              ) : (
+                <EmptyState
+                  icon={BarChart3}
+                  title="No graded calls yet"
+                  description="Per-SDR comparison will appear once calls are graded."
+                />
+              )}
+
+              {/* Meeting Conversion + Improvement Tracking row */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Meeting Conversion Rate */}
+                <div className="rounded-lg border p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Target className="h-4 w-4 text-green-500" />
+                    <h3 className="text-sm font-semibold">Meeting Conversion Rate</h3>
+                  </div>
+                  <div className="text-center py-4">
+                    <p className="text-4xl font-bold text-green-500">{meetingConversion.rate}%</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {meetingConversion.meetings} meetings from {meetingConversion.totalGraded} graded calls
+                    </p>
+                  </div>
+                </div>
+
+                {/* Improvement Tracking */}
+                <div className="rounded-lg border p-4 space-y-3">
+                  <h3 className="text-sm font-semibold">Score Change (30d vs prev 30d)</h3>
+                  {improvementTracking.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">No data available</p>
+                  ) : (
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                      {improvementTracking.map(item => (
+                        <div key={item.userId} className="flex items-center justify-between text-sm">
+                          <span className="truncate mr-2">{item.name}</span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-muted-foreground">{item.currentAvg}</span>
+                            {item.change !== null ? (
+                              <span className={`flex items-center gap-0.5 font-medium ${
+                                item.change > 0 ? 'text-green-500' : item.change < 0 ? 'text-red-500' : 'text-muted-foreground'
+                              }`}>
+                                {item.change > 0 ? <ArrowUp className="h-3 w-3" /> : item.change < 0 ? <ArrowDown className="h-3 w-3" /> : null}
+                                {item.change > 0 ? '+' : ''}{item.change}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">new</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          )}
+        </Card>
+
         {/* Recent Team Activity */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
@@ -340,11 +649,15 @@ function SDRManagerDashboard() {
           </CardHeader>
           <CardContent>
             {recentTeamTranscripts.length === 0 ? (
-              <p className="text-muted-foreground text-center py-4">No transcripts uploaded yet</p>
+              <EmptyState
+                icon={FileText}
+                title="No transcripts uploaded yet"
+                description="Team transcripts will appear here once SDRs upload their daily calls."
+              />
             ) : (
               <div className="space-y-2">
                 {recentTeamTranscripts.map((t) => {
-                  const member = members.find((m: any) => m.user_id === t.sdr_id);
+                  const member = members.find((m) => m.user_id === t.sdr_id);
                   return (
                     <Link key={t.id} to={`/sdr/history/${t.id}`} className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent/50 transition-colors">
                       <div>
@@ -366,6 +679,50 @@ function SDRManagerDashboard() {
                   );
                 })}
               </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Team Trend Chart */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Team Grade Trend</CardTitle>
+              <CardDescription>Average score across all SDRs over time</CardDescription>
+            </div>
+            <div className="flex gap-1">
+              <Button
+                variant={trendPeriod === 7 ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setTrendPeriod(7)}
+              >
+                7d
+              </Button>
+              <Button
+                variant={trendPeriod === 30 ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setTrendPeriod(30)}
+              >
+                30d
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {teamTrendData.length < 2 ? (
+              <EmptyState
+                icon={TrendingUp}
+                title="Not enough data yet"
+                description="The trend chart will appear after multiple days of graded calls."
+              />
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={teamTrendData}>
+                  <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                  <YAxis domain={[0, 10]} tick={{ fontSize: 12 }} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="avg" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} name="Avg Score" />
+                </LineChart>
+              </ResponsiveContainer>
             )}
           </CardContent>
         </Card>

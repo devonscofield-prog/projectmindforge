@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -10,7 +11,7 @@ interface PricingDisciplineCardProps {
   data: PricingDiscipline | null | undefined;
 }
 
-export function PricingDisciplineCard({ data }: PricingDisciplineCardProps) {
+export const PricingDisciplineCard = memo(function PricingDisciplineCard({ data }: PricingDisciplineCardProps) {
   const [isOpen, setIsOpen] = useState(true);
 
   if (!data) {
@@ -188,4 +189,4 @@ export function PricingDisciplineCard({ data }: PricingDisciplineCardProps) {
       </Card>
     </Collapsible>
   );
-}
+});

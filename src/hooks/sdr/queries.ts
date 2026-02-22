@@ -107,7 +107,7 @@ export function useSDRTranscriptList(params: SDRTranscriptListParams = {}) {
   return useQuery({
     queryKey: sdrKeys.transcripts.list(params),
     queryFn: async () => {
-      let query = (supabase.from as any)('sdr_daily_transcripts')
+      let query = supabase.from('sdr_daily_transcripts')
         .select(SDR_TRANSCRIPT_LIST_SELECT)
         .order('transcript_date', { ascending: false })
         .order('created_at', { ascending: false });
@@ -138,7 +138,7 @@ export function useSDRTranscriptDetail(transcriptId: string | undefined) {
   return useQuery({
     queryKey: transcriptId ? sdrKeys.transcripts.detail(transcriptId) : [...sdrKeys.transcripts.all(), 'detail', 'none'],
     queryFn: async () => {
-      const { data, error } = await (supabase.from as any)('sdr_daily_transcripts')
+      const { data, error } = await supabase.from('sdr_daily_transcripts')
         .select('*')
         .eq('id', transcriptId)
         .single();
@@ -165,7 +165,7 @@ export function useSDRCallList(params: SDRCallListParams = {}) {
   return useQuery({
     queryKey: sdrKeys.calls.list(params),
     queryFn: async () => {
-      let query = (supabase.from as any)('sdr_calls').select(SDR_CALL_LIST_SELECT);
+      let query = supabase.from('sdr_calls').select(SDR_CALL_LIST_SELECT);
 
       if (normalized.transcriptId) query = query.eq('daily_transcript_id', normalized.transcriptId);
       if (normalized.sdrId) query = query.eq('sdr_id', normalized.sdrId);
@@ -198,7 +198,7 @@ export function useSDRCallDetail(callId: string | undefined) {
   return useQuery({
     queryKey: callId ? sdrKeys.calls.detail(callId) : [...sdrKeys.calls.all(), 'detail', 'none'],
     queryFn: async () => {
-      const { data, error } = await (supabase.from as any)('sdr_calls')
+      const { data, error } = await supabase.from('sdr_calls')
         .select(SDR_CALL_DETAIL_SELECT)
         .eq('id', callId)
         .single();
@@ -220,7 +220,7 @@ export function useSDRTeams() {
   return useQuery({
     queryKey: sdrKeys.teams.all(),
     queryFn: async () => {
-      const { data, error } = await (supabase.from as any)('sdr_teams')
+      const { data, error } = await supabase.from('sdr_teams')
         .select('*')
         .order('created_at', { ascending: false });
 
@@ -236,7 +236,7 @@ export function useSDRTeamMembers(teamId?: string) {
   return useQuery({
     queryKey: sdrKeys.teams.members(teamId),
     queryFn: async () => {
-      let query = (supabase.from as any)('sdr_team_members')
+      let query = supabase.from('sdr_team_members')
         .select('id, team_id, user_id, created_at, profiles:user_id(id, name, email)')
         .order('created_at', { ascending: false });
 
@@ -256,7 +256,7 @@ export function useSDRCoachingPrompts(teamId?: string) {
   return useQuery({
     queryKey: sdrKeys.coachingPrompts.byTeam(teamId),
     queryFn: async () => {
-      let query = (supabase.from as any)('sdr_coaching_prompts')
+      let query = supabase.from('sdr_coaching_prompts')
         .select('*')
         .order('created_at', { ascending: false });
 
@@ -298,7 +298,7 @@ export function useSDRTeamGradeSummary(params: SDRTeamGradeSummaryParams) {
     queryFn: async () => {
       if (normalized.memberIds.length === 0) return null;
 
-      const { data: grades, error } = await (supabase.from as any)('sdr_call_grades')
+      const { data: grades, error } = await supabase.from('sdr_call_grades')
         .select('sdr_id, overall_grade, opener_score, engagement_score, objection_handling_score, appointment_setting_score, professionalism_score, meeting_scheduled')
         .in('sdr_id', normalized.memberIds)
         .order('created_at', { ascending: false })
@@ -307,25 +307,26 @@ export function useSDRTeamGradeSummary(params: SDRTeamGradeSummaryParams) {
       if (error) throw error;
       if (!grades || grades.length === 0) return null;
 
+      type GradeRow = typeof grades[number];
       const avgScore =
-        grades.reduce((sum: number, g: any) => {
+        grades.reduce((sum: number, g: GradeRow) => {
           const scores = [
             g.opener_score,
             g.engagement_score,
             g.objection_handling_score,
             g.appointment_setting_score,
             g.professionalism_score,
-          ].filter((score) => typeof score === 'number');
+          ].filter((score): score is number => typeof score === 'number');
 
-          return sum + (scores.length ? scores.reduce((a: number, b: number) => a + b, 0) / scores.length : 0);
+          return sum + (scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : 0);
         }, 0) / grades.length;
 
-      const meetingsSet = grades.filter((g: any) => g.meeting_scheduled === true).length;
+      const meetingsSet = grades.filter((g) => g.meeting_scheduled === true).length;
 
       const gradeDistribution: Record<string, number> = {};
       const memberStats: SDRTeamGradeSummary['memberStats'] = {};
 
-      grades.forEach((g: any) => {
+      grades.forEach((g) => {
         gradeDistribution[g.overall_grade] = (gradeDistribution[g.overall_grade] || 0) + 1;
 
         if (!memberStats[g.sdr_id]) {
@@ -341,9 +342,9 @@ export function useSDRTeamGradeSummary(params: SDRTeamGradeSummaryParams) {
           g.objection_handling_score,
           g.appointment_setting_score,
           g.professionalism_score,
-        ].filter((score) => typeof score === 'number');
+        ].filter((score): score is number => typeof score === 'number');
 
-        stats.totalScore += scores.length ? scores.reduce((a: number, b: number) => a + b, 0) / scores.length : 0;
+        stats.totalScore += scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
         if (g.meeting_scheduled === true) stats.meetings += 1;
         stats.grades[g.overall_grade] = (stats.grades[g.overall_grade] || 0) + 1;
       });
@@ -368,13 +369,13 @@ export function useSDRStats(sdrId?: string) {
     queryFn: async () => {
       const today = new Date().toLocaleDateString('en-CA');
 
-      let transcriptQuery = (supabase.from as any)('sdr_daily_transcripts')
+      let transcriptQuery = supabase.from('sdr_daily_transcripts')
         .select('total_calls_detected, meaningful_calls_count, processing_status')
         .eq('transcript_date', today);
 
       if (sdrId) transcriptQuery = transcriptQuery.eq('sdr_id', sdrId);
 
-      let gradesQuery = (supabase.from as any)('sdr_call_grades')
+      let gradesQuery = supabase.from('sdr_call_grades')
         .select('overall_grade, opener_score, engagement_score, objection_handling_score, appointment_setting_score, professionalism_score');
 
       if (sdrId) gradesQuery = gradesQuery.eq('sdr_id', sdrId);
@@ -391,30 +392,30 @@ export function useSDRStats(sdrId?: string) {
       const recentGrades = gradesResult.data || [];
 
       const totalCallsToday = todayTranscripts.reduce(
-        (sum: number, transcript: any) => sum + transcript.total_calls_detected,
+        (sum, transcript) => sum + transcript.total_calls_detected,
         0,
       );
       const meaningfulCallsToday = todayTranscripts.reduce(
-        (sum: number, transcript: any) => sum + transcript.meaningful_calls_count,
+        (sum, transcript) => sum + transcript.meaningful_calls_count,
         0,
       );
 
       const avgGrade =
         recentGrades.length > 0
-          ? recentGrades.reduce((sum: number, grade: any) => {
+          ? recentGrades.reduce((sum: number, grade) => {
               const scores = [
                 grade.opener_score,
                 grade.engagement_score,
                 grade.objection_handling_score,
                 grade.appointment_setting_score,
                 grade.professionalism_score,
-              ].filter((score) => typeof score === 'number');
+              ].filter((score): score is number => typeof score === 'number');
 
-              return sum + (scores.length ? scores.reduce((a: number, b: number) => a + b, 0) / scores.length : 0);
+              return sum + (scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : 0);
             }, 0) / recentGrades.length
           : null;
 
-      const gradeDistribution = recentGrades.reduce((acc: Record<string, number>, grade: any) => {
+      const gradeDistribution = recentGrades.reduce<Record<string, number>>((acc, grade) => {
         acc[grade.overall_grade] = (acc[grade.overall_grade] || 0) + 1;
         return acc;
       }, {});

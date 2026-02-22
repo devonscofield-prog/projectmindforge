@@ -894,6 +894,7 @@ export type Database = {
           notes: string | null
           rep_id: string
           session_date: string
+          source_call_id: string | null
           updated_at: string
         }
         Insert: {
@@ -906,6 +907,7 @@ export type Database = {
           notes?: string | null
           rep_id: string
           session_date?: string
+          source_call_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -918,6 +920,7 @@ export type Database = {
           notes?: string | null
           rep_id?: string
           session_date?: string
+          source_call_id?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -2592,6 +2595,9 @@ export type Database = {
           appointment_setting_score: number | null
           call_id: string
           call_summary: string | null
+          coaching_feedback_at: string | null
+          coaching_feedback_helpful: boolean | null
+          coaching_feedback_note: string | null
           coaching_notes: string | null
           created_at: string
           engagement_score: number | null
@@ -2612,6 +2618,9 @@ export type Database = {
           appointment_setting_score?: number | null
           call_id: string
           call_summary?: string | null
+          coaching_feedback_at?: string | null
+          coaching_feedback_helpful?: boolean | null
+          coaching_feedback_note?: string | null
           coaching_notes?: string | null
           created_at?: string
           engagement_score?: number | null
@@ -2632,6 +2641,9 @@ export type Database = {
           appointment_setting_score?: number | null
           call_id?: string
           call_summary?: string | null
+          coaching_feedback_at?: string | null
+          coaching_feedback_helpful?: boolean | null
+          coaching_feedback_note?: string | null
           coaching_notes?: string | null
           created_at?: string
           engagement_score?: number | null

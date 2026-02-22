@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { createLogger } from '@/lib/logger';
+
+// TODO: Remove once sdr_team_invites is added to generated Supabase types
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const sdrTeamInvitesTable = () => (supabase.from as (table: string) => ReturnType<typeof supabase.from>)('sdr_team_invites');
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 import { useAuth } from '@/contexts/AuthContext';
 import { sdrKeys, useSDRTeams } from '@/hooks/useSDR';
@@ -57,7 +61,7 @@ function SDRManagerInvite() {
     queryKey: sdrKeys.teamInviteLinks(myTeam?.id),
     queryFn: async () => {
       if (!myTeam?.id) return [];
-      const { data, error } = await (supabase.from as any)('sdr_team_invites')
+      const { data, error } = await sdrTeamInvitesTable()
         .select('*')
         .eq('team_id', myTeam.id)
         .eq('is_active', true)
@@ -74,7 +78,7 @@ function SDRManagerInvite() {
   const generateLinkMutation = useMutation({
     mutationFn: async () => {
       if (!myTeam?.id) throw new Error('No team found');
-      const { data, error } = await (supabase.from as any)('sdr_team_invites')
+      const { data, error } = await sdrTeamInvitesTable()
         .insert({
           team_id: myTeam.id,
           created_by: user!.id,
@@ -96,7 +100,7 @@ function SDRManagerInvite() {
   // Deactivate a link
   const deactivateLinkMutation = useMutation({
     mutationFn: async (linkId: string) => {
-      const { error } = await (supabase.from as any)('sdr_team_invites')
+      const { error } = await sdrTeamInvitesTable()
         .update({ is_active: false, updated_at: new Date().toISOString() })
         .eq('id', linkId);
       if (error) throw error;

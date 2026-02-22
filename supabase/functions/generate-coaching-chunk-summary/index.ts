@@ -1,26 +1,6 @@
 import { z } from "zod";
 import { validateSignedRequest } from "../_shared/hmac.ts";
-
-// CORS: Restrict to production domains
-function getCorsHeaders(origin?: string | null): Record<string, string> {
-  const allowedOrigins = ['https://lovable.dev', 'https://www.lovable.dev'];
-  const devPatterns = [/^https?:\/\/localhost(:\d+)?$/, /^https:\/\/[a-z0-9-]+\.lovableproject\.com$/, /^https:\/\/[a-z0-9-]+\.lovable\.app$/];
-  
-  // Allow custom domain from environment variable
-  const customDomain = Deno.env.get('CUSTOM_DOMAIN');
-  if (customDomain) {
-    allowedOrigins.push(`https://${customDomain}`);
-    allowedOrigins.push(`https://www.${customDomain}`);
-  }
-  
-  const requestOrigin = origin || '';
-  const isAllowed = allowedOrigins.includes(requestOrigin) || devPatterns.some(pattern => pattern.test(requestOrigin));
-  return {
-    'Access-Control-Allow-Origin': isAllowed ? requestOrigin : allowedOrigins[0],
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  };
-}
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 // Simple in-memory rate limiter
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
@@ -388,9 +368,10 @@ Provide a condensed summary of this chunk's patterns and trends.`;
     );
 
   } catch (error) {
-    console.error('[generate-coaching-chunk-summary] Error:', error);
+    const requestId = crypto.randomUUID().slice(0, 8);
+    console.error(`[generate-coaching-chunk-summary] Error ${requestId}:`, error instanceof Error ? error.message : error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      JSON.stringify({ error: 'An unexpected error occurred. Please try again.', requestId }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

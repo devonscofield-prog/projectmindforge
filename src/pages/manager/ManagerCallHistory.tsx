@@ -11,11 +11,15 @@ import { listCallTranscriptsForTeamWithFilters } from '@/api/aiCallAnalysis';
 import { useManagerReps } from '@/hooks/useManagerDashboardQueries';
 import { Search, History, Users } from 'lucide-react';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
+import { format, subDays } from 'date-fns';
 import {
   CallHistoryFilters,
   CallHistoryTable,
   useCallHistoryFilters,
 } from '../rep/call-history';
+
+// Default to last 7 days for manager call history
+const defaultDateFrom = format(subDays(new Date(), 7), 'yyyy-MM-dd');
 
 function ManagerCallHistory() {
   const { user, role } = useAuth();
@@ -47,7 +51,7 @@ function ManagerCallHistory() {
     handlePageSizeChange,
     clearFilters,
     toggleSort,
-  } = useCallHistoryFilters();
+  } = useCallHistoryFilters(25, { defaultDateFrom });
 
   // Get rep IDs for the query
   const repIds = useMemo(() => reps.map(r => r.id), [reps]);

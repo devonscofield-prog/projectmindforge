@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -50,7 +51,7 @@ interface ColumnSelectorProps {
   onChange: (columns: string[]) => void;
 }
 
-export function ColumnSelector({ reportType, visibleColumns, onChange }: ColumnSelectorProps) {
+export const ColumnSelector = memo(function ColumnSelector({ reportType, visibleColumns, onChange }: ColumnSelectorProps) {
   const columns = COLUMNS_BY_TYPE[reportType];
 
   const handleToggle = (key: string, checked: boolean) => {
@@ -89,7 +90,7 @@ export function ColumnSelector({ reportType, visibleColumns, onChange }: ColumnS
       </PopoverContent>
     </Popover>
   );
-}
+});
 
 export function getDefaultColumns(reportType: ReportType): string[] {
   return COLUMNS_BY_TYPE[reportType].map(c => c.key);

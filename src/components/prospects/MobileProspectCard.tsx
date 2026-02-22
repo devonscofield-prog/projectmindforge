@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { format } from 'date-fns';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -35,7 +36,7 @@ interface MobileProspectCardProps {
   onClick: () => void;
 }
 
-export function MobileProspectCard({ prospect, stakeholderCount, callCount, onClick }: MobileProspectCardProps) {
+export const MobileProspectCard = memo(function MobileProspectCard({ prospect, stakeholderCount, callCount, onClick }: MobileProspectCardProps) {
   const displayName = prospect.account_name || prospect.prospect_name;
   
   const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -116,4 +117,4 @@ export function MobileProspectCard({ prospect, stakeholderCount, callCount, onCl
       </CardContent>
     </Card>
   );
-}
+});

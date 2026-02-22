@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
-import { useDateRangeSelector } from '@/hooks/useDateRangeSelector';
+import { useDateRangeSelector, type DatePreset } from '@/hooks/useDateRangeSelector';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
 import { getAdminPageBreadcrumb } from '@/lib/breadcrumbConfig';
@@ -181,7 +181,7 @@ export default function AdminCoachingTrends() {
   });
 
   const handlePresetChange = (value: string) => {
-    onPresetChange(value as any);
+    onPresetChange(value as DatePreset);
   };
 
   const handleScopeChange = (newScope: AnalysisScope) => {

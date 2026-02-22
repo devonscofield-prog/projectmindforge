@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { validateSignedRequest, timingSafeEqual } from "../_shared/hmac.ts";
 
 // Rate limiting: 10 requests per minute per user
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
@@ -53,27 +54,7 @@ async function updateJobStatus(
   await supabase.from('background_jobs').update(updates).eq('id', jobId);
 }
 
-function getCorsHeaders(origin?: string | null): Record<string, string> {
-  const allowedOrigins = ['https://lovable.dev', 'https://www.lovable.dev'];
-  const devPatterns = [/^https?:\/\/localhost(:\d+)?$/, /^https:\/\/[a-z0-9-]+\.lovableproject\.com$/, /^https:\/\/[a-z0-9-]+\.lovable\.app$/];
-  
-  const customDomain = Deno.env.get('CUSTOM_DOMAIN');
-  if (customDomain) {
-    allowedOrigins.push(`https://${customDomain}`, `https://www.${customDomain}`);
-  }
-  const stormwindDomain = Deno.env.get('STORMWIND_DOMAIN');
-  if (stormwindDomain) {
-    allowedOrigins.push(`https://${stormwindDomain}`, `https://www.${stormwindDomain}`);
-  }
-  
-  const requestOrigin = origin || '';
-  const isAllowed = allowedOrigins.includes(requestOrigin) || devPatterns.some(pattern => pattern.test(requestOrigin));
-  return {
-    'Access-Control-Allow-Origin': isAllowed ? requestOrigin : allowedOrigins[0],
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  };
-}
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 const generateFollowUpsSchema = z.object({
   prospect_id: z.string().uuid({ message: "Invalid prospect_id UUID format" }),
@@ -135,9 +116,11 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Read body as text first (for HMAC validation), then parse
+    const bodyText = await req.text();
     let body: unknown;
     try {
-      body = await req.json();
+      body = JSON.parse(bodyText);
     } catch {
       return new Response(
         JSON.stringify({ error: 'Invalid JSON in request body' }),
@@ -157,29 +140,42 @@ Deno.serve(async (req) => {
 
     const { prospect_id, job_id } = validation.data;
     console.log(`[generate-account-follow-ups] Starting AI-native analysis for prospect: ${prospect_id}`);
-    
+
     await updateJobStatus(supabase, job_id || null, 'processing');
 
-    // Auth check
+    // Auth check: HMAC signature, service role key, or user JWT
     const authHeader = req.headers.get('Authorization');
-    const token = authHeader?.replace('Bearer ', '');
-    const isInternalServiceCall = token === supabaseServiceKey;
+    const token = authHeader?.replace('Bearer ', '') || '';
+    const hasSignature = req.headers.has('X-Request-Signature');
+    let isInternalServiceCall = false;
 
-    if (!isInternalServiceCall) {
-      if (!authHeader) {
-        return new Response(JSON.stringify({ error: 'Authorization required' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    if (hasSignature) {
+      const hmacValidation = await validateSignedRequest(req.headers, bodyText, supabaseServiceKey);
+      if (!hmacValidation.valid) {
+        console.warn('[generate-account-follow-ups] HMAC validation failed:', hmacValidation.error);
+        return new Response(JSON.stringify({ error: 'Invalid request signature' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
-      const { data: { user }, error: authError } = await supabase.auth.getUser(token!);
-      if (authError || !user) {
-        return new Response(JSON.stringify({ error: 'Invalid authentication' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      isInternalServiceCall = true;
+    } else if (token) {
+      const isService = await timingSafeEqual(token, supabaseServiceKey);
+      if (isService) {
+        isInternalServiceCall = true;
+      } else {
+        // Try user JWT auth
+        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+        if (authError || !user) {
+          return new Response(JSON.stringify({ error: 'Invalid authentication' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
+        const rateLimit = checkRateLimit(user.id);
+        if (!rateLimit.allowed) {
+          return new Response(
+            JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
+            { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': String(rateLimit.retryAfter || 60) } }
+          );
+        }
       }
-      const rateLimit = checkRateLimit(user.id);
-      if (!rateLimit.allowed) {
-        return new Response(
-          JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
-          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': String(rateLimit.retryAfter || 60) } }
-        );
-      }
+    } else {
+      return new Response(JSON.stringify({ error: 'Authorization required' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     // Update status
@@ -354,9 +350,10 @@ Deno.serve(async (req) => {
     }
 
   } catch (error) {
-    console.error('[generate-account-follow-ups] Error:', error);
+    const requestId = crypto.randomUUID().slice(0, 8);
+    console.error(`[generate-account-follow-ups] Error ${requestId}:`, error instanceof Error ? error.message : error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      JSON.stringify({ error: 'An unexpected error occurred. Please try again.', requestId }),
       { status: 500, headers: { ...getCorsHeaders(req.headers.get('Origin')), 'Content-Type': 'application/json' } }
     );
   }

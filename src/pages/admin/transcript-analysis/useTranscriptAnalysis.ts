@@ -8,7 +8,7 @@ import { Json } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { downloadTranscripts } from '@/lib/transcriptDownload';
-import { useDateRangeSelector } from '@/hooks/useDateRangeSelector';
+import { useDateRangeSelector, type DatePreset } from '@/hooks/useDateRangeSelector';
 import { 
   fetchBackgroundJob, 
   fetchActiveJob, 
@@ -1089,7 +1089,7 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
   };
 
   const handlePresetChange = (value: string) => {
-    onPresetChange(value as any);
+    onPresetChange(value as DatePreset);
   };
 
   const handleFromDateChange = (date: Date | undefined) => {

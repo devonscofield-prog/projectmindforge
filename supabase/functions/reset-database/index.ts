@@ -1,9 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 interface ResetRequest {
   newAdminEmail: string;
@@ -42,6 +38,9 @@ function checkRateLimit(userId: string): { allowed: boolean; retryAfter?: number
 }
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -221,7 +220,7 @@ Deno.serve(async (req) => {
     if (listError) {
       console.error('Error listing users:', listError);
       return new Response(
-        JSON.stringify({ error: 'Failed to list users', details: listError.message }),
+        JSON.stringify({ error: 'Failed to list users' }),
         {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -252,7 +251,7 @@ Deno.serve(async (req) => {
     if (settingsError) {
       console.error('Error setting pending admin email:', settingsError);
       return new Response(
-        JSON.stringify({ error: 'Failed to set pending admin email', details: settingsError.message }),
+        JSON.stringify({ error: 'Failed to set pending admin email' }),
         {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -275,10 +274,10 @@ Deno.serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error('Error in reset-database function:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    const requestId = crypto.randomUUID().slice(0, 8);
+    console.error(`[reset-database] Error ${requestId}:`, error instanceof Error ? error.message : error);
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: 'An unexpected error occurred. Please try again.', requestId }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

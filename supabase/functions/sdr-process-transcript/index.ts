@@ -1,11 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { fetchWithRetry } from "../_shared/fetchWithRetry.ts";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 const DEFAULT_GRADING_CONCURRENCY = 3;
 const MAX_GRADING_CONCURRENCY = 10;
@@ -46,6 +41,9 @@ async function logEdgeMetric(
 // ============================================================
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -214,9 +212,9 @@ Deno.serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('[sdr-process-transcript] Error:', error);
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ error: message }), {
+    const requestId = crypto.randomUUID().slice(0, 8);
+    console.error(`[sdr-process-transcript] Error ${requestId}:`, error instanceof Error ? error.message : error);
+    return new Response(JSON.stringify({ error: 'An unexpected error occurred. Please try again.', requestId }), {
       status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }

@@ -66,15 +66,15 @@ export function MobileBottomNav() {
                 aria-label={`Navigate to ${item.label}`}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
-                  "flex flex-col items-center justify-center gap-1 min-h-[56px] min-w-[56px] px-3 text-xs transition-all duration-200 rounded-xl",
+                  "flex flex-col items-center justify-center gap-1 min-h-[56px] min-w-[56px] px-3 text-xs transition-all duration-200 rounded-xl active:scale-95",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                  active 
-                    ? "text-primary bg-primary/10" 
+                  active
+                    ? "text-primary bg-primary/10"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
                 )}
               >
-                <Icon className={cn("h-6 w-6", active && "text-primary")} aria-hidden="true" />
-                <span className="font-medium">{item.label}</span>
+                <Icon className={cn("h-6 w-6", active ? "text-primary fill-primary/20" : "")} aria-hidden="true" />
+                <span className={cn("font-medium", active && "font-bold")}>{item.label}</span>
               </Link>
             </li>
           );

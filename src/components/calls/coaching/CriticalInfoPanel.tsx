@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { AlertTriangle, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +12,7 @@ interface CriticalInfoPanelProps {
   items: (string | CriticalInfoItem)[];
 }
 
-export function CriticalInfoPanel({ items }: CriticalInfoPanelProps) {
+export const CriticalInfoPanel = memo(function CriticalInfoPanel({ items }: CriticalInfoPanelProps) {
   if (!items || items.length === 0) {
     return null;
   }
@@ -54,4 +55,4 @@ export function CriticalInfoPanel({ items }: CriticalInfoPanelProps) {
       </CardContent>
     </Card>
   );
-}
+});

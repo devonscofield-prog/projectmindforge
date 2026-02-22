@@ -1,10 +1,6 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { validateSignedRequest, timingSafeEqual } from "../_shared/hmac.ts";
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 interface FollowUp {
   id: string;
@@ -106,6 +102,9 @@ async function sendEmail(to: string, subject: string, html: string): Promise<voi
 type AnySupabaseClient = SupabaseClient<any, any, any>;
 
 const handler = async (req: Request): Promise<Response> => {
+  const origin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -113,10 +112,41 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    // Auth: require HMAC signature, service role key, or user JWT
+    const bodyText = await req.text();
+    const hasSignature = req.headers.has('X-Request-Signature');
+    const authHeader = req.headers.get('Authorization');
+    const token = authHeader?.replace('Bearer ', '') || '';
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    if (hasSignature) {
+      const validation = await validateSignedRequest(req.headers, bodyText, supabaseServiceKey);
+      if (!validation.valid) {
+        console.warn('[send-task-reminders] HMAC validation failed:', validation.error);
+        return new Response(JSON.stringify({ error: 'Invalid request signature' }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } else if (token) {
+      const isService = await timingSafeEqual(token, supabaseServiceKey);
+      if (!isService) {
+        // Try user JWT auth
+        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+        if (authError || !user) {
+          return new Response(JSON.stringify({ error: 'Invalid authentication' }), {
+            status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+    } else {
+      return new Response(JSON.stringify({ error: 'Authentication required' }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Check for test mode
-    const body: RequestBody = await req.json().catch(() => ({}));
+    const body: RequestBody = bodyText ? JSON.parse(bodyText) : {};
     const isTestMode = body.test === true;
     const testUserId = body.userId;
 
@@ -146,7 +176,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (followUpsError) {
       console.error("[send-task-reminders] Error fetching follow-ups:", followUpsError);
-      return new Response(JSON.stringify({ error: followUpsError.message }), {
+      return new Response(JSON.stringify({ error: 'Failed to fetch follow-up data' }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -305,10 +335,10 @@ const handler = async (req: Request): Promise<Response> => {
 
     return await sendRemindersToUsers(supabase, usersToNotify, prefsDataArray, now, false, eligibleFollowUps);
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error("[send-task-reminders] Unexpected error:", error);
+    const requestId = crypto.randomUUID().slice(0, 8);
+    console.error(`[send-task-reminders] Error ${requestId}:`, error instanceof Error ? error.message : error);
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: 'An unexpected error occurred. Please try again.', requestId }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -400,7 +430,7 @@ async function sendRemindersToUsers(
 
     if (followUpsError) {
       console.error("[send-task-reminders] Error fetching follow-ups:", followUpsError);
-      return new Response(JSON.stringify({ error: followUpsError.message }), {
+      return new Response(JSON.stringify({ error: 'Failed to fetch follow-up data' }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

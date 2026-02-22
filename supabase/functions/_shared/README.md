@@ -1,38 +1,25 @@
 # Shared Edge Function Utilities
 
-This directory contains documentation and reference implementations for common patterns used across edge functions. Since Supabase edge functions cannot import from other local files, these utilities should be copied into each function that needs them.
+This directory contains shared modules that can be imported by edge functions.
 
-## Standard Utilities Reference
+## Shared Modules
 
-### CORS Headers
+### CORS (`cors.ts`)
+
+All edge functions must use the shared CORS utility. Never use `'Access-Control-Allow-Origin': '*'`.
 
 ```typescript
-// Standard CORS configuration supporting Lovable domains
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
 
-// For production: restrict to specific origins
-function getCorsHeaders(origin?: string | null): Record<string, string> {
-  const allowedOrigins = ['https://lovable.dev', 'https://www.lovable.dev'];
-  const devPatterns = [
-    /^https?:\/\/localhost(:\d+)?$/,
-    /^https:\/\/[a-z0-9-]+\.lovableproject\.com$/,
-    /^https:\/\/[a-z0-9-]+\.lovable\.app$/,
-  ];
-  
-  const requestOrigin = origin || '';
-  const isAllowed = allowedOrigins.includes(requestOrigin) || 
-    devPatterns.some(pattern => pattern.test(requestOrigin));
-  
-  return {
-    'Access-Control-Allow-Origin': isAllowed ? requestOrigin : allowedOrigins[0],
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  };
-}
+Deno.serve(async (req) => {
+  const origin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(origin);
+
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+  // ...
+});
 ```
 
 ### Rate Limiting

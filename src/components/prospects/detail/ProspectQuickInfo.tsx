@@ -55,7 +55,7 @@ export function ProspectQuickInfo({ prospect, onUpdateProspect }: ProspectQuickI
   const handleSaveWebsite = async () => {
     setIsSavingWebsite(true);
     try {
-      const success = await onUpdateProspect({ website: editedWebsite || null } as any);
+      const success = await onUpdateProspect({ website: editedWebsite || null });
       if (success) {
         setIsEditingWebsite(false);
         toast.success('Website updated');
@@ -228,7 +228,7 @@ export function ProspectQuickInfo({ prospect, onUpdateProspect }: ProspectQuickI
                   className="h-7 text-xs"
                   onClick={() => {
                     setIsEditingWebsite(false);
-                    setEditedWebsite((prospect as any).website || '');
+                    setEditedWebsite(prospect.website || '');
                   }}
                   disabled={isSavingWebsite}
                 >
@@ -239,23 +239,23 @@ export function ProspectQuickInfo({ prospect, onUpdateProspect }: ProspectQuickI
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              {(prospect as any).website ? (
+              {prospect.website ? (
                 <>
                   <a
-                    href={(prospect as any).website}
+                    href={prospect.website}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-primary hover:underline flex items-center gap-1 flex-1 truncate"
                   >
                     <Globe className="h-3 w-3 shrink-0" />
-                    <span className="truncate">{(prospect as any).website}</span>
+                    <span className="truncate">{prospect.website}</span>
                   </a>
                   <Button
                     size="icon"
                     variant="ghost"
                     className="h-6 w-6 shrink-0"
                     onClick={() => {
-                      setEditedWebsite((prospect as any).website || '');
+                      setEditedWebsite(prospect.website || '');
                       setIsEditingWebsite(true);
                     }}
                     title="Edit website"

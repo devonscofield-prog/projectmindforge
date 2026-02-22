@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
@@ -25,7 +26,7 @@ const gradeColors: Record<string, string> = {
   'F': 'bg-red-500/10 text-red-600 border-red-500/30',
 };
 
-export function CoachGradeBadge({ grade, trend, showTrend = false, size = 'default' }: CoachGradeBadgeProps) {
+export const CoachGradeBadge = memo(function CoachGradeBadge({ grade, trend, showTrend = false, size = 'default' }: CoachGradeBadgeProps) {
   if (!grade) {
     return <span className="text-muted-foreground">—</span>;
   }
@@ -61,4 +62,4 @@ export function CoachGradeBadge({ grade, trend, showTrend = false, size = 'defau
       )}
     </div>
   );
-}
+});

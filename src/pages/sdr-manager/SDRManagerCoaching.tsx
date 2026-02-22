@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,11 +8,14 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { useSDRCoachingPrompts, useSDRTeams, useUpdateCoachingPrompt, useCreateCoachingPrompt } from '@/hooks/useSDR';
+import { useSDRCoachingPrompts, useSDRTeams, useSDRTeamMembers, useUpdateCoachingPrompt, useCreateCoachingPrompt, type SDRCoachingPrompt } from '@/hooks/useSDR';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, Plus, Save, ChevronDown, ChevronRight, Pencil, CheckCircle2 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { Loader2, Plus, Save, ChevronDown, ChevronRight, Pencil, CheckCircle2, ThumbsUp, ThumbsDown, BarChart3 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
+import { format } from 'date-fns';
 
 // ── Default prompt definitions (mirroring edge functions) ──────────────
 
@@ -181,6 +184,40 @@ function SDRManagerCoaching() {
   const { data: teams = [] } = useSDRTeams();
   const myTeam = teams.find(t => t.manager_id === user?.id);
   const { data: prompts = [], isLoading } = useSDRCoachingPrompts(myTeam?.id);
+  const { data: members = [] } = useSDRTeamMembers(myTeam?.id);
+  const memberIds = useMemo(() => members.map(m => m.user_id), [members]);
+
+  // Fetch coaching feedback data for effectiveness card
+  const { data: feedbackData } = useQuery({
+    queryKey: ['coaching-feedback', memberIds.join(',')],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('sdr_call_grades')
+        .select('id, coaching_feedback_helpful, coaching_feedback_note, coaching_feedback_at, coaching_notes, sdr_id, call_id, overall_grade, created_at')
+        .in('sdr_id', memberIds)
+        .not('coaching_feedback_at', 'is', null)
+        .order('coaching_feedback_at', { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: memberIds.length > 0,
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const feedbackStats = useMemo(() => {
+    if (!feedbackData || feedbackData.length === 0) return null;
+    const total = feedbackData.length;
+    const positive = feedbackData.filter(f => f.coaching_feedback_helpful === true).length;
+    const negative = feedbackData.filter(f => f.coaching_feedback_helpful === false);
+    return {
+      total,
+      positive,
+      pctPositive: Math.round((positive / total) * 100),
+      recentNegative: negative.slice(0, 5),
+    };
+  }, [feedbackData]);
+
   const updateMutation = useUpdateCoachingPrompt();
   const createMutation = useCreateCoachingPrompt();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -189,7 +226,7 @@ function SDRManagerCoaching() {
   const [newPrompt, setNewPrompt] = useState<{ agent_key: string; prompt_name: string; system_prompt: string }>({ agent_key: 'grader', prompt_name: '', system_prompt: '' });
   const [expandedDefaults, setExpandedDefaults] = useState<Record<string, boolean>>({});
 
-  const handleEdit = (prompt: any) => {
+  const handleEdit = (prompt: SDRCoachingPrompt) => {
     setEditingId(prompt.id);
     setEditText(prompt.system_prompt);
   };
@@ -248,6 +285,59 @@ function SDRManagerCoaching() {
           </Button>
         </div>
 
+        {/* Coaching Effectiveness Card */}
+        {feedbackStats && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-primary" />
+                <CardTitle>Coaching Effectiveness</CardTitle>
+              </div>
+              <CardDescription>Based on SDR feedback on coaching notes</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="text-center p-4 rounded-lg bg-muted/50">
+                  <div className="flex items-center justify-center gap-1.5 mb-1">
+                    <ThumbsUp className="h-4 w-4 text-green-500" />
+                    <span className="text-2xl font-bold">{feedbackStats.pctPositive}%</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">Positive feedback</p>
+                </div>
+                <div className="text-center p-4 rounded-lg bg-muted/50">
+                  <p className="text-2xl font-bold mb-1">{feedbackStats.total}</p>
+                  <p className="text-sm text-muted-foreground">Total responses</p>
+                </div>
+              </div>
+              {feedbackStats.recentNegative.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
+                    <ThumbsDown className="h-3.5 w-3.5 text-red-500" />
+                    Recent negative feedback
+                  </h4>
+                  <div className="space-y-2">
+                    {feedbackStats.recentNegative.map((item) => (
+                      <div key={item.id} className="text-sm p-3 rounded-lg border border-red-200/50 bg-red-50/30 dark:bg-red-950/10 dark:border-red-900/30">
+                        <div className="flex items-center justify-between mb-1">
+                          <Badge variant="outline" className="text-xs">{item.overall_grade}</Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {item.coaching_feedback_at ? format(new Date(item.coaching_feedback_at), 'MMM d, yyyy') : ''}
+                          </span>
+                        </div>
+                        {item.coaching_feedback_note ? (
+                          <p className="text-muted-foreground">{item.coaching_feedback_note}</p>
+                        ) : (
+                          <p className="text-muted-foreground italic">No additional comments</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {showCreate && (
           <Card>
             <CardHeader><CardTitle>Create Coaching Prompt</CardTitle></CardHeader>
@@ -255,7 +345,7 @@ function SDRManagerCoaching() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Agent</Label>
-                  <Select value={newPrompt.agent_key} onValueChange={(v: any) => setNewPrompt({ ...newPrompt, agent_key: v })}>
+                  <Select value={newPrompt.agent_key} onValueChange={(v) => setNewPrompt({ ...newPrompt, agent_key: v })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="grader">Grader</SelectItem>

@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRight, Home } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -26,11 +27,11 @@ interface PageBreadcrumbProps {
  * Automatically adds the home/dashboard link based on user role.
  * Features a visual trail with clickable intermediate links.
  */
-export function PageBreadcrumb({ 
-  items, 
-  dashboardLabel, 
+export const PageBreadcrumb = memo(function PageBreadcrumb({
+  items,
+  dashboardLabel,
   compact = false,
-  className 
+  className
 }: PageBreadcrumbProps) {
   const { role } = useAuth();
 
@@ -143,7 +144,7 @@ export function PageBreadcrumb({
       </ol>
     </nav>
   );
-}
+});
 
 /**
  * Compact breadcrumb variant for use in tight spaces

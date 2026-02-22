@@ -15,10 +15,12 @@ import {
   useRetrySDRTranscript,
 } from '@/hooks/useSDR';
 import { useAuth } from '@/contexts/AuthContext';
-import { Upload, Phone, MessageSquare, TrendingUp, Loader2, FileUp, ClipboardPaste, RotateCcw, ArrowRight, CalendarCheck, Target } from 'lucide-react';
+import { Upload, Phone, MessageSquare, TrendingUp, Loader2, FileUp, ClipboardPaste, RotateCcw, ArrowRight, CalendarCheck, Target, Flame, Trophy, Hash, BarChart3, FileText } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
 import { Link } from 'react-router-dom';
-import { format } from 'date-fns';
+import { format, subDays, parseISO } from 'date-fns';
 import { gradeColors } from '@/constants/training';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 
 // Grade order for sorting in distribution chart
@@ -158,22 +160,98 @@ function SDRDashboard() {
     return gradedCallsWindow.filter((call) => call.sdr_call_grades?.[0]?.meeting_scheduled === true).length;
   }, [gradedCallsWindow]);
 
+  // --- Personal Stats (Task 1) ---
+  const GRADE_SCORE_MAP: Record<string, number> = { 'A+': 6, 'A': 5, 'B': 4, 'C': 3, 'D': 2, 'F': 1 };
+  const personalStats = useMemo(() => {
+    // Upload streak: consecutive days (from today backwards) that have at least one transcript
+    const uniqueDates = [...new Set(transcripts.map(t => t.transcript_date))].sort().reverse();
+    let streak = 0;
+    const checkDate = new Date();
+    for (const dateStr of uniqueDates) {
+      const expected = checkDate.toLocaleDateString('en-CA');
+      if (dateStr === expected) {
+        streak++;
+        checkDate.setDate(checkDate.getDate() - 1);
+      } else if (dateStr < expected) {
+        break;
+      }
+    }
+
+    // Best grade ever
+    let bestGrade: string | null = null;
+    let bestGradeScore = 0;
+    gradedCallsWindow.forEach(call => {
+      const grade = call.sdr_call_grades?.[0]?.overall_grade;
+      if (grade && (GRADE_SCORE_MAP[grade] ?? 0) > bestGradeScore) {
+        bestGradeScore = GRADE_SCORE_MAP[grade] ?? 0;
+        bestGrade = grade;
+      }
+    });
+
+    return {
+      streak,
+      bestGrade,
+      totalGraded: gradedCallsWindow.length,
+    };
+  }, [transcripts, gradedCallsWindow]);
+
+  // --- Trend Chart Data (Task 4) ---
+  const [trendPeriod, setTrendPeriod] = useState<7 | 30>(30);
+  const trendData = useMemo(() => {
+    const cutoff = subDays(new Date(), trendPeriod).toLocaleDateString('en-CA');
+    const byDate: Record<string, { total: number; count: number }> = {};
+
+    gradedCallsWindow.forEach(call => {
+      const grade = call.sdr_call_grades?.[0];
+      if (!grade) return;
+      // Use created_at date as proxy for the call date
+      const dateStr = call.created_at.slice(0, 10);
+      if (dateStr < cutoff) return;
+
+      const dims = [
+        grade.opener_score,
+        grade.engagement_score,
+        grade.objection_handling_score,
+        grade.appointment_setting_score,
+        grade.professionalism_score,
+      ].filter((s): s is number => typeof s === 'number');
+      if (dims.length === 0) return;
+      const avg = dims.reduce((a, b) => a + b, 0) / dims.length;
+
+      if (!byDate[dateStr]) byDate[dateStr] = { total: 0, count: 0 };
+      byDate[dateStr].total += avg;
+      byDate[dateStr].count += 1;
+    });
+
+    return Object.entries(byDate)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, { total, count }]) => ({
+        date: format(parseISO(date), 'MMM d'),
+        avg: Math.round((total / count) * 10) / 10,
+      }));
+  }, [gradedCallsWindow, trendPeriod]);
+
+  // --- Processing progress for transcripts (Task 2) ---
+  const processingTranscripts = useMemo(() => {
+    return recentTranscripts.filter(t => t.processing_status === 'processing');
+  }, [recentTranscripts]);
+
   return (
     <AppLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold">SDR Dashboard</h1>
-            <p className="text-muted-foreground">Your cold call performance at a glance</p>
+            <h1 className="text-2xl sm:text-3xl font-bold">SDR Dashboard</h1>
+            <p className="text-sm sm:text-base text-muted-foreground">Your cold call performance at a glance</p>
           </div>
-          <Button variant="gradient" onClick={() => setShowUpload(!showUpload)}>
+          <Button variant="gradient" className="self-start sm:self-auto min-h-[44px] md:min-h-0" onClick={() => setShowUpload(!showUpload)}>
             <Upload className="h-4 w-4 mr-2" />
             Upload Transcript
           </Button>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
@@ -230,6 +308,38 @@ function SDRDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Personal Stats Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Personal Stats</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              <div className="flex items-center gap-3">
+                <Flame className="h-7 w-7 text-orange-500" />
+                <div>
+                  <p className="text-2xl font-bold">{personalStats.streak}</p>
+                  <p className="text-sm text-muted-foreground">Day Upload Streak</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Trophy className="h-7 w-7 text-yellow-500" />
+                <div>
+                  <p className="text-2xl font-bold">{personalStats.bestGrade ?? '—'}</p>
+                  <p className="text-sm text-muted-foreground">Best Grade Ever</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Hash className="h-7 w-7 text-primary" />
+                <div>
+                  <p className="text-2xl font-bold">{personalStats.totalGraded}</p>
+                  <p className="text-sm text-muted-foreground">Total Calls Graded</p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Upload Form */}
         {showUpload && (
@@ -327,7 +437,11 @@ function SDRDashboard() {
               </CardHeader>
               <CardContent>
                 {recentGradedCalls.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-8">No graded calls yet. Upload a transcript to get started!</p>
+                  <EmptyState
+                    icon={MessageSquare}
+                    title="No graded calls yet"
+                    description="Upload a transcript to get started with call grading."
+                  />
                 ) : (
                   <div className="space-y-2">
                     {recentGradedCalls.map((call) => {
@@ -373,7 +487,11 @@ function SDRDashboard() {
             </CardHeader>
             <CardContent>
               {gradeDistribution.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8 text-sm">No grades yet</p>
+                <EmptyState
+                  icon={BarChart3}
+                  title="No grades yet"
+                  description="Grade distribution will appear once calls are graded."
+                />
               ) : (
                 <div className="space-y-3">
                   {gradeDistribution.map(({ grade, count, pct }) => (
@@ -396,6 +514,50 @@ function SDRDashboard() {
           </Card>
         </div>
 
+        {/* Trend Chart */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Grade Trend</CardTitle>
+              <CardDescription>Average score over time</CardDescription>
+            </div>
+            <div className="flex gap-1">
+              <Button
+                variant={trendPeriod === 7 ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setTrendPeriod(7)}
+              >
+                7d
+              </Button>
+              <Button
+                variant={trendPeriod === 30 ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setTrendPeriod(30)}
+              >
+                30d
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {trendData.length < 2 ? (
+              <EmptyState
+                icon={TrendingUp}
+                title="Not enough data yet"
+                description="The trend chart will appear after multiple days of graded calls."
+              />
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={trendData}>
+                  <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                  <YAxis domain={[0, 10]} tick={{ fontSize: 12 }} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="avg" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} name="Avg Score" />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Recent Transcripts */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
@@ -414,7 +576,11 @@ function SDRDashboard() {
             ) : recentTranscriptsLoading ? (
               <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
             ) : recentTranscripts.length === 0 ? (
-              <p className="text-muted-foreground text-center py-8">No transcripts yet. Upload your first one above!</p>
+              <EmptyState
+                icon={FileText}
+                title="No transcripts yet"
+                description="Upload your first transcript above to start tracking your calls."
+              />
             ) : (
               <div className="space-y-3">
                 {recentTranscripts.map((t) => (
@@ -443,15 +609,27 @@ function SDRDashboard() {
                             <span className="ml-1 text-xs">Retry</span>
                           </Button>
                         )}
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${
-                          t.processing_status === 'completed' ? 'bg-green-500/10 text-green-500' :
-                          t.processing_status === 'processing' ? 'bg-yellow-500/10 text-yellow-500' :
-                          t.processing_status === 'failed' ? 'bg-red-500/10 text-red-500' :
-                          t.processing_status === 'partial' ? 'bg-orange-500/10 text-orange-500' :
-                          'bg-muted text-muted-foreground'
-                        }`}>
-                          {t.processing_status}
-                        </span>
+                        {t.processing_status === 'processing' ? (
+                          <div className="flex items-center gap-2 min-w-[140px]">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-yellow-500 shrink-0" />
+                            <div className="flex-1">
+                              <p className="text-xs text-yellow-500 font-medium">Grading...</p>
+                              <Progress
+                                value={t.total_calls_detected > 0 ? Math.round((t.meaningful_calls_count / t.total_calls_detected) * 100) : 30}
+                                className="h-1.5 mt-0.5 [&>div]:bg-yellow-500"
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            t.processing_status === 'completed' ? 'bg-green-500/10 text-green-500' :
+                            t.processing_status === 'failed' ? 'bg-red-500/10 text-red-500' :
+                            t.processing_status === 'partial' ? 'bg-orange-500/10 text-orange-500' :
+                            'bg-muted text-muted-foreground'
+                          }`}>
+                            {t.processing_status}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </Link>

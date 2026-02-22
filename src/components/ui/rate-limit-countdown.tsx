@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -6,7 +7,7 @@ interface RateLimitCountdownProps {
   className?: string;
 }
 
-export function RateLimitCountdown({ secondsRemaining, className }: RateLimitCountdownProps) {
+export const RateLimitCountdown = memo(function RateLimitCountdown({ secondsRemaining, className }: RateLimitCountdownProps) {
   if (secondsRemaining <= 0) return null;
 
   const minutes = Math.floor(secondsRemaining / 60);
@@ -30,4 +31,4 @@ export function RateLimitCountdown({ secondsRemaining, className }: RateLimitCou
       </span>
     </div>
   );
-}
+});

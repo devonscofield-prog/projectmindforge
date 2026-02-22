@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { generateAggregateCoachingTrends, CoachingTrendAnalysis } from '@/api/aiCallAnalysis';
-import { useDateRangeSelector } from '@/hooks/useDateRangeSelector';
+import { useDateRangeSelector, type DatePreset } from '@/hooks/useDateRangeSelector';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -78,7 +78,7 @@ export function TeamComparisonView({ dateRange, onClose }: TeamComparisonViewPro
   });
 
   const handlePresetChange = (value: string) => {
-    onPresetChange(value as any);
+    onPresetChange(value as DatePreset);
   };
 
   const handleAddTeam = (teamId: string) => {

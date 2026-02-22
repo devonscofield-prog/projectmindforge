@@ -1,9 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 /**
  * Handle backfill batch - processes multiple calls missing deal_heat_analysis
@@ -326,6 +322,9 @@ Scrutinize the transcript for timing clues:
 Generate the heat_score by ADDING category scores. Explain each factor's contribution in key_factors.`;
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -500,7 +499,7 @@ Deno.serve(async (req) => {
       if (updateError) {
         console.error(`[${correlationId}] Database update error:`, JSON.stringify(updateError));
         return new Response(
-          JSON.stringify({ deal_heat: dealHeat, saved: false, error: updateError.message }),
+          JSON.stringify({ deal_heat: dealHeat, saved: false, error: 'Failed to save deal heat data' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -543,15 +542,16 @@ Deno.serve(async (req) => {
     } catch (dbError) {
       console.error(`[${correlationId}] Database operation exception:`, dbError);
       return new Response(
-        JSON.stringify({ deal_heat: dealHeat, saved: false, error: dbError instanceof Error ? dbError.message : 'Database error' }),
+        JSON.stringify({ deal_heat: dealHeat, saved: false, error: 'Failed to save deal heat data' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
   } catch (error) {
-    console.error(`[${correlationId}] Error:`, error);
+    const requestId = crypto.randomUUID().slice(0, 8);
+    console.error(`[calculate-deal-heat] Error ${requestId}:`, error instanceof Error ? error.message : error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      JSON.stringify({ error: 'An unexpected error occurred. Please try again.', requestId }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

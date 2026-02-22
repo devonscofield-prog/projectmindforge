@@ -92,8 +92,12 @@ async function fetchTeamPerformance(filters: ReportFilters): Promise<TeamPerform
   if (error) throw error;
 
   const byRep = new Map<string, TeamPerformanceRow>();
-  for (const row of data || []) {
-    const name = (row as any).profiles?.name || 'Unknown';
+  type TeamPerfRow = typeof data extends (infer R)[] | null ? R : never;
+  for (const row of (data || []) as (TeamPerfRow & {
+    profiles: { name: string | null } | null;
+    ai_call_analysis: Array<{ call_effectiveness_score: number | null }> | null;
+  })[]) {
+    const name = row.profiles?.name || 'Unknown';
     if (!byRep.has(row.rep_id)) {
       byRep.set(row.rep_id, {
         rep_id: row.rep_id,
@@ -111,15 +115,15 @@ async function fetchTeamPerformance(filters: ReportFilters): Promise<TeamPerform
     entry.total_calls++;
     entry.total_pipeline += row.potential_revenue || 0;
 
-    const oppSize = (row as any).estimated_opportunity_size || 0;
+    const oppSize = row.estimated_opportunity_size || 0;
     entry.total_opp_size += oppSize;
-    switch ((row as any).opportunity_label) {
+    switch (row.opportunity_label) {
       case 'commit': entry.commit_total += oppSize; break;
       case 'best_case': entry.best_case_total += oppSize; break;
       case 'pipeline': entry.pipeline_total += oppSize; break;
     }
 
-    const analyses = (row as any).ai_call_analysis;
+    const analyses = row.ai_call_analysis;
     if (Array.isArray(analyses)) {
       for (const a of analyses) {
         if (a.call_effectiveness_score != null) {
@@ -158,7 +162,10 @@ async function fetchIndividualRep(filters: ReportFilters): Promise<IndividualRep
   const { data, error } = await query;
   if (error) throw error;
 
-  return (data || []).map((row: any) => {
+  type IndivRepRow = NonNullable<typeof data>[number] & {
+    ai_call_analysis: Array<{ call_effectiveness_score: number | null; call_summary: string }> | null;
+  };
+  return ((data || []) as IndivRepRow[]).map((row) => {
     const analysis = Array.isArray(row.ai_call_analysis) ? row.ai_call_analysis[0] : null;
     return {
       call_id: row.id,
@@ -197,7 +204,10 @@ async function fetchPipeline(filters: ReportFilters): Promise<PipelineRow[]> {
   const { data, error } = await query;
   if (error) throw error;
 
-  return (data || []).map((row: any) => ({
+  type PipelineQueryRow = NonNullable<typeof data>[number] & {
+    profiles: { name: string | null } | null;
+  };
+  return ((data || []) as PipelineQueryRow[]).map((row) => ({
     prospect_id: row.id,
     prospect_name: row.prospect_name,
     account_name: row.account_name,
@@ -210,7 +220,7 @@ async function fetchPipeline(filters: ReportFilters): Promise<PipelineRow[]> {
 }
 
 async function fetchCoachingActivity(filters: ReportFilters): Promise<CoachingActivityRow[]> {
-  let query = (supabase as any)
+  let query = supabase
     .from('sales_coach_sessions')
     .select('user_id, created_at')
     .gte('created_at', filters.startDate)
@@ -223,7 +233,7 @@ async function fetchCoachingActivity(filters: ReportFilters): Promise<CoachingAc
   const { data: sessions, error } = await query;
   if (error) throw error;
 
-  const userIds = [...new Set((sessions || []).map((s: any) => s.user_id as string))];
+  const userIds = [...new Set((sessions || []).map((s) => s.user_id))];
   if (userIds.length === 0) return [];
 
   const { data: profiles } = await supabase
@@ -253,7 +263,7 @@ async function fetchCoachingActivity(filters: ReportFilters): Promise<CoachingAc
   return Array.from(byUser.values()).sort((a, b) => b.session_count - a.session_count);
 }
 
-export function exportToCsv(headers: string[], rows: Record<string, any>[], filename: string) {
+export function exportToCsv(headers: string[], rows: Record<string, unknown>[], filename: string) {
   const csvContent = [
     headers.join(','),
     ...rows.map(row =>

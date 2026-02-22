@@ -1,11 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { signRequest } from "../_shared/hmac.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 const CACHE_TTL_MINUTES = 15;
 const AI_TIMEOUT_MS = 60000; // 60 second timeout for AI calls (matches gemini-3-pro-preview)
@@ -95,9 +91,11 @@ interface AggregateParams {
 }
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(origin);
   const correlationId = crypto.randomUUID().slice(0, 8);
   const startTime = Date.now();
-  
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -436,9 +434,10 @@ Deno.serve(async (req) => {
     });
 
   } catch (error) {
-    console.error("[generate-aggregate-coaching-trends] Error:", error);
+    const requestId = crypto.randomUUID().slice(0, 8);
+    console.error(`[generate-aggregate-coaching-trends] Error ${requestId}:`, error instanceof Error ? error.message : error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      JSON.stringify({ error: 'An unexpected error occurred. Please try again.', requestId }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

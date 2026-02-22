@@ -1,32 +1,5 @@
 import { z } from "zod";
-
-// CORS: Restrict to production domains
-function getCorsHeaders(origin?: string | null): Record<string, string> {
-  const allowedOrigins = ['https://lovable.dev', 'https://www.lovable.dev'];
-  const devPatterns = [/^https?:\/\/localhost(:\d+)?$/, /^https:\/\/[a-z0-9-]+\.lovableproject\.com$/, /^https:\/\/[a-z0-9-]+\.lovable\.app$/];
-  
-  // Allow custom domain from environment variable
-  const customDomain = Deno.env.get('CUSTOM_DOMAIN');
-  if (customDomain) {
-    allowedOrigins.push(`https://${customDomain}`);
-    allowedOrigins.push(`https://www.${customDomain}`);
-  }
-  
-  // Allow StormWind domain from environment variable
-  const stormwindDomain = Deno.env.get('STORMWIND_DOMAIN');
-  if (stormwindDomain) {
-    allowedOrigins.push(`https://${stormwindDomain}`);
-    allowedOrigins.push(`https://www.${stormwindDomain}`);
-  }
-  
-  const requestOrigin = origin || '';
-  const isAllowed = allowedOrigins.includes(requestOrigin) || devPatterns.some(pattern => pattern.test(requestOrigin));
-  return {
-    'Access-Control-Allow-Origin': isAllowed ? requestOrigin : allowedOrigins[0],
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  };
-}
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 // Simple in-memory rate limiter
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
@@ -250,9 +223,10 @@ Deno.serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('[edit-recap-email] Unexpected error:', error);
+    const requestId = crypto.randomUUID().slice(0, 8);
+    console.error(`[edit-recap-email] Error ${requestId}:`, error instanceof Error ? error.message : error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error occurred' }),
+      JSON.stringify({ error: 'An unexpected error occurred. Please try again.', requestId }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

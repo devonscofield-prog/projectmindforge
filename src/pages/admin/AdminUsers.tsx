@@ -40,7 +40,8 @@ import { format, formatDistanceToNow } from 'date-fns';
 import { Pencil, History, Users, RefreshCw, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useOnlineUsers } from '@/hooks/usePresence';
-import { UserActivityLogSheet } from '@/components/admin/UserActivityLogSheet';
+import { lazy, Suspense } from 'react';
+const UserActivityLogSheet = lazy(() => import('@/components/admin/UserActivityLogSheet').then(m => ({ default: m.UserActivityLogSheet })));
 
 function AdminUsers() {
   const queryClient = useQueryClient();
@@ -421,12 +422,14 @@ function AdminUsers() {
 
       {/* User Activity Log Sheet */}
       {activityUser && (
-        <UserActivityLogSheet
-          open={activitySheetOpen}
-          onOpenChange={setActivitySheetOpen}
-          userId={activityUser.id}
-          userName={activityUser.name}
-        />
+        <Suspense fallback={null}>
+          <UserActivityLogSheet
+            open={activitySheetOpen}
+            onOpenChange={setActivitySheetOpen}
+            userId={activityUser.id}
+            userName={activityUser.name}
+          />
+        </Suspense>
       )}
     </AppLayout>
   );

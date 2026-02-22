@@ -1,5 +1,3 @@
-import JSZip from 'jszip';
-
 interface TranscriptData {
   id: string;
   call_date: string;
@@ -56,6 +54,7 @@ export function downloadSingleTranscript(transcript: TranscriptData): void {
  * Download multiple transcripts as a ZIP file
  */
 export async function downloadTranscriptsAsZip(transcripts: TranscriptData[]): Promise<void> {
+  const { default: JSZip } = await import('jszip');
   const zip = new JSZip();
   const fileNames = new Map<string, number>();
   

@@ -9,7 +9,9 @@ import { ArrowLeft, Loader2, Phone, MessageSquare, Voicemail, PhoneOff, Users, T
 import { format } from 'date-fns';
 import { gradeColors } from '@/constants/training';
 
-const callTypeIcons: Record<string, any> = {
+import type { LucideIcon } from 'lucide-react';
+
+const callTypeIcons: Record<string, LucideIcon> = {
   conversation: MessageSquare,
   voicemail: Voicemail,
   hangup: PhoneOff,

@@ -6,11 +6,7 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 // Chunking configuration
 const CHUNK_SIZE = 1500;
@@ -162,17 +158,61 @@ async function generateEmbeddings(texts: string[], apiKey: string): Promise<(num
   }
 }
 
+import { validateSignedRequest, timingSafeEqual } from "../_shared/hmac.ts";
+
 Deno.serve(async (req) => {
+  const origin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const body: ProcessRequest = await req.json().catch(() => ({}));
-    
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
+
+    // Auth: require HMAC signature, service role key, or user JWT
+    const bodyText = await req.text();
+    const hasSignature = req.headers.has('X-Request-Signature');
+    const authHeader = req.headers.get('Authorization');
+    const token = authHeader?.replace('Bearer ', '') || '';
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    if (hasSignature) {
+      const validation = await validateSignedRequest(req.headers, bodyText, supabaseServiceKey);
+      if (!validation.valid) {
+        console.warn('[process-product-knowledge] HMAC validation failed:', validation.error);
+        return new Response(
+          JSON.stringify({ success: false, error: 'Invalid request signature' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      console.log('[process-product-knowledge] Authenticated via HMAC signature');
+    } else if (token) {
+      const isService = await timingSafeEqual(token, supabaseServiceKey);
+      if (isService) {
+        console.log('[process-product-knowledge] Authenticated via service role key');
+      } else {
+        // Try user JWT auth
+        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+        if (authError || !user) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Invalid authentication' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        console.log(`[process-product-knowledge] Authenticated as user ${user.id}`);
+      }
+    } else {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Authentication required' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const body: ProcessRequest = bodyText ? JSON.parse(bodyText) : {};
 
     if (!openaiApiKey) {
       return new Response(
@@ -180,8 +220,6 @@ Deno.serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     console.log('[process-product-knowledge] Starting processing...');
 
@@ -295,9 +333,10 @@ Deno.serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('[process-product-knowledge] Error:', error);
+    const requestId = crypto.randomUUID().slice(0, 8);
+    console.error(`[process-product-knowledge] Error ${requestId}:`, error instanceof Error ? error.message : error);
     return new Response(
-      JSON.stringify({ success: false, error: error instanceof Error ? error.message : 'Unknown error' }),
+      JSON.stringify({ success: false, error: 'An unexpected error occurred. Please try again.', requestId }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

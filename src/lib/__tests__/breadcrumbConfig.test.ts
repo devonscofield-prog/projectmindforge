@@ -49,7 +49,7 @@ describe('breadcrumbConfig', () => {
     it('should handle null role as rep', () => {
       const result = getAccountDetailBreadcrumbs(null, 'Unknown Account');
       expect(result).toHaveLength(2);
-      expect(result[0]).toEqual({ label: 'My Accounts', href: '/rep/prospects' });
+      expect(result[0]).toEqual({ label: 'Accounts', href: '/rep/prospects' });
       expect(result[1]).toEqual({ label: 'Unknown Account' });
     });
   });
@@ -58,14 +58,14 @@ describe('breadcrumbConfig', () => {
     it('should return correct breadcrumbs for admin role', () => {
       const result = getCallDetailBreadcrumbs('admin', 'Discovery Call - Acme');
       expect(result).toHaveLength(2);
-      expect(result[0]).toEqual({ label: 'Dashboard', href: '/admin' });
+      expect(result[0]).toEqual({ label: 'Organization Call History', href: '/admin/history' });
       expect(result[1]).toEqual({ label: 'Discovery Call - Acme' });
     });
 
     it('should return correct breadcrumbs for manager role', () => {
       const result = getCallDetailBreadcrumbs('manager', 'Demo Call');
       expect(result).toHaveLength(2);
-      expect(result[0]).toEqual({ label: 'Coaching', href: '/manager/coaching' });
+      expect(result[0]).toEqual({ label: 'Team Call History', href: '/manager/history' });
       expect(result[1]).toEqual({ label: 'Demo Call' });
     });
 
@@ -199,7 +199,7 @@ describe('breadcrumbConfig', () => {
     it('should return correct breadcrumb for coaching page', () => {
       const result = getManagerPageBreadcrumb('coaching');
       expect(result).toHaveLength(1);
-      expect(result[0]).toEqual({ label: 'Coaching' });
+      expect(result[0]).toEqual({ label: 'Coaching Sessions' });
     });
   });
 

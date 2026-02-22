@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { cn } from '@/lib/utils';
 
 interface BrandedLoaderProps {
@@ -6,10 +7,10 @@ interface BrandedLoaderProps {
   className?: string;
 }
 
-export function BrandedLoader({ 
-  variant = 'inline', 
+export const BrandedLoader = memo(function BrandedLoader({
+  variant = 'inline',
   message,
-  className 
+  className
 }: BrandedLoaderProps) {
   // Full-page variant for Suspense fallback
   if (variant === 'full-page') {
@@ -70,4 +71,4 @@ export function BrandedLoader({
       {message && <span className="text-sm text-muted-foreground">{message}</span>}
     </div>
   );
-}
+});

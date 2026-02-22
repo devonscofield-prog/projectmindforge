@@ -45,6 +45,7 @@ export interface CoachingSession {
   notes: string | null;
   action_items: string | null;
   follow_up_date: string | null;
+  source_call_id: string | null;
   created_at: string;
   updated_at: string;
 }

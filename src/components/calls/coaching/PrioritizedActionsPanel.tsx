@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Target, TrendingUp, Ear, Lightbulb } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -35,7 +36,7 @@ const SOURCE_CONFIG = {
   },
 };
 
-export function PrioritizedActionsPanel({ coachOutput }: PrioritizedActionsPanelProps) {
+export const PrioritizedActionsPanel = memo(function PrioritizedActionsPanel({ coachOutput }: PrioritizedActionsPanelProps) {
   // Gather all improvements
   const meddpiccImprovements = coachOutput.meddpicc_improvements || coachOutput.bant_improvements || [];
   const gapSellingImprovements = coachOutput.gap_selling_improvements || [];
@@ -108,4 +109,4 @@ export function PrioritizedActionsPanel({ coachOutput }: PrioritizedActionsPanel
       </CardContent>
     </Card>
   );
-}
+});

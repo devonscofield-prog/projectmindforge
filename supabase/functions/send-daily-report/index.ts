@@ -1,10 +1,6 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { validateSignedRequest, timingSafeEqual } from "../_shared/hmac.ts";
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 interface ReportSections {
   summary_stats: boolean;
@@ -151,6 +147,9 @@ async function sendEmail(to: string, subject: string, html: string): Promise<voi
 }
 
 const handler = async (req: Request): Promise<Response> => {
+  const origin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -158,9 +157,34 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    // Auth: require HMAC signature, service role key, or user JWT
+    const bodyText = await req.text();
+    const hasSignature = req.headers.has('X-Request-Signature');
+    const authHeader = req.headers.get('Authorization');
+    const token = authHeader?.replace('Bearer ', '') || '';
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const body = await req.json().catch(() => ({}));
+    if (hasSignature) {
+      const validation = await validateSignedRequest(req.headers, bodyText, supabaseServiceKey);
+      if (!validation.valid) {
+        console.warn('[send-daily-report] HMAC validation failed:', validation.error);
+        return jsonResponse({ error: 'Invalid request signature' }, 403);
+      }
+    } else if (token) {
+      const isService = await timingSafeEqual(token, supabaseServiceKey);
+      if (!isService) {
+        // Try user JWT auth
+        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+        if (authError || !user) {
+          return jsonResponse({ error: 'Invalid authentication' }, 401);
+        }
+      }
+    } else {
+      return jsonResponse({ error: 'Authentication required' }, 401);
+    }
+
+    const body = bodyText ? JSON.parse(bodyText) : {};
     const isTestMode = body.test === true;
     const testUserId = body.userId;
     const now = new Date();
@@ -179,7 +203,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (configError) {
       console.error("[send-daily-report] Error fetching configs:", configError);
-      return jsonResponse({ error: configError.message }, 500);
+      return jsonResponse({ error: 'Failed to fetch report configurations' }, 500);
     }
 
     if (!configs || configs.length === 0) {
@@ -240,9 +264,9 @@ const handler = async (req: Request): Promise<Response> => {
 
     return jsonResponse({ success: true, sent: sentCount });
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : "Unknown error";
-    console.error("[send-daily-report] Unexpected error:", error);
-    return jsonResponse({ error: msg }, 500);
+    const requestId = crypto.randomUUID().slice(0, 8);
+    console.error(`[send-daily-report] Error ${requestId}:`, error instanceof Error ? error.message : error);
+    return jsonResponse({ error: 'An unexpected error occurred. Please try again.', requestId }, 500);
   }
 };
 

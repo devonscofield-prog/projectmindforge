@@ -159,7 +159,11 @@ export async function getProspectProductsSummary(
   // Group by product
   const productMap = new Map<string, ProspectProductSummary>();
 
-  callProducts.forEach((cp: any) => {
+  type CallProductRow = NonNullable<typeof callProducts>[number] & {
+    products: { id: string; name: string; slug: string } | null;
+    call_transcripts: { id: string; call_date: string; prospect_id: string } | null;
+  };
+  (callProducts as CallProductRow[]).forEach((cp) => {
     const productId = cp.product_id;
     const productName = cp.products?.name || 'Unknown Product';
     const productSlug = cp.products?.slug || '';

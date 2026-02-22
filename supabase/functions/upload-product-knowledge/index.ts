@@ -1,10 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { signRequest } from "../_shared/hmac.ts";
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 interface UploadResponse {
   success: boolean;
@@ -14,6 +10,9 @@ interface UploadResponse {
 }
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -104,7 +103,7 @@ Deno.serve(async (req) => {
     if (uploadError) {
       console.error("[upload-product-knowledge] Storage upload error:", uploadError);
       return new Response(
-        JSON.stringify({ success: false, error: `Upload failed: ${uploadError.message}` }),
+        JSON.stringify({ success: false, error: 'File upload failed. Please try again.' }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -158,22 +157,23 @@ Deno.serve(async (req) => {
       // Try to clean up the uploaded file
       await supabase.storage.from("product-documents").remove([storagePath]);
       return new Response(
-        JSON.stringify({ success: false, error: `Database insert failed: ${insertError.message}` }),
+        JSON.stringify({ success: false, error: 'Failed to save document. Please try again.' }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     // Trigger processing for chunking and embeddings
     try {
+      const processBody = JSON.stringify({ source_ids: [insertData.id] });
+      const signatureHeaders = await signRequest(processBody, supabaseServiceKey);
       const processResponse = await fetch(`${supabaseUrl}/functions/v1/process-product-knowledge`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${supabaseServiceKey}`,
+          ...signatureHeaders,
         },
-        body: JSON.stringify({
-          source_ids: [insertData.id],
-        }),
+        body: processBody,
       });
 
       if (!processResponse.ok) {
@@ -194,10 +194,10 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
-    console.error("[upload-product-knowledge] Error:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+    const requestId = crypto.randomUUID().slice(0, 8);
+    console.error(`[upload-product-knowledge] Error ${requestId}:`, error instanceof Error ? error.message : error);
     return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
+      JSON.stringify({ success: false, error: 'An unexpected error occurred. Please try again.', requestId }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

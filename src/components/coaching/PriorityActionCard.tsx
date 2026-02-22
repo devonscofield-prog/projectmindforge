@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Target, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -12,7 +13,7 @@ interface PriorityActionCardProps {
   priorities: Priority[];
 }
 
-export function PriorityActionCard({ priorities }: PriorityActionCardProps) {
+export const PriorityActionCard = memo(function PriorityActionCard({ priorities }: PriorityActionCardProps) {
   const priorityColors = [
     'border-l-red-500 bg-red-500/5',
     'border-l-amber-500 bg-amber-500/5',
@@ -71,4 +72,4 @@ export function PriorityActionCard({ priorities }: PriorityActionCardProps) {
       </CardContent>
     </Card>
   );
-}
+});

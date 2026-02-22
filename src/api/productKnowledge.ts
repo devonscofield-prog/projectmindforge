@@ -215,7 +215,10 @@ export async function searchProductKnowledge(
     return [];
   }
 
-  return (data || []).map((row: any) => ({
+  type ChunkRow = NonNullable<typeof data>[number] & {
+    product_knowledge: { source_url: string; title: string | null } | null;
+  };
+  return ((data || []) as ChunkRow[]).map((row) => ({
     chunk_text: row.chunk_text,
     source_url: row.product_knowledge?.source_url || '',
     title: row.product_knowledge?.title || null,

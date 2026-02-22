@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { timingSafeEqual } from "../_shared/hmac.ts";
 
 // Version indicator for deployment verification
 console.log('[chunk-transcripts] Version: v3-timeout30s-parallel3');
@@ -9,62 +10,9 @@ declare const EdgeRuntime: {
   waitUntil(promise: Promise<unknown>): void;
 };
 
-// CORS: Restrict to production domains
-function getCorsHeaders(origin?: string | null): Record<string, string> {
-  const allowedOrigins = ['https://lovable.dev', 'https://www.lovable.dev'];
-  const devPatterns = [/^https?:\/\/localhost(:\d+)?$/, /^https:\/\/[a-z0-9-]+\.lovableproject\.com$/, /^https:\/\/[a-z0-9-]+\.lovable\.app$/];
-  
-  // Allow custom domain from environment variable
-  const customDomain = Deno.env.get('CUSTOM_DOMAIN');
-  if (customDomain) {
-    allowedOrigins.push(`https://${customDomain}`);
-    allowedOrigins.push(`https://www.${customDomain}`);
-  }
-  
-  // Allow Stormwind domain from environment variable
-  const stormwindDomain = Deno.env.get('STORMWIND_DOMAIN');
-  if (stormwindDomain) {
-    allowedOrigins.push(`https://${stormwindDomain}`);
-    allowedOrigins.push(`https://www.${stormwindDomain}`);
-  }
-  
-  const requestOrigin = origin || '';
-  const isAllowed = allowedOrigins.includes(requestOrigin) || devPatterns.some(pattern => pattern.test(requestOrigin));
-  
-  // Log origin for debugging CORS issues
-  if (!isAllowed && requestOrigin) {
-    console.log(`[chunk-transcripts] CORS: Origin '${requestOrigin}' not in allowed list`);
-  }
-  
-  return {
-    'Access-Control-Allow-Origin': isAllowed ? requestOrigin : allowedOrigins[0],
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  };
-}
-
-// Simple in-memory rate limiter
-const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
-const RATE_LIMIT_WINDOW_MS = 60000;
-const MAX_REQUESTS_PER_WINDOW = 5;
-
-function checkRateLimit(userId: string): { allowed: boolean; retryAfter?: number } {
-  const now = Date.now();
-  const entry = rateLimitMap.get(userId);
-  
-  if (!entry || now >= entry.resetTime) {
-    rateLimitMap.set(userId, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
-    return { allowed: true };
-  }
-  
-  if (entry.count >= MAX_REQUESTS_PER_WINDOW) {
-    const retryAfter = Math.ceil((entry.resetTime - now) / 1000);
-    return { allowed: false, retryAfter };
-  }
-  
-  entry.count++;
-  return { allowed: true };
-}
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { checkRateLimit } from "../_shared/rateLimiter.ts";
+import { getCorrelationId, createTracedLogger } from "../_shared/tracing.ts";
 
 // Zod validation schema - supports transcript_ids, backfill modes, reset, full_reindex, and ner_batch
 const chunkTranscriptsSchema = z.object({
@@ -1246,6 +1194,9 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const correlationId = getCorrelationId(req);
+  const log = createTracedLogger('chunk-transcripts', correlationId);
+
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -1317,7 +1268,7 @@ Deno.serve(async (req) => {
       const token = authHeader.replace('Bearer ', '');
       
       // Check if this is the service role key (internal call without signature - legacy support)
-      if (token === supabaseServiceKey) {
+      if (await timingSafeEqual(token, supabaseServiceKey)) {
         userId = 'service-internal-legacy';
         console.log('[chunk-transcripts] Legacy service role key auth (consider using HMAC signatures)');
       } else {
@@ -1338,9 +1289,9 @@ Deno.serve(async (req) => {
     const isAdmin = userRole === 'admin';
     const isInternalCall = isSignedRequest || userId === 'service-internal-legacy';
 
-    // Rate limiting for non-admin
+    // Rate limiting for non-admin (5 requests per 60 seconds)
     if (userId && !isAdmin) {
-      const { allowed, retryAfter } = checkRateLimit(userId);
+      const { allowed, retryAfter } = await checkRateLimit(supabase, userId, 'chunk-transcripts', 5, 60);
       if (!allowed) {
         return new Response(
           JSON.stringify({ error: `Rate limited. Try again in ${retryAfter} seconds.` }),
@@ -2185,9 +2136,9 @@ Deno.serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('[chunk-transcripts] Unexpected error:', error);
+    log.error('Unhandled error:', error instanceof Error ? error.message : error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      JSON.stringify({ error: 'An unexpected error occurred. Please try again.', requestId: correlationId }),
       { status: 500, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } }
     );
   }

@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { Menu, TrendingUp, UserPlus, Mic, Upload } from 'lucide-react';
+import { Menu, TrendingUp, UserPlus, Mic, Upload, ChevronLeft } from 'lucide-react';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 
 // Map routes to page titles
@@ -88,18 +88,34 @@ export function MobileHeader() {
   
   const pageTitle = getPageTitle(location.pathname, role);
   const primaryAction = getPrimaryAction(role);
-  
+
   // Don't show primary action if we're already on that page
   const showPrimaryAction = primaryAction && location.pathname !== primaryAction.href;
 
+  // Show back button on detail/sub-pages (pathname depth > 2 segments, e.g. /calls/123)
+  const pathSegments = location.pathname.split('/').filter(Boolean);
+  const isSubPage = pathSegments.length > 2 || location.pathname.match(/\/[^/]+\/[^/]+$/);
+
   return (
-    <header 
+    <header
       className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b bg-background px-3 md:hidden"
       role="banner"
     >
-      <SidebarTrigger className="h-9 w-9 shrink-0" aria-label="Toggle navigation menu">
-        <Menu className="h-5 w-5" aria-hidden="true" />
-      </SidebarTrigger>
+      {isSubPage ? (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9 shrink-0"
+          onClick={() => navigate(-1)}
+          aria-label="Go back"
+        >
+          <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+        </Button>
+      ) : (
+        <SidebarTrigger className="h-9 w-9 shrink-0" aria-label="Toggle navigation menu">
+          <Menu className="h-5 w-5" aria-hidden="true" />
+        </SidebarTrigger>
+      )}
       
       <h1 className="font-semibold text-sm truncate flex-1">
         {pageTitle}

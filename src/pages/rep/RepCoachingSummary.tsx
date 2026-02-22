@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { GitCompare } from 'lucide-react';
 import { CoachingTrendsComparison } from '@/components/coaching/CoachingTrendsComparison';
-import { CoachingTrendHistorySheet } from '@/components/coaching/CoachingTrendHistorySheet';
-import { ExportShareDialog } from '@/components/coaching/ExportShareDialog';
+import { lazy, Suspense } from 'react';
+const CoachingTrendHistorySheet = lazy(() => import('@/components/coaching/CoachingTrendHistorySheet').then(m => ({ default: m.CoachingTrendHistorySheet })));
+const ExportShareDialog = lazy(() => import('@/components/coaching/ExportShareDialog').then(m => ({ default: m.ExportShareDialog })));
 import { PriorityActionCard } from '@/components/coaching/PriorityActionCard';
 
 import {
@@ -206,24 +207,30 @@ export default function RepCoachingSummary() {
       </div>
       
       {/* History Sheet */}
-      <CoachingTrendHistorySheet
-        open={showHistory}
-        onOpenChange={setShowHistory}
-        repId={targetRepId!}
-        onLoadAnalysis={handleLoadFromHistory}
-        onCompareWithCurrent={handleCompareFromHistory}
-        hasCurrentAnalysis={!!displayAnalysis}
-      />
-      
+      {showHistory && (
+        <Suspense fallback={null}>
+          <CoachingTrendHistorySheet
+            open={showHistory}
+            onOpenChange={setShowHistory}
+            repId={targetRepId!}
+            onLoadAnalysis={handleLoadFromHistory}
+            onCompareWithCurrent={handleCompareFromHistory}
+            hasCurrentAnalysis={!!displayAnalysis}
+          />
+        </Suspense>
+      )}
+
       {/* Export Dialog */}
-      {displayAnalysis && (
-        <ExportShareDialog
-          open={showExportDialog}
-          onOpenChange={setShowExportDialog}
-          analysis={displayAnalysis}
-          dateRange={dateRange}
-          repName={isOwnSummary ? undefined : repProfile?.name}
-        />
+      {displayAnalysis && showExportDialog && (
+        <Suspense fallback={null}>
+          <ExportShareDialog
+            open={showExportDialog}
+            onOpenChange={setShowExportDialog}
+            analysis={displayAnalysis}
+            dateRange={dateRange}
+            repName={isOwnSummary ? undefined : repProfile?.name}
+          />
+        </Suspense>
       )}
     </AppLayout>
   );

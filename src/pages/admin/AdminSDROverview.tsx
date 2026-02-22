@@ -14,9 +14,22 @@ import {
   useSDRDailyTranscripts,
   useRetrySDRTranscript,
 } from '@/hooks/useSDR';
+import type { SDRTeamMemberWithProfile } from '@/hooks/sdr/types';
 import { useQuery } from '@tanstack/react-query';
 import { useProfilesByIds } from '@/hooks/useProfiles';
 import { supabase } from '@/integrations/supabase/client';
+
+/** Shape returned by the admin grades query (only the selected columns). */
+interface SdrCallGradeRow {
+  sdr_id: string;
+  overall_grade: string;
+  opener_score: number | null;
+  engagement_score: number | null;
+  objection_handling_score: number | null;
+  appointment_setting_score: number | null;
+  professionalism_score: number | null;
+  meeting_scheduled: boolean | null;
+}
 import {
   Loader2, Users, TrendingUp, MessageSquare,
   CalendarCheck, RotateCcw, X, Headphones,
@@ -53,7 +66,7 @@ function AdminSDROverview() {
   // Build member lookup
   const memberMap = useMemo(() => {
     const map: Record<string, { name: string; email: string; teamId: string }> = {};
-    allMembers.forEach((m: any) => {
+    allMembers.forEach((m: SDRTeamMemberWithProfile) => {
       map[m.user_id] = {
         name: m.profiles?.name || 'Unknown',
         email: m.profiles?.email || '',
@@ -100,7 +113,7 @@ function AdminSDROverview() {
   const filteredMemberIds = useMemo(() => {
     if (teamFilter === 'all') return allMemberIds;
     const ids = new Set<string>();
-    allMembers.forEach((m: any) => {
+    allMembers.forEach((m: SDRTeamMemberWithProfile) => {
       if (m.team_id === teamFilter) ids.add(m.user_id);
     });
     return ids;
@@ -110,12 +123,12 @@ function AdminSDROverview() {
   const { data: allGrades } = useQuery({
     queryKey: ['admin-sdr-all-grades'],
     queryFn: async () => {
-      const { data, error } = await (supabase.from as any)('sdr_call_grades')
+      const { data, error } = await supabase.from('sdr_call_grades')
         .select('sdr_id, overall_grade, opener_score, engagement_score, objection_handling_score, appointment_setting_score, professionalism_score, meeting_scheduled')
         .order('created_at', { ascending: false })
         .limit(500);
       if (error) throw error;
-      return data as any[];
+      return (data ?? []) as SdrCallGradeRow[];
     },
   });
 
@@ -124,25 +137,25 @@ function AdminSDROverview() {
     if (!allGrades || allGrades.length === 0) return null;
     const grades = teamFilter === 'all'
       ? allGrades
-      : allGrades.filter((g: any) => filteredMemberIds.has(g.sdr_id));
+      : allGrades.filter((g: SdrCallGradeRow) => filteredMemberIds.has(g.sdr_id));
 
     if (grades.length === 0) return null;
 
-    const avgScore = grades.reduce((sum: number, g: any) => {
+    const avgScore = grades.reduce((sum: number, g: SdrCallGradeRow) => {
       const scores = [g.opener_score, g.engagement_score, g.objection_handling_score, g.appointment_setting_score, g.professionalism_score].filter(Boolean);
       return sum + (scores.length ? scores.reduce((a: number, b: number) => a + b, 0) / scores.length : 0);
     }, 0) / grades.length;
 
-    const meetingsSet = grades.filter((g: any) => g.meeting_scheduled === true).length;
+    const meetingsSet = grades.filter((g: SdrCallGradeRow) => g.meeting_scheduled === true).length;
 
     const gradeDistribution: Record<string, number> = {};
-    grades.forEach((g: any) => {
+    grades.forEach((g: SdrCallGradeRow) => {
       gradeDistribution[g.overall_grade] = (gradeDistribution[g.overall_grade] || 0) + 1;
     });
 
     // Per-member stats
     const memberStats: Record<string, { count: number; totalScore: number; meetings: number; topGrade: string | null }> = {};
-    grades.forEach((g: any) => {
+    grades.forEach((g: SdrCallGradeRow) => {
       if (!memberStats[g.sdr_id]) memberStats[g.sdr_id] = { count: 0, totalScore: 0, meetings: 0, topGrade: null };
       const s = memberStats[g.sdr_id];
       s.count++;
@@ -152,7 +165,7 @@ function AdminSDROverview() {
     });
     // Compute top grade per member
     const memberGradeCounts: Record<string, Record<string, number>> = {};
-    grades.forEach((g: any) => {
+    grades.forEach((g: SdrCallGradeRow) => {
       if (!memberGradeCounts[g.sdr_id]) memberGradeCounts[g.sdr_id] = {};
       memberGradeCounts[g.sdr_id][g.overall_grade] = (memberGradeCounts[g.sdr_id][g.overall_grade] || 0) + 1;
     });
@@ -206,7 +219,7 @@ function AdminSDROverview() {
 
   // Members visible in current team filter + unassigned SDRs for the dropdown
   const visibleMembers = useMemo(() => {
-    const members = allMembers.filter((m: any) => teamFilter === 'all' || m.team_id === teamFilter);
+    const members = allMembers.filter((m: SDRTeamMemberWithProfile) => teamFilter === 'all' || m.team_id === teamFilter);
     // When showing all teams, also include unassigned SDRs in the dropdown
     if (teamFilter === 'all') {
       const unassignedEntries = unassignedSdrIds.map(id => ({
@@ -332,8 +345,8 @@ function AdminSDROverview() {
             ) : (
               <div className="space-y-6">
                 {(teamFilter === 'all' ? teams : teams.filter(t => t.id === teamFilter)).map(team => {
-                  const teamMembers = allMembers.filter((m: any) => m.team_id === team.id);
-                  const teamTranscriptCount = transcripts.filter(t => teamMembers.some((m: any) => m.user_id === t.sdr_id)).length;
+                  const teamMembers = allMembers.filter((m: SDRTeamMemberWithProfile) => m.team_id === team.id);
+                  const teamTranscriptCount = transcripts.filter(t => teamMembers.some((m: SDRTeamMemberWithProfile) => m.user_id === t.sdr_id)).length;
 
                   return (
                     <Card key={team.id}>
@@ -349,7 +362,7 @@ function AdminSDROverview() {
                           <p className="text-muted-foreground text-sm">No members assigned</p>
                         ) : (
                           <div className="space-y-2">
-                            {teamMembers.map((m: any) => {
+                            {teamMembers.map((m: SDRTeamMemberWithProfile) => {
                               const ms = orgStats?.memberStats?.[m.user_id];
                               const memberAvg = ms ? Math.round((ms.totalScore / ms.count) * 10) / 10 : null;
                               const memberTranscriptCount = transcripts.filter(t => t.sdr_id === m.user_id).length;
@@ -430,7 +443,7 @@ function AdminSDROverview() {
                       <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All SDRs</SelectItem>
-                        {visibleMembers.map((m: any) => (
+                        {visibleMembers.map((m: SDRTeamMemberWithProfile) => (
                           <SelectItem key={m.user_id} value={m.user_id}>
                             {m.profiles?.name || m.profiles?.email || 'Unknown'}
                           </SelectItem>

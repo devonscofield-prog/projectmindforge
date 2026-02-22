@@ -1,4 +1,4 @@
-import { useState, ReactNode } from 'react';
+import { useState, memo, ReactNode } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -18,7 +18,7 @@ interface CollapsibleSectionProps {
   mobileOnly?: boolean;
 }
 
-export function CollapsibleSection({
+export const CollapsibleSection = memo(function CollapsibleSection({
   title,
   description,
   icon,
@@ -124,4 +124,4 @@ export function CollapsibleSection({
       </Collapsible>
     </Card>
   );
-}
+});

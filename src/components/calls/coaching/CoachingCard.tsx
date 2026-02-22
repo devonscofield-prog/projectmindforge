@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { CheckCircle2, AlertTriangle, ChevronDown, Lightbulb, GraduationCap, Target, Dumbbell, TrendingUp, TrendingDown, Minus, ArrowUpRight, ArrowDownRight, ArrowRight } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,7 @@ interface CoachingCardProps {
   data: CoachingSynthesis | null;
   className?: string;
   isLoading?: boolean;
+  defaultOpen?: boolean;
 }
 
 const getGradeStyles = (grade: string) => {
@@ -46,10 +47,10 @@ const getGradeStyles = (grade: string) => {
   }
 };
 
-export function CoachingCard({ data, className, isLoading = false }: CoachingCardProps) {
+export const CoachingCard = memo(function CoachingCard({ data, className, isLoading = false, defaultOpen = true }: CoachingCardProps) {
   const [isReasoningOpen, setIsReasoningOpen] = useState(false);
   const [isDrillOpen, setIsDrillOpen] = useState(false);
-  const [isCardOpen, setIsCardOpen] = useState(true);
+  const [isCardOpen, setIsCardOpen] = useState(defaultOpen);
 
   // Loading skeleton state
   if (isLoading) {
@@ -324,4 +325,4 @@ export function CoachingCard({ data, className, isLoading = false }: CoachingCar
       </Card>
     </Collapsible>
   );
-}
+});

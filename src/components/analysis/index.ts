@@ -1,4 +1,10 @@
 export { BehaviorScorecard } from './BehaviorScorecard';
+export { TalkRatioBar } from './TalkRatioBar';
+export { GaugeBar } from './GaugeBar';
+export { MonologueAlert } from './MonologueAlert';
+export { QuestionLeverageSheet } from './QuestionLeverageSheet';
+export { PatienceDetailSheet } from './PatienceDetailSheet';
+export { NextStepsSection } from './NextStepsSection';
 export { StrategicRelevanceMap, PainToPitchAlignment, CriticalGapsPanel } from './StrategicRelevanceMap';
 export { ObjectionHandlingPanel } from './ObjectionHandlingPanel';
 export { CompetitiveIntelPanel } from './CompetitiveIntelPanel';

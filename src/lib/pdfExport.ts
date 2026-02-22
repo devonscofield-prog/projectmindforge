@@ -3,8 +3,6 @@
  * Replaces vulnerable html2pdf.js dependency
  */
 
-import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas';
 import { sanitizeHtmlForPdf } from './sanitize';
 
 export interface PdfExportOptions {
@@ -48,6 +46,9 @@ export async function exportHtmlToPdf(
   document.body.appendChild(container);
 
   try {
+    // Dynamically import heavy libraries
+    const { default: html2canvas } = await import('html2canvas');
+
     // Convert HTML to canvas
     const canvas = await html2canvas(container, {
       scale: config.scale,
@@ -76,6 +77,9 @@ export async function exportHtmlToPdf(
     const imgWidth = contentWidth;
     const imgHeight = (canvas.height * contentWidth) / canvas.width;
     
+    // Dynamically import jsPDF
+    const { jsPDF } = await import('jspdf');
+
     // Create PDF
     const pdf = new jsPDF({
       orientation: config.orientation,

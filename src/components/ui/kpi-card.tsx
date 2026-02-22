@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ProgressBar } from './progress-bar';
 import { StatusBadge, getPerformanceStatus } from './status-badge';
@@ -13,7 +14,7 @@ interface KPICardProps {
   className?: string;
 }
 
-export function KPICard({ title, value, goal, icon: Icon, format = 'number', className }: KPICardProps) {
+export const KPICard = memo(function KPICard({ title, value, goal, icon: Icon, format = 'number', className }: KPICardProps) {
   const status = getPerformanceStatus(value, goal);
   const percentage = goal > 0 ? Math.round((value / goal) * 100) : 0;
 
@@ -49,4 +50,4 @@ export function KPICard({ title, value, goal, icon: Icon, format = 'number', cla
       </CardContent>
     </Card>
   );
-}
+});

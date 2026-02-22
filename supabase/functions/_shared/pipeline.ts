@@ -14,9 +14,11 @@
  * Phase 2: Coach (synthesis)
  */
 
+import { z } from "zod";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { getAgent, getPhase0Agent, AgentConfig } from './agent-registry.ts';
 import { executeAgent, executeAgentWithPrompt, executeCoachWithConsensus, AgentResult, getAgentTimeout } from './agent-factory.ts';
+import { hashContent, AgentCacheMap, getCachedAgentResult, setCachedAgentResult } from './cache.ts';
 import {
   CensusOutput,
   HistorianOutput,
@@ -37,6 +39,7 @@ import {
   StrategyAudit,
 } from './agent-schemas.ts';
 import { SPEAKER_LABELER_PROMPT } from './agent-prompts.ts';
+import { sanitizeUserContent } from './sanitize.ts';
 
 // ============= SPEAKER CONTEXT TYPE =============
 
@@ -132,7 +135,7 @@ function buildCensusPrompt(
   transcript: string,
   callType?: string
 ): string {
-  const basePrompt = `Extract structured data entities from this sales call transcript:\n\n${transcript}`;
+  const basePrompt = `Extract structured data entities from this sales call transcript:\n\n${sanitizeUserContent(transcript)}`;
   
   const contextParts: string[] = [];
   
@@ -159,7 +162,7 @@ function buildProfilerPrompt(
   primarySpeakerName?: string,
   callType?: string
 ): string {
-  const basePrompt = `Analyze this sales call transcript to profile the PROSPECT's communication style and create a behavioral persona. Focus on how THEY speak, respond, and what they seem to value:\n\n${transcript}`;
+  const basePrompt = `Analyze this sales call transcript to profile the PROSPECT's communication style and create a behavioral persona. Focus on how THEY speak, respond, and what they seem to value:\n\n${sanitizeUserContent(transcript)}`;
   
   const contextParts: string[] = [];
   
@@ -188,7 +191,7 @@ function buildStrategistPrompt(
   scoringHints?: SentinelOutput['scoring_hints'],
   accountHistory?: AccountHistoryContext
 ): string {
-  const basePrompt = `Analyze this sales call transcript for strategic alignment. Map every prospect pain to every rep pitch and score the relevance:\n\n${transcript}`;
+  const basePrompt = `Analyze this sales call transcript for strategic alignment. Map every prospect pain to every rep pitch and score the relevance:\n\n${sanitizeUserContent(transcript)}`;
   
   const contextParts: string[] = [];
   
@@ -236,7 +239,7 @@ function buildBehaviorPrompt(
   callType?: string,
   accountHistory?: AccountHistoryContext
 ): string {
-  const basePrompt = `Analyze this sales call transcript for behavioral dynamics and score the rep's performance:\n\n${transcript}`;
+  const basePrompt = `Analyze this sales call transcript for behavioral dynamics and score the rep's performance:\n\n${sanitizeUserContent(transcript)}`;
   
   const contextParts: string[] = [];
   
@@ -287,7 +290,7 @@ function buildSkepticPrompt(
   scoringHints?: SentinelOutput['scoring_hints'],
   accountHistory?: AccountHistoryContext
 ): string {
-  const basePrompt = `Analyze this sales call transcript. Find the 3-5 most dangerous UNKNOWNS or MISSING INFORMATION that could block this deal:\n\n${transcript}`;
+  const basePrompt = `Analyze this sales call transcript. Find the 3-5 most dangerous UNKNOWNS or MISSING INFORMATION that could block this deal:\n\n${sanitizeUserContent(transcript)}`;
   
   const contextParts: string[] = [];
   
@@ -330,7 +333,7 @@ CRITICAL: Check if these gaps are STILL open or if they were addressed in this c
 // ============= SPY PROMPT BUILDER =============
 
 function buildSpyPrompt(transcript: string, callType?: string): string {
-  const basePrompt = `Analyze this sales call transcript for competitive intelligence. Extract ONLY training/eLearning competitors and build battlecard:\n\n${transcript}`;
+  const basePrompt = `Analyze this sales call transcript for competitive intelligence. Extract ONLY training/eLearning competitors and build battlecard:\n\n${sanitizeUserContent(transcript)}`;
   
   const contextParts: string[] = [];
   
@@ -365,7 +368,7 @@ function buildNegotiatorPrompt(
   pitchedFeatures?: string[],
   callType?: string
 ): string {
-  const basePrompt = `Analyze this sales call transcript for objections and pushback. Identify how the rep handled each moment of friction:\n\n${transcript}`;
+  const basePrompt = `Analyze this sales call transcript for objections and pushback. Identify how the rep handled each moment of friction:\n\n${sanitizeUserContent(transcript)}`;
   
   const contextParts: string[] = [];
   
@@ -414,7 +417,7 @@ function buildSpeakerLabelerPrompt(transcript: string, context: SpeakerContext):
   const speakerContext = contextLines.join('\n');
   const prompt = SPEAKER_LABELER_PROMPT.replace('{SPEAKER_CONTEXT}', speakerContext);
   
-  return `${prompt}\n\n--- TRANSCRIPT TO LABEL ---\n${transcript}`;
+  return `${prompt}\n\n--- TRANSCRIPT TO LABEL ---\n${sanitizeUserContent(transcript)}`;
 }
 
 // ============= SMART SKIP DETECTION =============
@@ -544,7 +547,7 @@ function buildInterrogatorPrompt(
   scoringHints?: SentinelOutput['scoring_hints'],
   callType?: string
 ): string {
-  const basePrompt = `Analyze this sales call transcript for question quality and leverage. Focus on the yield ratio - how much information the rep extracted relative to their question investment:\n\n${transcript}`;
+  const basePrompt = `Analyze this sales call transcript for question quality and leverage. Focus on the yield ratio - how much information the rep extracted relative to their question investment:\n\n${sanitizeUserContent(transcript)}`;
   
   const contextParts: string[] = [];
   
@@ -586,7 +589,7 @@ function buildAuditorPrompt(
   callType?: string,
   painSeverities?: Array<{ pain: string; severity: string }>
 ): string {
-  const basePrompt = `Analyze this sales call transcript for pricing discipline. Find ALL discounts, concessions, or price reductions offered and assess whether the timing was appropriate:\n\n${transcript}`;
+  const basePrompt = `Analyze this sales call transcript for pricing discipline. Find ALL discounts, concessions, or price reductions offered and assess whether the timing was appropriate:\n\n${sanitizeUserContent(transcript)}`;
   
   const contextParts: string[] = [];
   
@@ -682,8 +685,8 @@ function buildScribeInput(
     : `NOT SECURED: ${referee.metrics?.next_steps?.details || 'No clear next steps'}`;
   
   // Include a transcript excerpt for additional context (first 5000 chars)
-  const excerpt = transcriptExcerpt 
-    ? transcriptExcerpt.substring(0, 5000)
+  const excerpt = transcriptExcerpt
+    ? sanitizeUserContent(transcriptExcerpt.substring(0, 5000))
     : '';
   
   return `## CALL ANALYSIS SUMMARY
@@ -859,15 +862,107 @@ function checkTimeout(startTime: number, phase: string): void {
  * Batch 2 (Strategic): Profiler, Strategist, Referee, Interrogator, Negotiator + Skeptic (async)
  * Phase 2: Coach - synthesizes all outputs
  */
+export interface PipelineOptions {
+  force?: boolean;
+  correlationId?: string;
+}
+
 export async function runAnalysisPipeline(
   transcript: string,
   supabase: SupabaseClient,
   callId: string,
   speakerContext?: SpeakerContext,
-  accountHistory?: AccountHistoryContext
+  accountHistory?: AccountHistoryContext,
+  options?: PipelineOptions
 ): Promise<PipelineResult> {
   const pipelineStart = performance.now();
   const warnings: string[] = [];
+  const forceRerun = options?.force === true;
+  const cid = options?.correlationId || callId.slice(0, 12);
+  const logPrefix = `[Pipeline][${cid}]`;
+
+  // ============= CONTENT-ADDRESSED CACHE SETUP =============
+  const contentHash = await hashContent(transcript);
+  let agentCache: AgentCacheMap = {};
+  let cacheHits = 0;
+
+  if (!forceRerun) {
+    // Load existing agent cache from ai_call_analysis.raw_json._agent_cache
+    try {
+      const { data: existingAnalysis } = await supabase
+        .from('ai_call_analysis')
+        .select('raw_json')
+        .eq('call_id', callId)
+        .maybeSingle();
+
+      if (existingAnalysis?.raw_json && typeof existingAnalysis.raw_json === 'object') {
+        const rawJson = existingAnalysis.raw_json as Record<string, unknown>;
+        if (rawJson._agent_cache && typeof rawJson._agent_cache === 'object') {
+          agentCache = rawJson._agent_cache as AgentCacheMap;
+          console.log(`${logPrefix} Cache loaded: ${Object.keys(agentCache).length} cached agent results, content hash: ${contentHash.substring(0, 12)}...`);
+        }
+      }
+    } catch (err) {
+      console.warn(`${logPrefix} Failed to load agent cache, proceeding without cache:`, err);
+    }
+  } else {
+    console.log(`${logPrefix} Force mode: skipping agent cache`);
+  }
+
+  // Cache-aware agent execution wrapper
+  // Checks cache before calling LLM; stores result in cache on success
+  async function cachedExecuteAgentWithPrompt<T>(
+    config: AgentConfig<z.ZodTypeAny>,
+    prompt: string,
+    supabaseClient: SupabaseClient,
+    cId: string
+  ): Promise<AgentResult<T>> {
+    if (!forceRerun) {
+      const cached = getCachedAgentResult(agentCache, config.id, contentHash);
+      if (cached !== null) {
+        // Validate cached result still parses against schema
+        const validation = config.schema.safeParse(cached);
+        if (validation.success) {
+          cacheHits++;
+          console.log(`[${config.name}] CACHE HIT (hash match) - skipping LLM call`);
+          return { success: true, data: validation.data as T, durationMs: 0 };
+        } else {
+          console.log(`[${config.name}] Cache stale (schema mismatch) - calling LLM`);
+        }
+      }
+    }
+
+    const result = await executeAgentWithPrompt(config, prompt, supabaseClient, cId);
+    if (result.success) {
+      setCachedAgentResult(agentCache, config.id, contentHash, result.data);
+    }
+    return result as AgentResult<T>;
+  }
+
+  async function cachedExecuteAgent<T>(
+    config: AgentConfig<z.ZodTypeAny>,
+    transcriptText: string,
+    supabaseClient: SupabaseClient,
+    cId: string
+  ): Promise<AgentResult<T>> {
+    if (!forceRerun) {
+      const cached = getCachedAgentResult(agentCache, config.id, contentHash);
+      if (cached !== null) {
+        const validation = config.schema.safeParse(cached);
+        if (validation.success) {
+          cacheHits++;
+          console.log(`[${config.name}] CACHE HIT (hash match) - skipping LLM call`);
+          return { success: true, data: validation.data as T, durationMs: 0 };
+        }
+      }
+    }
+
+    const result = await executeAgent(config, transcriptText, supabaseClient, cId);
+    if (result.success) {
+      setCachedAgentResult(agentCache, config.id, contentHash, result.data);
+    }
+    return result as AgentResult<T>;
+  }
 
   // Async agent result holder (scoped to this pipeline run to avoid race conditions)
   let pendingSkepticResult: Promise<AgentResult<SkepticOutput>> | null = null;
@@ -879,7 +974,7 @@ export async function runAnalysisPipeline(
   let callClassification: CallClassification | undefined;
 
   // ============= PHASE 0: Speaker Labeler + Sentinel (Pre-processing, parallel) =============
-  console.log('[Pipeline] Phase 0: Running Speaker Labeler + Sentinel in parallel...');
+  console.log(`${logPrefix} Phase 0: Running Speaker Labeler + Sentinel in parallel...`);
   const phase0Start = performance.now();
   
   // Get Phase 0 agents
@@ -890,7 +985,7 @@ export async function runAnalysisPipeline(
   const labelerPrompt = speakerContext 
     ? buildSpeakerLabelerPrompt(transcript, speakerContext)
     : null;
-  const sentinelPrompt = `Classify this sales call transcript by type:\n\n${transcript}`; // Full transcript for maximum classification accuracy
+  const sentinelPrompt = `Classify this sales call transcript by type:\n\n${sanitizeUserContent(transcript)}`; // Full transcript for maximum classification accuracy
   
   // Create timeout race for Phase 0 (20 second budget)
   const phase0Timeout = new Promise<'timeout'>((resolve) => 
@@ -902,7 +997,7 @@ export async function runAnalysisPipeline(
   if (skipLabeling) {
     const lengthKb = Math.round(transcript.length / 1000);
     warnings.push(`Transcript too long for speaker labeling (${lengthKb}k chars), using raw transcript`);
-    console.log(`[Pipeline] Phase 0: Skipping speaker labeling (${lengthKb}k chars exceeds ${MAX_TRANSCRIPT_LENGTH_FOR_LABELING / 1000}k limit)`);
+    console.log(`${logPrefix} Phase 0: Skipping speaker labeling (${lengthKb}k chars exceeds ${MAX_TRANSCRIPT_LENGTH_FOR_LABELING / 1000}k limit)`);
   }
   
   // Smart skip detection: check if transcript already has speaker labels
@@ -913,7 +1008,7 @@ export async function runAnalysisPipeline(
       hasPreLabels = true;
       processedTranscript = transcript; // Use as-is, already labeled
       warnings.push(`Transcript already has speaker labels (${labelCheck.coverage}% coverage, pattern: ${labelCheck.pattern})`);
-      console.log(`[Pipeline] Phase 0: SMART SKIP - Transcript pre-labeled (${labelCheck.coverage}% coverage, pattern: ${labelCheck.pattern})`);
+      console.log(`${logPrefix} Phase 0: SMART SKIP - Transcript pre-labeled (${labelCheck.coverage}% coverage, pattern: ${labelCheck.pattern})`);
     }
   }
   
@@ -940,7 +1035,7 @@ export async function runAnalysisPipeline(
   
   if (phase0RaceResult === 'timeout') {
     warnings.push(`Phase 0 timed out (${PHASE0_BUDGET_MS / 1000}s budget), using defaults`);
-    console.log(`[Pipeline] Phase 0 aborted: exceeded ${PHASE0_BUDGET_MS / 1000}s budget after ${Math.round(phase0Duration)}ms`);
+    console.log(`${logPrefix} Phase 0 aborted: exceeded ${PHASE0_BUDGET_MS / 1000}s budget after ${Math.round(phase0Duration)}ms`);
   } else {
     const results = phase0RaceResult;
     let resultIndex = 0;
@@ -958,11 +1053,11 @@ export async function runAnalysisPipeline(
           detection_signals: sentinelData.detection_signals,
           scoring_hints: sentinelData.scoring_hints,
         };
-        console.log(`[Pipeline] Sentinel: Call type = ${sentinelData.detected_call_type} (${sentinelData.confidence} confidence)`);
-        console.log(`[Pipeline] Scoring hints: discovery=${sentinelData.scoring_hints.discovery_expectation}, monologue=${sentinelData.scoring_hints.monologue_tolerance}, talk_ratio=${sentinelData.scoring_hints.talk_ratio_ideal}%`);
+        console.log(`${logPrefix} Sentinel: Call type = ${sentinelData.detected_call_type} (${sentinelData.confidence} confidence)`);
+        console.log(`${logPrefix} Scoring hints: discovery=${sentinelData.scoring_hints.discovery_expectation}, monologue=${sentinelData.scoring_hints.monologue_tolerance}, talk_ratio=${sentinelData.scoring_hints.talk_ratio_ideal}%`);
       } else {
         warnings.push(`Call classification failed: ${sentinelResult.error}`);
-        console.log(`[Pipeline] Sentinel fallback: ${sentinelResult.error}`);
+        console.log(`${logPrefix} Sentinel fallback: ${sentinelResult.error}`);
       }
     }
     
@@ -983,23 +1078,23 @@ export async function runAnalysisPipeline(
           
           if (labelCoverage >= 0.1) {
             processedTranscript = labeledTranscript;
-            console.log(`[Pipeline] Speaker Labeler: ${labelerData.speaker_count} speakers, ${Math.round(labelCoverage * 100)}% coverage (${labelerData.detection_confidence} confidence)`);
+            console.log(`${logPrefix} Speaker Labeler: ${labelerData.speaker_count} speakers, ${Math.round(labelCoverage * 100)}% coverage (${labelerData.detection_confidence} confidence)`);
           } else {
             warnings.push(`Low label coverage (${Math.round(labelCoverage * 100)}%), using raw transcript`);
-            console.log(`[Pipeline] Speaker Labeler fallback: Low coverage ${Math.round(labelCoverage * 100)}%`);
+            console.log(`${logPrefix} Speaker Labeler fallback: Low coverage ${Math.round(labelCoverage * 100)}%`);
           }
         } else {
           warnings.push('Speaker labeling returned no line labels, using raw transcript');
-          console.log(`[Pipeline] Speaker Labeler fallback: Empty line_labels array`);
+          console.log(`${logPrefix} Speaker Labeler fallback: Empty line_labels array`);
         }
       } else {
         warnings.push(`Speaker labeling failed: ${labelerResult.error}, using raw transcript`);
-        console.log(`[Pipeline] Speaker Labeler fallback: ${labelerResult.error}`);
+        console.log(`${logPrefix} Speaker Labeler fallback: ${labelerResult.error}`);
       }
     }
   }
   
-  console.log(`[Pipeline] Phase 0 complete in ${Math.round(phase0Duration)}ms`);
+  console.log(`${logPrefix} Phase 0 complete in ${Math.round(phase0Duration)}ms`);
 
   // Get all agent configs
   const censusConfig = getAgent('census')!;
@@ -1017,7 +1112,7 @@ export async function runAnalysisPipeline(
   // ============= BATCH 1: Critical Agents (Census, Historian, Spy) =============
   // Note: Use processedTranscript (labeled) for analysis
   // Spy now receives call type context from Sentinel for better competitor detection
-  console.log('[Pipeline] Batch 1/2: Running Census, Historian, Spy...');
+  console.log(`${logPrefix} Batch 1/2: Running Census, Historian, Spy...`);
   const batch1Start = performance.now();
 
   // Build context-aware prompts for Batch 1
@@ -1025,13 +1120,13 @@ export async function runAnalysisPipeline(
   const spyPrompt = buildSpyPrompt(processedTranscript, callClassification?.detected_call_type);
 
   const [censusResult, historianResult, spyResult] = await Promise.all([
-    executeAgentWithPrompt(censusConfig, censusPrompt, supabase, callId),
-    executeAgent(historianConfig, processedTranscript, supabase, callId),
-    executeAgentWithPrompt(spyConfig, spyPrompt, supabase, callId),
+    cachedExecuteAgentWithPrompt<CensusOutput>(censusConfig, censusPrompt, supabase, callId),
+    cachedExecuteAgent<HistorianOutput>(historianConfig, processedTranscript, supabase, callId),
+    cachedExecuteAgentWithPrompt<SpyOutput>(spyConfig, spyPrompt, supabase, callId),
   ]);
 
   const batch1Duration = performance.now() - batch1Start;
-  console.log(`[Pipeline] Batch 1 complete in ${Math.round(batch1Duration)}ms`);
+  console.log(`${logPrefix} Batch 1 complete in ${Math.round(batch1Duration)}ms`);
   
   // Check timeout after each batch
   checkTimeout(pipelineStart, 'After Batch 1');
@@ -1039,11 +1134,11 @@ export async function runAnalysisPipeline(
   // Check critical agents - graceful degradation instead of hard failure
   if (!censusResult.success) {
     warnings.push(`Critical agent 'Census' failed: ${censusResult.error} - using defaults`);
-    console.warn(`[Pipeline] Census failed, using defaults: ${censusResult.error}`);
+    console.warn(`${logPrefix} Census failed, using defaults: ${censusResult.error}`);
   }
   if (!historianResult.success) {
     warnings.push(`Critical agent 'Historian' failed: ${historianResult.error} - using defaults`);
-    console.warn(`[Pipeline] Historian failed, using defaults: ${historianResult.error}`);
+    console.warn(`${logPrefix} Historian failed, using defaults: ${historianResult.error}`);
   }
   if (!spyResult.success) {
     warnings.push(`Competitive intelligence failed: ${spyResult.error}`);
@@ -1066,7 +1161,7 @@ export async function runAnalysisPipeline(
 
   // ============= BATCH 2: Strategic + Deep Dive (Split into 2a/2b for rate limit control) =============
   // Skeptic runs async (non-blocking) and we await before Coach
-  console.log('[Pipeline] Batch 2a: Running Profiler, Strategist, Referee + Skeptic (async)...');
+  console.log(`${logPrefix} Batch 2a: Running Profiler, Strategist, Referee + Skeptic (async)...`);
   const batch2Start = performance.now();
 
   // Build context-aware prompts using processedTranscript
@@ -1101,25 +1196,25 @@ export async function runAnalysisPipeline(
     callClassification?.scoring_hints,
     accountHistory
   );
-  pendingSkepticResult = executeAgentWithPrompt(skepticConfig, skepticPrompt, supabase, callId);
-  console.log('[Pipeline] Skeptic fired async (non-blocking)');
+  pendingSkepticResult = cachedExecuteAgentWithPrompt<SkepticOutput>(skepticConfig, skepticPrompt, supabase, callId);
+  console.log(`${logPrefix} Skeptic fired async (non-blocking)`);
 
   // Batch 2a: Profiler, Strategist, Referee (3 agents)
   const [profilerResult, strategistResult, refereeResult] = await Promise.all([
-    executeAgentWithPrompt(profilerConfig, profilerPrompt, supabase, callId),
-    executeAgentWithPrompt(strategistConfig, strategistPrompt, supabase, callId),
-    executeAgentWithPrompt(refereeConfig, behaviorPrompt, supabase, callId),
+    cachedExecuteAgentWithPrompt<ProfilerOutput>(profilerConfig, profilerPrompt, supabase, callId),
+    cachedExecuteAgentWithPrompt<StrategistOutput>(strategistConfig, strategistPrompt, supabase, callId),
+    cachedExecuteAgentWithPrompt<RefereeOutput>(refereeConfig, behaviorPrompt, supabase, callId),
   ]);
   
   const batch2aDuration = performance.now() - batch2Start;
-  console.log(`[Pipeline] Batch 2a complete in ${Math.round(batch2aDuration)}ms`);
+  console.log(`${logPrefix} Batch 2a complete in ${Math.round(batch2aDuration)}ms`);
   
   // Small delay between sub-batches to reduce API pressure
   await new Promise(resolve => setTimeout(resolve, 200));
   
   // Batch 2b: Interrogator, Negotiator, Auditor (3 agents)
   // These need context from Batch 2a (Strategist)
-  console.log('[Pipeline] Batch 2b: Running Interrogator, Negotiator, Auditor...');
+  console.log(`${logPrefix} Batch 2b: Running Interrogator, Negotiator, Auditor...`);
   const batch2bStart = performance.now();
   
   const interrogatorPrompt = buildInterrogatorPrompt(
@@ -1152,13 +1247,13 @@ export async function runAnalysisPipeline(
   );
   
   const [interrogatorResult, negotiatorResult, auditorResult] = await Promise.all([
-    executeAgentWithPrompt(interrogatorConfig, interrogatorPrompt, supabase, callId),
-    executeAgentWithPrompt(negotiatorConfig, negotiatorPrompt, supabase, callId),
-    executeAgentWithPrompt(auditorConfig, auditorPrompt, supabase, callId),
+    cachedExecuteAgentWithPrompt<InterrogatorOutput>(interrogatorConfig, interrogatorPrompt, supabase, callId),
+    cachedExecuteAgentWithPrompt<NegotiatorOutput>(negotiatorConfig, negotiatorPrompt, supabase, callId),
+    cachedExecuteAgentWithPrompt<AuditorOutput>(auditorConfig, auditorPrompt, supabase, callId),
   ]);
   
   const batch2bDuration = performance.now() - batch2bStart;
-  console.log(`[Pipeline] Batch 2b complete in ${Math.round(batch2bDuration)}ms`);
+  console.log(`${logPrefix} Batch 2b complete in ${Math.round(batch2bDuration)}ms`);
 
   const batch2Duration = performance.now() - batch2Start;
   
@@ -1174,22 +1269,22 @@ export async function runAnalysisPipeline(
   if (!negotiatorResult.success) warnings.push(`Objection handling analysis failed: ${negotiatorResult.error}`);
 
   // Now await Skeptic (should be done or nearly done)
-  console.log('[Pipeline] Awaiting async Skeptic result...');
+  console.log(`${logPrefix} Awaiting async Skeptic result...`);
   const skepticResult = await pendingSkepticResult;
   pendingSkepticResult = null; // Clear for next run
   
   if (!skepticResult.success) warnings.push(`Deal gaps analysis failed: ${skepticResult.error}`);
-  console.log(`[Pipeline] Skeptic complete (was running async)`);
+  console.log(`${logPrefix} Skeptic complete (was running async)`);
   
   // Check timeout before Phase 2
   checkTimeout(pipelineStart, 'Before Phase 2');
 
   const phase1Duration = batch1Duration + batch2Duration + BATCH_DELAY_MS;
-  console.log(`[Pipeline] Phase 1 (all 2 batches) complete in ${Math.round(phase1Duration)}ms (${warnings.length} warnings)`);
+  console.log(`${logPrefix} Phase 1 (all 2 batches) complete in ${Math.round(phase1Duration)}ms (${warnings.length} warnings)`);
   
   // Circuit breaker: if we have 3+ warnings already, log prominently for investigation
   if (warnings.length >= 3) {
-    console.warn(`[Pipeline] ⚠️ WARNING ACCUMULATION: ${warnings.length} warnings accumulated - this call may have issues:`, warnings.slice(0, 5));
+    console.warn(`${logPrefix} WARNING ACCUMULATION: ${warnings.length} warnings accumulated - this call may have issues:`, warnings.slice(0, 5));
   }
 
   // ============= MERGE PHASE 1 RESULTS =============
@@ -1211,14 +1306,14 @@ export async function runAnalysisPipeline(
   const behavior = mergeBehaviorWithQuestions(referee, interrogator);
   const strategy = mergeStrategy(strategist, skeptic, negotiator, spy, strategyWarnings);
 
-  console.log(`[Pipeline] Scores - Behavior: ${behavior.overall_score} (base: ${referee.overall_score}, questions: ${interrogator.score}), Threading: ${strategy.strategic_threading.score}, Critical Gaps: ${strategy.critical_gaps.length}, Pricing: ${auditor.pricing_score}`);
+  console.log(`${logPrefix} Scores - Behavior: ${behavior.overall_score} (base: ${referee.overall_score}, questions: ${interrogator.score}), Threading: ${strategy.strategic_threading.score}, Critical Gaps: ${strategy.critical_gaps.length}, Pricing: ${auditor.pricing_score}`);
 
   // ============= PHASE 2: The Coach + The Scribe =============
   
   // Check if we've exceeded the hard limit - if so, skip Phase 2 and return partial results
   const elapsedBeforePhase2 = performance.now() - pipelineStart;
   if (elapsedBeforePhase2 > PIPELINE_HARD_LIMIT_MS) {
-    console.warn(`[Pipeline] ⚠️ Pipeline exceeded ${PIPELINE_HARD_LIMIT_MS}ms (${Math.round(elapsedBeforePhase2)}ms), skipping Phase 2`);
+    console.warn(`${logPrefix} Pipeline exceeded ${PIPELINE_HARD_LIMIT_MS}ms (${Math.round(elapsedBeforePhase2)}ms), skipping Phase 2`);
     warnings.push(`Pipeline timeout (${Math.round(elapsedBeforePhase2)}ms) - Phase 2 skipped, using defaults`);
     
     const coachDefault = coachConfig.default as CoachOutput;
@@ -1240,7 +1335,7 @@ export async function runAnalysisPipeline(
     };
   }
   
-  console.log('[Pipeline] Phase 2: Running The Coach + The Scribe (parallel)...');
+  console.log(`${logPrefix} Phase 2: Running The Coach + The Scribe (parallel)...`);
   const phase2Start = performance.now();
 
   // Build coaching input report
@@ -1273,7 +1368,7 @@ export async function runAnalysisPipeline(
   // Run Coach and Scribe in parallel - Coach uses consensus, Scribe uses single model
   const [coachResult, scribeResult] = await Promise.all([
     executeCoachWithConsensus(coachConfig, coachingReport, supabase, callId),
-    executeAgentWithPrompt(scribeConfig, scribeInput, supabase, callId),
+    cachedExecuteAgentWithPrompt<ScribeOutput>(scribeConfig, scribeInput, supabase, callId),
   ]);
   
   if (!coachResult.success) {
@@ -1286,8 +1381,35 @@ export async function runAnalysisPipeline(
   const phase2Duration = performance.now() - phase2Start;
   const totalDuration = performance.now() - pipelineStart;
 
-  console.log(`[Pipeline] Phase 2 complete in ${Math.round(phase2Duration)}ms, Grade: ${coachResult.data.overall_grade}, Focus: ${coachResult.data.primary_focus_area}`);
-  console.log(`[Pipeline] Total pipeline: ${Math.round(totalDuration)}ms (Phase 1: ${Math.round(phase1Duration)}ms, Phase 2: ${Math.round(phase2Duration)}ms)`);
+  console.log(`${logPrefix} Phase 2 complete in ${Math.round(phase2Duration)}ms, Grade: ${coachResult.data.overall_grade}, Focus: ${coachResult.data.primary_focus_area}`);
+  console.log(`${logPrefix} Total pipeline: ${Math.round(totalDuration)}ms (Phase 1: ${Math.round(phase1Duration)}ms, Phase 2: ${Math.round(phase2Duration)}ms)`);
+
+  // Log cache performance
+  const totalAgents = Object.keys(agentCache).length;
+  if (cacheHits > 0) {
+    console.log(`${logPrefix} Cache stats: ${cacheHits} cache hits out of ~12 agents (saved ${cacheHits} LLM calls, hash: ${contentHash.substring(0, 12)}...)`);
+  }
+
+  // Persist agent cache to ai_call_analysis.raw_json._agent_cache for future runs
+  try {
+    const { data: existingRow } = await supabase
+      .from('ai_call_analysis')
+      .select('raw_json')
+      .eq('call_id', callId)
+      .maybeSingle();
+
+    if (existingRow) {
+      const currentRawJson = (existingRow.raw_json && typeof existingRow.raw_json === 'object')
+        ? existingRow.raw_json as Record<string, unknown>
+        : {};
+      await supabase
+        .from('ai_call_analysis')
+        .update({ raw_json: { ...currentRawJson, _agent_cache: agentCache } })
+        .eq('call_id', callId);
+    }
+  } catch (err) {
+    console.warn(`${logPrefix} Failed to persist agent cache:`, err);
+  }
 
   return {
     metadata,

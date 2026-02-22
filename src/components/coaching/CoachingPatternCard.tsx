@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { LucideIcon } from 'lucide-react';
@@ -15,7 +16,7 @@ interface CoachingPatternCardProps {
   emptyMessage?: string;
 }
 
-export function CoachingPatternCard({
+export const CoachingPatternCard = memo(function CoachingPatternCard({
   title,
   icon: Icon,
   items,
@@ -74,4 +75,4 @@ export function CoachingPatternCard({
       </CardContent>
     </Card>
   );
-}
+});

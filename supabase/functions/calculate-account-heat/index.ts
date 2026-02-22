@@ -1,9 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 interface AccountHeatAnalysis {
   score: number;
@@ -182,6 +178,9 @@ Score each factor 0-100:
 Be honest and critical. Don't inflate scores to be nice. A deal with unresolved Budget and Authority gaps cannot be "Hot".`;
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -460,9 +459,9 @@ No calls recorded for this account.`);
     });
 
   } catch (error) {
-    console.error('[AccountHeat] Error:', error);
-    const message = error instanceof Error ? error.message : 'Internal error';
-    return new Response(JSON.stringify({ error: message }), {
+    const requestId = crypto.randomUUID().slice(0, 8);
+    console.error(`[calculate-account-heat] Error ${requestId}:`, error instanceof Error ? error.message : error);
+    return new Response(JSON.stringify({ error: 'An unexpected error occurred. Please try again.', requestId }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });

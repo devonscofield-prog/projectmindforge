@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { HelpCircle, MessageCircle, Copy } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +14,7 @@ interface FollowUpQuestionsPanelProps {
   questions: (string | FollowUpQuestion)[];
 }
 
-export function FollowUpQuestionsPanel({ questions }: FollowUpQuestionsPanelProps) {
+export const FollowUpQuestionsPanel = memo(function FollowUpQuestionsPanel({ questions }: FollowUpQuestionsPanelProps) {
   if (!questions || questions.length === 0) {
     return null;
   }
@@ -81,4 +82,4 @@ export function FollowUpQuestionsPanel({ questions }: FollowUpQuestionsPanelProp
       </CardContent>
     </Card>
   );
-}
+});

@@ -1,64 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
-// Rate limiting: 20 requests per minute per user
-const RATE_LIMIT_WINDOW_MS = 60 * 1000;
-const RATE_LIMIT_MAX_REQUESTS = 20;
-const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
-
-function checkRateLimit(userId: string): { allowed: boolean; retryAfter?: number } {
-  const now = Date.now();
-  const userLimit = rateLimitMap.get(userId);
-  
-  if (!userLimit || now > userLimit.resetTime) {
-    rateLimitMap.set(userId, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
-    return { allowed: true };
-  }
-  
-  if (userLimit.count >= RATE_LIMIT_MAX_REQUESTS) {
-    const retryAfter = Math.ceil((userLimit.resetTime - now) / 1000);
-    return { allowed: false, retryAfter };
-  }
-  
-  userLimit.count++;
-  return { allowed: true };
-}
-
-// Clean up old rate limit entries
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, value] of rateLimitMap.entries()) {
-    if (now > value.resetTime) rateLimitMap.delete(key);
-  }
-}, 60 * 1000);
-
-// CORS
-function getCorsHeaders(origin?: string | null): Record<string, string> {
-  const allowedOrigins = ['https://lovable.dev', 'https://www.lovable.dev'];
-  const devPatterns = [
-    /^https?:\/\/localhost(:\d+)?$/,
-    /^https:\/\/[a-z0-9-]+\.lovableproject\.com$/,
-    /^https:\/\/[a-z0-9-]+\.lovable\.app$/,
-  ];
-  
-  const customDomain = Deno.env.get('CUSTOM_DOMAIN');
-  if (customDomain) {
-    const cleanDomain = customDomain.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/+$/, '').trim();
-    if (cleanDomain) {
-      allowedOrigins.push(`https://${cleanDomain}`);
-      allowedOrigins.push(`https://www.${cleanDomain}`);
-    }
-  }
-  
-  const requestOrigin = origin || '';
-  const isAllowed = allowedOrigins.includes(requestOrigin) || devPatterns.some(p => p.test(requestOrigin));
-  
-  return {
-    'Access-Control-Allow-Origin': isAllowed ? requestOrigin : allowedOrigins[0],
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  };
-}
+import { checkRateLimit } from "../_shared/rateLimiter.ts";
+import { getCorrelationId, createTracedLogger } from "../_shared/tracing.ts";
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 // Validation
 const chatMessageSchema = z.object({
@@ -389,10 +334,13 @@ async function fetchAllContext(supabase: any, pageContext: string): Promise<stri
 Deno.serve(async (req) => {
   const origin = req.headers.get('Origin');
   const corsHeaders = getCorsHeaders(origin);
-  
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const correlationId = getCorrelationId(req);
+  const log = createTracedLogger('admin-assistant-chat', correlationId);
 
   try {
     // Parse body
@@ -453,8 +401,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Rate limit
-    const rateLimit = checkRateLimit(user.id);
+    // Rate limit (20 requests per 60 seconds)
+    const rateLimit = await checkRateLimit(supabase, user.id, 'admin-assistant-chat', 20, 60);
     if (!rateLimit.allowed) {
       return new Response(
         JSON.stringify({ error: 'Rate limit exceeded' }),
@@ -463,14 +411,14 @@ Deno.serve(async (req) => {
     }
 
     // Fetch ALL platform context in parallel
-    console.log(`[admin-assistant] Fetching all context (current page: ${page_context})`);
+    log.info(`Fetching all context (current page: ${page_context})`);
     const contextData = await fetchAllContext(supabase, page_context);
 
     // Call OpenAI
     const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
     if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY not configured');
 
-    console.log(`[admin-assistant] Calling GPT-5.2 with ${messages.length} messages, page: ${page_context}`);
+    log.info(`Calling GPT-5.2 with ${messages.length} messages, page: ${page_context}`);
 
     const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -497,7 +445,7 @@ Deno.serve(async (req) => {
         );
       }
       const errorText = await aiResponse.text();
-      console.error('[admin-assistant] OpenAI error:', aiResponse.status, errorText);
+      log.error('OpenAI error:', aiResponse.status, errorText);
       throw new Error(`OpenAI API error: ${aiResponse.status}`);
     }
 
@@ -506,9 +454,9 @@ Deno.serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('[admin-assistant] Error:', error);
+    log.error('Unhandled error:', error instanceof Error ? error.message : error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      JSON.stringify({ error: 'An unexpected error occurred. Please try again.', requestId: correlationId }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

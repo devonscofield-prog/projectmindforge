@@ -1,9 +1,29 @@
 /**
  * HMAC Request Signing for Service-to-Service Communication
- * 
+ *
  * Provides an additional authentication layer beyond service role key validation.
  * Uses HMAC-SHA256 to sign request payloads with a shared secret.
  */
+
+// ============================================================================
+// TIMING-SAFE STRING COMPARISON
+// ============================================================================
+
+/**
+ * Timing-safe string comparison to prevent timing attacks.
+ * Uses HMAC-based comparison via Web Crypto API.
+ */
+export async function timingSafeEqual(a: string, b: string): Promise<boolean> {
+  const encoder = new TextEncoder();
+  const aBytes = encoder.encode(a);
+  const bBytes = encoder.encode(b);
+  if (aBytes.length !== bBytes.length) return false;
+  const key = await crypto.subtle.importKey(
+    'raw', aBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, bBytes);
+  return crypto.subtle.verify('HMAC', key, sig, bBytes);
+}
 
 // ============================================================================
 // HMAC SIGNATURE GENERATION & VALIDATION

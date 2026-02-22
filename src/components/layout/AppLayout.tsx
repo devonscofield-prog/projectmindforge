@@ -55,6 +55,11 @@ import { usePullToRefreshOnboarding } from '@/hooks/usePullToRefreshOnboarding';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { useNotificationRealtime } from '@/hooks/useInAppNotifications';
 import { AdminAssistantChat } from '@/components/admin/AdminAssistantChat';
+import { useQuery } from '@tanstack/react-query';
+import { getPendingTaskCountForRep, getPendingAccountsCountForRep, getCoachingOverdueCount } from '@/api/accountFollowUps';
+import { Badge } from '@/components/ui/badge';
+import { useOnboarding } from '@/hooks/useOnboarding';
+import { OnboardingFlow } from '@/components/onboarding/OnboardingFlow';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -230,10 +235,37 @@ const sdrManagerQuickActions = [
 
 
 function SidebarNav() {
-  const { profile, role, signOut } = useAuth();
+  const { profile, role, signOut, user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const { setOpenMobile, isMobile } = useSidebar();
+
+  // Fetch pending task count for rep sidebar badge
+  const { data: pendingTaskCount = 0 } = useQuery({
+    queryKey: ['rep-tasks-count', user?.id],
+    queryFn: () => getPendingTaskCountForRep(user!.id),
+    enabled: !!user?.id && role === 'rep',
+    staleTime: 2 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
+  });
+
+  // Fetch pending accounts count for rep "Accounts" badge
+  const { data: pendingAccountsCount = 0 } = useQuery({
+    queryKey: ['rep-pending-accounts', user?.id],
+    queryFn: () => getPendingAccountsCountForRep(user!.id),
+    enabled: !!user?.id && role === 'rep',
+    staleTime: 2 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
+  });
+
+  // Fetch coaching overdue count for manager "Team Overview" badge
+  const { data: coachingOverdueCount = 0 } = useQuery({
+    queryKey: ['manager-coaching-overdue', user?.id, role],
+    queryFn: () => getCoachingOverdueCount(user!.id, role!),
+    enabled: !!user?.id && (role === 'manager' || role === 'admin'),
+    staleTime: 2 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
+  });
 
   const handleSignOut = async () => {
     await signOut();
@@ -341,6 +373,21 @@ function SidebarNav() {
                             aria-hidden="true" 
                           />
                           <span>{item.label}</span>
+                          {item.href === '/rep/tasks' && pendingTaskCount > 0 && (
+                            <Badge variant="default" className="ml-auto h-5 min-w-5 px-1.5 text-xs font-semibold">
+                              {pendingTaskCount > 99 ? '99+' : pendingTaskCount}
+                            </Badge>
+                          )}
+                          {item.href === '/rep/prospects' && pendingAccountsCount > 0 && (
+                            <Badge variant="default" className="ml-auto h-5 min-w-5 px-1.5 text-xs font-semibold">
+                              {pendingAccountsCount > 99 ? '99+' : pendingAccountsCount}
+                            </Badge>
+                          )}
+                          {item.href === '/manager' && coachingOverdueCount > 0 && (
+                            <Badge variant="destructive" className="ml-auto h-5 min-w-5 px-1.5 text-xs font-semibold">
+                              {coachingOverdueCount > 99 ? '99+' : coachingOverdueCount}
+                            </Badge>
+                          )}
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -493,6 +540,9 @@ function DesktopSidebarToggle() {
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
+  const { user, profile, role } = useAuth();
+  const { showOnboarding, completeOnboarding, dismissOnboarding } = useOnboarding(user?.id);
+
   // Enable real-time performance alert toasts for admins
   usePerformanceAlertToasts();
   // Enable real-time notification toasts
@@ -529,6 +579,16 @@ export function AppLayout({ children }: AppLayoutProps) {
           
           {/* Admin AI Assistant */}
           <AdminAssistantChat />
+
+          {/* Onboarding flow for first-time users */}
+          {showOnboarding && profile && role && (
+            <OnboardingFlow
+              profile={profile}
+              role={role}
+              onComplete={completeOnboarding}
+              onDismiss={dismissOnboarding}
+            />
+          )}
         </div>
       </SidebarProvider>
     </PullToRefreshProvider>

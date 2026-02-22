@@ -117,18 +117,18 @@ describe('getAccountsLabel', () => {
     expect(getAccountsLabel('rep')).toBe('My Accounts');
   });
 
-  it('returns "My Accounts" for null role (default)', () => {
-    expect(getAccountsLabel(null)).toBe('My Accounts');
+  it('returns "Accounts" for null role (default)', () => {
+    expect(getAccountsLabel(null)).toBe('Accounts');
   });
 });
 
 describe('getCallHistoryUrl', () => {
-  it('returns admin dashboard for admin role', () => {
-    expect(getCallHistoryUrl('admin')).toBe('/admin');
+  it('returns admin history path for admin role', () => {
+    expect(getCallHistoryUrl('admin')).toBe('/admin/history');
   });
 
-  it('returns manager coaching path for manager role', () => {
-    expect(getCallHistoryUrl('manager')).toBe('/manager/coaching');
+  it('returns manager history path for manager role', () => {
+    expect(getCallHistoryUrl('manager')).toBe('/manager/history');
   });
 
   it('returns rep history path for rep role', () => {
@@ -141,12 +141,12 @@ describe('getCallHistoryUrl', () => {
 });
 
 describe('getCallHistoryLabel', () => {
-  it('returns "Dashboard" for admin role', () => {
-    expect(getCallHistoryLabel('admin')).toBe('Dashboard');
+  it('returns "Organization Call History" for admin role', () => {
+    expect(getCallHistoryLabel('admin')).toBe('Organization Call History');
   });
 
-  it('returns "Coaching" for manager role', () => {
-    expect(getCallHistoryLabel('manager')).toBe('Coaching');
+  it('returns "Team Call History" for manager role', () => {
+    expect(getCallHistoryLabel('manager')).toBe('Team Call History');
   });
 
   it('returns "Call History" for rep role', () => {

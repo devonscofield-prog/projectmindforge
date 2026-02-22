@@ -579,7 +579,8 @@ export default function RoleplaySession() {
       if (urlData?.publicUrl) {
         await supabase
           .from('roleplay_sessions')
-          .update({ audio_recording_url: urlData.publicUrl } as any)
+          // TODO: Remove cast once audio_recording_url is in generated types
+          .update({ audio_recording_url: urlData.publicUrl } as Record<string, unknown>)
           .eq('id', sid);
         console.log('Recording saved:', urlData.publicUrl);
       }

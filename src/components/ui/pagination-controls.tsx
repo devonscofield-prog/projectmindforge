@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
@@ -14,7 +15,7 @@ interface PaginationControlsProps {
   className?: string;
 }
 
-export function PaginationControls({
+export const PaginationControls = memo(function PaginationControls({
   currentPage,
   totalPages,
   totalItems,
@@ -107,4 +108,4 @@ export function PaginationControls({
       </div>
     </div>
   );
-}
+});

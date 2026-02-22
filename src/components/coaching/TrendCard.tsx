@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -15,7 +16,7 @@ interface TrendCardProps {
   recommendation: string;
 }
 
-export function TrendCard({
+export const TrendCard = memo(function TrendCard({
   title,
   icon,
   trend,
@@ -131,4 +132,4 @@ export function TrendCard({
       </CardContent>
     </Card>
   );
-}
+});

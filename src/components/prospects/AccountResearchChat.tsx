@@ -102,7 +102,7 @@ export function AccountResearchChat({
   useEffect(() => {
     if (open) {
       setCompanyName(prospect?.account_name || prospect?.prospect_name || '');
-      setWebsite((prospect as any)?.website || '');
+      setWebsite(prospect?.website || '');
       setIndustry(prospect?.industry || '');
       
       // Auto-populate stakeholders

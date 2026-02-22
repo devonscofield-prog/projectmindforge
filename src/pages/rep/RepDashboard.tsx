@@ -21,9 +21,8 @@ import { updateProspect } from '@/api/prospects';
 import { CallType, callTypeOptions } from '@/constants/callTypes';
 import { OpportunityLabel, opportunityLabelOptions } from '@/constants/opportunityLabels';
 import { format, formatDistanceToNow } from 'date-fns';
-import { Send, Loader2, FileText, Pencil, BarChart3, Users, AlertTriangle, Info, Keyboard, RotateCcw, ClipboardList, Package, CheckCircle2 } from 'lucide-react';
-import { FormSection } from '@/components/forms/FormSection';
-import { FormProgressHeader } from '@/components/forms/FormProgressHeader';
+import { Send, Loader2, FileText, Pencil, BarChart3, Users, AlertTriangle, Info, Keyboard, RotateCcw, ClipboardList, Package, CheckCircle2, ChevronDown } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AccountCombobox } from '@/components/forms/AccountCombobox';
@@ -118,6 +117,9 @@ function RepDashboard() {
   const [lastSubmitTime, setLastSubmitTime] = useState(0);
   const [selectedSequenceId, setSelectedSequenceId] = useState<string>('');
   
+  // Step 2 details toggle
+  const [showDetails, setShowDetails] = useState(false);
+
   // Draft state
   const [hasDraft, setHasDraft] = useState(false);
   const [showDraftDialog, setShowDraftDialog] = useState(false);
@@ -517,6 +519,11 @@ function RepDashboard() {
 
     // If there are invalid fields, shake them and return
     if (invalidFields.length > 0) {
+      // Auto-expand Step 2 if any of its fields are invalid
+      const step2Fields = ['salesforce', 'opportunitySize', 'targetCloseDate', 'opportunityLabel', 'products'];
+      if (invalidFields.some(f => step2Fields.includes(f))) {
+        setShowDetails(true);
+      }
       setShakeFields(invalidFields);
       setTimeout(() => setShakeFields([]), 500);
       toast.error('Please complete all required fields');
@@ -702,317 +709,119 @@ function RepDashboard() {
               </CardHeader>
               <CardContent className="p-0">
                 <form ref={formRef} onSubmit={handleSubmit} className="space-y-6 p-6 md:p-8">
-                  {/* Progress Header */}
-                  <FormProgressHeader
-                    sections={[
-                      { id: 'call-details', title: 'Call Details', isComplete: isAccountValid && isStakeholderValid && isSalesforceValid && isSalesforceUrlValid && isCallTypeOtherValid && isOpportunitySizeValid && isTargetCloseDateValid && isOpportunityLabelValid, isRequired: true },
-                      { id: 'participants', title: 'Participants', isComplete: managerOnCall || (additionalSpeakersEnabled && additionalSpeakersText.trim().length > 0), isRequired: false },
-                      { id: 'transcript', title: 'Transcript', isComplete: isTranscriptLengthValid, isRequired: true },
-                      { id: 'products', title: 'Products', isComplete: selectedProducts.length > 0, isRequired: false },
-                    ]}
-                  />
-
-                  {/* Section 1: Call Details */}
-                  <FormSection
-                    title="Call Details"
-                    icon={<ClipboardList className="h-4 w-4" />}
-                    isComplete={isAccountValid && isStakeholderValid && isSalesforceValid && isSalesforceUrlValid && isCallTypeOtherValid && isOpportunitySizeValid && isTargetCloseDateValid && isOpportunityLabelValid}
-                    completionCount={[isAccountValid, isStakeholderValid, isSalesforceValid && isSalesforceUrlValid, true, isOpportunitySizeValid, isTargetCloseDateValid, isOpportunityLabelValid].filter(Boolean).length}
-                    totalCount={7}
-                    isRequired
-                    defaultOpen
-                  >
-                    <div className="space-y-6">
-                      {/* Account and Primary Stakeholder Row */}
-                      <div className="space-y-4">
-                        <div className={`space-y-2 ${shakeFields.includes('account') ? 'animate-shake' : ''}`}>
-                          <Label htmlFor="accountName">Account Name *</Label>
-                          <AccountCombobox 
-                            repId={user?.id || ''} 
-                            value={accountName} 
-                            selectedProspectId={selectedProspectId} 
-                            onChange={handleAccountChange} 
-                            placeholder="Select or type account..." 
-                            disabled={!user?.id || isSubmitting} 
-                          />
-                          {accountName.trim().length === 1 && (
-                            <p className="text-xs text-amber-500">
-                              Account name must be at least 2 characters
-                            </p>
-                          )}
-                        </div>
-                        <div className={`space-y-2 ${shakeFields.includes('stakeholder') ? 'animate-shake' : ''}`}>
-                          <Label>Stakeholders on this call *</Label>
-                          <MultiStakeholderSelector
-                            prospectId={selectedProspectId}
-                            stakeholders={stakeholders}
-                            onChange={setStakeholders}
-                            disabled={!user?.id || isSubmitting}
-                          />
-                        </div>
+                  {/* Step Indicator */}
+                  <div className="flex items-center gap-2 sm:gap-3 text-sm">
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium shrink-0 ${
+                        isAccountValid && isStakeholderValid && isCallTypeOtherValid && isTranscriptLengthValid
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted text-muted-foreground border border-border'
+                      }`}>
+                        {isAccountValid && isStakeholderValid && isCallTypeOtherValid && isTranscriptLengthValid
+                          ? <CheckCircle2 className="h-3.5 w-3.5" />
+                          : '1'}
                       </div>
-
-                      {/* Salesforce Link Row */}
-                      <div className={`space-y-2 ${shakeFields.includes('salesforce') ? 'animate-shake' : ''}`}>
-                        <Label htmlFor="salesforceAccountLink">
-                          Salesforce Account Link {(!selectedProspectId || !existingAccountHasSalesforceLink) && '*'}
-                        </Label>
-                        <div className="flex gap-2">
-                        <Input 
-                            id="salesforceAccountLink" 
-                            type="url" 
-                            placeholder="https://yourcompany.lightning.force.com/..." 
-                            value={salesforceAccountLink} 
-                            onChange={e => setSalesforceAccountLink(e.target.value)} 
-                            disabled={(existingAccountHasSalesforceLink && !isEditingSalesforceLink) || isSubmitting} 
-                            maxLength={500}
-                            className="flex-1 h-11" 
-                          />
-                          {existingAccountHasSalesforceLink && !isEditingSalesforceLink && <Button type="button" variant="outline" size="icon" onClick={() => setIsEditingSalesforceLink(true)} title="Edit Salesforce link" disabled={isSubmitting}>
-                              <Pencil className="h-4 w-4" />
-                            </Button>}
-                        </div>
-                        {existingAccountHasSalesforceLink && <p className="text-xs text-muted-foreground">
-                            {isEditingSalesforceLink ? 'Editing account link' : 'Using existing account link'}
-                          </p>}
-                        {salesforceAccountLink.trim() && !isSalesforceUrlValid ? (
-                          <p className="text-xs text-destructive">
-                            URL must contain "salesforce" or "force.com"
-                          </p>
-                        ) : !existingAccountHasSalesforceLink && (
-                          <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                            <Info className="h-3.5 w-3.5 shrink-0" />
-                            Paste the account URL from Salesforce (e.g., acme.lightning.force.com/lightning/r/Account/001...)
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Date and Call Type Row */}
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label htmlFor="callDate">Call Date *</Label>
-                          <Input 
-                            id="callDate" 
-                            type="date" 
-                            value={callDate} 
-                            onChange={e => setCallDate(e.target.value)} 
-                            max={format(new Date(), 'yyyy-MM-dd')}
-                            disabled={isSubmitting}
-                            className="h-11"
-                            required 
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="callType">Call Type *</Label>
-                          <Select value={callType} onValueChange={v => setCallType(v as CallType)} disabled={isSubmitting}>
-                            <SelectTrigger id="callType" className="h-11">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {callTypeOptions.map(option => <SelectItem key={option.value} value={option.value}>
-                                  {option.label}
-                                </SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-
-                      {/* Other Call Type Input (conditional) */}
-                      {callType === 'other' && <div className="space-y-2">
-                          <Label htmlFor="callTypeOther">Specify Call Type *</Label>
-                          <Input 
-                            ref={callTypeOtherRef}
-                            id="callTypeOther" 
-                            placeholder="e.g., Executive Briefing, Technical Deep-Dive" 
-                            value={callTypeOther} 
-                            onChange={e => setCallTypeOther(e.target.value)} 
-                            maxLength={50}
-                            disabled={isSubmitting}
-                            className="h-11"
-                            required 
-                          />
-                          <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                            <Info className="h-3.5 w-3.5 shrink-0" />
-                            Brief description for call categorization ({callTypeOther.length}/50)
-                          </p>
-                        </div>}
-
-                      {/* Opportunity Fields */}
-                      <div className="grid gap-4 sm:grid-cols-3">
-                        <div className={`space-y-2 ${shakeFields.includes('opportunitySize') ? 'animate-shake' : ''}`}>
-                          <Label htmlFor="estimatedOpportunitySize">Est. Opportunity Size *</Label>
-                          <Input 
-                            id="estimatedOpportunitySize" 
-                            type="number" 
-                            min="0" 
-                            step="0.01"
-                            placeholder="$0.00"
-                            value={estimatedOpportunitySize} 
-                            onChange={e => setEstimatedOpportunitySize(e.target.value)} 
-                            disabled={isSubmitting}
-                            className="h-11"
-                            required 
-                          />
-                        </div>
-                        <div className={`space-y-2 ${shakeFields.includes('targetCloseDate') ? 'animate-shake' : ''}`}>
-                          <Label htmlFor="targetCloseDate">Target Close Date *</Label>
-                          <Input 
-                            id="targetCloseDate" 
-                            type="date" 
-                            value={targetCloseDate} 
-                            onChange={e => setTargetCloseDate(e.target.value)} 
-                            disabled={isSubmitting}
-                            className="h-11"
-                            required 
-                          />
-                        </div>
-                        <div className={`space-y-2 ${shakeFields.includes('opportunityLabel') ? 'animate-shake' : ''}`}>
-                          <Label htmlFor="opportunityLabel">Opportunity Label *</Label>
-                          <Select value={opportunityLabel} onValueChange={v => setOpportunityLabel(v as OpportunityLabel)} disabled={isSubmitting}>
-                            <SelectTrigger id="opportunityLabel" className="h-11">
-                              <SelectValue placeholder="Select label" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {opportunityLabelOptions.map(option => (
-                                <SelectItem key={option.value} value={option.value}>
-                                  {option.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
+                      <span className="font-medium text-foreground text-xs sm:text-sm">Quick Capture</span>
                     </div>
-                  </FormSection>
+                    <div className="flex-1 h-0.5 bg-border" />
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium shrink-0 ${
+                        showDetails && isOpportunitySizeValid && isTargetCloseDateValid && isOpportunityLabelValid
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted text-muted-foreground border border-border'
+                      }`}>
+                        {showDetails && isOpportunitySizeValid && isTargetCloseDateValid && isOpportunityLabelValid
+                          ? <CheckCircle2 className="h-3.5 w-3.5" />
+                          : '2'}
+                      </div>
+                      <span className="text-muted-foreground text-xs sm:text-sm">Add Details</span>
+                    </div>
+                  </div>
 
-                  {/* Section 2: Participants */}
-                  <FormSection
-                    title="Participants"
-                    icon={<Users className="h-4 w-4" />}
-                    isComplete={managerOnCall || (additionalSpeakersEnabled && additionalSpeakersText.trim().length > 0)}
-                    completionCount={[managerOnCall, additionalSpeakersEnabled].filter(Boolean).length}
-                    totalCount={2}
-                    isRequired={false}
-                    defaultOpen={false}
-                  >
-                    <div className="space-y-4">
-                      {/* Manager on Call Checkbox */}
-                      <TooltipProvider>
-                        <div className="flex items-center space-x-2">
-                          <Checkbox 
-                            id="managerOnCall" 
-                            checked={managerOnCall} 
-                            onCheckedChange={(checked) => setManagerOnCall(checked === true)}
-                            disabled={isSubmitting}
-                          />
-                          <Label htmlFor="managerOnCall" className="text-sm font-normal flex items-center gap-1.5 cursor-pointer">
-                            <Users className="h-4 w-4 text-muted-foreground" />
-                            Manager was on this call
-                          </Label>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p className="max-w-xs">Check this if your manager joined to help close the deal. Enables coaching differentiation.</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </div>
-                      </TooltipProvider>
+                  {/* ── Step 1: Quick Call Capture ── */}
+                  <div className="space-y-5">
+                    {/* Account */}
+                    <div className={`space-y-2 ${shakeFields.includes('account') ? 'animate-shake' : ''}`}>
+                      <Label htmlFor="accountName">Account / Prospect *</Label>
+                      <AccountCombobox
+                        repId={user?.id || ''}
+                        value={accountName}
+                        selectedProspectId={selectedProspectId}
+                        onChange={handleAccountChange}
+                        placeholder="Select or type account..."
+                        disabled={!user?.id || isSubmitting}
+                      />
+                      {accountName.trim().length === 1 && (
+                        <p className="text-xs text-amber-500">
+                          Account name must be at least 2 characters
+                        </p>
+                      )}
+                    </div>
 
-                      {/* Additional Speakers Checkbox + Input */}
+                    {/* Primary Stakeholder */}
+                    <div className={`space-y-2 ${shakeFields.includes('stakeholder') ? 'animate-shake' : ''}`}>
+                      <Label>Primary Stakeholder *</Label>
+                      <MultiStakeholderSelector
+                        prospectId={selectedProspectId}
+                        stakeholders={stakeholders}
+                        onChange={setStakeholders}
+                        disabled={!user?.id || isSubmitting}
+                      />
+                    </div>
+
+                    {/* Call Type & Date */}
+                    <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <TooltipProvider>
-                          <div className="flex items-center space-x-2">
-                            <Checkbox 
-                              id="additionalSpeakers" 
-                              checked={additionalSpeakersEnabled} 
-                              onCheckedChange={(checked) => setAdditionalSpeakersEnabled(checked === true)}
-                              disabled={isSubmitting}
-                            />
-                            <Label htmlFor="additionalSpeakers" className="text-sm font-normal flex items-center gap-1.5 cursor-pointer">
-                              <Users className="h-4 w-4 text-muted-foreground" />
-                              Additional speakers on this call
-                            </Label>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p className="max-w-xs">Include names of other participants like sales engineers or technical specialists.</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </div>
-                        </TooltipProvider>
-                        {additionalSpeakersEnabled && (
-                          <div className="space-y-1 ml-6">
-                            <Input 
-                              placeholder="Enter names separated by commas (e.g., John Smith, Sarah Jones)"
-                              value={additionalSpeakersText}
-                              onChange={e => setAdditionalSpeakersText(e.target.value)}
-                              disabled={isSubmitting}
-                              maxLength={200}
-                              className="text-sm"
-                              aria-describedby="speakers-hint"
-                            />
-                            <div className="flex justify-between">
-                              <p id="speakers-hint" className="text-xs text-muted-foreground">
-                                Max {MAX_ADDITIONAL_SPEAKERS} additional speakers
-                              </p>
-                              {additionalSpeakers.length > 0 && (
-                                <p className={`text-xs ${isAdditionalSpeakersValid ? 'text-muted-foreground' : 'text-destructive'}`}>
-                                  {additionalSpeakers.length}/{MAX_ADDITIONAL_SPEAKERS} speakers
-                                </p>
-                              )}
-                            </div>
-                            {!isAdditionalSpeakersValid && (
-                              <Alert variant="destructive" className="py-2">
-                                <AlertTriangle className="h-4 w-4" />
-                                <AlertDescription>
-                                  Please reduce to {MAX_ADDITIONAL_SPEAKERS} speakers or fewer.
-                                </AlertDescription>
-                              </Alert>
-                            )}
-                          </div>
-                        )}
+                        <Label htmlFor="callType">Call Type *</Label>
+                        <Select value={callType} onValueChange={v => setCallType(v as CallType)} disabled={isSubmitting}>
+                          <SelectTrigger id="callType" className="h-11">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {callTypeOptions.map(option => <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>)}
+                          </SelectContent>
+                        </Select>
                       </div>
-
-                      {/* Mark as Unqualified Checkbox */}
-                      <TooltipProvider>
-                        <div className="flex items-center space-x-2 pt-2 border-t border-border/50">
-                          <Checkbox 
-                            id="isUnqualified" 
-                            checked={isUnqualified} 
-                            onCheckedChange={(checked) => setIsUnqualified(checked === true)}
-                            disabled={isSubmitting}
-                          />
-                          <Label htmlFor="isUnqualified" className="text-sm font-normal flex items-center gap-1.5 cursor-pointer">
-                            🚫 Mark as Unqualified
-                          </Label>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p className="max-w-xs">Tag this call if the lead is not a fit. Managers can review and verify unqualified calls.</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </div>
-                      </TooltipProvider>
+                      <div className="space-y-2">
+                        <Label htmlFor="callDate">Call Date *</Label>
+                        <Input
+                          id="callDate"
+                          type="date"
+                          value={callDate}
+                          onChange={e => setCallDate(e.target.value)}
+                          max={format(new Date(), 'yyyy-MM-dd')}
+                          disabled={isSubmitting}
+                          className="h-11"
+                          required
+                        />
+                      </div>
                     </div>
-                  </FormSection>
 
-                  {/* Section 3: Transcript */}
-                  <FormSection
-                    title="Transcript"
-                    icon={<FileText className="h-4 w-4" />}
-                    isComplete={isTranscriptLengthValid}
-                    completionCount={isTranscriptLengthValid ? 1 : 0}
-                    totalCount={1}
-                    isRequired
-                    defaultOpen
-                  >
+                    {/* Other Call Type Input (conditional) */}
+                    {callType === 'other' && <div className="space-y-2">
+                        <Label htmlFor="callTypeOther">Specify Call Type *</Label>
+                        <Input
+                          ref={callTypeOtherRef}
+                          id="callTypeOther"
+                          placeholder="e.g., Executive Briefing, Technical Deep-Dive"
+                          value={callTypeOther}
+                          onChange={e => setCallTypeOther(e.target.value)}
+                          maxLength={50}
+                          disabled={isSubmitting}
+                          className="h-11"
+                          required
+                        />
+                        <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                          <Info className="h-3.5 w-3.5 shrink-0" />
+                          Brief description for call categorization ({callTypeOther.length}/50)
+                        </p>
+                      </div>}
+
+                    {/* Transcript */}
                     <div className={`space-y-0 ${shakeFields.includes('transcript') ? 'animate-shake' : ''}`}>
+                      <Label className="mb-2 block">Transcript *</Label>
                       {/* Premium Editor Container */}
                       <div className="relative rounded-2xl bg-gradient-to-b from-muted/20 via-muted/30 to-muted/40 dark:from-muted/10 dark:via-muted/20 dark:to-muted/30 editor-focus-ring overflow-hidden">
                         {/* Floating character counter with X/500 format */}
@@ -1022,36 +831,36 @@ function RepDashboard() {
                           </span>
                           {isTranscriptLengthValid && <CheckCircle2 className="h-3.5 w-3.5 text-primary" />}
                         </div>
-                        
-                        <Textarea 
-                          id="transcript" 
+
+                        <Textarea
+                          id="transcript"
                           placeholder="Paste the full call transcript here...
 
-Include the entire conversation—speaker labels are helpful but not required.
+Include the entire conversation — speaker labels are helpful but not required.
 
-The more detail you include, the better the AI analysis." 
-                          value={transcript} 
-                          onChange={e => setTranscript(e.target.value)} 
-                          className="min-h-[350px] md:min-h-[400px] font-mono text-sm leading-7 p-6 md:p-8 bg-transparent border-0 shadow-none resize-none focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/50 placeholder:leading-relaxed" 
+The more detail you include, the better the AI analysis."
+                          value={transcript}
+                          onChange={e => setTranscript(e.target.value)}
+                          className="min-h-[280px] md:min-h-[350px] font-mono text-sm leading-7 p-6 md:p-8 bg-transparent border-0 shadow-none resize-none focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/50 placeholder:leading-relaxed"
                           maxLength={100000}
                           disabled={isSubmitting}
-                          required 
+                          required
                           aria-describedby="transcript-hint"
                         />
-                        
+
                         {/* Attached Progress Bar at bottom edge */}
                         <div className="h-1 w-full relative">
-                          <div 
+                          <div
                             className={`h-full transition-all duration-500 ease-out ${
-                              transcriptProgress >= 100 
-                                ? 'bg-primary progress-glow-primary' 
+                              transcriptProgress >= 100
+                                ? 'bg-primary progress-glow-primary'
                                 : 'bg-amber-500 progress-glow-amber'
                             }`}
                             style={{ width: `${transcriptProgress}%` }}
                           />
                         </div>
                       </div>
-                      
+
                       {/* Progress info below editor */}
                       <div className="flex flex-col gap-1.5 pt-3 text-xs">
                         <div className="flex justify-between items-center">
@@ -1070,77 +879,278 @@ The more detail you include, the better the AI analysis."
                             </span>
                           ) : null}
                         </div>
-                        {normalizedTranscript.length === 0 && (
-                          <p className="text-muted-foreground/70">
-                            💡 Tip: Longer transcripts provide richer coaching insights
-                          </p>
-                        )}
                       </div>
                       {isNearLimit && (
                         <p className={`text-xs mt-1 ${isAtLimit ? "text-destructive font-medium" : isApproachingLimit ? "text-amber-500" : "text-muted-foreground"}`}>
                           {normalizedTranscript.length.toLocaleString()} / {MAX_TRANSCRIPT_LENGTH.toLocaleString()} characters
-                          {isAtLimit && " — approaching limit"}
+                          {isAtLimit && " -- approaching limit"}
                         </p>
                       )}
                     </div>
-                  </FormSection>
+                  </div>
 
-                  {/* Section 4: Products */}
-                  <FormSection
-                    title="Products"
-                    icon={<Package className="h-4 w-4" />}
-                    isComplete={selectedProducts.length > 0}
-                    completionCount={selectedProducts.length}
-                    totalCount={selectedProducts.length || undefined}
-                    isRequired={false}
-                    defaultOpen={false}
-                  >
-                    <div className={`${shakeFields.includes('products') ? 'animate-shake' : ''}`}>
-                      <p className="text-sm text-muted-foreground mb-4">
-                        Track products and pricing discussed on this call to calculate active revenue.
-                      </p>
-                      <ProductSelector
-                        value={selectedProducts}
-                        onChange={setSelectedProducts}
-                      />
-                    </div>
-                  </FormSection>
+                  {/* ── Step 2: Opportunity Details (collapsible) ── */}
+                  <Collapsible open={showDetails} onOpenChange={setShowDetails}>
+                    <CollapsibleTrigger asChild>
+                      <button
+                        type="button"
+                        className="w-full flex items-center justify-between p-4 rounded-xl transition-all duration-200 bg-muted/30 hover:bg-muted/50 border border-border/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-h-[44px]"
+                      >
+                        <div className="flex items-center gap-3">
+                          <ClipboardList className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium text-foreground">Add opportunity details</span>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                            {(() => {
+                              const filled = [
+                                isOpportunitySizeValid,
+                                isTargetCloseDateValid,
+                                isOpportunityLabelValid,
+                                isSalesforceValid && isSalesforceUrlValid,
+                                selectedProducts.length > 0,
+                                managerOnCall || additionalSpeakersEnabled,
+                                !!selectedSequenceId && selectedSequenceId !== 'none',
+                              ].filter(Boolean).length;
+                              return filled > 0 ? `${filled} filled` : '7 optional fields';
+                            })()}
+                          </span>
+                        </div>
+                        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${showDetails ? 'rotate-180' : ''}`} />
+                      </button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="overflow-hidden data-[state=open]:animate-accordion-down data-[state=closed]:animate-accordion-up">
+                      <div className="space-y-6 pt-4">
+                        {/* Opportunity Fields */}
+                        <div className="grid gap-4 sm:grid-cols-3">
+                          <div className={`space-y-2 ${shakeFields.includes('opportunitySize') ? 'animate-shake' : ''}`}>
+                            <Label htmlFor="estimatedOpportunitySize">Est. Deal Size *</Label>
+                            <Input
+                              id="estimatedOpportunitySize"
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="$0.00"
+                              value={estimatedOpportunitySize}
+                              onChange={e => setEstimatedOpportunitySize(e.target.value)}
+                              disabled={isSubmitting}
+                              className="h-11"
+                              required
+                            />
+                          </div>
+                          <div className={`space-y-2 ${shakeFields.includes('targetCloseDate') ? 'animate-shake' : ''}`}>
+                            <Label htmlFor="targetCloseDate">Target Close Date *</Label>
+                            <Input
+                              id="targetCloseDate"
+                              type="date"
+                              value={targetCloseDate}
+                              onChange={e => setTargetCloseDate(e.target.value)}
+                              disabled={isSubmitting}
+                              className="h-11"
+                              required
+                            />
+                          </div>
+                          <div className={`space-y-2 ${shakeFields.includes('opportunityLabel') ? 'animate-shake' : ''}`}>
+                            <Label htmlFor="opportunityLabel">Opportunity Label *</Label>
+                            <Select value={opportunityLabel} onValueChange={v => setOpportunityLabel(v as OpportunityLabel)} disabled={isSubmitting}>
+                              <SelectTrigger id="opportunityLabel" className="h-11">
+                                <SelectValue placeholder="Select label" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {opportunityLabelOptions.map(option => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
 
-                  {/* Section 5: Auto-Task Sequence */}
-                  {taskSequences.length > 0 && (
-                    <FormSection
-                      title="Auto-Task Sequence"
-                      icon={<ClipboardList className="h-4 w-4" />}
-                      isComplete={!!selectedSequenceId}
-                      isRequired={false}
-                      defaultOpen={false}
-                    >
-                      <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground">
-                          Optionally select a task sequence to auto-create follow-up tasks for this call.
-                        </p>
-                        <Select value={selectedSequenceId} onValueChange={setSelectedSequenceId}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="None (no auto-tasks)" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">None</SelectItem>
-                            {taskSequences.map(seq => (
-                              <SelectItem key={seq.id} value={seq.id}>{seq.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        {/* Salesforce Link */}
+                        <div className={`space-y-2 ${shakeFields.includes('salesforce') ? 'animate-shake' : ''}`}>
+                          <Label htmlFor="salesforceAccountLink">
+                            Salesforce Account Link {(!selectedProspectId || !existingAccountHasSalesforceLink) && '*'}
+                          </Label>
+                          <div className="flex gap-2">
+                            <Input
+                              id="salesforceAccountLink"
+                              type="url"
+                              placeholder="https://yourcompany.lightning.force.com/..."
+                              value={salesforceAccountLink}
+                              onChange={e => setSalesforceAccountLink(e.target.value)}
+                              disabled={(existingAccountHasSalesforceLink && !isEditingSalesforceLink) || isSubmitting}
+                              maxLength={500}
+                              className="flex-1 h-11"
+                            />
+                            {existingAccountHasSalesforceLink && !isEditingSalesforceLink && <Button type="button" variant="outline" size="icon" onClick={() => setIsEditingSalesforceLink(true)} title="Edit Salesforce link" disabled={isSubmitting}>
+                                <Pencil className="h-4 w-4" />
+                              </Button>}
+                          </div>
+                          {existingAccountHasSalesforceLink && <p className="text-xs text-muted-foreground">
+                              {isEditingSalesforceLink ? 'Editing account link' : 'Using existing account link'}
+                            </p>}
+                          {salesforceAccountLink.trim() && !isSalesforceUrlValid ? (
+                            <p className="text-xs text-destructive">
+                              URL must contain "salesforce" or "force.com"
+                            </p>
+                          ) : !existingAccountHasSalesforceLink && (
+                            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                              <Info className="h-3.5 w-3.5 shrink-0" />
+                              Paste the account URL from Salesforce
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Products */}
+                        <div className={`space-y-2 ${shakeFields.includes('products') ? 'animate-shake' : ''}`}>
+                          <Label>Products Discussed</Label>
+                          <p className="text-xs text-muted-foreground mb-2">
+                            Track products and pricing discussed on this call.
+                          </p>
+                          <ProductSelector
+                            value={selectedProducts}
+                            onChange={setSelectedProducts}
+                          />
+                        </div>
+
+                        {/* Participants */}
+                        <div className="space-y-4">
+                          <Label className="text-sm font-medium">Additional Participants</Label>
+                          {/* Manager on Call */}
+                          <TooltipProvider>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox
+                                id="managerOnCall"
+                                checked={managerOnCall}
+                                onCheckedChange={(checked) => setManagerOnCall(checked === true)}
+                                disabled={isSubmitting}
+                              />
+                              <Label htmlFor="managerOnCall" className="text-sm font-normal flex items-center gap-1.5 cursor-pointer">
+                                <Users className="h-4 w-4 text-muted-foreground" />
+                                Manager was on this call
+                              </Label>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="max-w-xs">Check this if your manager joined to help close the deal.</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
+                          </TooltipProvider>
+
+                          {/* Additional Speakers */}
+                          <div className="space-y-2">
+                            <TooltipProvider>
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id="additionalSpeakers"
+                                  checked={additionalSpeakersEnabled}
+                                  onCheckedChange={(checked) => setAdditionalSpeakersEnabled(checked === true)}
+                                  disabled={isSubmitting}
+                                />
+                                <Label htmlFor="additionalSpeakers" className="text-sm font-normal flex items-center gap-1.5 cursor-pointer">
+                                  <Users className="h-4 w-4 text-muted-foreground" />
+                                  Additional speakers on this call
+                                </Label>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p className="max-w-xs">Include names of other participants like sales engineers or technical specialists.</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </div>
+                            </TooltipProvider>
+                            {additionalSpeakersEnabled && (
+                              <div className="space-y-1 ml-6">
+                                <Input
+                                  placeholder="Enter names separated by commas (e.g., John Smith, Sarah Jones)"
+                                  value={additionalSpeakersText}
+                                  onChange={e => setAdditionalSpeakersText(e.target.value)}
+                                  disabled={isSubmitting}
+                                  maxLength={200}
+                                  className="text-sm"
+                                  aria-describedby="speakers-hint"
+                                />
+                                <div className="flex justify-between">
+                                  <p id="speakers-hint" className="text-xs text-muted-foreground">
+                                    Max {MAX_ADDITIONAL_SPEAKERS} additional speakers
+                                  </p>
+                                  {additionalSpeakers.length > 0 && (
+                                    <p className={`text-xs ${isAdditionalSpeakersValid ? 'text-muted-foreground' : 'text-destructive'}`}>
+                                      {additionalSpeakers.length}/{MAX_ADDITIONAL_SPEAKERS} speakers
+                                    </p>
+                                  )}
+                                </div>
+                                {!isAdditionalSpeakersValid && (
+                                  <Alert variant="destructive" className="py-2">
+                                    <AlertTriangle className="h-4 w-4" />
+                                    <AlertDescription>
+                                      Please reduce to {MAX_ADDITIONAL_SPEAKERS} speakers or fewer.
+                                    </AlertDescription>
+                                  </Alert>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Mark as Unqualified */}
+                          <TooltipProvider>
+                            <div className="flex items-center space-x-2 pt-2 border-t border-border/50">
+                              <Checkbox
+                                id="isUnqualified"
+                                checked={isUnqualified}
+                                onCheckedChange={(checked) => setIsUnqualified(checked === true)}
+                                disabled={isSubmitting}
+                              />
+                              <Label htmlFor="isUnqualified" className="text-sm font-normal cursor-pointer">
+                                Mark as Unqualified
+                              </Label>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="max-w-xs">Tag this call if the lead is not a fit. Managers can review and verify unqualified calls.</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
+                          </TooltipProvider>
+                        </div>
+
+                        {/* Auto-Task Sequence */}
+                        {taskSequences.length > 0 && (
+                          <div className="space-y-2">
+                            <Label>Task Sequence</Label>
+                            <p className="text-xs text-muted-foreground">
+                              Optionally select a task sequence to auto-create follow-up tasks.
+                            </p>
+                            <Select value={selectedSequenceId} onValueChange={setSelectedSequenceId}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="None (no auto-tasks)" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">None</SelectItem>
+                                {taskSequences.map(seq => (
+                                  <SelectItem key={seq.id} value={seq.id}>{seq.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
                       </div>
-                    </FormSection>
-                  )}
+                    </CollapsibleContent>
+                  </Collapsible>
 
                   {/* Desktop Submit Button with Glow */}
-                  <div className="hidden md:block space-y-3 pt-6 border-t border-border mt-8">
-                    <Button 
-                      type="submit" 
-                      disabled={!canSubmit} 
+                  <div className="hidden md:block space-y-3 pt-6 border-t border-border mt-4">
+                    <Button
+                      type="submit"
+                      disabled={!canSubmit}
                       variant="gradient"
-                      className="w-full h-16 text-xl font-medium rounded-xl" 
+                      className="w-full h-16 text-xl font-medium rounded-xl"
                       size="lg"
                     >
                       {isSubmitting ? <>
@@ -1151,7 +1161,14 @@ The more detail you include, the better the AI analysis."
                           Analyze Call
                         </>}
                     </Button>
-                    
+
+                    {/* Validation hints when details section has required unfilled fields */}
+                    {!showDetails && validationHints.length > 0 && (
+                      <p className="text-xs text-amber-500 text-center">
+                        Missing: {validationHints.join(', ')}
+                      </p>
+                    )}
+
                     {/* Clear Form button and draft age */}
                     <div className="flex items-center justify-between">
                       <Button
@@ -1165,7 +1182,7 @@ The more detail you include, the better the AI analysis."
                         <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
                         Clear Form
                       </Button>
-                      
+
                       {/* Draft age indicator */}
                       {isDirty() && getDraftAge() && (
                         <span className="text-xs text-muted-foreground">
@@ -1173,14 +1190,14 @@ The more detail you include, the better the AI analysis."
                         </span>
                       )}
                     </div>
-                    
+
                     {/* Keyboard shortcut hint */}
                     <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1">
                       <Keyboard className="h-3 w-3" />
                       Press <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">⌘</kbd>+<kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">Enter</kbd> to submit
                     </p>
                   </div>
-                  
+
                   {/* Mobile: Spacer for fixed button */}
                   <div className="md:hidden h-4" />
                 </form>

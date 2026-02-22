@@ -1,11 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -227,9 +226,8 @@ Deno.serve(async (req) => {
     if (deleteAuthError) {
       console.error('Failed to delete auth user:', deleteAuthError);
       return new Response(
-        JSON.stringify({ 
-          error: 'Failed to delete user from authentication system',
-          details: deleteAuthError.message 
+        JSON.stringify({
+          error: 'Failed to delete user from authentication system'
         }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -246,9 +244,10 @@ Deno.serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Delete user error:', error);
+    const requestId = crypto.randomUUID().slice(0, 8);
+    console.error(`[delete-user] Error ${requestId}:`, error instanceof Error ? error.message : error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Internal server error' }),
+      JSON.stringify({ error: 'An unexpected error occurred. Please try again.', requestId }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

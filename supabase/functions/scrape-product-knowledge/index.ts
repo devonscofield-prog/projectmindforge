@@ -6,11 +6,8 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { signRequest } from "../_shared/hmac.ts";
 
 // Page type classification patterns
 const PAGE_TYPE_PATTERNS: Record<string, RegExp[]> = {
@@ -39,6 +36,9 @@ interface ScrapeRequest {
 }
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -255,15 +255,19 @@ Deno.serve(async (req) => {
     if (results.scraped > 0) {
       console.log('[scrape-product-knowledge] Triggering content processing...');
       
-      // Call process function in background
-      fetch(`${supabaseUrl}/functions/v1/process-product-knowledge`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${supabaseServiceKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ process_all: false }),
-      }).catch(err => console.warn('[scrape-product-knowledge] Process trigger warning:', err));
+      // Call process function in background with HMAC signature
+      const processBody = JSON.stringify({ process_all: false });
+      signRequest(processBody, supabaseServiceKey).then(sigHeaders => {
+        fetch(`${supabaseUrl}/functions/v1/process-product-knowledge`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+            'Content-Type': 'application/json',
+            ...sigHeaders,
+          },
+          body: processBody,
+        }).catch(err => console.warn('[scrape-product-knowledge] Process trigger warning:', err));
+      });
     }
 
     return new Response(
@@ -276,9 +280,10 @@ Deno.serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('[scrape-product-knowledge] Error:', error);
+    const requestId = crypto.randomUUID().slice(0, 8);
+    console.error(`[scrape-product-knowledge] Error ${requestId}:`, error instanceof Error ? error.message : error);
     return new Response(
-      JSON.stringify({ success: false, error: error instanceof Error ? error.message : 'Unknown error' }),
+      JSON.stringify({ success: false, error: 'An unexpected error occurred. Please try again.', requestId }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

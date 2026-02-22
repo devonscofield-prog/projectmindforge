@@ -14,7 +14,9 @@ import { createClient } from "@supabase/supabase-js";
 
 import { UUID_REGEX } from './lib/constants.ts';
 import { getCorsHeaders, checkRateLimit } from './lib/cors.ts';
-import { runAnalysisPipeline, SpeakerContext, AccountHistoryContext } from '../_shared/pipeline.ts';
+import { runAnalysisPipeline, SpeakerContext, AccountHistoryContext, PipelineOptions } from '../_shared/pipeline.ts';
+import { timingSafeEqual } from '../_shared/hmac.ts';
+import { getCorrelationId, createTracedLogger } from '../_shared/tracing.ts';
 
 // Minimum transcript length for meaningful analysis
 const MIN_TRANSCRIPT_LENGTH = 500;
@@ -98,6 +100,7 @@ async function triggerBackgroundChunking(callId: string, supabaseUrl: string, se
         'X-Request-Signature': signature,
         'X-Request-Timestamp': timestamp,
         'X-Request-Nonce': nonce,
+        'X-Correlation-ID': callId,
       },
       body,
     });
@@ -143,10 +146,13 @@ async function triggerFollowUpSuggestions(callId: string, supabaseUrl: string, s
 Deno.serve(async (req) => {
   const origin = req.headers.get('Origin');
   const corsHeaders = getCorsHeaders(origin);
-  
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const correlationId = getCorrelationId(req);
+  const log = createTracedLogger('analyze-call', correlationId);
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -161,26 +167,27 @@ Deno.serve(async (req) => {
 
   const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
   const token = authHeader.replace('Bearer ', '');
-  const isInternalCall = token === supabaseServiceKey;
-  
+  const isInternalCall = await timingSafeEqual(token, supabaseServiceKey);
+
   let userId: string;
-  
+
   if (isInternalCall) {
     userId = 'system-internal';
-    console.log('[analyze-call] Internal service call detected, bypassing user auth');
+    log.info('Internal service call detected, bypassing user auth');
   } else {
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    
+
     if (authError || !user) {
       return new Response(
         JSON.stringify({ error: 'Invalid authentication' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-    
+
     userId = user.id;
 
-    const rateLimitResult = checkRateLimit(userId);
+    // Check rate limit (5 requests per 60 seconds)
+    const rateLimitResult = await checkRateLimit(supabaseAdmin, userId, 'analyze-call', 5, 60);
     if (!rateLimitResult.allowed) {
       return new Response(
         JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
@@ -210,12 +217,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`[analyze-call] Starting Analysis 2.0 for call_id: ${targetCallId}, user: ${userId}`);
+    log.info(`Starting Analysis 2.0 for call_id: ${targetCallId}, user: ${userId}`);
 
     // Fetch transcript with speaker context and prospect_id for history lookup
     const { data: transcript, error: fetchError } = await supabaseAdmin
       .from('call_transcripts')
-      .select('id, raw_text, rep_id, account_name, primary_stakeholder_name, manager_id, additional_speakers, analysis_status, prospect_id')
+      .select('id, raw_text, rep_id, account_name, primary_stakeholder_name, manager_id, additional_speakers, analysis_status, prospect_id, updated_at')
       .eq('id', targetCallId)
       .is('deleted_at', null)
       .maybeSingle();
@@ -234,11 +241,52 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { force_reanalyze } = body;
-    
-    // Request deduplication: Atomically check and set processing status
-    // This prevents race conditions where multiple requests try to analyze the same call
-    if (!force_reanalyze) {
+    const { force_reanalyze, force } = body;
+    const shouldForce = force_reanalyze || force === true;
+
+    // Request deduplication: Check status before triggering analysis
+    if (!shouldForce) {
+      // Check if analysis is already in progress
+      if (transcript.analysis_status === 'processing') {
+        console.log(`[analyze-call] Dedup: ${targetCallId} already processing, returning 202`);
+        return new Response(
+          JSON.stringify({ message: 'Analysis already in progress', status: 'processing', call_id: targetCallId }),
+          { status: 202, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Check if recently completed (within 1 hour) - return cached results
+      if (transcript.analysis_status === 'completed') {
+        const updatedAt = new Date(transcript.updated_at).getTime();
+        const oneHourAgo = Date.now() - 60 * 60 * 1000;
+
+        if (updatedAt > oneHourAgo) {
+          // Fetch existing analysis results to return
+          const { data: existingAnalysis } = await supabaseAdmin
+            .from('ai_call_analysis')
+            .select('call_summary, analysis_metadata, analysis_behavior, analysis_strategy, analysis_psychology, analysis_pricing, analysis_coaching, detected_call_type, sales_assets')
+            .eq('call_id', targetCallId)
+            .maybeSingle();
+
+          if (existingAnalysis) {
+            const minutesAgo = Math.round((Date.now() - updatedAt) / 60000);
+            console.log(`[analyze-call] Dedup: ${targetCallId} completed ${minutesAgo}m ago, returning cached results (saved LLM costs)`);
+            return new Response(
+              JSON.stringify({
+                message: 'Analysis already completed recently',
+                status: 'completed',
+                call_id: targetCallId,
+                cached: true,
+                completed_minutes_ago: minutesAgo,
+                results: existingAnalysis,
+              }),
+              { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+        }
+      }
+
+      // Atomically set processing status (row-level lock to prevent race conditions)
       const { data: lockResult, error: lockError } = await supabaseAdmin
         .from('call_transcripts')
         .update({ analysis_status: 'processing', analysis_error: null, updated_at: new Date().toISOString() })
@@ -246,7 +294,7 @@ Deno.serve(async (req) => {
         .neq('analysis_status', 'processing')
         .select('id')
         .maybeSingle();
-      
+
       if (lockError) {
         console.error('[analyze-call] Lock acquisition failed:', lockError);
         return new Response(
@@ -254,24 +302,25 @@ Deno.serve(async (req) => {
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      
+
       if (!lockResult) {
-        // Another request is already processing this call
-        console.log(`[analyze-call] Deduplication: ${targetCallId} already being processed`);
+        // Race condition: another request started processing between our check and lock
+        console.log(`[analyze-call] Dedup: ${targetCallId} locked by another request`);
         return new Response(
-          JSON.stringify({ error: 'Analysis already in progress', call_id: targetCallId }),
-          { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ message: 'Analysis already in progress', status: 'processing', call_id: targetCallId }),
+          { status: 202, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
     } else {
       // Force reanalyze: just update status directly
+      console.log(`[analyze-call] Force reanalyze requested for ${targetCallId}, bypassing dedup`);
       await supabaseAdmin.from('call_transcripts').update({ analysis_status: 'processing', analysis_error: null }).eq('id', targetCallId);
     }
 
     // ============= FIRE-AND-FORGET PATTERN =============
     // Return 202 Accepted immediately and continue processing in background
     // This avoids Edge Function HTTP timeout (60s) for long-running analysis
-    console.log(`[analyze-call] Returning 202 Accepted, processing ${targetCallId} in background...`);
+    log.info(`Returning 202 Accepted, processing ${targetCallId} in background...`);
     
     // Background processing function
     const runBackgroundAnalysis = async () => {
@@ -349,7 +398,8 @@ Deno.serve(async (req) => {
         }
 
         // Run the pipeline with speaker context and account history
-        const result = await runAnalysisPipeline(transcript.raw_text, supabaseAdmin, targetCallId!, speakerContext, accountHistory);
+        const pipelineOptions: PipelineOptions = { force: shouldForce, correlationId };
+        const result = await runAnalysisPipeline(transcript.raw_text, supabaseAdmin, targetCallId!, speakerContext, accountHistory, pipelineOptions);
 
         // Save results
         console.log(`[analyze-call] Preparing to save results and update status to completed for ${targetCallId}`);
@@ -461,7 +511,7 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('[analyze-call] Error:', errorMessage);
+    log.error('Unhandled error:', errorMessage);
 
     if (targetCallId && UUID_REGEX.test(targetCallId)) {
       await supabaseAdmin.from('call_transcripts').update({ analysis_status: 'error', analysis_error: errorMessage }).eq('id', targetCallId);
@@ -470,8 +520,14 @@ Deno.serve(async (req) => {
     const isRateLimit = errorMessage.includes('Rate limit');
     const isCredits = errorMessage.includes('credits');
 
+    const safeMessage = isRateLimit
+      ? 'Rate limit exceeded. Please try again later.'
+      : isCredits
+        ? 'Usage limit reached. Please add credits.'
+        : 'An unexpected error occurred. Please try again.';
+
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: safeMessage, requestId: correlationId }),
       { status: isRateLimit ? 429 : isCredits ? 402 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

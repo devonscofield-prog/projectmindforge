@@ -23,7 +23,8 @@ import { Search, MessageSquare, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAdminCoachSessions, useUsersWithCoachSessions } from '@/hooks/useAdminCoachSessions';
 import { CoachSessionStatsCard } from '@/components/admin/CoachSessionStatsCard';
-import { CoachSessionViewerSheet } from '@/components/admin/CoachSessionViewerSheet';
+import { lazy, Suspense } from 'react';
+const CoachSessionViewerSheet = lazy(() => import('@/components/admin/CoachSessionViewerSheet').then(m => ({ default: m.CoachSessionViewerSheet })));
 import type { AdminCoachSession } from '@/api/adminSalesCoachSessions';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -215,11 +216,15 @@ export default function AdminSalesCoachHistory() {
         </Card>
       </div>
 
-      <CoachSessionViewerSheet
-        session={selectedSession}
-        open={sheetOpen}
-        onOpenChange={setSheetOpen}
-      />
+      {sheetOpen && (
+        <Suspense fallback={null}>
+          <CoachSessionViewerSheet
+            session={selectedSession}
+            open={sheetOpen}
+            onOpenChange={setSheetOpen}
+          />
+        </Suspense>
+      )}
     </AppLayout>
   );
 }

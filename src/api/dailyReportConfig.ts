@@ -46,7 +46,7 @@ export async function getDailyReportConfig(): Promise<DailyReportConfig | null> 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('daily_report_configs')
     .select('*')
     .eq('user_id', user.id)
@@ -62,7 +62,7 @@ export async function upsertDailyReportConfig(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('daily_report_configs')
     .upsert({
       user_id: user.id,
@@ -101,7 +101,7 @@ export async function getReportDeliveryHistory(limit = 10): Promise<ReportDelive
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('notification_log')
     .select('id, sent_at, title, summary, task_count')
     .eq('user_id', user.id)

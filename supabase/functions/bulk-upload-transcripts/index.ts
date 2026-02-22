@@ -1,42 +1,6 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
-
-// ============= CORS Utilities =============
-function getCorsHeaders(origin?: string | null): Record<string, string> {
-  const allowedOrigins = [
-    'http://localhost:8080',
-    'http://localhost:8081',
-    'http://localhost:5173',
-    'https://lovable.dev',
-    'https://lovableproject.com',
-  ];
-
-  // Allow custom domain from environment variable
-  const customDomain = Deno.env.get('CUSTOM_DOMAIN');
-  if (customDomain) {
-    allowedOrigins.push(`https://${customDomain}`);
-    allowedOrigins.push(`https://www.${customDomain}`);
-  }
-  
-  // Allow StormWind domain from environment variable
-  const stormwindDomain = Deno.env.get('STORMWIND_DOMAIN');
-  if (stormwindDomain) {
-    allowedOrigins.push(`https://${stormwindDomain}`);
-    allowedOrigins.push(`https://www.${stormwindDomain}`);
-  }
-
-  const isAllowed = origin && (
-    allowedOrigins.includes(origin) ||
-    origin.endsWith('.lovable.dev') ||
-    origin.endsWith('.lovableproject.com')
-  );
-
-  return {
-    'Access-Control-Allow-Origin': isAllowed ? origin : 'https://lovable.dev',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  };
-}
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 function errorResponse(message: string, status: number, corsHeaders: Record<string, string>): Response {
   return new Response(
@@ -193,7 +157,7 @@ async function processWithAdaptiveRateLimit<T, R>(
             await new Promise(r => setTimeout(r, currentDelay));
           } else {
             console.error(`[bulk-upload] Processing failed for ${itemName}:`, error);
-            results.push({ success: false, error: err.message || 'Unknown error', item });
+            results.push({ success: false, error: 'Processing failed', item });
             break;
           }
         }
@@ -253,7 +217,7 @@ async function insertTranscript(
 
     if (error) {
       console.error('[bulk-upload] Failed to insert transcript:', error);
-      return { transcriptId: null, error: error.message };
+      return { transcriptId: null, error: 'Failed to insert transcript' };
     }
 
     return { transcriptId: data.id };
@@ -283,7 +247,7 @@ async function queueAnalysis(
   } catch (error: unknown) {
     const err = error as { message?: string };
     console.error(`[bulk-upload] Failed to queue analysis for ${fileName}:`, error);
-    return { success: false, error: err.message || 'Analysis queue failed' };
+    return { success: false, error: 'Analysis queue failed' };
   }
 }
 
@@ -574,8 +538,8 @@ Deno.serve(async (req) => {
     return jsonResponse(response, corsHeaders);
 
   } catch (error) {
-    console.error('[bulk-upload] Unexpected error:', error);
-    const err = error as { message?: string };
-    return errorResponse(`Internal server error: ${err.message || 'Unknown error'}`, 500, corsHeaders);
+    const requestId = crypto.randomUUID().slice(0, 8);
+    console.error(`[bulk-upload] Error ${requestId}:`, error instanceof Error ? error.message : error);
+    return errorResponse('An unexpected error occurred. Please try again.', 500, corsHeaders);
   }
 });

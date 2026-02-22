@@ -55,7 +55,8 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { PaginationControls } from '@/components/ui/pagination-controls';
-import { UploadDocumentDialog } from '@/components/admin/UploadDocumentDialog';
+import { lazy, Suspense } from 'react';
+const UploadDocumentDialog = lazy(() => import('@/components/admin/UploadDocumentDialog').then(m => ({ default: m.UploadDocumentDialog })));
 
 import {
   getProductKnowledgeStats,
@@ -522,10 +523,14 @@ export default function AdminKnowledgeBase() {
           </CardContent>
         </Card>
 
-        <UploadDocumentDialog 
-          open={uploadDialogOpen} 
-          onOpenChange={setUploadDialogOpen} 
-        />
+        {uploadDialogOpen && (
+          <Suspense fallback={null}>
+            <UploadDocumentDialog
+              open={uploadDialogOpen}
+              onOpenChange={setUploadDialogOpen}
+            />
+          </Suspense>
+        )}
       </div>
     </AppLayout>
   );

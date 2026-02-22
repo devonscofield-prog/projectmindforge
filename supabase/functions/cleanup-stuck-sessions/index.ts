@@ -1,18 +1,18 @@
 import { createClient } from "@supabase/supabase-js";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-};
+import { validateSignedRequest, timingSafeEqual } from "../_shared/hmac.ts";
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 /**
  * Cleanup stuck roleplay sessions edge function.
  * Called periodically via CRON to recover sessions stuck in "in_progress" state.
- * 
+ *
  * A session is considered stuck if it's been in_progress for more than 10 minutes
  * without any activity.
  */
 Deno.serve(async (req) => {
+  const origin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -20,7 +20,34 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    
+
+    // Auth: require HMAC signature or service role key
+    const bodyText = await req.text();
+    const hasSignature = req.headers.has('X-Request-Signature');
+    const authHeader = req.headers.get('Authorization');
+    const token = authHeader?.replace('Bearer ', '') || '';
+
+    if (hasSignature) {
+      const validation = await validateSignedRequest(req.headers, bodyText, supabaseServiceKey);
+      if (!validation.valid) {
+        console.warn('[cleanup-stuck-sessions] HMAC validation failed:', validation.error);
+        return new Response(JSON.stringify({ error: 'Invalid request signature' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    } else if (token) {
+      const isService = await timingSafeEqual(token, supabaseServiceKey);
+      if (!isService) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    } else {
+      return new Response(JSON.stringify({ error: 'Authentication required' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
 
     console.log('Running stuck session cleanup...');
@@ -87,9 +114,10 @@ Deno.serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('Error in cleanup-stuck-sessions:', error);
-    return new Response(JSON.stringify({ 
-      error: error instanceof Error ? error.message : 'Unknown error occurred' 
+    const requestId = crypto.randomUUID().slice(0, 8);
+    console.error(`[cleanup-stuck-sessions] Error ${requestId}:`, error instanceof Error ? error.message : error);
+    return new Response(JSON.stringify({
+      error: 'An unexpected error occurred. Please try again.', requestId
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

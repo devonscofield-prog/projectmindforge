@@ -1,14 +1,15 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { getRepDetailUrl } from '@/lib/routes';
-import { 
-  useManagerCoachingSessions, 
+import { getRepDetailUrl, getCallDetailUrl } from '@/lib/routes';
+import {
+  useManagerCoachingSessions,
   useTeamRepsForManager,
+  useRecentCallsForRep,
   managerCoachingKeys,
-  type CoachingWithRep 
+  type CoachingWithRep
 } from '@/hooks/useManagerCoachingQueries';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
@@ -29,7 +30,7 @@ import { Separator } from '@/components/ui/separator';
 import { QueryErrorBoundary } from '@/components/ui/query-error-boundary';
 import { format } from 'date-fns';
 import { parseDateOnly } from '@/lib/formatters';
-import { Plus, ArrowUpDown, Pencil, Trash2, Calendar, User, Target, FileText, CheckSquare, CalendarClock, RefreshCw, ListChecks } from 'lucide-react';
+import { Plus, ArrowUpDown, Pencil, Trash2, Calendar, User, Target, FileText, CheckSquare, CalendarClock, RefreshCw, ListChecks, Phone } from 'lucide-react';
 import { RepTaskTemplatesReadOnly } from '@/components/tasks/RepTaskTemplatesReadOnly';
 import { toast } from 'sonner';
 
@@ -41,11 +42,12 @@ const ITEMS_PER_PAGE = 10;
 export default function ManagerCoaching() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  
+  const [searchParams, setSearchParams] = useSearchParams();
+
   // Fetch data using React Query
   const { data: sessions = [], isLoading: sessionsLoading } = useManagerCoachingSessions(user?.id);
   const { data: teamReps = [] } = useTeamRepsForManager(user?.id);
-  
+
   // Handle refresh
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: managerCoachingKeys.all });
@@ -61,7 +63,11 @@ export default function ManagerCoaching() {
     notes: '',
     action_items: '',
     follow_up_date: '',
+    source_call_id: '',
   });
+
+  // Fetch recent calls for the selected rep (for "Linked Call" dropdown)
+  const { data: recentCalls = [] } = useRecentCallsForRep(formData.rep_id || undefined);
   const [submitting, setSubmitting] = useState(false);
   
   // Delete state
@@ -91,6 +97,22 @@ export default function ManagerCoaching() {
     setCurrentPage(1);
   }, [repFilter, followUpFilter]);
 
+  // Auto-open dialog when navigated from CallDetailPage with callId param
+  useEffect(() => {
+    const callId = searchParams.get('callId');
+    const repId = searchParams.get('repId');
+    if (callId) {
+      setFormData(prev => ({
+        ...prev,
+        source_call_id: callId,
+        ...(repId ? { rep_id: repId } : {}),
+      }));
+      setDialogOpen(true);
+      // Clear the search params so reloading doesn't re-trigger
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
   const resetForm = () => {
     setFormData({
       rep_id: '',
@@ -99,6 +121,7 @@ export default function ManagerCoaching() {
       notes: '',
       action_items: '',
       follow_up_date: '',
+      source_call_id: '',
     });
   };
 
@@ -118,6 +141,7 @@ export default function ManagerCoaching() {
       notes: session.notes || '',
       action_items: session.action_items || '',
       follow_up_date: session.follow_up_date || '',
+      source_call_id: session.source_call_id || '',
     });
     setEditingSession(session);
   };
@@ -142,6 +166,7 @@ export default function ManagerCoaching() {
           notes: formData.notes || null,
           action_items: formData.action_items || null,
           follow_up_date: formData.follow_up_date || null,
+          source_call_id: formData.source_call_id || null,
         })
         .eq('id', editingSession.id);
 
@@ -164,6 +189,7 @@ export default function ManagerCoaching() {
         notes: formData.notes || null,
         action_items: formData.action_items || null,
         follow_up_date: formData.follow_up_date || null,
+        source_call_id: formData.source_call_id || null,
       });
 
       setSubmitting(false);
@@ -387,7 +413,29 @@ export default function ManagerCoaching() {
                     onChange={(e) => setFormData({ ...formData, follow_up_date: e.target.value })}
                   />
                 </div>
-                
+
+                {formData.rep_id && (
+                  <div className="space-y-2">
+                    <Label htmlFor="source_call_id">Linked Call</Label>
+                    <Select
+                      value={formData.source_call_id}
+                      onValueChange={(value) => setFormData({ ...formData, source_call_id: value === 'none' ? '' : value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a call (optional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        {recentCalls.map(call => (
+                          <SelectItem key={call.id} value={call.id}>
+                            {format(parseDateOnly(call.call_date), 'MMM d, yyyy')} - {call.account_name || call.primary_stakeholder_name || 'Untitled Call'}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
                 <div className="flex justify-end gap-2 pt-4">
                   <Button type="button" variant="outline" onClick={() => handleDialogClose(false)}>
                     Cancel
@@ -681,6 +729,21 @@ export default function ManagerCoaching() {
                   <p className="text-sm text-muted-foreground italic">No follow-up scheduled</p>
                 )}
               </div>
+
+              {/* Linked Call */}
+              {viewingSession.source_call_id && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Phone className="h-4 w-4" />
+                    Linked Call
+                  </div>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to={getCallDetailUrl(viewingSession.source_call_id)}>
+                      View Call Details
+                    </Link>
+                  </Button>
+                </div>
+              )}
 
               <Separator />
 

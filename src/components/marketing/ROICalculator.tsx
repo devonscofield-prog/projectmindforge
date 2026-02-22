@@ -1,19 +1,10 @@
 import { useState, useMemo } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { Slider } from '@/components/ui/slider';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  Calculator, 
-  Clock, 
-  TrendingUp, 
-  DollarSign, 
-  Users, 
+import {
+  Calculator,
   Download,
-  Target,
-  Zap,
   BarChart3
 } from 'lucide-react';
 import {
@@ -28,7 +19,11 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
-import { calculateROI, formatCurrency, formatNumber, type ROIInputs } from '@/lib/roiCalculations';
+import { calculateROI, formatCurrency, type ROIInputs } from '@/lib/roiCalculations';
+
+import { ROIInputsPanel } from './ROIInputsPanel';
+import { ROIResultsCards } from './ROIResultsCards';
+import { ROIBreakdownTab } from './ROIBreakdownTab';
 
 const defaultInputs: ROIInputs = {
   teamSize: 10,
@@ -41,7 +36,7 @@ const defaultInputs: ROIInputs = {
 
 export function ROICalculator() {
   const [inputs, setInputs] = useState<ROIInputs>(defaultInputs);
-  
+
   const results = useMemo(() => calculateROI(inputs), [inputs]);
 
   const updateInput = <K extends keyof ROIInputs>(key: K, value: ROIInputs[K]) => {
@@ -51,10 +46,9 @@ export function ROICalculator() {
   const handleExportPDF = async () => {
     const element = document.getElementById('roi-results');
     if (!element) return;
-    
-    // Use secure PDF export utility (replaces vulnerable html2pdf.js)
+
     const { exportHtmlToPdf } = await import('@/lib/pdfExport');
-    
+
     await exportHtmlToPdf(element.innerHTML, {
       filename: 'sales-performance-tracker-roi.pdf',
       margin: 10,
@@ -95,7 +89,7 @@ export function ROICalculator() {
             Calculate Your Sales Team's ROI
           </h1>
           <p className="text-muted-foreground max-w-2xl mx-auto">
-            Estimate the time savings, win rate improvements, and revenue impact of implementing 
+            Estimate the time savings, win rate improvements, and revenue impact of implementing
             our AI-powered Sales Performance Tracker.
           </p>
         </div>
@@ -103,179 +97,21 @@ export function ROICalculator() {
         <div className="grid lg:grid-cols-12 gap-8">
           {/* Input Section */}
           <div className="lg:col-span-4 space-y-6">
-            <Card className="sticky top-8">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Target className="h-5 w-5 text-primary" />
-                  Your Team Metrics
-                </CardTitle>
-                <CardDescription>
-                  Enter your current sales team data to calculate potential ROI
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Team Size */}
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <Label htmlFor="teamSize">Team Size</Label>
-                    <span className="text-sm font-medium text-primary">{inputs.teamSize} reps</span>
-                  </div>
-                  <Slider
-                    id="teamSize"
-                    min={1}
-                    max={100}
-                    step={1}
-                    value={[inputs.teamSize]}
-                    onValueChange={([v]) => updateInput('teamSize', v)}
-                  />
-                </div>
-
-                {/* Average Deal Value */}
-                <div className="space-y-2">
-                  <Label htmlFor="avgDealValue">Average Deal Value</Label>
-                  <div className="relative">
-                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="avgDealValue"
-                      type="number"
-                      value={inputs.avgDealValue}
-                      onChange={(e) => updateInput('avgDealValue', Number(e.target.value))}
-                      className="pl-9"
-                    />
-                  </div>
-                </div>
-
-                {/* Deals Per Month */}
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <Label htmlFor="dealsPerMonth">Deals/Month/Rep</Label>
-                    <span className="text-sm font-medium text-primary">{inputs.dealsPerMonthPerRep}</span>
-                  </div>
-                  <Slider
-                    id="dealsPerMonth"
-                    min={1}
-                    max={50}
-                    step={1}
-                    value={[inputs.dealsPerMonthPerRep]}
-                    onValueChange={([v]) => updateInput('dealsPerMonthPerRep', v)}
-                  />
-                </div>
-
-                {/* Current Win Rate */}
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <Label htmlFor="winRate">Current Win Rate</Label>
-                    <span className="text-sm font-medium text-primary">{inputs.currentWinRate}%</span>
-                  </div>
-                  <Slider
-                    id="winRate"
-                    min={5}
-                    max={80}
-                    step={1}
-                    value={[inputs.currentWinRate]}
-                    onValueChange={([v]) => updateInput('currentWinRate', v)}
-                  />
-                </div>
-
-                {/* Admin Hours */}
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <Label htmlFor="adminHours">Admin Hours/Week/Rep</Label>
-                    <span className="text-sm font-medium text-primary">{inputs.adminHoursPerWeek}h</span>
-                  </div>
-                  <Slider
-                    id="adminHours"
-                    min={1}
-                    max={20}
-                    step={1}
-                    value={[inputs.adminHoursPerWeek]}
-                    onValueChange={([v]) => updateInput('adminHoursPerWeek', v)}
-                  />
-                </div>
-
-                {/* Coaching Hours */}
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <Label htmlFor="coachingHours">Coaching Hours/Month/Rep</Label>
-                    <span className="text-sm font-medium text-primary">{inputs.coachingHoursPerMonth}h</span>
-                  </div>
-                  <Slider
-                    id="coachingHours"
-                    min={0}
-                    max={20}
-                    step={1}
-                    value={[inputs.coachingHoursPerMonth]}
-                    onValueChange={([v]) => updateInput('coachingHoursPerMonth', v)}
-                  />
-                </div>
-
-                <Button onClick={() => setInputs(defaultInputs)} variant="outline" className="w-full">
-                  Reset to Defaults
-                </Button>
-              </CardContent>
-            </Card>
+            <ROIInputsPanel
+              inputs={inputs}
+              onUpdate={updateInput}
+              onReset={() => setInputs(defaultInputs)}
+            />
           </div>
 
           {/* Results Section */}
           <div className="lg:col-span-8 space-y-6" id="roi-results">
-            {/* Key Metrics Cards */}
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-blue-500/20">
-                      <Clock className="h-5 w-5 text-blue-500" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Hours Saved/Year</p>
-                      <p className="text-2xl font-bold">{formatNumber(results.timeSavings.totalMonthlyHours * 12)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20">
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-green-500/20">
-                      <TrendingUp className="h-5 w-5 text-green-500" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Win Rate Boost</p>
-                      <p className="text-2xl font-bold">+{results.winRateImprovement.percentageIncrease}%</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/20">
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-purple-500/20">
-                      <DollarSign className="h-5 w-5 text-purple-500" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Annual Revenue</p>
-                      <p className="text-2xl font-bold">{formatCurrency(results.revenueImpact.annualRevenueImpact)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-gradient-to-br from-amber-500/10 to-amber-600/5 border-amber-500/20">
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-amber-500/20">
-                      <Zap className="h-5 w-5 text-amber-500" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">ROI</p>
-                      <p className="text-2xl font-bold">{results.totalROI.roiPercentage}%</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            <ROIResultsCards
+              hoursSavedPerYear={results.timeSavings.totalMonthlyHours * 12}
+              winRateBoost={results.winRateImprovement.percentageIncrease}
+              annualRevenue={results.revenueImpact.annualRevenueImpact}
+              roiPercentage={results.totalROI.roiPercentage}
+            />
 
             {/* Detailed Results Tabs */}
             <Card>
@@ -305,16 +141,16 @@ export function ROICalculator() {
                             </linearGradient>
                           </defs>
                           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                          <XAxis 
-                            dataKey="month" 
+                          <XAxis
+                            dataKey="month"
                             tickFormatter={(v) => `M${v}`}
                             className="text-xs"
                           />
-                          <YAxis 
+                          <YAxis
                             tickFormatter={(v) => formatCurrency(v)}
                             className="text-xs"
                           />
-                          <Tooltip 
+                          <Tooltip
                             formatter={(value: number) => formatCurrency(value)}
                             labelFormatter={(label) => `Month ${label}`}
                             contentStyle={{
@@ -363,7 +199,7 @@ export function ROICalculator() {
                           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                           <XAxis type="number" className="text-xs" />
                           <YAxis type="category" dataKey="name" width={120} className="text-xs" />
-                          <Tooltip 
+                          <Tooltip
                             contentStyle={{
                               backgroundColor: 'hsl(var(--card))',
                               border: '1px solid hsl(var(--border))',
@@ -379,91 +215,7 @@ export function ROICalculator() {
                   </TabsContent>
 
                   <TabsContent value="breakdown" className="mt-0">
-                    <div className="grid md:grid-cols-2 gap-6">
-                      {/* Time Savings */}
-                      <div className="space-y-4">
-                        <h4 className="font-semibold flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-blue-500" />
-                          Time Savings
-                        </h4>
-                        <div className="space-y-2 text-sm">
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Hours saved per rep/month</span>
-                            <span className="font-medium">{results.timeSavings.hoursPerRepPerMonth}h</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Total team hours/month</span>
-                            <span className="font-medium">{results.timeSavings.totalMonthlyHours}h</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">FTE equivalent freed</span>
-                            <span className="font-medium">{results.timeSavings.fteEquivalent}</span>
-                          </div>
-                          <div className="flex justify-between pt-2 border-t">
-                            <span className="font-medium">Annual value</span>
-                            <span className="font-bold text-blue-500">{formatCurrency(results.timeSavings.annualValueSaved)}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Win Rate Improvement */}
-                      <div className="space-y-4">
-                        <h4 className="font-semibold flex items-center gap-2">
-                          <TrendingUp className="h-4 w-4 text-green-500" />
-                          Win Rate Improvement
-                        </h4>
-                        <div className="space-y-2 text-sm">
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Win rate increase</span>
-                            <span className="font-medium">+{results.winRateImprovement.percentageIncrease}%</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">New win rate</span>
-                            <span className="font-medium">{results.winRateImprovement.newWinRate}%</span>
-                          </div>
-                          <div className="flex justify-between pt-2 border-t">
-                            <span className="font-medium">Additional deals/month</span>
-                            <span className="font-bold text-green-500">{results.winRateImprovement.additionalDealsPerMonth}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Revenue Impact */}
-                      <div className="space-y-4">
-                        <h4 className="font-semibold flex items-center gap-2">
-                          <DollarSign className="h-4 w-4 text-purple-500" />
-                          Revenue Impact
-                        </h4>
-                        <div className="space-y-2 text-sm">
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Additional monthly revenue</span>
-                            <span className="font-medium">{formatCurrency(results.revenueImpact.additionalMonthlyRevenue)}</span>
-                          </div>
-                          <div className="flex justify-between pt-2 border-t">
-                            <span className="font-medium">Annual revenue impact</span>
-                            <span className="font-bold text-purple-500">{formatCurrency(results.revenueImpact.annualRevenueImpact)}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Coaching Efficiency */}
-                      <div className="space-y-4">
-                        <h4 className="font-semibold flex items-center gap-2">
-                          <Users className="h-4 w-4 text-amber-500" />
-                          Coaching Efficiency
-                        </h4>
-                        <div className="space-y-2 text-sm">
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Manager hours freed/month</span>
-                            <span className="font-medium">{results.coachingEfficiency.managerHoursFreed}h</span>
-                          </div>
-                          <div className="flex justify-between pt-2 border-t">
-                            <span className="font-medium">Coaching scalability</span>
-                            <span className="font-bold text-amber-500">{results.coachingEfficiency.scalabilityMultiplier}x</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                    <ROIBreakdownTab results={results} />
                   </TabsContent>
                 </CardContent>
               </Tabs>

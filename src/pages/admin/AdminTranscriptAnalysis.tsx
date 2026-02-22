@@ -2,9 +2,10 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
 import { getAdminPageBreadcrumb, getManagerPageBreadcrumb, getRepPageBreadcrumb } from '@/lib/breadcrumbConfig';
-import { SaveSelectionDialog } from '@/components/admin/SaveSelectionDialog';
-import { SavedSelectionsSheet } from '@/components/admin/SavedSelectionsSheet';
-import { SavedInsightsSheet } from '@/components/admin/SavedInsightsSheet';
+import { lazy, Suspense } from 'react';
+const SaveSelectionDialog = lazy(() => import('@/components/admin/SaveSelectionDialog').then(m => ({ default: m.SaveSelectionDialog })));
+const SavedSelectionsSheet = lazy(() => import('@/components/admin/SavedSelectionsSheet').then(m => ({ default: m.SavedSelectionsSheet })));
+const SavedInsightsSheet = lazy(() => import('@/components/admin/SavedInsightsSheet').then(m => ({ default: m.SavedInsightsSheet })));
 import { RAGHealthDashboard } from '@/components/admin/RAGHealthDashboard';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { CollapsibleSection } from '@/components/ui/collapsible-section';
@@ -256,32 +257,44 @@ function AdminTranscriptAnalysis() {
         )}
 
         {/* Save Selection Dialog */}
-        <SaveSelectionDialog
-          open={saveSelectionOpen}
-          onOpenChange={setSaveSelectionOpen}
-          transcriptIds={Array.from(selectedTranscriptIds)}
-          filters={{
-            dateRange,
-            selectedTeamId: isTeamScoped ? (managerTeam?.id || 'all') : selectedTeamId,
-            selectedRepId,
-            accountSearch,
-            selectedCallTypes,
-          }}
-          onSaved={(id) => setCurrentSelectionId(id)}
-        />
+        {saveSelectionOpen && (
+          <Suspense fallback={null}>
+            <SaveSelectionDialog
+              open={saveSelectionOpen}
+              onOpenChange={setSaveSelectionOpen}
+              transcriptIds={Array.from(selectedTranscriptIds)}
+              filters={{
+                dateRange,
+                selectedTeamId: isTeamScoped ? (managerTeam?.id || 'all') : selectedTeamId,
+                selectedRepId,
+                accountSearch,
+                selectedCallTypes,
+              }}
+              onSaved={(id) => setCurrentSelectionId(id)}
+            />
+          </Suspense>
+        )}
 
         {/* Saved Selections Sheet */}
-        <SavedSelectionsSheet
-          open={savedSelectionsOpen}
-          onOpenChange={setSavedSelectionsOpen}
-          onLoadSelection={handleLoadSelection}
-        />
+        {savedSelectionsOpen && (
+          <Suspense fallback={null}>
+            <SavedSelectionsSheet
+              open={savedSelectionsOpen}
+              onOpenChange={setSavedSelectionsOpen}
+              onLoadSelection={handleLoadSelection}
+            />
+          </Suspense>
+        )}
 
         {/* Saved Insights Sheet */}
-        <SavedInsightsSheet
-          open={savedInsightsOpen}
-          onOpenChange={setSavedInsightsOpen}
-        />
+        {savedInsightsOpen && (
+          <Suspense fallback={null}>
+            <SavedInsightsSheet
+              open={savedInsightsOpen}
+              onOpenChange={setSavedInsightsOpen}
+            />
+          </Suspense>
+        )}
 
         {/* Transcript Table - only show if manager has a team or not team-scoped */}
         {(!isTeamScoped || managerTeam) && (

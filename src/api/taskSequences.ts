@@ -33,9 +33,10 @@ export async function fetchTaskSequences(repId: string): Promise<TaskSequence[]>
     throw error;
   }
 
-  return (data || []).map((row: any) => ({
+  type SequenceRow = NonNullable<typeof data>[number];
+  return (data || []).map((row: SequenceRow) => ({
     ...row,
-    template_count: row.rep_task_templates?.[0]?.count ?? 0,
+    template_count: (row.rep_task_templates as Array<{ count: number }>)?.[0]?.count ?? 0,
     rep_task_templates: undefined,
   })) as TaskSequence[];
 }

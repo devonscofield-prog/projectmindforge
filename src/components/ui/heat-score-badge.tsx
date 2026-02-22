@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Flame } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -10,17 +11,17 @@ interface HeatScoreBadgeProps {
 
 /**
  * Reusable heat score badge component with color-coded visual indicators
- * 
+ *
  * @param score - The heat score value (0-100) or null
  * @param variant - Display style: 'default' (compact inline) or 'card' (with background)
  * @param showNull - Whether to show "—" for null values (default: true for 'default', false for 'card')
  * @param className - Additional CSS classes
  */
-export function HeatScoreBadge({ 
-  score, 
-  variant = 'default', 
+export const HeatScoreBadge = memo(function HeatScoreBadge({
+  score,
+  variant = 'default',
   showNull = variant === 'default',
-  className 
+  className
 }: HeatScoreBadgeProps) {
   if (score === null) {
     if (!showNull) return null;
@@ -65,4 +66,4 @@ export function HeatScoreBadge({
       <span className={textColorClass}>{score}</span>
     </div>
   );
-}
+});

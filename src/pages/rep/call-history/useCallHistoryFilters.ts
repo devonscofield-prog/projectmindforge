@@ -4,7 +4,7 @@ import { CallHistoryFilters, HeatRange } from '@/api/aiCallAnalysis';
 import { CallType } from '@/constants/callTypes';
 import { AnalysisStatus, SortColumn } from './constants';
 
-export function useCallHistoryFilters(defaultPageSize = 25) {
+export function useCallHistoryFilters(defaultPageSize = 25, options?: { defaultDateFrom?: string }) {
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Filter state from URL params
@@ -12,7 +12,7 @@ export function useCallHistoryFilters(defaultPageSize = 25) {
   const [callTypeFilter, setCallTypeFilter] = useState<string>(searchParams.get('callType') || 'all');
   const [statusFilter, setStatusFilter] = useState<string>(searchParams.get('status') || 'all');
   const [heatFilter, setHeatFilter] = useState<string>(searchParams.get('heatRange') || 'all');
-  const [dateFrom, setDateFrom] = useState(searchParams.get('dateFrom') || '');
+  const [dateFrom, setDateFrom] = useState(searchParams.get('dateFrom') || options?.defaultDateFrom || '');
   const [dateTo, setDateTo] = useState(searchParams.get('dateTo') || '');
   const [sortBy, setSortBy] = useState<SortColumn>(
     (searchParams.get('sortBy') as SortColumn) || 'call_date'

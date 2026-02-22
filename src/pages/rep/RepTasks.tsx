@@ -13,10 +13,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { SwipeableCard } from '@/components/ui/swipeable-card';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useCompleteFollowUp, useDismissFollowUp, useRestoreFollowUp, useReopenFollowUp } from '@/hooks/useFollowUpMutations';
-import { EditTaskDialog } from '@/components/tasks/EditTaskDialog';
-import { StandaloneTaskDialog } from '@/components/tasks/StandaloneTaskDialog';
+import { lazy, Suspense } from 'react';
+const EditTaskDialog = lazy(() => import('@/components/tasks/EditTaskDialog').then(m => ({ default: m.EditTaskDialog })));
+const StandaloneTaskDialog = lazy(() => import('@/components/tasks/StandaloneTaskDialog').then(m => ({ default: m.StandaloneTaskDialog })));
 import { BulkActionBar } from '@/components/tasks/BulkActionBar';
-import { BulkRescheduleDialog } from '@/components/tasks/BulkRescheduleDialog';
+const BulkRescheduleDialog = lazy(() => import('@/components/tasks/BulkRescheduleDialog').then(m => ({ default: m.BulkRescheduleDialog })));
 import {
   AlertDialog,
   AlertDialogAction,
@@ -449,20 +450,26 @@ function RepTasks() {
       </div>
 
       {/* Dialogs */}
-      <StandaloneTaskDialog
-        open={showCreateDialog}
-        onOpenChange={setShowCreateDialog}
-        repId={repId}
-        onTaskCreated={invalidateAll}
-      />
+      {showCreateDialog && (
+        <Suspense fallback={null}>
+          <StandaloneTaskDialog
+            open={showCreateDialog}
+            onOpenChange={setShowCreateDialog}
+            repId={repId}
+            onTaskCreated={invalidateAll}
+          />
+        </Suspense>
+      )}
 
       {editTask && (
-        <EditTaskDialog
-          open={!!editTask}
-          onOpenChange={(open) => !open && setEditTask(null)}
-          task={editTask}
-          accountName={editTask.account_name || editTask.prospect_name}
-        />
+        <Suspense fallback={null}>
+          <EditTaskDialog
+            open={!!editTask}
+            onOpenChange={(open) => !open && setEditTask(null)}
+            task={editTask}
+            accountName={editTask.account_name || editTask.prospect_name}
+          />
+        </Suspense>
       )}
 
       <AlertDialog open={!!confirmDismissItem} onOpenChange={(open) => !open && setConfirmDismissItem(null)}>
@@ -501,13 +508,17 @@ function RepTasks() {
       </AlertDialog>
 
       {/* Bulk reschedule dialog */}
-      <BulkRescheduleDialog
-        open={showBulkReschedule}
-        onOpenChange={setShowBulkReschedule}
-        count={selectedIds.size}
-        onConfirm={handleBulkReschedule}
-        isPending={bulkActioning}
-      />
+      {showBulkReschedule && (
+        <Suspense fallback={null}>
+          <BulkRescheduleDialog
+            open={showBulkReschedule}
+            onOpenChange={setShowBulkReschedule}
+            count={selectedIds.size}
+            onConfirm={handleBulkReschedule}
+            isPending={bulkActioning}
+          />
+        </Suspense>
+      )}
     </AppLayout>
   );
 }

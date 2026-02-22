@@ -1,11 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { validateSignedRequest, timingSafeEqual, signRequest } from "../_shared/hmac.ts";
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -16,9 +16,38 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    
+
     if (!serviceKey) {
       throw new Error('SUPABASE_SERVICE_ROLE_KEY not configured');
+    }
+
+    // Auth: require HMAC signature or service role key
+    const bodyText = await req.text();
+    const hasSignature = req.headers.has('X-Request-Signature');
+    const authHeader = req.headers.get('Authorization');
+    const token = authHeader?.replace('Bearer ', '') || '';
+
+    if (hasSignature) {
+      const validation = await validateSignedRequest(req.headers, bodyText, serviceKey);
+      if (!validation.valid) {
+        log(`HMAC validation failed: ${validation.error}`);
+        return new Response(JSON.stringify({ error: 'Invalid request signature' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      log('Authenticated via HMAC signature');
+    } else if (token) {
+      const isService = await timingSafeEqual(token, serviceKey);
+      if (!isService) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      log('Authenticated via service role key');
+    } else {
+      return new Response(JSON.stringify({ error: 'Authentication required' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const supabase = createClient(supabaseUrl, serviceKey);
@@ -62,16 +91,20 @@ Deno.serve(async (req) => {
     for (const call of pendingCalls) {
       log(`Triggering analysis for call ${call.id} (${call.account_name})`);
       
-      // Fire-and-forget: Don't await the response since analysis can take 60+ seconds
-      fetch(`${supabaseUrl}/functions/v1/analyze-call`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${serviceKey}`,
-        },
-        body: JSON.stringify({ call_id: call.id }),
-      }).catch(err => {
-        log(`Background analysis trigger failed for ${call.id}: ${err instanceof Error ? err.message : 'Unknown'}`);
+      // Fire-and-forget with HMAC signature: Don't await the response since analysis can take 60+ seconds
+      const analyzeBody = JSON.stringify({ call_id: call.id });
+      signRequest(analyzeBody, serviceKey).then(sigHeaders => {
+        fetch(`${supabaseUrl}/functions/v1/analyze-call`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${serviceKey}`,
+            ...sigHeaders,
+          },
+          body: analyzeBody,
+        }).catch(err => {
+          log(`Background analysis trigger failed for ${call.id}: ${err instanceof Error ? err.message : 'Unknown'}`);
+        });
       });
 
       results.push({ call_id: call.id, success: true, triggered: true });
@@ -91,9 +124,10 @@ Deno.serve(async (req) => {
     });
 
   } catch (error) {
+    const requestId = crypto.randomUUID().slice(0, 8);
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    log(`Error: ${errorMsg}`);
-    return new Response(JSON.stringify({ error: errorMsg }), {
+    log(`Error ${requestId}: ${errorMsg}`);
+    return new Response(JSON.stringify({ error: 'An unexpected error occurred. Please try again.', requestId }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

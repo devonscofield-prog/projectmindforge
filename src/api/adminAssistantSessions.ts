@@ -26,7 +26,18 @@ function parseMessages(data: Json | null | undefined): AdminAssistantMessage[] {
     .map(m => ({ role: m.role as 'user' | 'assistant', content: String(m.content) }));
 }
 
-function mapSession(data: any): AdminAssistantSession {
+interface AdminAssistantSessionRow {
+  id: string;
+  user_id: string;
+  title: string | null;
+  page_context: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  messages: Json | null;
+}
+
+function mapSession(data: AdminAssistantSessionRow): AdminAssistantSession {
   return {
     id: data.id,
     user_id: data.user_id,

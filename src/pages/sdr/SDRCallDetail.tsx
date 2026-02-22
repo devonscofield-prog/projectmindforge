@@ -1,10 +1,13 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import { useSDRCallDetail, useSDRCallList, useReGradeCall } from '@/hooks/useSDR';
-import { ArrowLeft, Loader2, RefreshCw, Star, TrendingUp, MessageSquare, Target, Award, Clock, ChevronLeft, ChevronRight, CalendarCheck } from 'lucide-react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { ArrowLeft, Loader2, RefreshCw, Star, TrendingUp, MessageSquare, Target, Award, Clock, ChevronLeft, ChevronRight, CalendarCheck, ThumbsUp, ThumbsDown, CheckCircle2 } from 'lucide-react';
 import { gradeColors } from '@/constants/training';
 import { Progress } from '@/components/ui/progress';
 
@@ -29,6 +32,45 @@ function SDRCallDetail() {
   const navigate = useNavigate();
   const { data: call, isLoading, isError } = useSDRCallDetail(callId);
   const reGradeMutation = useReGradeCall();
+  const queryClient = useQueryClient();
+
+  // Coaching feedback state
+  const [feedbackHelpful, setFeedbackHelpful] = useState<boolean | null>(null);
+  const [feedbackNote, setFeedbackNote] = useState('');
+  const [showFeedbackInput, setShowFeedbackInput] = useState(false);
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+
+  const feedbackMutation = useMutation({
+    mutationFn: async ({ gradeId, helpful, note }: { gradeId: string; helpful: boolean; note: string }) => {
+      const { error } = await supabase
+        .from('sdr_call_grades')
+        .update({
+          coaching_feedback_helpful: helpful,
+          coaching_feedback_note: note || null,
+          coaching_feedback_at: new Date().toISOString(),
+        })
+        .eq('id', gradeId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setFeedbackSubmitted(true);
+      queryClient.invalidateQueries({ queryKey: ['sdr-call-detail', callId] });
+    },
+  });
+
+  const handleFeedbackThumb = (helpful: boolean) => {
+    setFeedbackHelpful(helpful);
+    setShowFeedbackInput(true);
+  };
+
+  const handleFeedbackSubmit = () => {
+    if (!grade || feedbackHelpful === null) return;
+    feedbackMutation.mutate({
+      gradeId: grade.id,
+      helpful: feedbackHelpful,
+      note: feedbackNote,
+    });
+  };
 
   // Fetch sibling calls for prev/next navigation
   const { data: siblingCalls = [] } = useSDRCallList({
@@ -194,6 +236,82 @@ function SDRCallDetail() {
                 <Card>
                   <CardHeader><CardTitle>Coaching Notes</CardTitle></CardHeader>
                   <CardContent><p className="text-sm whitespace-pre-wrap leading-relaxed">{grade.coaching_notes}</p></CardContent>
+                </Card>
+              )}
+              {/* Coaching Feedback */}
+              {grade.coaching_notes && (
+                <Card>
+                  <CardHeader><CardTitle>Was this coaching helpful?</CardTitle></CardHeader>
+                  <CardContent>
+                    {grade.coaching_feedback_at && !feedbackSubmitted ? (
+                      // Already submitted feedback - read-only
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          {grade.coaching_feedback_helpful ? (
+                            <ThumbsUp className="h-5 w-5 text-green-500" />
+                          ) : (
+                            <ThumbsDown className="h-5 w-5 text-red-500" />
+                          )}
+                          <span className="text-sm font-medium">
+                            {grade.coaching_feedback_helpful ? 'You found this helpful' : 'You found this not helpful'}
+                          </span>
+                        </div>
+                        {grade.coaching_feedback_note && (
+                          <p className="text-sm text-muted-foreground">{grade.coaching_feedback_note}</p>
+                        )}
+                      </div>
+                    ) : feedbackSubmitted ? (
+                      // Just submitted
+                      <div className="flex items-center gap-2 text-green-600">
+                        <CheckCircle2 className="h-5 w-5" />
+                        <span className="text-sm font-medium">Thanks for your feedback!</span>
+                      </div>
+                    ) : showFeedbackInput ? (
+                      // Show note input after thumb selection
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          {feedbackHelpful ? (
+                            <ThumbsUp className="h-5 w-5 text-green-500" />
+                          ) : (
+                            <ThumbsDown className="h-5 w-5 text-red-500" />
+                          )}
+                          <span className="text-sm font-medium">
+                            {feedbackHelpful ? 'Helpful' : 'Not helpful'}
+                          </span>
+                          <Button variant="ghost" size="sm" onClick={() => { setShowFeedbackInput(false); setFeedbackHelpful(null); setFeedbackNote(''); }}>
+                            Change
+                          </Button>
+                        </div>
+                        <Textarea
+                          placeholder="Any additional comments? (optional)"
+                          value={feedbackNote}
+                          onChange={(e) => setFeedbackNote(e.target.value)}
+                          rows={2}
+                          className="text-sm"
+                        />
+                        <Button
+                          size="sm"
+                          onClick={handleFeedbackSubmit}
+                          disabled={feedbackMutation.isPending}
+                        >
+                          {feedbackMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                          Submit Feedback
+                        </Button>
+                      </div>
+                    ) : (
+                      // Initial state - show thumb buttons
+                      <div className="flex items-center gap-3">
+                        <Button variant="outline" size="sm" onClick={() => handleFeedbackThumb(true)} className="gap-2">
+                          <ThumbsUp className="h-4 w-4" />
+                          Helpful
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => handleFeedbackThumb(false)} className="gap-2">
+                          <ThumbsDown className="h-4 w-4" />
+                          Not Helpful
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
                 </Card>
               )}
               {grade.key_moments && (grade.key_moments as Array<{ timestamp: string; description: string; sentiment: string }>).length > 0 && (

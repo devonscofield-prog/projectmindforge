@@ -291,7 +291,7 @@ export function EditCallDetailsDialog({
           {/* Opportunity Label */}
           <div className="space-y-2">
             <Label htmlFor="edit_opportunity_label">Opportunity Label</Label>
-            <Select value={opportunityLabel || 'none'} onValueChange={v => setOpportunityLabel(v === 'none' ? '' as any : v as OpportunityLabel)}>
+            <Select value={opportunityLabel || 'none'} onValueChange={v => setOpportunityLabel(v === 'none' ? '' : v as OpportunityLabel)}>
               <SelectTrigger>
                 <SelectValue placeholder="Select label" />
               </SelectTrigger>

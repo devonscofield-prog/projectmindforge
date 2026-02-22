@@ -53,7 +53,11 @@ export async function fetchAdminCoachSessions(options?: {
     return { sessions: [], total: 0 };
   }
 
-  const sessions: AdminCoachSession[] = (data || []).map((session: any) => {
+  type SessionRow = NonNullable<typeof data>[number] & {
+    profiles: { name: string | null; email: string | null } | null;
+    prospects: { prospect_name: string | null; account_name: string | null } | null;
+  };
+  const sessions: AdminCoachSession[] = ((data || []) as SessionRow[]).map((session) => {
     const messages = (session.messages as unknown as CoachMessage[]) || [];
     
     // Apply search filter on messages if provided
@@ -132,7 +136,10 @@ export async function fetchUsersWithCoachSessions(): Promise<Array<{ id: string;
   }
 
   const userMap = new Map<string, { id: string; name: string; email: string }>();
-  (data || []).forEach((session: any) => {
+  type UserSessionRow = NonNullable<typeof data>[number] & {
+    profiles: { id: string; name: string | null; email: string | null } | null;
+  };
+  ((data || []) as UserSessionRow[]).forEach((session) => {
     if (session.profiles && !userMap.has(session.user_id)) {
       userMap.set(session.user_id, {
         id: session.profiles.id,

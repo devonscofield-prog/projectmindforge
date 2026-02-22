@@ -11,88 +11,15 @@
 // CORS UTILITIES
 // ============================================================================
 
-/**
- * Standard CORS headers for Lovable domains
- */
-export function getCorsHeaders(origin?: string | null): Record<string, string> {
-  const allowedOrigins = ['https://lovable.dev', 'https://www.lovable.dev'];
-  const devPatterns = [
-    /^https?:\/\/localhost(:\d+)?$/,
-    /^https:\/\/[a-z0-9-]+\.lovableproject\.com$/,
-    /^https:\/\/[a-z0-9-]+\.lovable\.app$/,
-  ];
-  
-  // Allow custom domain from environment variable
-  const customDomain = Deno.env.get('CUSTOM_DOMAIN');
-  if (customDomain) {
-    allowedOrigins.push(`https://${customDomain}`);
-    allowedOrigins.push(`https://www.${customDomain}`);
-  }
-  
-  const requestOrigin = origin || '';
-  const isAllowed = allowedOrigins.includes(requestOrigin) || 
-    devPatterns.some(pattern => pattern.test(requestOrigin));
-  
-  return {
-    'Access-Control-Allow-Origin': isAllowed ? requestOrigin : allowedOrigins[0],
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  };
-}
+// Re-export from the dedicated cors module
+export { getCorsHeaders } from "./cors.ts";
 
 // ============================================================================
-// RATE LIMITING
+// RATE LIMITING (database-backed - see rateLimiter.ts)
 // ============================================================================
 
-export interface RateLimitConfig {
-  windowMs: number;
-  maxRequests: number;
-}
-
-export interface RateLimitResult {
-  allowed: boolean;
-  retryAfter?: number;
-}
-
-const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
-
-/**
- * Simple in-memory rate limiter
- */
-export function checkRateLimit(
-  userId: string, 
-  config: RateLimitConfig = { windowMs: 60000, maxRequests: 10 }
-): RateLimitResult {
-  const now = Date.now();
-  const entry = rateLimitMap.get(userId);
-  
-  if (!entry || now >= entry.resetTime) {
-    rateLimitMap.set(userId, { count: 1, resetTime: now + config.windowMs });
-    return { allowed: true };
-  }
-  
-  if (entry.count >= config.maxRequests) {
-    const retryAfter = Math.ceil((entry.resetTime - now) / 1000);
-    return { allowed: false, retryAfter };
-  }
-  
-  entry.count++;
-  return { allowed: true };
-}
-
-/**
- * Start rate limit cleanup interval (call once per function)
- */
-export function startRateLimitCleanup(intervalMs = 60000): void {
-  setInterval(() => {
-    const now = Date.now();
-    for (const [key, value] of rateLimitMap.entries()) {
-      if (now > value.resetTime) {
-        rateLimitMap.delete(key);
-      }
-    }
-  }, intervalMs);
-}
+export { checkRateLimit } from "./rateLimiter.ts";
+export type { RateLimitResult } from "./rateLimiter.ts";
 
 // ============================================================================
 // VALIDATION UTILITIES
@@ -186,14 +113,14 @@ export function validateMessages(
  * Create a JSON error response
  */
 export function errorResponse(
-  message: string, 
-  status: number, 
+  message: string,
+  status: number,
   corsHeaders: Record<string, string>,
   retryAfter?: number
 ): Response {
-  const headers: Record<string, string> = { 
-    ...corsHeaders, 
-    'Content-Type': 'application/json' 
+  const headers: Record<string, string> = {
+    ...corsHeaders,
+    'Content-Type': 'application/json'
   };
   if (retryAfter) {
     headers['Retry-After'] = String(retryAfter);
@@ -201,6 +128,29 @@ export function errorResponse(
   return new Response(
     JSON.stringify({ error: message }),
     { status, headers }
+  );
+}
+
+/**
+ * Creates a safe error response that logs details server-side but returns generic message to client.
+ * Use specific safe messages for known error types (validation, auth, rate limit).
+ */
+export function createErrorResponse(
+  error: unknown,
+  context: string,
+  statusCode: number = 500,
+  corsHeaders: Record<string, string>,
+  safeMessage?: string
+): Response {
+  const requestId = crypto.randomUUID().slice(0, 8);
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  console.error(`[${context}] Error ${requestId}:`, errorMessage);
+  return new Response(
+    JSON.stringify({
+      error: safeMessage || 'An unexpected error occurred. Please try again.',
+      requestId
+    }),
+    { status: statusCode, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   );
 }
 
@@ -309,11 +259,14 @@ export async function handleAIResponse(
 }
 
 // ============================================================================
-// LOGGING
+// LOGGING & TRACING (see tracing.ts for correlation-ID-aware logger)
 // ============================================================================
 
+export { getCorrelationId, createTracedLogger } from "./tracing.ts";
+
 /**
- * Create a prefixed logger for consistent logging
+ * Create a prefixed logger for consistent logging (without correlation ID).
+ * Prefer createTracedLogger from tracing.ts for request-scoped logging.
  */
 export function createLogger(functionName: string) {
   return {

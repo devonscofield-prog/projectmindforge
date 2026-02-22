@@ -1,10 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 interface InviteRequest {
   email: string;
@@ -17,6 +13,9 @@ interface InviteRequest {
 }
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -167,7 +166,7 @@ Deno.serve(async (req) => {
     if (createError || !newUser.user) {
       console.error('Failed to create user:', createError);
       return new Response(
-        JSON.stringify({ error: 'Failed to create user', details: createError?.message }),
+        JSON.stringify({ error: 'Failed to create user' }),
         {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -201,7 +200,7 @@ Deno.serve(async (req) => {
     if (roleUpdateError) {
       console.error('Failed to update role:', roleUpdateError);
       return new Response(
-        JSON.stringify({ error: 'User created but failed to assign role', details: roleUpdateError.message }),
+        JSON.stringify({ error: 'User created but failed to assign role' }),
         {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -372,10 +371,10 @@ Deno.serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error('Error in invite-user function:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    const requestId = crypto.randomUUID().slice(0, 8);
+    console.error(`[invite-user] Error ${requestId}:`, error instanceof Error ? error.message : error);
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: 'An unexpected error occurred. Please try again.', requestId }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

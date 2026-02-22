@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { ChevronDown, ChevronUp, LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -57,13 +57,13 @@ function getColorSchemeStyles(colorScheme: FrameworkScoreCardProps['colorScheme'
   return schemes[colorScheme] || schemes.blue;
 }
 
-export function FrameworkScoreCard({ 
-  label, 
-  score, 
-  maxScore, 
-  summary, 
+export const FrameworkScoreCard = memo(function FrameworkScoreCard({
+  label,
+  score,
+  maxScore,
+  summary,
   icon: Icon,
-  colorScheme 
+  colorScheme
 }: FrameworkScoreCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   
@@ -163,4 +163,4 @@ export function FrameworkScoreCard({
       )}
     </div>
   );
-}
+});

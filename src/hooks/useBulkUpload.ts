@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import JSZip from 'jszip';
 import { toast } from 'sonner';
 import { CallType } from '@/constants/callTypes';
 import {
@@ -129,6 +128,7 @@ export function useBulkUpload(): UseBulkUploadResult {
         throw new Error(`ZIP file too large. Maximum is ${MAX_ZIP_SIZE / 1024 / 1024}MB, got ${(file.size / 1024 / 1024).toFixed(1)}MB`);
       }
       
+      const { default: JSZip } = await import('jszip');
       const zip = await JSZip.loadAsync(file);
       const txtFiles: ExtractedFile[] = [];
       const newMetadata = new Map<string, FileMetadata>();

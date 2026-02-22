@@ -1,9 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 const ALLOWED_EMAIL_DOMAIN = 'stormwindlive.com';
 
@@ -19,6 +15,9 @@ interface ValidateRequest {
 }
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -44,10 +43,10 @@ Deno.serve(async (req) => {
     // Otherwise, this is a signup request
     return handleSignup(supabaseAdmin, body as SignupRequest);
   } catch (error) {
-    console.error('Error in sdr-team-signup function:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    const requestId = crypto.randomUUID().slice(0, 8);
+    console.error(`[sdr-team-signup] Error ${requestId}:`, error instanceof Error ? error.message : error);
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: 'An unexpected error occurred. Please try again.', requestId }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -224,7 +223,7 @@ async function handleSignup(supabaseAdmin: any, { inviteToken, email, name, pass
   if (createError || !newUser.user) {
     console.error('Failed to create user:', createError);
     return new Response(
-      JSON.stringify({ error: 'Failed to create account', details: createError?.message }),
+      JSON.stringify({ error: 'Failed to create account' }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

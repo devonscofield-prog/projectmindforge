@@ -57,7 +57,7 @@ export function useCallWithAnalysis(callId: string | undefined, userId: string |
         const cachedData = queryClient.getQueryData(callDetailKeys.call(callId));
         if (cachedData) {
           log.info('Using cached data as fallback for call not found via RLS', { callId });
-          return cachedData as { transcript: any; analysis: any };
+          return cachedData as Awaited<ReturnType<typeof getCallWithAnalysis>>;
         }
         log.warn('Call not found', { callId, userId, role });
         throw new Error('Call not found');

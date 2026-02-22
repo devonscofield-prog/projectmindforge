@@ -34,6 +34,7 @@ const ManagerDashboard = lazy(() => import("./pages/manager/ManagerDashboard"));
 const ManagerCallHistory = lazy(() => import("./pages/manager/ManagerCallHistory"));
 const ManagerAccounts = lazy(() => import("./pages/manager/ManagerAccounts"));
 const ManagerCoaching = lazy(() => import("./pages/manager/ManagerCoaching"));
+const ManagerCoachingTrends = lazy(() => import("./pages/manager/ManagerCoachingTrends"));
 const RepDetail = lazy(() => import("./pages/manager/RepDetail"));
 
 // Lazy load - Admin pages
@@ -232,7 +233,7 @@ const App = () => (
                 } />
                 <Route path="/manager/coaching-trends" element={
                   <ProtectedRoute allowedRoles={['manager']}>
-                    <AdminCoachingTrends />
+                    <ManagerCoachingTrends />
                   </ProtectedRoute>
                 } />
                 <Route path="/manager/transcripts" element={

@@ -4,10 +4,16 @@ import { useAuth } from '@/contexts/AuthContext';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { DetailPageSkeleton } from '@/components/ui/skeletons';
 import { useProspectData } from '@/hooks/useProspectData';
+import type { Prospect } from '@/api/prospects';
 import { useProfile } from '@/hooks/useProfiles';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
 import { getAccountDetailBreadcrumbs } from '@/lib/breadcrumbConfig';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { HeatScoreBadge } from '@/components/ui/heat-score-badge';
+import { Flame, Calendar, ListTodo, User } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
 
 // Detail section components
 import {
@@ -20,13 +26,14 @@ import { AccountHeatCard } from '@/components/prospects/detail/AccountHeatCard';
 import { AgreedNextStepsCard } from '@/components/prospects/detail/AgreedNextStepsCard';
 import { ProspectCallHistory } from '@/components/prospects/detail/ProspectCallHistory';
 
-// Existing dialog/sheet components
-import { AddStakeholderDialog } from '@/components/prospects/AddStakeholderDialog';
-import { StakeholderDetailSheet } from '@/components/prospects/StakeholderDetailSheet';
+import { lazy, Suspense } from 'react';
+// Lazy-loaded dialog/sheet components
+const AddStakeholderDialog = lazy(() => import('@/components/prospects/AddStakeholderDialog').then(m => ({ default: m.AddStakeholderDialog })));
+const StakeholderDetailSheet = lazy(() => import('@/components/prospects/StakeholderDetailSheet').then(m => ({ default: m.StakeholderDetailSheet })));
 import { StakeholderRelationshipMap } from '@/components/prospects/StakeholderRelationshipMap';
-import { AddEmailLogDialog } from '@/components/prospects/AddEmailLogDialog';
-import { SalesCoachChat } from '@/components/prospects/SalesCoachChat';
-import { AccountResearchChat } from '@/components/prospects/AccountResearchChat';
+const AddEmailLogDialog = lazy(() => import('@/components/prospects/AddEmailLogDialog').then(m => ({ default: m.AddEmailLogDialog })));
+const SalesCoachChat = lazy(() => import('@/components/prospects/SalesCoachChat').then(m => ({ default: m.SalesCoachChat })));
+const AccountResearchChat = lazy(() => import('@/components/prospects/AccountResearchChat').then(m => ({ default: m.AccountResearchChat })));
 
 import type { Stakeholder } from '@/api/stakeholders';
 
@@ -102,7 +109,7 @@ function ProspectDetail() {
           items={getAccountDetailBreadcrumbs(role, prospect.account_name || prospect.prospect_name)} 
         />
 
-        {/* Consolidated Header (includes stats and metadata) */}
+        {/* 1. Consolidated Header (includes stats and metadata) */}
         <ProspectHeader
           prospect={prospect}
           primaryStakeholder={primaryStakeholder}
@@ -114,34 +121,53 @@ function ProspectDetail() {
           showRepName={showRepName}
         />
 
-        {/* Call History - prominent position */}
-        <ProspectCallHistory calls={calls} />
+        {/* 2. Compact Deal Status Card */}
+        <Card>
+          <CardContent className="py-3">
+            <div className="flex items-center gap-6 flex-wrap">
+              {/* Heat Score */}
+              <div className="flex items-center gap-2">
+                <Flame className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Heat:</span>
+                <HeatScoreBadge score={prospect.account_heat_score ?? null} />
+              </div>
 
-        {/* Agreed Next Steps Card */}
-        <AgreedNextStepsCard
-          prospectId={prospect.id}
-          aiExtractedInfo={prospect.ai_extracted_info as Record<string, unknown> | null}
-          onRefresh={loadProspectData}
-        />
+              {/* Last Contact */}
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Last Contact:</span>
+                <span className="text-sm font-medium">
+                  {prospect.last_contact_date
+                    ? format(parseISO(prospect.last_contact_date), 'MMM d, yyyy')
+                    : 'Never'}
+                </span>
+              </div>
 
-        {/* Account Heat/Pulse Card (redesigned with collapsed details) */}
-        <AccountHeatCard
-          prospectId={prospect.id}
-          accountHeatScore={prospect.account_heat_score ?? null}
-          accountHeatAnalysis={prospect.account_heat_analysis as any}
-          accountHeatUpdatedAt={prospect.account_heat_updated_at ?? null}
-          onRefresh={loadProspectData}
-        />
+              {/* Pending Follow-ups */}
+              <div className="flex items-center gap-2">
+                <ListTodo className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Follow-ups:</span>
+                <Badge variant={followUps.length > 0 ? 'default' : 'secondary'} className="text-xs">
+                  {followUps.length}
+                </Badge>
+              </div>
 
-        {/* Quick Actions Bar */}
-        <ProspectQuickActions
-          onAddEmail={() => setIsAddEmailOpen(true)}
-          onResearchAccount={() => setIsResearchOpen(true)}
-          onAddStakeholder={() => setIsAddStakeholderOpen(true)}
-          onLogActivity={handleAddActivity}
-        />
+              {/* Primary Stakeholder */}
+              {primaryStakeholder && (
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">Primary:</span>
+                  <span className="text-sm font-medium">{primaryStakeholder.name}</span>
+                  {primaryStakeholder.job_title && (
+                    <span className="text-xs text-muted-foreground">({primaryStakeholder.job_title})</span>
+                  )}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* Priority Action Zone - Follow-Ups */}
+        {/* 3. Priority Action Zone - Follow-Ups & Next Steps (moved up) */}
         <ProspectFollowUps
           prospect={prospect}
           followUps={followUps}
@@ -157,7 +183,34 @@ function ProspectDetail() {
           onRefresh={handleRefreshFollowUps}
         />
 
-        {/* Tabbed Content */}
+        {/* Agreed Next Steps Card */}
+        <AgreedNextStepsCard
+          prospectId={prospect.id}
+          aiExtractedInfo={prospect.ai_extracted_info as Record<string, unknown> | null}
+          onRefresh={loadProspectData}
+        />
+
+        {/* Quick Actions Bar */}
+        <ProspectQuickActions
+          onAddEmail={() => setIsAddEmailOpen(true)}
+          onResearchAccount={() => setIsResearchOpen(true)}
+          onAddStakeholder={() => setIsAddStakeholderOpen(true)}
+          onLogActivity={handleAddActivity}
+        />
+
+        {/* Account Heat/Pulse Card (full detail, below quick actions) */}
+        <AccountHeatCard
+          prospectId={prospect.id}
+          accountHeatScore={prospect.account_heat_score ?? null}
+          accountHeatAnalysis={prospect.account_heat_analysis}
+          accountHeatUpdatedAt={prospect.account_heat_updated_at ?? null}
+          onRefresh={loadProspectData}
+        />
+
+        {/* Call History */}
+        <ProspectCallHistory calls={calls} />
+
+        {/* 5. Tabbed Content (Calls, Stakeholders, Activities, Emails) */}
         <ProspectDetailTabs
           prospect={prospect}
           stakeholders={stakeholders}
@@ -184,63 +237,77 @@ function ProspectDetail() {
       </div>
 
       {/* Add Stakeholder Dialog */}
-      {user?.id && prospect && (
-        <AddStakeholderDialog
-          open={isAddStakeholderOpen}
-          onOpenChange={setIsAddStakeholderOpen}
-          prospectId={prospect.id}
-          repId={user.id}
-          onStakeholderAdded={loadProspectData}
-        />
+      {user?.id && prospect && isAddStakeholderOpen && (
+        <Suspense fallback={null}>
+          <AddStakeholderDialog
+            open={isAddStakeholderOpen}
+            onOpenChange={setIsAddStakeholderOpen}
+            prospectId={prospect.id}
+            repId={user.id}
+            onStakeholderAdded={loadProspectData}
+          />
+        </Suspense>
       )}
 
       {/* Stakeholder Detail Sheet */}
-      <StakeholderDetailSheet
-        stakeholder={selectedStakeholder}
-        open={isStakeholderSheetOpen}
-        onOpenChange={setIsStakeholderSheetOpen}
-        onUpdated={loadProspectData}
-        onDeleted={loadProspectData}
-      />
+      {isStakeholderSheetOpen && (
+        <Suspense fallback={null}>
+          <StakeholderDetailSheet
+            stakeholder={selectedStakeholder}
+            open={isStakeholderSheetOpen}
+            onOpenChange={setIsStakeholderSheetOpen}
+            onUpdated={loadProspectData}
+            onDeleted={loadProspectData}
+          />
+        </Suspense>
+      )}
 
       {/* Add Email Log Dialog */}
-      {user?.id && prospect && (
-        <AddEmailLogDialog
-          open={isAddEmailOpen}
-          onOpenChange={setIsAddEmailOpen}
-          prospectId={prospect.id}
-          repId={user.id}
-          stakeholders={stakeholders}
-          onEmailAdded={handleEmailAdded}
-        />
+      {user?.id && prospect && isAddEmailOpen && (
+        <Suspense fallback={null}>
+          <AddEmailLogDialog
+            open={isAddEmailOpen}
+            onOpenChange={setIsAddEmailOpen}
+            prospectId={prospect.id}
+            repId={user.id}
+            stakeholders={stakeholders}
+            onEmailAdded={handleEmailAdded}
+          />
+        </Suspense>
       )}
 
       {/* AI Sales Coach Chat */}
-      <SalesCoachChat 
-        prospectId={prospect.id} 
-        accountName={prospect.account_name || prospect.prospect_name}
-        heatScore={prospect.account_heat_score}
-        lastContactDate={prospect.last_contact_date}
-        pendingFollowUpsCount={followUps.length}
-      />
+      <Suspense fallback={null}>
+        <SalesCoachChat
+          prospectId={prospect.id}
+          accountName={prospect.account_name || prospect.prospect_name}
+          heatScore={prospect.account_heat_score}
+          lastContactDate={prospect.last_contact_date}
+          pendingFollowUpsCount={followUps.length}
+        />
+      </Suspense>
 
       {/* Account Research Chat */}
-      <AccountResearchChat
-        open={isResearchOpen}
-        onOpenChange={setIsResearchOpen}
-        prospect={prospect}
-        stakeholders={stakeholders}
-        onSaveResearch={async (research) => {
-          const currentInfo = (prospect.ai_extracted_info || {}) as Record<string, unknown>;
-          return handleUpdateProspect({
-            ai_extracted_info: {
-              ...currentInfo,
-              account_research: research, // Now stores structured object
-              account_research_generated_at: new Date().toISOString(),
-            } as any,
-          });
-        }}
-      />
+      {isResearchOpen && (
+        <Suspense fallback={null}>
+          <AccountResearchChat
+            open={isResearchOpen}
+            onOpenChange={setIsResearchOpen}
+            prospect={prospect}
+            stakeholders={stakeholders}
+            onSaveResearch={async (research) => {
+              const currentInfo = (prospect.ai_extracted_info || {}) as Record<string, unknown>;
+              return handleUpdateProspect({
+                ai_extracted_info: {
+                  ...currentInfo,
+                  account_research: research, // Now stores structured object
+                  account_research_generated_at: new Date().toISOString(),
+                } as Prospect['ai_extracted_info'],
+              });
+            }}
+          />
+        </Suspense>
+      )}
     </AppLayout>
   );
 }

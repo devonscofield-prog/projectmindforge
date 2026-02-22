@@ -1,4 +1,5 @@
 import * as React from "react";
+import { memo } from "react";
 import { cn } from "@/lib/utils";
 import { LucideIcon } from "lucide-react";
 import { Button } from "./button";
@@ -13,7 +14,7 @@ interface EmptyStateProps extends React.HTMLAttributes<HTMLDivElement> {
   };
 }
 
-function EmptyState({
+const EmptyState = memo(function EmptyState({
   icon: Icon,
   title,
   description,
@@ -49,6 +50,6 @@ function EmptyState({
       )}
     </div>
   );
-}
+});
 
 export { EmptyState };

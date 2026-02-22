@@ -1,9 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-}
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 interface SeedUser {
   email: string
@@ -109,6 +105,9 @@ const FOCUS_AREAS = ['Discovery', 'Objection Handling', 'Closing', 'Time Managem
 const ACTIVITY_TYPES = ['cold_calls', 'emails', 'linkedin', 'demos', 'meetings', 'proposals'] as const
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get('Origin')
+  const corsHeaders = getCorsHeaders(origin)
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
@@ -194,7 +193,7 @@ Deno.serve(async (req) => {
         })
         
         if (error) {
-          results.push(`Error creating ${user.email}: ${error.message}`)
+          results.push(`Error creating ${user.email}: Failed to create user`)
           continue
         }
         
@@ -268,7 +267,7 @@ Deno.serve(async (req) => {
         .eq('id', userId)
       
       if (error) {
-        results.push(`Error updating profile ${user.email}: ${error.message}`)
+        results.push(`Error updating profile ${user.email}: Failed to update profile`)
       } else {
         results.push(`Updated profile for ${user.email}`)
       }
@@ -287,7 +286,7 @@ Deno.serve(async (req) => {
         .eq('user_id', userId)
       
       if (error) {
-        results.push(`Error updating role for ${user.email}: ${error.message}`)
+        results.push(`Error updating role for ${user.email}: Failed to update role`)
       } else {
         results.push(`Set role ${user.role} for ${user.email}`)
       }
@@ -497,9 +496,10 @@ Deno.serve(async (req) => {
     )
 
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const requestId = crypto.randomUUID().slice(0, 8)
+    console.error(`[seed-demo-data] Error ${requestId}:`, error instanceof Error ? error.message : error)
     return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
+      JSON.stringify({ success: false, error: 'An unexpected error occurred. Please try again.', requestId }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }

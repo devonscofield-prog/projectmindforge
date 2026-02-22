@@ -1,9 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 interface CreateSessionRequest {
   personaId: string;
@@ -817,6 +813,9 @@ function buildPersonaSystemPrompt(persona: Persona, sessionType: string, scenari
 // ─── Main Handler ────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -1134,9 +1133,11 @@ Do NOT:
     }
 
   } catch (error) {
-    console.error('Error in roleplay-session-manager:', error);
+    const requestId = crypto.randomUUID().slice(0, 8);
+    console.error(`[roleplay-session-manager] Error ${requestId}:`, error instanceof Error ? error.message : error);
     return new Response(JSON.stringify({
-      error: error instanceof Error ? error.message : 'Unknown error occurred'
+      error: 'An unexpected error occurred. Please try again.',
+      requestId
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

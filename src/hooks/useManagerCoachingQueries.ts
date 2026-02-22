@@ -5,6 +5,13 @@ import { toProfile, toCoachingSession } from '@/lib/supabaseAdapters';
 import { getTeamRepsForManager } from '@/api/prospects';
 import type { CoachingSession, Profile } from '@/types/database';
 
+export interface RecentCall {
+  id: string;
+  account_name: string | null;
+  call_date: string;
+  primary_stakeholder_name: string | null;
+}
+
 const log = createLogger('useManagerCoachingQueries');
 
 export interface CoachingWithRep extends CoachingSession {
@@ -101,5 +108,36 @@ export function useTeamRepsForManager(
     },
     enabled: !!managerId,
     staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+/**
+ * Fetches recent completed calls for a specific rep (for "Linked Call" dropdown)
+ */
+export function useRecentCallsForRep(
+  repId: string | undefined
+): UseQueryResult<RecentCall[], Error> {
+  return useQuery({
+    queryKey: [...managerCoachingKeys.all, 'recent-calls', repId || ''],
+    queryFn: async () => {
+      if (!repId) throw new Error('Rep ID is required');
+
+      const { data, error } = await supabase
+        .from('call_transcripts')
+        .select('id, account_name, call_date, primary_stakeholder_name')
+        .eq('rep_id', repId)
+        .is('deleted_at', null)
+        .order('call_date', { ascending: false })
+        .limit(30);
+
+      if (error) {
+        log.error('Failed to fetch recent calls for rep', { error, repId });
+        throw new Error(`Failed to fetch recent calls: ${error.message}`);
+      }
+
+      return (data || []) as RecentCall[];
+    },
+    enabled: !!repId,
+    staleTime: 2 * 60 * 1000,
   });
 }

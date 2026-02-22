@@ -31,7 +31,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Skeleton } from '@/components/ui/skeleton';
 import { CallType, callTypeLabels } from '@/constants/callTypes';
 import { format } from 'date-fns';
-import { getDashboardUrl, getCallHistoryUrl, getAccountDetailUrl } from '@/lib/routes';
+import { getDashboardUrl, getCallHistoryUrl, getAccountDetailUrl, getCallDetailUrl } from '@/lib/routes';
 import { getCallDetailBreadcrumbs } from '@/lib/breadcrumbConfig';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 import { formatCurrency, parseDateOnly } from '@/lib/formatters';
@@ -49,9 +49,9 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import {
-  ArrowLeft, 
-  Calendar, 
-  Loader2, 
+  ArrowLeft,
+  Calendar,
+  Loader2,
   ShieldAlert,
   FileText,
   RefreshCw,
@@ -67,7 +67,16 @@ import {
   ChevronRight,
   Download,
   ListTodo,
-  Check
+  Check,
+  Lightbulb,
+  Flame,
+  Target,
+  TrendingUp,
+  TrendingDown,
+  ArrowRight,
+  ArrowUpRight,
+  ArrowDownRight,
+  GraduationCap,
 } from 'lucide-react';
 
 function CallDetailPage() {
@@ -271,22 +280,22 @@ function CallDetailPage() {
         <PageBreadcrumb items={getCallDetailBreadcrumbs(role, callTitle)} />
 
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate(getBackPath())} aria-label="Go back to call history">
+            <Button variant="ghost" size="icon" className="hidden md:flex" onClick={() => navigate(getBackPath())} aria-label="Go back to call history">
               <ArrowLeft className="h-5 w-5" />
             </Button>
-            <div>
-              <h1 className="text-2xl font-bold">
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold truncate">
                 {callTitle}
               </h1>
-              <p className="text-muted-foreground">
+              <p className="text-muted-foreground text-sm sm:text-base">
                 Full AI coaching breakdown for this call
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleExportCSV} aria-label="Export call details to CSV">
+            <Button variant="outline" size="sm" onClick={handleExportCSV} aria-label="Export call details to CSV" className="min-h-[44px] md:min-h-0">
               <Download className="h-4 w-4 mr-2" />
               Export CSV
             </Button>
@@ -318,7 +327,7 @@ function CallDetailPage() {
             )}
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {/* Sales Rep */}
               {transcript.rep_name && (
                 <div className="flex items-center gap-2">
@@ -484,7 +493,7 @@ function CallDetailPage() {
           <div className="flex flex-col sm:flex-row gap-2">
             <Dialog open={isRecapDialogOpen} onOpenChange={setIsRecapDialogOpen}>
               <DialogTrigger asChild>
-                <button className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-card hover:bg-muted/50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring w-full sm:w-auto">
+                <button className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-card hover:bg-muted/50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring w-full sm:w-auto min-h-[44px]">
                   <ScrollText className="h-4 w-4 text-primary" />
                   <span className="text-sm font-medium">
                     {analysis?.sales_assets ? 'View Call Notes' : 'Generate Call Notes'}
@@ -520,7 +529,7 @@ function CallDetailPage() {
               <>
                 <button
                   onClick={() => setIsAddTaskDialogOpen(true)}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-card hover:bg-muted/50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring w-full sm:w-auto"
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-card hover:bg-muted/50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring w-full sm:w-auto min-h-[44px]"
                 >
                   <ListTodo className="h-4 w-4 text-primary" />
                   <span className="text-sm font-medium">Add Task</span>
@@ -539,10 +548,82 @@ function CallDetailPage() {
                 />
               </>
             )}
+
+            {/* Start Coaching Session Button - Manager only */}
+            {isManager && (
+              <Link
+                to={`/manager/coaching?callId=${transcript.id}&repId=${transcript.rep_id}`}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-card hover:bg-muted/50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring w-full sm:w-auto min-h-[44px]"
+              >
+                <GraduationCap className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium">Start Coaching Session</span>
+                <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto" />
+              </Link>
+            )}
           </div>
         )}
 
-        {/* AI Coaching Synthesis Card - First Thing User Sees */}
+        {/* Call Summary Card - Quick overview at a glance */}
+        {transcript.analysis_status === 'completed' && analysis && (() => {
+          const coaching = analysis.analysis_coaching;
+          const heatData = analysis.deal_heat_analysis as { heat_score?: number; temperature?: string; trend?: string } | null;
+          const suggestions = analysis.follow_up_suggestions as unknown as FollowUpSuggestion[] | null;
+          const topSuggestion = suggestions?.find(s => s.status === 'pending');
+
+          return (coaching || heatData || topSuggestion) ? (
+            <Card className="border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Lightbulb className="h-5 w-5 text-primary" />
+                  Call Summary
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                  {/* Key Coaching Insight */}
+                  {coaching && (
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Key Insight</p>
+                      <p className="text-sm text-foreground leading-snug">{coaching.coaching_prescription}</p>
+                      <Badge variant="secondary" className="text-xs mt-1">{coaching.primary_focus_area}</Badge>
+                    </div>
+                  )}
+
+                  {/* Deal Heat Score with Trend */}
+                  {heatData?.heat_score != null && (
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Deal Heat</p>
+                      <div className="flex items-center gap-3">
+                        <HeatScoreBadge score={heatData.heat_score} variant="card" />
+                        {coaching?.deal_progression?.heat_trend && (
+                          <div className="flex items-center gap-1 text-sm font-medium">
+                            {coaching.deal_progression.heat_trend === 'up' && <ArrowUpRight className="h-4 w-4 text-green-600" />}
+                            {coaching.deal_progression.heat_trend === 'down' && <ArrowDownRight className="h-4 w-4 text-red-600" />}
+                            {coaching.deal_progression.heat_trend === 'flat' && <ArrowRight className="h-4 w-4 text-muted-foreground" />}
+                            <span className="text-xs capitalize text-muted-foreground">{coaching.deal_progression.heat_trend}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* #1 Next Action */}
+                  {topSuggestion && (
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Top Next Action</p>
+                      <div className="flex items-start gap-2">
+                        <Target className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                        <p className="text-sm text-foreground leading-snug">{topSuggestion.title}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ) : null;
+        })()}
+
+        {/* AI Coaching Synthesis Card */}
         {(transcript.analysis_status === 'pending' || transcript.analysis_status === 'processing') && (
           <Card>
             <CardHeader>
@@ -562,7 +643,7 @@ function CallDetailPage() {
           </Card>
         )}
         {transcript.analysis_status === 'completed' && analysis?.analysis_coaching && (
-          <CoachingCard data={analysis.analysis_coaching} />
+          <CoachingCard data={analysis.analysis_coaching} defaultOpen={false} />
         )}
 
         {/* AI-Powered Follow-Up Suggestions - appears after coaching insights */}
@@ -634,7 +715,7 @@ function CallDetailPage() {
         <Collapsible open={isTranscriptOpen} onOpenChange={setIsTranscriptOpen}>
           <Card>
             <CollapsibleTrigger asChild>
-              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors min-h-[44px]">
                 <CardTitle className="flex items-center justify-between">
                   <span className="flex items-center gap-2">
                     <ScrollText className="h-5 w-5" />

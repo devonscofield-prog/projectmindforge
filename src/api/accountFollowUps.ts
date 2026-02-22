@@ -525,3 +525,88 @@ export async function bulkRescheduleFollowUps(ids: string[], dueDate: string): P
     throw error;
   }
 }
+
+/**
+ * Get count of reps with coaching overdue (no coaching session in last 14 days).
+ * Used for manager nav badge.
+ */
+export async function getCoachingOverdueCount(managerId: string, role: string): Promise<number> {
+  // Get team reps
+  let repQuery = supabase.from('profiles').select('id').eq('role', 'rep');
+  if (role === 'manager') {
+    repQuery = repQuery.eq('manager_id', managerId);
+  }
+  const { data: reps, error: repsError } = await repQuery;
+  if (repsError || !reps || reps.length === 0) return 0;
+
+  const repIds = reps.map(r => r.id);
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - 14);
+  const cutoffISO = cutoffDate.toISOString().split('T')[0];
+
+  // Get the latest coaching session per rep
+  const { data: sessions, error: sessionsError } = await supabase
+    .from('coaching_sessions')
+    .select('rep_id, session_date')
+    .in('rep_id', repIds)
+    .order('session_date', { ascending: false });
+
+  if (sessionsError) return 0;
+
+  // Find the latest session per rep
+  const latestByRep = new Map<string, string>();
+  for (const s of sessions || []) {
+    if (!latestByRep.has(s.rep_id)) {
+      latestByRep.set(s.rep_id, s.session_date);
+    }
+  }
+
+  // Count reps with no session or overdue
+  let overdueCount = 0;
+  for (const repId of repIds) {
+    const lastDate = latestByRep.get(repId);
+    if (!lastDate || lastDate < cutoffISO) {
+      overdueCount++;
+    }
+  }
+
+  return overdueCount;
+}
+
+/**
+ * Get count of accounts (distinct prospects) with pending follow-ups for a rep
+ */
+export async function getPendingAccountsCountForRep(repId: string): Promise<number> {
+  const { data, error } = await supabase
+    .from('account_follow_ups')
+    .select('prospect_id')
+    .eq('rep_id', repId)
+    .eq('status', 'pending');
+
+  if (error) {
+    log.error('Error fetching pending accounts count', { repId, error });
+    return 0;
+  }
+
+  const uniqueProspects = new Set((data || []).map(d => d.prospect_id));
+  return uniqueProspects.size;
+}
+
+/**
+ * Get count of pending tasks for a rep (lightweight count-only query)
+ */
+export async function getPendingTaskCountForRep(repId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('account_follow_ups')
+    .select('*', { count: 'exact', head: true })
+    .eq('rep_id', repId)
+    .eq('status', 'pending')
+    .eq('source', 'manual');
+
+  if (error) {
+    log.error('Error fetching pending task count', { repId, error });
+    return 0;
+  }
+
+  return count ?? 0;
+}

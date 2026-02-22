@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Download } from 'lucide-react';
@@ -21,7 +22,7 @@ const LABEL_DISPLAY: Record<string, string> = {
   time_waster: 'Time Waster',
 };
 
-export function ReportResultsTable({ data, visibleColumns }: ReportResultsTableProps) {
+export const ReportResultsTable = memo(function ReportResultsTable({ data, visibleColumns }: ReportResultsTableProps) {
   const v = (col: string) => isVisible(col, visibleColumns);
 
   const handleExport = () => {
@@ -191,4 +192,4 @@ export function ReportResultsTable({ data, visibleColumns }: ReportResultsTableP
       )}
     </div>
   );
-}
+});

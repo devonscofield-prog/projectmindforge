@@ -82,8 +82,8 @@ export default function RepDetail() {
   const [managerFilter, setManagerFilter] = useState<ManagerFilter>('all');
   const [callSearch, setCallSearch] = useState('');
 
-  // AI Coaching Snapshot collapsed state (collapsed by default)
-  const [snapshotOpen, setSnapshotOpen] = useState(false);
+  // AI Coaching Snapshot collapsed state (expanded by default)
+  const [snapshotOpen, setSnapshotOpen] = useState(true);
 
   // Fetch data using React Query
   const { data: rep, isLoading: isLoadingProfile, error: profileError } = useRepProfile(repId);
@@ -252,7 +252,7 @@ export default function RepDetail() {
           </div>
         </div>
 
-        {/* AI Coaching Snapshot - Collapsible, collapsed by default */}
+        {/* AI Coaching Snapshot - Collapsible, expanded by default */}
         <Collapsible open={snapshotOpen} onOpenChange={setSnapshotOpen}>
           <Card>
             <CollapsibleTrigger asChild>

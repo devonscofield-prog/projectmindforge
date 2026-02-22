@@ -8,6 +8,7 @@ import { z } from "zod";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { AgentConfig } from './agent-registry.ts';
 import { createToolFromSchema } from './zod-to-json-schema.ts';
+import { sanitizeUserContent } from './sanitize.ts';
 
 // AI Gateway configuration
 const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
@@ -505,7 +506,8 @@ async function executeAgentWithModel<T extends z.ZodTypeAny>(
   const start = performance.now();
   const metricName = `agent_${config.id}_${modelOverride.replace('/', '_')}`;
 
-  console.log(`[${config.name}] Starting with model override: ${modelOverride}...`);
+  const cid = callId.slice(0, 12);
+  console.log(`[${config.name}][${cid}] Starting with model override: ${modelOverride}...`);
 
   // Create a cloned config with the model override
   const overriddenConfig: AgentConfig<T> = {
@@ -524,7 +526,7 @@ async function executeAgentWithModel<T extends z.ZodTypeAny>(
       consensus_run: true,
     });
 
-    console.log(`[${config.name}] (${modelOverride}) Complete in ${Math.round(duration)}ms`);
+    console.log(`[${config.name}][${cid}] (${modelOverride}) Complete in ${Math.round(duration)}ms`);
     return { success: true, data: result, durationMs: duration };
   } catch (err) {
     const duration = performance.now() - start;
@@ -538,7 +540,7 @@ async function executeAgentWithModel<T extends z.ZodTypeAny>(
       consensus_run: true,
     });
 
-    console.warn(`[${config.name}] (${modelOverride}) Failed after ${Math.round(duration)}ms: ${error}`);
+    console.warn(`[${config.name}][${cid}] (${modelOverride}) Failed after ${Math.round(duration)}ms: ${error}`);
     return { success: false, data: config.default, durationMs: duration, error };
   }
 }
@@ -799,10 +801,11 @@ export async function executeAgent<T extends z.ZodTypeAny>(
   const start = performance.now();
   const metricName = `agent_${config.id}`;
 
-  console.log(`[${config.name}] Starting ${config.description}...`);
+  const cid = callId.slice(0, 12);
+  console.log(`[${config.name}][${cid}] Starting ${config.description}...`);
 
   try {
-    const userPrompt = config.userPromptTemplate(transcript);
+    const userPrompt = config.userPromptTemplate(sanitizeUserContent(transcript));
     const result = await callLovableAI(config, userPrompt);
     const duration = performance.now() - start;
 
@@ -812,7 +815,7 @@ export async function executeAgent<T extends z.ZodTypeAny>(
       agent_id: config.id,
     });
 
-    console.log(`[${config.name}] Complete in ${Math.round(duration)}ms`);
+    console.log(`[${config.name}][${cid}] Complete in ${Math.round(duration)}ms`);
 
     return { success: true, data: result, durationMs: duration };
   } catch (err) {
@@ -826,7 +829,7 @@ export async function executeAgent<T extends z.ZodTypeAny>(
       error,
     });
 
-    console.warn(`[${config.name}] Failed after ${Math.round(duration)}ms: ${error}`);
+    console.warn(`[${config.name}][${cid}] Failed after ${Math.round(duration)}ms: ${error}`);
 
     return { success: false, data: config.default, durationMs: duration, error };
   }
@@ -845,7 +848,8 @@ export async function executeAgentWithPrompt<T extends z.ZodTypeAny>(
   const start = performance.now();
   const metricName = `agent_${config.id}`;
 
-  console.log(`[${config.name}] Starting ${config.description} (context-aware)...`);
+  const cid = callId.slice(0, 12);
+  console.log(`[${config.name}][${cid}] Starting ${config.description} (context-aware)...`);
 
   try {
     const result = await callLovableAI(config, customUserPrompt);
@@ -858,7 +862,7 @@ export async function executeAgentWithPrompt<T extends z.ZodTypeAny>(
       context_aware: true,
     });
 
-    console.log(`[${config.name}] Complete in ${Math.round(duration)}ms`);
+    console.log(`[${config.name}][${cid}] Complete in ${Math.round(duration)}ms`);
 
     return { success: true, data: result, durationMs: duration };
   } catch (err) {
@@ -873,7 +877,7 @@ export async function executeAgentWithPrompt<T extends z.ZodTypeAny>(
       context_aware: true,
     });
 
-    console.warn(`[${config.name}] Failed after ${Math.round(duration)}ms: ${error}`);
+    console.warn(`[${config.name}][${cid}] Failed after ${Math.round(duration)}ms: ${error}`);
 
     return { success: false, data: config.default, durationMs: duration, error };
   }

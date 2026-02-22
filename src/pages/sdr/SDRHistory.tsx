@@ -1,20 +1,25 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useSDRTranscriptList, useRetrySDRTranscript } from '@/hooks/useSDR';
+import { useSDRTranscriptList, useSDRCallList, useRetrySDRTranscript } from '@/hooks/useSDR';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, RotateCcw, X } from 'lucide-react';
+import { Loader2, RotateCcw, X, FileText } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
+
+const GRADE_OPTIONS = ['A+', 'A', 'B', 'C', 'D', 'F'] as const;
 
 function SDRHistory() {
   const { user } = useAuth();
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [gradeFilter, setGradeFilter] = useState<string[]>([]);
   const statusesForFilter = statusFilter !== 'all'
     ? [statusFilter as 'pending' | 'processing' | 'completed' | 'failed' | 'partial']
     : undefined;
@@ -44,7 +49,35 @@ function SDRHistory() {
   const retryMutation = useRetrySDRTranscript();
   const [retryingId, setRetryingId] = useState<string | null>(null);
 
-  const hasFilters = dateFrom || dateTo || statusFilter !== 'all';
+  // Fetch calls for grade filtering
+  const { data: allCalls = [] } = useSDRCallList({
+    sdrId: user?.id,
+    onlyMeaningful: true,
+    orderBy: 'recency',
+    limit: 500,
+    enabled: !!user?.id && gradeFilter.length > 0,
+  });
+
+  // Compute transcript IDs that contain calls matching the grade filter
+  const gradeMatchTranscriptIds = useMemo(() => {
+    if (gradeFilter.length === 0) return null;
+    const ids = new Set<string>();
+    allCalls.forEach(call => {
+      const grade = call.sdr_call_grades?.[0]?.overall_grade;
+      if (grade && gradeFilter.includes(grade)) {
+        ids.add(call.daily_transcript_id);
+      }
+    });
+    return ids;
+  }, [allCalls, gradeFilter]);
+
+  const toggleGrade = (grade: string) => {
+    setGradeFilter(prev =>
+      prev.includes(grade) ? prev.filter(g => g !== grade) : [...prev, grade]
+    );
+  };
+
+  const hasFilters = dateFrom || dateTo || statusFilter !== 'all' || gradeFilter.length > 0;
   const isLoading = transcriptsLoading || filteredLoading;
   const isError = transcriptsError || filteredError;
 
@@ -91,8 +124,23 @@ function SDRHistory() {
                   <option value="pending">Pending</option>
                 </select>
               </div>
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Grade</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {GRADE_OPTIONS.map(grade => (
+                    <Badge
+                      key={grade}
+                      variant={gradeFilter.includes(grade) ? 'default' : 'outline'}
+                      className="cursor-pointer select-none"
+                      onClick={() => toggleGrade(grade)}
+                    >
+                      {grade}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
               {hasFilters && (
-                <Button variant="ghost" size="sm" onClick={() => { setDateFrom(''); setDateTo(''); setStatusFilter('all'); }}>
+                <Button variant="ghost" size="sm" onClick={() => { setDateFrom(''); setDateTo(''); setStatusFilter('all'); setGradeFilter([]); }}>
                   <X className="h-4 w-4 mr-1" />
                   Clear
                 </Button>
@@ -105,19 +153,25 @@ function SDRHistory() {
           <CardHeader>
             <CardTitle>
               {hasFilters
-                ? `Showing ${filteredTranscripts.length} of ${transcripts.length} transcripts`
+                ? `Filtered Transcripts`
                 : `All Transcripts (${transcripts.length})`
               }
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {filteredTranscripts.length === 0 ? (
-              <p className="text-muted-foreground text-center py-8">
-                {hasFilters ? 'No transcripts match your filters.' : 'No transcripts yet. Upload your first one from the dashboard!'}
-              </p>
+            {(() => {
+              const displayTranscripts = gradeMatchTranscriptIds
+                ? filteredTranscripts.filter(t => gradeMatchTranscriptIds.has(t.id))
+                : filteredTranscripts;
+              return displayTranscripts.length === 0 ? (
+              <EmptyState
+                icon={FileText}
+                title={hasFilters ? 'No transcripts match your filters' : 'No transcripts yet'}
+                description={hasFilters ? 'Try adjusting your filter criteria.' : 'Upload your first transcript from the dashboard to get started.'}
+              />
             ) : (
               <div className="space-y-2">
-                {filteredTranscripts.map((t) => (
+                {displayTranscripts.map((t) => (
                   <Link key={t.id} to={`/sdr/history/${t.id}`} className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent/50 transition-colors">
                     <div>
                       <p className="font-medium">{format(new Date(t.transcript_date), 'EEEE, MMM d, yyyy')}</p>
@@ -156,7 +210,8 @@ function SDRHistory() {
                   </Link>
                 ))}
               </div>
-            )}
+            );
+            })()}
           </CardContent>
         </Card>
       </div>

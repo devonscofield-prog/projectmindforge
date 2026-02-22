@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { useDateRangeSelector, DateRange, createPreviousPeriodRange } from '@/hooks/useDateRangeSelector';
+import { useDateRangeSelector, DateRange, createPreviousPeriodRange, type DatePreset } from '@/hooks/useDateRangeSelector';
 import { 
   generateCoachingTrends, 
   CoachingTrendAnalysis, 
@@ -151,7 +151,7 @@ export function useCoachingSummaryState() {
 
   // Handlers
   const handlePresetChange = useCallback((value: string) => {
-    onPresetChange(value as any);
+    onPresetChange(value as DatePreset);
   }, [onPresetChange]);
 
   const handleFromDateChange = useCallback((date: Date | undefined) => {
@@ -167,7 +167,7 @@ export function useCoachingSummaryState() {
       const compRange = createPreviousPeriodRange(dateRange);
       setComparisonDateRange(compRange);
     } else {
-      onComparisonPresetChange(value as any);
+      onComparisonPresetChange(value as DatePreset);
     }
   }, [dateRange, onComparisonPresetChange, setComparisonDateRange]);
 

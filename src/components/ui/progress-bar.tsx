@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { cn } from '@/lib/utils';
 import { getPerformanceStatus } from './status-badge';
 
@@ -9,7 +10,7 @@ interface ProgressBarProps {
   size?: 'sm' | 'md' | 'lg';
 }
 
-export function ProgressBar({ value, goal, showLabel = true, className, size = 'md' }: ProgressBarProps) {
+export const ProgressBar = memo(function ProgressBar({ value, goal, showLabel = true, className, size = 'md' }: ProgressBarProps) {
   const percentage = goal > 0 ? Math.min((value / goal) * 100, 100) : 0;
   const status = getPerformanceStatus(value, goal);
 
@@ -40,4 +41,4 @@ export function ProgressBar({ value, goal, showLabel = true, className, size = '
       )}
     </div>
   );
-}
+});
