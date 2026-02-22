@@ -45,6 +45,14 @@ export {
   useRetrySDRTranscript,
   useUpdateCoachingPrompt,
   useUploadSDRTranscript,
+  useCreateSDRTeam,
+  useUpdateSDRTeam,
+  useDeleteSDRTeam,
+  useAddSDRTeamMember,
+  useRemoveSDRTeamMember,
+  useGenerateTeamInviteLink,
+  useDeactivateTeamInviteLink,
+  useDeleteSDRTranscript,
 } from './sdr/mutations';
 
 import {

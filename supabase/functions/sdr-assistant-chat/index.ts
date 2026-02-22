@@ -1,35 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
-
-// Rate limiting: 20 requests per minute per user
-const RATE_LIMIT_WINDOW_MS = 60 * 1000;
-const RATE_LIMIT_MAX_REQUESTS = 20;
-const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
-
-function checkRateLimit(userId: string): { allowed: boolean; retryAfter?: number } {
-  const now = Date.now();
-  const userLimit = rateLimitMap.get(userId);
-  
-  if (!userLimit || now > userLimit.resetTime) {
-    rateLimitMap.set(userId, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
-    return { allowed: true };
-  }
-  
-  if (userLimit.count >= RATE_LIMIT_MAX_REQUESTS) {
-    const retryAfter = Math.ceil((userLimit.resetTime - now) / 1000);
-    return { allowed: false, retryAfter };
-  }
-  
-  userLimit.count++;
-  return { allowed: true };
-}
-
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, value] of rateLimitMap.entries()) {
-    if (now > value.resetTime) rateLimitMap.delete(key);
-  }
-}, 60 * 1000);
+import { checkRateLimit } from "../_shared/rateLimiter.ts";
 
 function getCorsHeaders(origin?: string | null): Record<string, string> {
   const allowedOrigins = ['https://lovable.dev', 'https://www.lovable.dev'];
@@ -75,9 +46,22 @@ Your Role:
 
 Your Personality:
 - Strategic and coaching-focused
-- Data-driven - reference specific reps, grades, and metrics
-- Actionable - every insight should lead to a coaching action
-- Supportive - frame feedback constructively
+- Data-driven — reference specific reps, grades, and metrics
+- Actionable — every insight should lead to a coaching action
+- Supportive — frame feedback constructively
+
+Communication:
+- Jump into substance quickly. Reference specifics, not generic phrases.
+- Ask clarifying questions rather than assuming. Give 1-2 actionable suggestions, not lists.
+- When asked about team-wide issues, provide aggregate insights before drilling into individuals.
+
+Confidentiality:
+- Do not share individual rep details across reps. Each rep's performance data is private to them and their manager.
+- When a manager asks about a specific rep, only share that rep's data — never compare by revealing another rep's private details to them.
+
+Escalation Awareness:
+- If a rep has a consistent declining trend (3+ calls trending downward, or average score dropping over time), proactively suggest specific intervention strategies — not just "coach them more," but concrete actions like ride-alongs, script reviews, or role-play sessions.
+- Flag reps at risk of burnout or disengagement based on call volume drops or score patterns.
 
 When Responding:
 - Reference specific team members by name
@@ -95,17 +79,24 @@ Your Role:
 - Celebrate improvements and highlight strengths
 - Help them prepare for calls
 
-Your Personality:
-- Encouraging but honest
-- Specific - reference their actual call data and grades
-- Practical - give advice they can use on their next call
-- Growth-oriented - focus on improvement trajectories
+Personality:
+- Match tone to the moment — direct for clarity, supportive when struggling, energized with momentum.
+- Encouraging but honest. Collaborative ("Let's look at this..."), conversational.
+- Growth-oriented — focus on improvement trajectories.
+
+Communication:
+- Jump into substance quickly. Reference their actual data and grades, not generic phrases.
+- Vary your openings — sometimes a question, sometimes a suggestion, sometimes an observation from their data.
+- Ask clarifying questions rather than assuming. Give 1-2 actionable suggestions, not lists.
+- Tough truths: acknowledge what's hard → give honest feedback → follow with encouragement.
+- Use "What if you tried..." not "You should..."
 
 When Responding:
 - Reference their specific grades and scores
 - Point out both strengths and areas for improvement
 - Give concrete examples of what to say or do differently
-- Be concise and actionable`;
+- Be concise and actionable
+- Help them feel confident, not criticized`;
 
 Deno.serve(async (req) => {
   const origin = req.headers.get('Origin');
@@ -145,10 +136,10 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Invalid authentication' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    const rateLimit = checkRateLimit(user.id);
+    const rateLimit = await checkRateLimit(supabase, user.id, 'sdr-assistant-chat', 20, 60);
     if (!rateLimit.allowed) {
-      return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }), { 
-        status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': String(rateLimit.retryAfter || 60) } 
+      return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }), {
+        status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': String(rateLimit.retryAfter || 60) }
       });
     }
 
@@ -176,13 +167,13 @@ Deno.serve(async (req) => {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'gpt-5.2',
+        model: Deno.env.get('SDR_GPT_MODEL') || 'gpt-5.2',
         messages: [
           { role: 'system', content: `${systemPrompt}\n\n## CONTEXT DATA\n${contextPrompt}` },
           ...messages.slice(-20)
         ],
         stream: true,
-        max_completion_tokens: 4096,
+        max_completion_tokens: 8192,
       })
     });
 
@@ -219,7 +210,7 @@ async function buildManagerContext(supabase: any, managerId: string): Promise<st
     { data: profiles },
     { data: calls },
     _unused1,
-    { data: transcripts }
+    { data: _transcripts }
   ] = await Promise.all([
     supabase.from('profiles').select('id, name, email').in('id', memberIds),
     supabase.from('sdr_calls').select('id, sdr_id, call_index, is_meaningful, prospect_name, prospect_company, call_type, created_at').in('sdr_id', memberIds).order('created_at', { ascending: false }).limit(200),

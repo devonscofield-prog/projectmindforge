@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { getCorsHeaders } from "../_shared/cors.ts";
 
-const ALLOWED_EMAIL_DOMAIN = 'stormwindlive.com';
+const ALLOWED_EMAIL_DOMAIN = Deno.env.get('SDR_ALLOWED_EMAIL_DOMAIN') || 'stormwindlive.com';
 
 interface SignupRequest {
   inviteToken: string;

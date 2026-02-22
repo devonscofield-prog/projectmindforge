@@ -229,7 +229,7 @@ function SDRManagerRepDetail() {
     return (
       <AppLayout>
         <div className="text-center py-12">
-          <p className="text-destructive">Failed to load rep details. Please try refreshing.</p>
+          <p className="text-destructive">Failed to load rep transcripts and call data. Please try refreshing.</p>
           <Button asChild className="mt-4"><Link to="/sdr-manager"><ArrowLeft className="h-4 w-4 mr-2" />Back</Link></Button>
         </div>
       </AppLayout>
@@ -238,9 +238,9 @@ function SDRManagerRepDetail() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <main className="space-y-6">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
+          <Button variant="ghost" size="icon" aria-label="Back to team overview" asChild>
             <Link to={role === 'admin' ? '/admin/sdr' : '/sdr-manager'}><ArrowLeft className="h-5 w-5" /></Link>
           </Button>
           <div>
@@ -250,7 +250,7 @@ function SDRManagerRepDetail() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <section aria-label="Rep performance metrics" className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
@@ -306,7 +306,7 @@ function SDRManagerRepDetail() {
               </div>
             </CardContent>
           </Card>
-        </div>
+        </section>
 
         {/* Upload Shortcut */}
         <Card className="border-dashed border-2 border-primary/20 bg-primary/5">
@@ -409,7 +409,7 @@ function SDRManagerRepDetail() {
               <CardDescription>Average scores per grading dimension from recent calls</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-[250px]">
+              <div className="h-[250px]" role="img" aria-label="Horizontal bar chart showing average scores per grading dimension">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={dimensionBarData} layout="vertical" margin={{ left: 0, right: 20, top: 5, bottom: 5 }}>
                     <XAxis type="number" domain={[0, 10]} tick={{ fontSize: 12 }} />
@@ -594,7 +594,7 @@ function SDRManagerRepDetail() {
             )}
           </CardContent>
         </Card>
-      </div>
+      </main>
     </AppLayout>
   );
 }

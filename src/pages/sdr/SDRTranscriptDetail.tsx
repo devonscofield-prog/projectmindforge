@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useSDRTranscriptDetail, useSDRCallList, useReGradeCall, useRetrySDRTranscript } from '@/hooks/useSDR';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -90,7 +90,7 @@ function SDRTranscriptDetail() {
     return (
       <AppLayout>
         <div className="text-center py-12">
-          <p className="text-destructive">Failed to load transcript details. Please try refreshing.</p>
+          <p className="text-destructive">Failed to load transcript details and calls. Please try refreshing.</p>
           <Button asChild className="mt-4"><Link to={backPath}><ArrowLeft className="h-4 w-4 mr-2" />Back</Link></Button>
         </div>
       </AppLayout>
@@ -114,9 +114,9 @@ function SDRTranscriptDetail() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <main className="space-y-6">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild><Link to={backPath}><ArrowLeft className="h-5 w-5" /></Link></Button>
+          <Button variant="ghost" size="icon" aria-label={`Back to ${backLabel}`} asChild><Link to={backPath}><ArrowLeft className="h-5 w-5" /></Link></Button>
           <div className="flex-1">
             <h1 className="text-2xl font-bold">{format(new Date(transcript.transcript_date), 'EEEE, MMM d, yyyy')}</h1>
             <p className="text-muted-foreground">{transcript.total_calls_detected} calls • {transcript.meaningful_calls_count} meaningful</p>
@@ -199,7 +199,7 @@ function SDRTranscriptDetail() {
 
         {/* Summary Stats */}
         {transcript.processing_status !== 'pending' && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <section aria-label="Transcript summary statistics" className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Card>
               <CardContent className="pt-6">
                 <div className="flex items-center gap-3">
@@ -248,7 +248,7 @@ function SDRTranscriptDetail() {
                 </CardContent>
               </Card>
             )}
-          </div>
+          </section>
         )}
 
         {/* Meaningful Calls */}
@@ -371,7 +371,7 @@ function SDRTranscriptDetail() {
             </div>
           </div>
         )}
-      </div>
+      </main>
     </AppLayout>
   );
 }

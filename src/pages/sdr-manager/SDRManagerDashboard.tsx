@@ -1,12 +1,9 @@
-import { useMemo, useState, useRef } from 'react';
+import { useMemo, useState } from 'react';
 import { SDRAssistantChat } from '@/components/SDRAssistantChat';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   useSDRTeamMembers,
@@ -14,18 +11,17 @@ import {
   useSDRTranscriptList,
   useSDRCallList,
   useSDRTeamGradeSummary,
-  useUploadSDRTranscript,
 } from '@/hooks/useSDR';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, Users, Phone, TrendingUp, MessageSquare, CalendarCheck, Upload, FileUp, ArrowRight, BarChart3, FileText, ChevronDown, ChevronRight, Target, ArrowUp, ArrowDown, AlertCircle, AlertTriangle, HelpCircle } from 'lucide-react';
+import { Loader2, Users, Phone, TrendingUp, MessageSquare, CalendarCheck, Upload, ArrowRight, BarChart3, FileText, ChevronDown, ChevronRight, Target, ArrowUp, ArrowDown, AlertTriangle } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SDRLeaderboard } from '@/components/sdr/SDRLeaderboard';
+import { TranscriptUploadForm } from '@/components/sdr/TranscriptUploadForm';
 import { Link, useSearchParams } from 'react-router-dom';
 import { format, subDays, parseISO } from 'date-fns';
 import { gradeColors } from '@/constants/training';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
-import { cn } from '@/lib/utils';
 
 const GRADE_ORDER = ['A+', 'A', 'B', 'C', 'D', 'F'];
 const GRADE_BAR_COLORS: Record<string, string> = {
@@ -48,14 +44,6 @@ function SDRManagerDashboard() {
   // Upload for rep state
   const [showUpload, setShowUpload] = useState(!!uploadForParam);
   const [selectedSdrId, setSelectedSdrId] = useState<string>(uploadForParam || '');
-  const [rawText, setRawText] = useState('');
-  const [transcriptDate, setTranscriptDate] = useState(new Date().toLocaleDateString('en-CA'));
-  const [fileName, setFileName] = useState<string | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [formatGuideOpen, setFormatGuideOpen] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const dragCounter = useRef(0);
-  const uploadMutation = useUploadSDRTranscript();
 
   const memberIds = useMemo(() => members.map((m) => m.user_id), [members]);
 
@@ -265,76 +253,19 @@ function SDRManagerDashboard() {
       .sort((a, b) => (b.change ?? -999) - (a.change ?? -999));
   }, [members, teamCalls]);
 
-  const MIN_LENGTH = 50;
-  const MAX_LENGTH = 5_000_000;
-  const SHORT_WARN_LENGTH = 500;
-
-  const charCount = rawText.length;
-  const validationError = charCount > 0 && charCount < MIN_LENGTH
-    ? `Transcript must be at least ${MIN_LENGTH} characters (currently ${charCount}).`
-    : charCount > MAX_LENGTH
-      ? `Transcript exceeds maximum size of 5 MB (~${MAX_LENGTH.toLocaleString()} characters). Current: ${charCount.toLocaleString()}.`
-      : null;
-
-  const handleDragEnter = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounter.current += 1;
-    if (e.dataTransfer.types.includes('Files')) setIsDragging(true);
-  };
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounter.current -= 1;
-    if (dragCounter.current === 0) setIsDragging(false);
-  };
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-    dragCounter.current = 0;
-    const file = e.dataTransfer.files?.[0];
-    if (!file) return;
-    setFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = (ev) => { setRawText((ev.target?.result as string) || ''); };
-    reader.readAsText(file);
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = (ev) => { setRawText((ev.target?.result as string) || ''); };
-    reader.readAsText(file);
-  };
-
-  const handleUploadForRep = () => {
-    if (!rawText.trim() || !selectedSdrId || validationError) return;
-    if (charCount < SHORT_WARN_LENGTH) {
-      if (!window.confirm('This transcript seems very short. Are you sure?')) return;
-    }
-    uploadMutation.mutate({ rawText, transcriptDate, sdrId: selectedSdrId }, {
-      onSuccess: () => { setRawText(''); setFileName(null); setShowUpload(false); setSelectedSdrId(''); if (fileInputRef.current) fileInputRef.current.value = ''; }
-    });
-  };
+  const selectedMember = members.find(m => m.user_id === selectedSdrId);
 
   if (teamsLoading || membersLoading || recentTeamTranscriptsLoading) {
     return <AppLayout><div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div></AppLayout>;
   }
 
   if (teamsError || membersError || recentTeamTranscriptsError) {
-    return <AppLayout><div className="text-center py-12"><p className="text-destructive">Failed to load team data. Please try refreshing.</p></div></AppLayout>;
+    return <AppLayout><div className="text-center py-12"><p className="text-destructive">Failed to load team members and transcripts. Please try refreshing.</p></div></AppLayout>;
   }
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <main className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">SDR Manager Dashboard</h1>
@@ -347,7 +278,7 @@ function SDRManagerDashboard() {
         </div>
 
         {/* Top-level stats */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <section aria-label="Team performance metrics" className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
@@ -403,114 +334,31 @@ function SDRManagerDashboard() {
               </div>
             </CardContent>
           </Card>
-        </div>
+        </section>
 
         {/* Upload for Rep form */}
         {showUpload && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Upload Transcript for Rep</CardTitle>
-              <CardDescription>Upload a daily transcript on behalf of a team member</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>Team Member</Label>
-                  <Select value={selectedSdrId} onValueChange={setSelectedSdrId}>
-                    <SelectTrigger><SelectValue placeholder="Select SDR..." /></SelectTrigger>
-                    <SelectContent>
-                      {members.map((m) => (
-                        <SelectItem key={m.user_id} value={m.user_id}>
-                          {m.profiles?.name || m.profiles?.email || 'Unknown'}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Transcript Date</Label>
-                  <Input type="date" value={transcriptDate} onChange={(e) => setTranscriptDate(e.target.value)} />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Transcript Text</Label>
-                <div
-                  className="relative"
-                  onDragEnter={handleDragEnter}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                >
-                  <Textarea
-                    placeholder="Paste transcript here or drag & drop a file..."
-                    value={rawText}
-                    onChange={(e) => setRawText(e.target.value)}
-                    rows={8}
-                    className={`font-mono text-sm transition-colors ${isDragging ? 'border-primary border-dashed' : ''}`}
-                  />
-                  {isDragging && (
-                    <div className="absolute inset-0 rounded-md border-2 border-dashed border-primary bg-primary/5 flex items-center justify-center pointer-events-none">
-                      <div className="text-center">
-                        <FileUp className="h-10 w-10 mx-auto text-primary mb-2" />
-                        <p className="font-medium text-primary">Drop file here</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex-1">
-                    {validationError ? (
-                      <p className="text-destructive flex items-center gap-1">
-                        <AlertCircle className="h-3.5 w-3.5" />
-                        {validationError}
-                      </p>
-                    ) : fileName ? (
-                      <p className="text-muted-foreground">Loaded from: {fileName}</p>
-                    ) : <span />}
-                  </div>
-                  <p className="text-muted-foreground ml-4">{charCount.toLocaleString()} characters</p>
-                </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".txt,.text"
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
-                <Button variant="outline" size="sm" type="button" onClick={() => fileInputRef.current?.click()}>
-                  <FileUp className="h-4 w-4 mr-2" />
-                  Choose File
-                </Button>
-              </div>
-              <Collapsible open={formatGuideOpen} onOpenChange={setFormatGuideOpen}>
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" size="sm" type="button" className="gap-1.5 text-muted-foreground px-2">
-                    <HelpCircle className="h-4 w-4" />
-                    Format Guide
-                    <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", formatGuideOpen && "rotate-180")} />
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <div className="rounded-md border bg-muted/30 p-4 text-sm space-y-2 mt-2">
-                    <p className="font-medium">Expected format: Your dialer transcript with timestamps.</p>
-                    <div>
-                      <p className="text-muted-foreground mb-1">Example:</p>
-                      <pre className="text-xs font-mono bg-background rounded p-2 overflow-x-auto">
-{`Speaker 1 | 09:15:23 | Hello, this is John from Acme...
-Speaker 2 | 09:15:28 | Hi John, what's this about?`}
-                      </pre>
-                    </div>
-                    <p className="text-muted-foreground">Supported: Otter.ai, Gong, Salesloft, or any timestamped transcript.</p>
-                    <p className="text-muted-foreground">Tip: Paste the full day's transcript — we'll automatically split it into individual calls.</p>
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
-              <Button onClick={handleUploadForRep} disabled={uploadMutation.isPending || !rawText.trim() || !selectedSdrId || !!validationError}>
-                {uploadMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Process Transcript
-              </Button>
-            </CardContent>
-          </Card>
+          <TranscriptUploadForm
+            sdrId={selectedSdrId || undefined}
+            uploadForName={selectedMember?.profiles?.name || selectedMember?.profiles?.email || (selectedSdrId ? 'Rep' : undefined)}
+            onUploadComplete={() => { setShowUpload(false); setSelectedSdrId(''); }}
+          >
+            <div className="space-y-2">
+              <Label htmlFor="sdr-member-select">Team Member</Label>
+              <Select value={selectedSdrId} onValueChange={setSelectedSdrId}>
+                <SelectTrigger id="sdr-member-select">
+                  <SelectValue placeholder="Select SDR..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {members.map((m) => (
+                    <SelectItem key={m.user_id} value={m.user_id}>
+                      {m.profiles?.name || m.profiles?.email || 'Unknown'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </TranscriptUploadForm>
         )}
 
         {/* Two-column: Team Members + Grade Distribution */}
@@ -557,7 +405,7 @@ Speaker 2 | 09:15:28 | Hi John, what's this about?`}
                             </div>
                             {/* Sparkline */}
                             {memberSparklines[m.user_id] && memberSparklines[m.user_id].length >= 2 && (
-                              <div className="hidden md:block w-20 h-8">
+                              <div className="hidden md:block w-20 h-8" role="img" aria-label={`Score trend sparkline for ${m.profiles?.name || 'member'}`} title={`Score trend for ${m.profiles?.name || 'member'}`}>
                                 <ResponsiveContainer width="100%" height="100%">
                                   <LineChart data={memberSparklines[m.user_id]}>
                                     <Line type="monotone" dataKey="avg" stroke="hsl(var(--primary))" strokeWidth={1.5} dot={false} />
@@ -633,6 +481,8 @@ Speaker 2 | 09:15:28 | Hi John, what's this about?`}
         <Card>
           <CardHeader
             className="cursor-pointer select-none"
+            role="button"
+            aria-expanded={analyticsOpen}
             onClick={() => setAnalyticsOpen(!analyticsOpen)}
           >
             <div className="flex items-center justify-between">
@@ -656,7 +506,7 @@ Speaker 2 | 09:15:28 | Hi John, what's this about?`}
               {perSdrComparison.length > 0 ? (
                 <div>
                   <h3 className="text-sm font-semibold mb-3">Average Score per SDR</h3>
-                  <div style={{ height: Math.max(200, perSdrComparison.length * 48) }}>
+                  <div role="img" aria-label="Horizontal bar chart comparing average scores per SDR" style={{ height: Math.max(200, perSdrComparison.length * 48) }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={perSdrComparison} layout="vertical" margin={{ left: 0, right: 20, top: 5, bottom: 5 }}>
                         <XAxis type="number" domain={[0, 10]} tick={{ fontSize: 12 }} />
@@ -833,14 +683,16 @@ Speaker 2 | 09:15:28 | Hi John, what's this about?`}
                 description="The trend chart will appear after multiple days of graded calls."
               />
             ) : (
-              <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={teamTrendData}>
-                  <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                  <YAxis domain={[0, 10]} tick={{ fontSize: 12 }} />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="avg" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} name="Avg Score" />
-                </LineChart>
-              </ResponsiveContainer>
+              <div role="img" aria-label={`Team grade trend line chart over the last ${trendPeriod} days`}>
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={teamTrendData}>
+                    <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                    <YAxis domain={[0, 10]} tick={{ fontSize: 12 }} />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="avg" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} name="Avg Score" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -872,7 +724,7 @@ Speaker 2 | 09:15:28 | Hi John, what's this about?`}
             </Card>
           </Link>
         </div>
-      </div>
+      </main>
       <SDRAssistantChat />
     </AppLayout>
   );

@@ -273,7 +273,7 @@ function SDRManagerCoaching() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <main className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Coaching Prompts</h1>
@@ -361,7 +361,7 @@ function SDRManagerCoaching() {
               </div>
               <div className="space-y-2">
                 <Label>System Prompt</Label>
-                <Textarea value={newPrompt.system_prompt} onChange={(e) => setNewPrompt({ ...newPrompt, system_prompt: e.target.value })} rows={10} className="font-mono text-sm" />
+                <Textarea aria-label="System prompt content" value={newPrompt.system_prompt} onChange={(e) => setNewPrompt({ ...newPrompt, system_prompt: e.target.value })} rows={10} className="font-mono text-sm" />
               </div>
               <Button onClick={handleCreate} disabled={createMutation.isPending}>
                 {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
@@ -397,7 +397,7 @@ function SDRManagerCoaching() {
                 </CardHeader>
                 <CardContent>
                   {editingId === p.id ? (
-                    <Textarea value={editText} onChange={(e) => setEditText(e.target.value)} rows={10} className="font-mono text-sm" />
+                    <Textarea aria-label={`Edit system prompt for ${p.prompt_name}`} value={editText} onChange={(e) => setEditText(e.target.value)} rows={10} className="font-mono text-sm" />
                   ) : (
                     <pre className="whitespace-pre-wrap text-sm font-mono bg-muted/50 p-4 rounded-lg max-h-48 overflow-y-auto">{p.system_prompt}</pre>
                   )}
@@ -442,7 +442,7 @@ function SDRManagerCoaching() {
                 <CardContent className="pt-0">
                   <Collapsible open={isOpen} onOpenChange={(open) => setExpandedDefaults(prev => ({ ...prev, [def.agent_key]: open }))}>
                     <CollapsibleTrigger asChild>
-                      <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground px-0 hover:bg-transparent">
+                      <Button variant="ghost" size="sm" aria-expanded={isOpen} className="gap-1.5 text-muted-foreground px-0 hover:bg-transparent">
                         {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                         {isOpen ? 'Hide prompt' : 'View prompt'}
                       </Button>
@@ -456,7 +456,7 @@ function SDRManagerCoaching() {
             );
           })}
         </div>
-      </div>
+      </main>
     </AppLayout>
   );
 }

@@ -94,7 +94,7 @@ function SDRCallDetail() {
   }
 
   if (isError) {
-    return <AppLayout><div className="text-center py-12"><p className="text-destructive">Failed to load call details. Please try refreshing.</p></div></AppLayout>;
+    return <AppLayout><div className="text-center py-12"><p className="text-destructive">Failed to load call details for this call. Please try refreshing.</p></div></AppLayout>;
   }
 
   if (!call) {
@@ -113,10 +113,10 @@ function SDRCallDetail() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <main className="space-y-6">
         {/* Header with navigation */}
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => {
+          <Button variant="ghost" size="icon" aria-label="Go back" onClick={() => {
             if (call.daily_transcript_id) {
               navigate(`/sdr/history/${call.daily_transcript_id}`);
             } else {
@@ -283,6 +283,7 @@ function SDRCallDetail() {
                           </Button>
                         </div>
                         <Textarea
+                          aria-label="Coaching feedback comments"
                           placeholder="Any additional comments? (optional)"
                           value={feedbackNote}
                           onChange={(e) => setFeedbackNote(e.target.value)}
@@ -373,7 +374,7 @@ function SDRCallDetail() {
             <pre className="whitespace-pre-wrap text-sm font-mono bg-muted/50 p-4 rounded-lg max-h-96 overflow-y-auto">{call.raw_text}</pre>
           </CardContent>
         </Card>
-      </div>
+      </main>
     </AppLayout>
   );
 }

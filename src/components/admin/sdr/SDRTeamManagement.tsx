@@ -1,11 +1,17 @@
 import { useState, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import {
+  useCreateSDRTeam,
+  useUpdateSDRTeam,
+  useDeleteSDRTeam,
+  useAddSDRTeamMember,
+  useRemoveSDRTeamMember,
+} from '@/hooks/sdr/mutations';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger,
 } from '@/components/ui/dialog';
@@ -19,8 +25,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Plus, Pencil, Trash2, UserPlus, UserMinus, Users, Loader2, ChevronDown, ChevronRight } from 'lucide-react';
-import { toast } from 'sonner';
+import { Plus, Pencil, Trash2, UserPlus, UserMinus, Loader2, ChevronDown, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface TeamRow {
@@ -51,7 +56,6 @@ interface SDROption {
 }
 
 export function SDRTeamManagement() {
-  const queryClient = useQueryClient();
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [editTeam, setEditTeam] = useState<TeamRow | null>(null);
@@ -140,87 +144,12 @@ export function SDRTeamManagement() {
     return map;
   }, [allMembers]);
 
-  const invalidateAll = () => {
-    queryClient.invalidateQueries({ queryKey: ['admin-sdr-manage-teams'] });
-    queryClient.invalidateQueries({ queryKey: ['admin-sdr-manage-members'] });
-    queryClient.invalidateQueries({ queryKey: ['admin-sdr-options'] });
-    queryClient.invalidateQueries({ queryKey: ['sdr-teams'] });
-    queryClient.invalidateQueries({ queryKey: ['sdr-team-members'] });
-  };
-
-  // Create team
-  const createMutation = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.from('sdr_teams').insert({ name: newTeamName, manager_id: newTeamManager });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success('Team created');
-      setCreateOpen(false);
-      setNewTeamName('');
-      setNewTeamManager('');
-      invalidateAll();
-    },
-    onError: (e: any) => toast.error(e.message),
-  });
-
-  // Update team
-  const updateMutation = useMutation({
-    mutationFn: async () => {
-      if (!editTeam) return;
-      const { error } = await supabase.from('sdr_teams').update({ name: editName, manager_id: editManager }).eq('id', editTeam.id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success('Team updated');
-      setEditTeam(null);
-      invalidateAll();
-    },
-    onError: (e: any) => toast.error(e.message),
-  });
-
-  // Delete team
-  const deleteMutation = useMutation({
-    mutationFn: async (teamId: string) => {
-      // Remove members first
-      const { error: mErr } = await supabase.from('sdr_team_members').delete().eq('team_id', teamId);
-      if (mErr) throw mErr;
-      const { error } = await supabase.from('sdr_teams').delete().eq('id', teamId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success('Team deleted');
-      invalidateAll();
-    },
-    onError: (e: any) => toast.error(e.message),
-  });
-
-  // Add member
-  const addMemberMutation = useMutation({
-    mutationFn: async ({ teamId, userId }: { teamId: string; userId: string }) => {
-      const { error } = await supabase.from('sdr_team_members').insert({ team_id: teamId, user_id: userId });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success('Member added');
-      setAddMemberTeamId(null);
-      invalidateAll();
-    },
-    onError: (e: any) => toast.error(e.message),
-  });
-
-  // Remove member
-  const removeMemberMutation = useMutation({
-    mutationFn: async (memberId: string) => {
-      const { error } = await supabase.from('sdr_team_members').delete().eq('id', memberId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success('Member removed');
-      invalidateAll();
-    },
-    onError: (e: any) => toast.error(e.message),
-  });
+  // Team management mutations (extracted to hooks)
+  const createMutation = useCreateSDRTeam();
+  const updateMutation = useUpdateSDRTeam();
+  const deleteMutation = useDeleteSDRTeam();
+  const addMemberMutation = useAddSDRTeamMember();
+  const removeMemberMutation = useRemoveSDRTeamMember();
 
   if (teamsLoading) {
     return <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
@@ -261,7 +190,10 @@ export function SDRTeamManagement() {
             </div>
             <DialogFooter>
               <Button
-                onClick={() => createMutation.mutate()}
+                onClick={() => createMutation.mutate(
+                  { name: newTeamName, managerId: newTeamManager },
+                  { onSuccess: () => { setCreateOpen(false); setNewTeamName(''); setNewTeamManager(''); } },
+                )}
                 disabled={!newTeamName.trim() || !newTeamManager || createMutation.isPending}
               >
                 {createMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
@@ -359,7 +291,10 @@ export function SDRTeamManagement() {
                               {sdrOptions.map(sdr => (
                                 <button
                                   key={sdr.id}
-                                  onClick={() => addMemberMutation.mutate({ teamId: team.id, userId: sdr.id })}
+                                  onClick={() => addMemberMutation.mutate(
+                                    { teamId: team.id, userId: sdr.id },
+                                    { onSuccess: () => setAddMemberTeamId(null) },
+                                  )}
                                   disabled={addMemberMutation.isPending}
                                   className="w-full flex items-center justify-between p-3 rounded-lg border hover:bg-accent/50 transition-colors text-left"
                                 >
@@ -444,7 +379,13 @@ export function SDRTeamManagement() {
           </div>
           <DialogFooter>
             <Button
-              onClick={() => updateMutation.mutate()}
+              onClick={() => {
+                if (!editTeam) return;
+                updateMutation.mutate(
+                  { id: editTeam.id, name: editName, managerId: editManager },
+                  { onSuccess: () => setEditTeam(null) },
+                );
+              }}
               disabled={!editName.trim() || !editManager || updateMutation.isPending}
             >
               {updateMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}

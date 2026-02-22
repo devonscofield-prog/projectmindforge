@@ -1,13 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { createLogger } from '@/lib/logger';
-
-// TODO: Remove once sdr_team_invites is added to generated Supabase types
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sdrTeamInvitesTable = () => (supabase.from as (table: string) => ReturnType<typeof supabase.from>)('sdr_team_invites');
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 import { useAuth } from '@/contexts/AuthContext';
 import { sdrKeys, useSDRTeams } from '@/hooks/useSDR';
+import {
+  useGenerateTeamInviteLink,
+  useDeactivateTeamInviteLink,
+} from '@/hooks/sdr/mutations';
+import { fetchActiveTeamInviteLinks } from '@/api/sdrTeams';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,7 +19,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { UserPlus, Copy, CheckCircle2, Mail, Link2, ArrowLeft, Loader2, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 
 const log = createLogger('SDRManagerInvite');
 
@@ -31,21 +32,10 @@ interface InviteResult {
   emailError?: string;
 }
 
-interface TeamInviteLink {
-  id: string;
-  invite_token: string;
-  is_active: boolean;
-  max_uses: number | null;
-  times_used: number;
-  expires_at: string | null;
-  created_at: string;
-}
-
 function SDRManagerInvite() {
   const { user } = useAuth();
   const { data: teams = [] } = useSDRTeams();
   const myTeam = teams.find(t => t.manager_id === user?.id);
-  const queryClient = useQueryClient();
 
   // Direct invite form state
   const [formData, setFormData] = useState({ email: '', name: '' });
@@ -59,57 +49,15 @@ function SDRManagerInvite() {
   // Fetch existing team invite links
   const { data: teamInviteLinks = [], isLoading: linksLoading } = useQuery({
     queryKey: sdrKeys.teamInviteLinks(myTeam?.id),
-    queryFn: async () => {
-      if (!myTeam?.id) return [];
-      const { data, error } = await sdrTeamInvitesTable()
-        .select('*')
-        .eq('team_id', myTeam.id)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data as TeamInviteLink[];
-    },
+    queryFn: () => fetchActiveTeamInviteLinks(myTeam!.id),
     enabled: !!myTeam?.id,
   });
 
   const activeLink = teamInviteLinks[0];
 
-  // Generate new team invite link
-  const generateLinkMutation = useMutation({
-    mutationFn: async () => {
-      if (!myTeam?.id) throw new Error('No team found');
-      const { data, error } = await sdrTeamInvitesTable()
-        .insert({
-          team_id: myTeam.id,
-          created_by: user!.id,
-        })
-        .select()
-        .single();
-      if (error) throw error;
-      return data as TeamInviteLink;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: sdrKeys.teamInviteLinks(myTeam?.id) });
-      toast.success('Team signup link generated');
-    },
-    onError: (error) => {
-      toast.error('Failed to generate link: ' + (error as Error).message);
-    },
-  });
-
-  // Deactivate a link
-  const deactivateLinkMutation = useMutation({
-    mutationFn: async (linkId: string) => {
-      const { error } = await sdrTeamInvitesTable()
-        .update({ is_active: false, updated_at: new Date().toISOString() })
-        .eq('id', linkId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: sdrKeys.teamInviteLinks(myTeam?.id) });
-      toast.success('Invite link deactivated');
-    },
-  });
+  // Team invite link mutations (extracted to hooks)
+  const generateLinkMutation = useGenerateTeamInviteLink();
+  const deactivateLinkMutation = useDeactivateTeamInviteLink();
 
   const handleInviteUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -434,7 +382,7 @@ function SDRManagerInvite() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => generateLinkMutation.mutate()}
+                          onClick={() => generateLinkMutation.mutate({ teamId: myTeam!.id, userId: user!.id })}
                           disabled={generateLinkMutation.isPending}
                         >
                           <RefreshCw className="h-4 w-4 mr-2" />
@@ -443,7 +391,7 @@ function SDRManagerInvite() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => deactivateLinkMutation.mutate(activeLink.id)}
+                          onClick={() => deactivateLinkMutation.mutate({ linkId: activeLink.id, teamId: myTeam!.id })}
                           disabled={deactivateLinkMutation.isPending}
                           className="text-destructive hover:text-destructive"
                         >
@@ -457,7 +405,7 @@ function SDRManagerInvite() {
                         No active signup link. Generate one to allow people to sign themselves up for your team.
                       </p>
                       <Button
-                        onClick={() => generateLinkMutation.mutate()}
+                        onClick={() => generateLinkMutation.mutate({ teamId: myTeam!.id, userId: user!.id })}
                         disabled={generateLinkMutation.isPending}
                         variant="gradient"
                       >

@@ -1,6 +1,22 @@
 import { createClient } from "@supabase/supabase-js";
+import { z } from "zod";
 import { fetchWithRetry } from "../_shared/fetchWithRetry.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { sanitizeUserContent } from "../_shared/sanitize.ts";
+
+const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const MAX_RAW_TEXT_LENGTH = 500_000;
+
+const requestBodySchema = z.object({
+  daily_transcript_id: z.string().regex(uuidRegex, 'Must be a valid UUID').optional(),
+  raw_text: z.string().max(MAX_RAW_TEXT_LENGTH, `raw_text exceeds ${MAX_RAW_TEXT_LENGTH} character limit`).optional(),
+  sdr_id: z.string().regex(uuidRegex, 'Must be a valid UUID').optional(),
+  transcript_date: z.string().optional(),
+}).refine(
+  (data) => data.daily_transcript_id || data.raw_text,
+  { message: 'Must provide daily_transcript_id or raw_text' },
+);
 
 const DEFAULT_GRADING_CONCURRENCY = 3;
 const MAX_GRADING_CONCURRENCY = 10;
@@ -73,8 +89,24 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const body = await req.json();
-    const { daily_transcript_id, raw_text, sdr_id, transcript_date } = body;
+    let rawBody: unknown;
+    try {
+      rawBody = await req.json();
+    } catch {
+      return new Response(JSON.stringify({ error: 'Invalid JSON' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    const validation = requestBodySchema.safeParse(rawBody);
+    if (!validation.success) {
+      const isTooLarge = validation.error.errors.some(e => e.message.includes('character limit'));
+      return new Response(JSON.stringify({ error: 'Validation failed', issues: validation.error.errors }), {
+        status: isTooLarge ? 413 : 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    const { daily_transcript_id, raw_text, sdr_id, transcript_date } = validation.data;
 
     let transcriptId = daily_transcript_id;
     let createdTranscriptInRequest = false;
@@ -109,9 +141,15 @@ Deno.serve(async (req) => {
           .from('profiles')
           .select('role')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
 
-        const callerRole = callerProfile?.role;
+        if (!callerProfile) {
+          return new Response(JSON.stringify({ error: 'Profile not found' }), {
+            status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        const callerRole = callerProfile.role;
         if (callerRole !== 'admin') {
           if (callerRole !== 'sdr_manager') {
             return new Response(JSON.stringify({ error: 'You do not have permission to upload transcripts for other users' }), {
@@ -143,7 +181,18 @@ Deno.serve(async (req) => {
         .select('id')
         .single();
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        // Handle unique constraint violation (race condition with concurrent request)
+        if (insertError.code === '23505') {
+          return new Response(JSON.stringify({
+            error: 'A transcript for this SDR and date is already being processed',
+          }), {
+            status: 409,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        throw insertError;
+      }
       transcriptId = transcript.id;
       createdTranscriptInRequest = true;
     }
@@ -443,7 +492,10 @@ async function processTranscriptPipeline(
     let nextCallIndex = 0;
     const workerCount = Math.min(Math.max(gradingConcurrency, 1), Math.max(meaningfulCalls.length, 1));
 
+    const MAX_CONSECUTIVE_ERRORS = 3;
+
     const gradeWorker = async () => {
+      let consecutiveErrors = 0;
       while (true) {
         const currentIndex = nextCallIndex;
         nextCallIndex += 1;
@@ -460,7 +512,7 @@ async function processTranscriptPipeline(
           // Use raw_text from inserted call to avoid index mismatch against classifiedCalls.
           const grade = await runGraderAgent(openaiApiKey, call.raw_text, customPrompts.grader);
 
-          const { error: gradeInsertError } = await supabase.from('sdr_call_grades').insert({
+          const { data: newGrade, error: gradeInsertError } = await supabase.from('sdr_call_grades').insert({
             call_id: call.id,
             sdr_id: sdrId,
             overall_grade: grade.overall_grade,
@@ -475,10 +527,21 @@ async function processTranscriptPipeline(
             key_moments: grade.key_moments,
             coaching_notes: grade.coaching_notes,
             meeting_scheduled: grade.meeting_scheduled ?? null,
-            model_name: 'gpt-5.2-2025-12-11',
+            model_name: Deno.env.get('SDR_GPT_MODEL') || 'gpt-5.2-2025-12-11',
             raw_json: grade,
-          });
+          }).select('id').single();
           if (gradeInsertError) throw gradeInsertError;
+
+          // Delete older duplicate grades for same call_id (keep only newest)
+          if (newGrade) {
+            const { error: dedupError } = await supabase.from('sdr_call_grades')
+              .delete()
+              .eq('call_id', call.id)
+              .neq('id', newGrade.id);
+            if (dedupError) {
+              console.warn(`[sdr-pipeline] Failed to clean up duplicate grades for call ${call.id}:`, dedupError);
+            }
+          }
 
           const { error: markCompletedError } = await supabase
             .from('sdr_calls')
@@ -487,6 +550,7 @@ async function processTranscriptPipeline(
           if (markCompletedError) throw markCompletedError;
 
           gradedCount += 1;
+          consecutiveErrors = 0;
 
           // Update graded_count every 3 calls or on the last call
           if (gradedCount % 3 === 0 || gradedCount + failedCount === meaningfulCalls.length) {
@@ -497,6 +561,7 @@ async function processTranscriptPipeline(
           }
         } catch (gradeError) {
           failedCount += 1;
+          consecutiveErrors += 1;
           const message = gradeError instanceof Error ? gradeError.message : 'Unknown grading error';
           console.error(`[sdr-pipeline] Failed to grade call ${call.id} after retries:`, gradeError);
           const { error: markFailedError } = await supabase
@@ -506,12 +571,27 @@ async function processTranscriptPipeline(
           if (markFailedError) {
             console.error(`[sdr-pipeline] Failed to mark call ${call.id} as failed:`, markFailedError);
           }
+
+          if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+            console.error(`[sdr-pipeline] Worker exiting after ${MAX_CONSECUTIVE_ERRORS} consecutive failures`);
+            break;
+          }
         }
       }
     };
 
     if (meaningfulCalls.length > 0) {
-      await Promise.all(Array.from({ length: workerCount }, () => gradeWorker()));
+      const GRADING_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+      const workerPool = Promise.all(Array.from({ length: workerCount }, () => gradeWorker()));
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Grading worker pool timed out after 5 minutes')), GRADING_TIMEOUT_MS)
+      );
+      try {
+        await Promise.race([workerPool, timeout]);
+      } catch (timeoutError) {
+        const message = timeoutError instanceof Error ? timeoutError.message : 'Grading timeout';
+        console.error(`[sdr-pipeline] ${message}. Graded ${gradedCount}, failed ${failedCount} of ${meaningfulCalls.length}`);
+      }
     }
 
     await logEdgeMetric(
@@ -597,19 +677,6 @@ async function updateTranscriptError(supabase: any, transcriptId: string, errorM
 }
 
 // ============================================================
-// Prompt injection sanitization helpers
-// ============================================================
-
-function escapeXmlTags(content: string): string {
-  return content.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-function sanitizeUserContent(content: string): string {
-  if (!content) return content;
-  return `<user_content>\n${escapeXmlTags(content)}\n</user_content>`;
-}
-
-// ============================================================
 // AGENT 1: Splitter — Finds call boundaries
 // ============================================================
 
@@ -639,6 +706,13 @@ Return a JSON array where each element has:
 - "raw_text": The full text of that segment (preserve original formatting)
 - "start_timestamp": The timestamp of the first line in the segment
 - "approx_duration_seconds": Estimated duration based on timestamps (null if unclear)
+
+Example JSON array element:
+{
+  "raw_text": "Speaker 1 | 12:30\\nHey, is this Mark? This is Sarah from Acme...\\nSpeaker 2 | 12:31\\nYeah, this is Mark. What's this about?\\nSpeaker 1 | 12:31\\nI was reaching out because...",
+  "start_timestamp": "12:30",
+  "approx_duration_seconds": 95
+}
 
 Return ONLY valid JSON. No markdown, no explanation.`;
 
@@ -702,7 +776,7 @@ async function runSplitterOnChunk(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-5.2-2025-12-11',
+        model: Deno.env.get('SDR_GPT_MODEL') || 'gpt-5.2-2025-12-11',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `Here is a section of an SDR dialer transcript. Split it into individual call segments:\n\n${sanitizeUserContent(chunkText)}` },
@@ -851,6 +925,15 @@ Return a JSON object with a "calls" array. Each element:
   "reasoning": "Brief explanation of classification"
 }
 
+Example showing each call_type:
+{"calls": [
+  {"segment_index": 0, "call_type": "conversation", "is_meaningful": true, "prospect_name": "Mark Johnson", "prospect_company": "TechCorp", "reasoning": "SDR spoke with Mark, discussed pain points, prospect engaged in back-and-forth dialogue"},
+  {"segment_index": 1, "call_type": "voicemail", "is_meaningful": false, "prospect_name": "Lisa Chen", "prospect_company": null, "reasoning": "Call went to Lisa's voicemail, SDR left a brief message"},
+  {"segment_index": 2, "call_type": "hangup", "is_meaningful": false, "prospect_name": null, "prospect_company": null, "reasoning": "Line disconnected immediately after one ring, no interaction"},
+  {"segment_index": 3, "call_type": "internal", "is_meaningful": false, "prospect_name": null, "prospect_company": null, "reasoning": "SDR chatting with coworker about lunch plans between calls"},
+  {"segment_index": 4, "call_type": "reminder", "is_meaningful": false, "prospect_name": "Dave Park", "prospect_company": "Initech", "reasoning": "Quick call to remind Dave about their demo scheduled in 30 minutes"}
+]}
+
 Return ONLY valid JSON.`;
 
 // Maximum segments per batch sent to the Filter agent.
@@ -881,7 +964,7 @@ async function runFilterOnBatch(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-5.2-2025-12-11',
+        model: Deno.env.get('SDR_GPT_MODEL') || 'gpt-5.2-2025-12-11',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `Classify these ${batchSegments.length} transcript segments:\n\n${JSON.stringify(segmentInputs)}` },
@@ -1044,6 +1127,25 @@ Return a JSON object:
   "coaching_notes": "1-2 paragraphs of specific, actionable coaching advice for this SDR based on this call"
 }
 
+Example output with all fields:
+{
+  "overall_grade": "B",
+  "opener_score": 7,
+  "engagement_score": 8,
+  "objection_handling_score": 6,
+  "appointment_setting_score": 5,
+  "professionalism_score": 8,
+  "meeting_scheduled": false,
+  "call_summary": "SDR reached the prospect and discussed workflow challenges. Good rapport but missed pushing for a specific meeting time.",
+  "strengths": ["Natural conversation flow", "Good discovery questions about pain points"],
+  "improvements": ["Propose specific meeting times when interest is shown", "Handle soft objections instead of accepting them"],
+  "key_moments": [
+    {"timestamp": "00:45", "description": "Prospect opened up about current vendor frustration", "sentiment": "positive"},
+    {"timestamp": "02:10", "description": "Prospect deflected and SDR agreed without redirecting", "sentiment": "negative"}
+  ],
+  "coaching_notes": "Solid call with good engagement. The main miss was when the prospect deflected — instead of agreeing, try proposing a specific time to walk through key points while still offering to send info as backup."
+}
+
 Return ONLY valid JSON.`;
 
 const VALID_GRADES = ['A+', 'A', 'B', 'C', 'D', 'F'] as const;
@@ -1092,7 +1194,7 @@ async function runGraderAgent(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-5.2-2025-12-11',
+        model: Deno.env.get('SDR_GPT_MODEL') || 'gpt-5.2-2025-12-11',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `Grade this SDR cold call:\n\n${sanitizeUserContent(callText)}` },
@@ -1144,8 +1246,13 @@ async function loadCustomPrompts(
 
     if (!prompts || prompts.length === 0) return {};
 
+    const MAX_PROMPT_LENGTH = 5000;
     const result: any = {};
     for (const p of prompts) {
+      if (p.system_prompt && p.system_prompt.length > MAX_PROMPT_LENGTH) {
+        console.warn(`[sdr-pipeline] Custom prompt for ${p.agent_key} exceeds ${MAX_PROMPT_LENGTH} chars (${p.system_prompt.length}), skipping`);
+        continue;
+      }
       result[p.agent_key] = p.system_prompt;
     }
     return result;

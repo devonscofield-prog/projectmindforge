@@ -148,10 +148,18 @@ export function SDRLeaderboard({ members, teamCalls }: SDRLeaderboardProps) {
     return <Minus className="h-3.5 w-3.5 text-muted-foreground" />;
   };
 
+  const getAriaSort = (key: SortKey): 'ascending' | 'descending' | 'none' => {
+    if (sortKey !== key) return 'none';
+    if (key === 'name') return sortAsc ? 'ascending' : 'descending';
+    // For numeric columns, sortAsc=true means descending (higher first)
+    return sortAsc ? 'descending' : 'ascending';
+  };
+
   const SortableHeader = ({ label, sortKeyValue }: { label: string; sortKeyValue: SortKey }) => (
     <button
       className="flex items-center gap-1 hover:text-foreground transition-colors"
       onClick={() => handleSort(sortKeyValue)}
+      aria-label={`Sort by ${label}`}
     >
       {label}
       <ArrowUpDown className="h-3 w-3" />
@@ -177,19 +185,19 @@ export function SDRLeaderboard({ members, teamCalls }: SDRLeaderboardProps) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-14 pl-6">
+                <TableHead className="w-14 pl-6" aria-sort={getAriaSort('rank')}>
                   <SortableHeader label="#" sortKeyValue="rank" />
                 </TableHead>
-                <TableHead>
+                <TableHead aria-sort={getAriaSort('name')}>
                   <SortableHeader label="Name" sortKeyValue="name" />
                 </TableHead>
-                <TableHead className="text-right">
+                <TableHead className="text-right" aria-sort={getAriaSort('avgScore')}>
                   <SortableHeader label="Avg Score" sortKeyValue="avgScore" />
                 </TableHead>
-                <TableHead className="text-right">
+                <TableHead className="text-right" aria-sort={getAriaSort('totalGraded')}>
                   <SortableHeader label="Graded" sortKeyValue="totalGraded" />
                 </TableHead>
-                <TableHead className="text-right">
+                <TableHead className="text-right" aria-sort={getAriaSort('meetingsSet')}>
                   <SortableHeader label="Meetings" sortKeyValue="meetingsSet" />
                 </TableHead>
                 <TableHead className="w-14 text-center">Trend</TableHead>

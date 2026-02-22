@@ -100,18 +100,19 @@ function SDRManagerTranscripts() {
   }
 
   if (isError) {
-    return <AppLayout><div className="text-center py-12"><p className="text-destructive">Failed to load transcripts. Please try refreshing.</p></div></AppLayout>;
+    return <AppLayout><div className="text-center py-12"><p className="text-destructive">Failed to load team transcripts. Please try refreshing.</p></div></AppLayout>;
   }
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <main className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold">Team Transcripts</h1>
           <p className="text-muted-foreground">All daily transcripts from your team</p>
         </div>
 
         {/* Filters */}
+        <section aria-label="Transcript filters">
         <Card>
           <CardContent className="pt-6">
             <div className="flex flex-wrap items-end gap-4">
@@ -160,6 +161,8 @@ function SDRManagerTranscripts() {
                       key={grade}
                       variant={gradeFilter.includes(grade) ? 'default' : 'outline'}
                       className="cursor-pointer select-none"
+                      role="button"
+                      aria-pressed={gradeFilter.includes(grade)}
                       onClick={() => toggleGrade(grade)}
                     >
                       {grade}
@@ -188,6 +191,7 @@ function SDRManagerTranscripts() {
             </div>
           </CardContent>
         </Card>
+        </section>
 
         <Card>
           <CardHeader>
@@ -278,7 +282,7 @@ function SDRManagerTranscripts() {
             })()}
           </CardContent>
         </Card>
-      </div>
+      </main>
     </AppLayout>
   );
 }
