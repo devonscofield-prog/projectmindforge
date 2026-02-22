@@ -10,6 +10,8 @@ export interface SDRTranscriptListItem {
   transcript_date: string;
   processing_status: SDRProcessingStatus;
   processing_error: string | null;
+  processing_stage: string | null;
+  graded_count: number;
   total_calls_detected: number;
   meaningful_calls_count: number;
   created_at: string;
@@ -57,6 +59,7 @@ export interface SDRCallListItem {
   duration_estimate_seconds: number | null;
   start_timestamp: string | null;
   analysis_status: SDRCallAnalysisStatus;
+  processing_error: string | null;
   created_at: string;
   updated_at: string;
   sdr_call_grades?: SDRCallGradeListItem[];

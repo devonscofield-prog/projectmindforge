@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   useSDRTeamMembers,
@@ -17,13 +17,15 @@ import {
   useUploadSDRTranscript,
 } from '@/hooks/useSDR';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, Users, Phone, TrendingUp, MessageSquare, CalendarCheck, Upload, FileUp, ClipboardPaste, ArrowRight, BarChart3, FileText, ChevronDown, ChevronRight, Target, ArrowUp, ArrowDown } from 'lucide-react';
+import { Loader2, Users, Phone, TrendingUp, MessageSquare, CalendarCheck, Upload, FileUp, ArrowRight, BarChart3, FileText, ChevronDown, ChevronRight, Target, ArrowUp, ArrowDown, AlertCircle, AlertTriangle, HelpCircle } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SDRLeaderboard } from '@/components/sdr/SDRLeaderboard';
 import { Link, useSearchParams } from 'react-router-dom';
 import { format, subDays, parseISO } from 'date-fns';
 import { gradeColors } from '@/constants/training';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
+import { cn } from '@/lib/utils';
 
 const GRADE_ORDER = ['A+', 'A', 'B', 'C', 'D', 'F'];
 const GRADE_BAR_COLORS: Record<string, string> = {
@@ -49,7 +51,10 @@ function SDRManagerDashboard() {
   const [rawText, setRawText] = useState('');
   const [transcriptDate, setTranscriptDate] = useState(new Date().toLocaleDateString('en-CA'));
   const [fileName, setFileName] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [formatGuideOpen, setFormatGuideOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragCounter = useRef(0);
   const uploadMutation = useUploadSDRTranscript();
 
   const memberIds = useMemo(() => members.map((m) => m.user_id), [members]);
@@ -260,6 +265,46 @@ function SDRManagerDashboard() {
       .sort((a, b) => (b.change ?? -999) - (a.change ?? -999));
   }, [members, teamCalls]);
 
+  const MIN_LENGTH = 50;
+  const MAX_LENGTH = 5_000_000;
+  const SHORT_WARN_LENGTH = 500;
+
+  const charCount = rawText.length;
+  const validationError = charCount > 0 && charCount < MIN_LENGTH
+    ? `Transcript must be at least ${MIN_LENGTH} characters (currently ${charCount}).`
+    : charCount > MAX_LENGTH
+      ? `Transcript exceeds maximum size of 5 MB (~${MAX_LENGTH.toLocaleString()} characters). Current: ${charCount.toLocaleString()}.`
+      : null;
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current += 1;
+    if (e.dataTransfer.types.includes('Files')) setIsDragging(true);
+  };
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current -= 1;
+    if (dragCounter.current === 0) setIsDragging(false);
+  };
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    dragCounter.current = 0;
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    setFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (ev) => { setRawText((ev.target?.result as string) || ''); };
+    reader.readAsText(file);
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -270,7 +315,10 @@ function SDRManagerDashboard() {
   };
 
   const handleUploadForRep = () => {
-    if (!rawText.trim() || !selectedSdrId) return;
+    if (!rawText.trim() || !selectedSdrId || validationError) return;
+    if (charCount < SHORT_WARN_LENGTH) {
+      if (!window.confirm('This transcript seems very short. Are you sure?')) return;
+    }
     uploadMutation.mutate({ rawText, transcriptDate, sdrId: selectedSdrId }, {
       onSuccess: () => { setRawText(''); setFileName(null); setShowUpload(false); setSelectedSdrId(''); if (fileInputRef.current) fileInputRef.current.value = ''; }
     });
@@ -384,26 +432,80 @@ function SDRManagerDashboard() {
                   <Input type="date" value={transcriptDate} onChange={(e) => setTranscriptDate(e.target.value)} />
                 </div>
               </div>
-              <Tabs defaultValue="paste" className="w-full">
-                <TabsList className="w-full">
-                  <TabsTrigger value="paste" className="flex-1 gap-2"><ClipboardPaste className="h-4 w-4" /> Paste Text</TabsTrigger>
-                  <TabsTrigger value="file" className="flex-1 gap-2"><FileUp className="h-4 w-4" /> Upload File</TabsTrigger>
-                </TabsList>
-                <TabsContent value="paste">
-                  <Textarea placeholder="Paste transcript here..." value={rawText} onChange={(e) => setRawText(e.target.value)} rows={8} className="font-mono text-sm" />
-                </TabsContent>
-                <TabsContent value="file">
-                  <div
-                    className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <input ref={fileInputRef} type="file" accept=".txt,.text" className="hidden" onChange={handleFileChange} />
-                    <FileUp className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                    {fileName ? <p className="font-medium">{fileName} ({rawText.length.toLocaleString()} chars)</p> : <p className="text-sm text-muted-foreground">Click to select .txt file</p>}
+              <div className="space-y-2">
+                <Label>Transcript Text</Label>
+                <div
+                  className="relative"
+                  onDragEnter={handleDragEnter}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                >
+                  <Textarea
+                    placeholder="Paste transcript here or drag & drop a file..."
+                    value={rawText}
+                    onChange={(e) => setRawText(e.target.value)}
+                    rows={8}
+                    className={`font-mono text-sm transition-colors ${isDragging ? 'border-primary border-dashed' : ''}`}
+                  />
+                  {isDragging && (
+                    <div className="absolute inset-0 rounded-md border-2 border-dashed border-primary bg-primary/5 flex items-center justify-center pointer-events-none">
+                      <div className="text-center">
+                        <FileUp className="h-10 w-10 mx-auto text-primary mb-2" />
+                        <p className="font-medium text-primary">Drop file here</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <div className="flex-1">
+                    {validationError ? (
+                      <p className="text-destructive flex items-center gap-1">
+                        <AlertCircle className="h-3.5 w-3.5" />
+                        {validationError}
+                      </p>
+                    ) : fileName ? (
+                      <p className="text-muted-foreground">Loaded from: {fileName}</p>
+                    ) : <span />}
                   </div>
-                </TabsContent>
-              </Tabs>
-              <Button onClick={handleUploadForRep} disabled={uploadMutation.isPending || !rawText.trim() || !selectedSdrId}>
+                  <p className="text-muted-foreground ml-4">{charCount.toLocaleString()} characters</p>
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".txt,.text"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+                <Button variant="outline" size="sm" type="button" onClick={() => fileInputRef.current?.click()}>
+                  <FileUp className="h-4 w-4 mr-2" />
+                  Choose File
+                </Button>
+              </div>
+              <Collapsible open={formatGuideOpen} onOpenChange={setFormatGuideOpen}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="sm" type="button" className="gap-1.5 text-muted-foreground px-2">
+                    <HelpCircle className="h-4 w-4" />
+                    Format Guide
+                    <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", formatGuideOpen && "rotate-180")} />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="rounded-md border bg-muted/30 p-4 text-sm space-y-2 mt-2">
+                    <p className="font-medium">Expected format: Your dialer transcript with timestamps.</p>
+                    <div>
+                      <p className="text-muted-foreground mb-1">Example:</p>
+                      <pre className="text-xs font-mono bg-background rounded p-2 overflow-x-auto">
+{`Speaker 1 | 09:15:23 | Hello, this is John from Acme...
+Speaker 2 | 09:15:28 | Hi John, what's this about?`}
+                      </pre>
+                    </div>
+                    <p className="text-muted-foreground">Supported: Otter.ai, Gong, Salesloft, or any timestamped transcript.</p>
+                    <p className="text-muted-foreground">Tip: Paste the full day's transcript — we'll automatically split it into individual calls.</p>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+              <Button onClick={handleUploadForRep} disabled={uploadMutation.isPending || !rawText.trim() || !selectedSdrId || !!validationError}>
                 {uploadMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Process Transcript
               </Button>
@@ -666,15 +768,31 @@ function SDRManagerDashboard() {
                           {member?.profiles?.name || 'Unknown'} • {t.total_calls_detected} calls • {t.meaningful_calls_count} meaningful
                         </p>
                       </div>
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        t.processing_status === 'completed' ? 'bg-green-500/10 text-green-500' :
-                        t.processing_status === 'processing' ? 'bg-yellow-500/10 text-yellow-500' :
-                        t.processing_status === 'failed' ? 'bg-red-500/10 text-red-500' :
-                        t.processing_status === 'partial' ? 'bg-orange-500/10 text-orange-500' :
-                        'bg-muted text-muted-foreground'
-                      }`}>
-                        {t.processing_status}
-                      </span>
+                      {(t.processing_status === 'failed' || t.processing_status === 'partial') && t.processing_error ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className={`px-2 py-1 rounded text-xs font-medium inline-flex items-center gap-1 ${
+                              t.processing_status === 'failed' ? 'bg-red-500/10 text-red-500' : 'bg-orange-500/10 text-orange-500'
+                            }`}>
+                              <AlertTriangle className="h-3 w-3" />
+                              {t.processing_status}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="left" className="max-w-xs">
+                            <p>{t.processing_error}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          t.processing_status === 'completed' ? 'bg-green-500/10 text-green-500' :
+                          t.processing_status === 'processing' ? 'bg-yellow-500/10 text-yellow-500' :
+                          t.processing_status === 'failed' ? 'bg-red-500/10 text-red-500' :
+                          t.processing_status === 'partial' ? 'bg-orange-500/10 text-orange-500' :
+                          'bg-muted text-muted-foreground'
+                        }`}>
+                          {t.processing_status}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}

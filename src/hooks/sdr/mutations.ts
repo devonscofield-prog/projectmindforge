@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -10,11 +11,34 @@ interface UploadSDRTranscriptInput {
   sdrId?: string;
 }
 
+/** Simple string hash for deduplication (not cryptographic). */
+function simpleHash(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+  }
+  return hash;
+}
+
+const DEDUP_WINDOW_MS = 30_000;
+
 export function useUploadSDRTranscript() {
   const queryClient = useQueryClient();
+  const lastSubmit = useRef<{ hash: number; time: number } | null>(null);
 
   return useMutation({
     mutationFn: async ({ rawText, transcriptDate, sdrId }: UploadSDRTranscriptInput) => {
+      const hash = simpleHash(rawText);
+      const now = Date.now();
+      if (
+        lastSubmit.current &&
+        lastSubmit.current.hash === hash &&
+        now - lastSubmit.current.time < DEDUP_WINDOW_MS
+      ) {
+        throw new Error('Duplicate submission detected. Please wait before resubmitting the same transcript.');
+      }
+      lastSubmit.current = { hash, time: now };
+
       const { data, error } = await supabase.functions.invoke('sdr-process-transcript', {
         body: { raw_text: rawText, transcript_date: transcriptDate, sdr_id: sdrId },
       });

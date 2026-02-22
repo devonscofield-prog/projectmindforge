@@ -1,4 +1,6 @@
+import { useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import {
   normalizeCallListParams,
@@ -29,6 +31,8 @@ export const SDR_TRANSCRIPT_LIST_SELECT = [
   'transcript_date',
   'processing_status',
   'processing_error',
+  'processing_stage',
+  'graded_count',
   'total_calls_detected',
   'meaningful_calls_count',
   'created_at',
@@ -63,6 +67,7 @@ export const SDR_CALL_LIST_SELECT = [
   'duration_estimate_seconds',
   'start_timestamp',
   'analysis_status',
+  'processing_error',
   'created_at',
   'updated_at',
   `sdr_call_grades(${CALL_LIST_GRADE_SELECT})`,
@@ -82,10 +87,16 @@ export const SDR_CALL_DETAIL_SELECT = [
   'duration_estimate_seconds',
   'start_timestamp',
   'analysis_status',
+  'processing_error',
   'created_at',
   'updated_at',
   'sdr_call_grades(id, call_id, sdr_id, overall_grade, opener_score, engagement_score, objection_handling_score, appointment_setting_score, professionalism_score, call_summary, strengths, improvements, key_moments, coaching_notes, meeting_scheduled, model_name, raw_json, created_at)',
 ].join(', ');
+
+export function isTranscriptStuck(t: SDRTranscriptListItem): boolean {
+  if (t.processing_status !== 'processing') return false;
+  return Date.now() - new Date(t.updated_at).getTime() > 5 * 60 * 1000;
+}
 
 function hasPendingTranscriptStatus(items: SDRTranscriptListItem[] | undefined): boolean {
   if (!items || items.length === 0) return false;
@@ -134,8 +145,17 @@ export function useSDRTranscriptList(params: SDRTranscriptListParams = {}) {
   });
 }
 
+const STUCK_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+
+function computeIsStuck(transcript: SDRTranscriptDetail | undefined): boolean {
+  if (!transcript) return false;
+  if (transcript.processing_status !== 'processing') return false;
+  const updatedAt = new Date(transcript.updated_at).getTime();
+  return Date.now() - updatedAt > STUCK_THRESHOLD_MS;
+}
+
 export function useSDRTranscriptDetail(transcriptId: string | undefined) {
-  return useQuery({
+  const query = useQuery({
     queryKey: transcriptId ? sdrKeys.transcripts.detail(transcriptId) : [...sdrKeys.transcripts.all(), 'detail', 'none'],
     queryFn: async () => {
       const { data, error } = await supabase.from('sdr_daily_transcripts')
@@ -147,13 +167,32 @@ export function useSDRTranscriptDetail(transcriptId: string | undefined) {
       return data as SDRTranscriptDetail;
     },
     enabled: !!transcriptId,
-    refetchInterval: (query) => {
-      const status = (query.state.data as SDRTranscriptDetail | undefined)?.processing_status;
+    refetchInterval: (q) => {
+      const status = (q.state.data as SDRTranscriptDetail | undefined)?.processing_status;
       return status === 'pending' || status === 'processing' ? 3_000 : false;
     },
     staleTime: 5_000,
     gcTime: 10 * 60 * 1000,
   });
+
+  const isStuck = computeIsStuck(query.data);
+
+  // Detect processing -> failed transition and show toast
+  const prevStatusRef = useRef<string | undefined>();
+  useEffect(() => {
+    const currentStatus = query.data?.processing_status;
+    if (
+      prevStatusRef.current === 'processing' &&
+      currentStatus === 'failed'
+    ) {
+      toast.error(
+        query.data?.processing_error || 'Transcript processing failed',
+      );
+    }
+    prevStatusRef.current = currentStatus;
+  }, [query.data?.processing_status, query.data?.processing_error]);
+
+  return { ...query, isStuck };
 }
 
 export function useSDRCallList(params: SDRCallListParams = {}) {

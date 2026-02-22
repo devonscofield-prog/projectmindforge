@@ -26,6 +26,7 @@ export type {
 } from './sdr/types';
 
 export {
+  isTranscriptStuck,
   useSDRCallDetail,
   useSDRCallList,
   useSDRCoachingPrompts,

@@ -1,11 +1,14 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useSDRTranscriptDetail, useSDRCallList } from '@/hooks/useSDR';
+import { useSDRTranscriptDetail, useSDRCallList, useReGradeCall, useRetrySDRTranscript } from '@/hooks/useSDR';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/contexts/AuthContext';
-import { ArrowLeft, Loader2, Phone, MessageSquare, Voicemail, PhoneOff, Users, TrendingUp, CalendarCheck, Target } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { ArrowLeft, Loader2, Phone, MessageSquare, Voicemail, PhoneOff, Users, TrendingUp, CalendarCheck, Target, AlertTriangle, RotateCcw } from 'lucide-react';
 import { format } from 'date-fns';
 import { gradeColors } from '@/constants/training';
 
@@ -30,15 +33,20 @@ const callTypeLabels: Record<string, string> = {
 function SDRTranscriptDetail() {
   const { transcriptId } = useParams<{ transcriptId: string }>();
   const { role } = useAuth();
-  const { data: transcript, isLoading: transcriptLoading, isError: transcriptError } = useSDRTranscriptDetail(transcriptId);
+  const { data: transcript, isLoading: transcriptLoading, isError: transcriptError, isStuck } = useSDRTranscriptDetail(transcriptId);
+  const retryTranscript = useRetrySDRTranscript();
   const { data: calls = [], isLoading: callsLoading, isError: callsError } = useSDRCallList({
     transcriptId,
     orderBy: 'call_index',
     enabled: !!transcriptId,
   });
+  const reGradeCall = useReGradeCall();
+  const [retryingCallId, setRetryingCallId] = useState<string | null>(null);
 
   const meaningfulCalls = calls.filter(c => c.is_meaningful);
   const otherCalls = calls.filter(c => !c.is_meaningful);
+  const failedCalls = calls.filter(c => c.analysis_status === 'failed');
+  const gradedCount = meaningfulCalls.filter(c => c.sdr_call_grades?.length).length;
 
   // Summary stats for the transcript
   const { avgScore, meetingsSet, topGrade } = useMemo(() => {
@@ -114,21 +122,80 @@ function SDRTranscriptDetail() {
             <p className="text-muted-foreground">{transcript.total_calls_detected} calls • {transcript.meaningful_calls_count} meaningful</p>
           </div>
           {transcript.processing_status === 'processing' && (
-            <span className="ml-auto flex items-center gap-2 text-yellow-500">
-              <Loader2 className="h-4 w-4 animate-spin" /> Processing...
-            </span>
+            <div className="ml-auto flex items-center gap-2 min-w-[180px]">
+              <Loader2 className="h-4 w-4 animate-spin text-yellow-500 shrink-0" />
+              <div className="flex-1">
+                {transcript.processing_stage === 'grading' && transcript.meaningful_calls_count > 0 ? (
+                  <>
+                    <p className="text-xs text-yellow-500 font-medium">
+                      Grading calls... {transcript.graded_count}/{transcript.meaningful_calls_count}
+                    </p>
+                    <Progress
+                      value={Math.round((transcript.graded_count / transcript.meaningful_calls_count) * 100)}
+                      className="h-1.5 mt-0.5 [&>div]:bg-yellow-500"
+                    />
+                  </>
+                ) : (
+                  <p className="text-xs text-yellow-500 font-medium">
+                    {transcript.processing_stage === 'splitting' ? 'Splitting transcript...' :
+                     transcript.processing_stage === 'filtering' ? 'Classifying calls...' :
+                     'Processing...'}
+                  </p>
+                )}
+              </div>
+            </div>
           )}
           {transcript.processing_status !== 'processing' && (
-            <span className={`px-2 py-1 rounded text-xs font-medium ${
-              transcript.processing_status === 'completed' ? 'bg-green-500/10 text-green-500' :
-              transcript.processing_status === 'failed' ? 'bg-red-500/10 text-red-500' :
-              transcript.processing_status === 'partial' ? 'bg-orange-500/10 text-orange-500' :
-              'bg-muted text-muted-foreground'
-            }`}>
-              {transcript.processing_status}
-            </span>
+            (transcript.processing_status === 'failed' || transcript.processing_status === 'partial') && transcript.processing_error ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className={`px-2 py-1 rounded text-xs font-medium inline-flex items-center gap-1 ${
+                    transcript.processing_status === 'failed' ? 'bg-red-500/10 text-red-500' : 'bg-orange-500/10 text-orange-500'
+                  }`}>
+                    <AlertTriangle className="h-3 w-3" />
+                    {transcript.processing_status}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-xs">
+                  <p>{transcript.processing_error}</p>
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                transcript.processing_status === 'completed' ? 'bg-green-500/10 text-green-500' :
+                transcript.processing_status === 'failed' ? 'bg-red-500/10 text-red-500' :
+                transcript.processing_status === 'partial' ? 'bg-orange-500/10 text-orange-500' :
+                'bg-muted text-muted-foreground'
+              }`}>
+                {transcript.processing_status}
+              </span>
+            )
           )}
         </div>
+
+        {/* Stuck Processing Warning */}
+        {isStuck && (
+          <Alert className="border-amber-500/50 bg-amber-500/5">
+            <AlertTriangle className="h-4 w-4 text-amber-500" />
+            <AlertDescription className="flex items-center justify-between">
+              <span>Processing seems stuck. You may want to retry.</span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="ml-4 shrink-0"
+                disabled={retryTranscript.isPending}
+                onClick={() => retryTranscript.mutate(transcriptId!)}
+              >
+                {retryTranscript.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                ) : (
+                  <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                )}
+                Retry
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Summary Stats */}
         {transcript.processing_status !== 'pending' && (
@@ -234,6 +301,56 @@ function SDRTranscriptDetail() {
             )}
           </div>
         </div>
+
+        {/* Grading Summary */}
+        {meaningfulCalls.length > 0 && transcript.processing_status !== 'pending' && transcript.processing_status !== 'processing' && (
+          <p className="text-sm text-muted-foreground">
+            {gradedCount} of {meaningfulCalls.length} calls graded successfully
+            {failedCalls.length > 0 && `, ${failedCalls.length} failed`}
+          </p>
+        )}
+
+        {/* Failed Calls */}
+        {failedCalls.length > 0 && (
+          <div>
+            <h2 className="text-lg font-semibold mb-3 text-red-500 flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" />
+              Failed Calls ({failedCalls.length})
+            </h2>
+            <div className="space-y-2">
+              {failedCalls.map((call) => (
+                <Card key={call.id} className="border-red-500/20">
+                  <CardContent className="py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <Phone className="h-4 w-4 text-red-500 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm">
+                          {call.prospect_name || `Call #${call.call_index}`}
+                        </p>
+                        {call.processing_error && (
+                          <p className="text-xs text-red-500 truncate">{call.processing_error}</p>
+                        )}
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="shrink-0 h-7 px-2"
+                      disabled={retryingCallId === call.id}
+                      onClick={() => {
+                        setRetryingCallId(call.id);
+                        reGradeCall.mutate(call.id, { onSettled: () => setRetryingCallId(null) });
+                      }}
+                    >
+                      <RotateCcw className={`h-3.5 w-3.5 ${retryingCallId === call.id ? 'animate-spin' : ''}`} />
+                      <span className="ml-1 text-xs">Retry</span>
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Other Calls */}
         {otherCalls.length > 0 && (

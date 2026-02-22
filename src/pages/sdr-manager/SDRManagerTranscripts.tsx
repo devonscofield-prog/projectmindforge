@@ -8,7 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useSDRTeams, useSDRTeamMembers, useSDRTranscriptList, useSDRCallList, useRetrySDRTranscript } from '@/hooks/useSDR';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, RotateCcw, X, FileText } from 'lucide-react';
+import { Loader2, RotateCcw, X, FileText, AlertTriangle } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -243,15 +244,31 @@ function SDRManagerTranscripts() {
                             <span className="ml-1 text-xs">Retry</span>
                           </Button>
                         )}
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${
-                          t.processing_status === 'completed' ? 'bg-green-500/10 text-green-500' :
-                          t.processing_status === 'processing' ? 'bg-yellow-500/10 text-yellow-500' :
-                          t.processing_status === 'failed' ? 'bg-red-500/10 text-red-500' :
-                          t.processing_status === 'partial' ? 'bg-orange-500/10 text-orange-500' :
-                          'bg-muted text-muted-foreground'
-                        }`}>
-                          {t.processing_status}
-                        </span>
+                        {(t.processing_status === 'failed' || t.processing_status === 'partial') && t.processing_error ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className={`px-2 py-1 rounded text-xs font-medium inline-flex items-center gap-1 ${
+                                t.processing_status === 'failed' ? 'bg-red-500/10 text-red-500' : 'bg-orange-500/10 text-orange-500'
+                              }`}>
+                                <AlertTriangle className="h-3 w-3" />
+                                {t.processing_status}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="left" className="max-w-xs">
+                              <p>{t.processing_error}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : (
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            t.processing_status === 'completed' ? 'bg-green-500/10 text-green-500' :
+                            t.processing_status === 'processing' ? 'bg-yellow-500/10 text-yellow-500' :
+                            t.processing_status === 'failed' ? 'bg-red-500/10 text-red-500' :
+                            t.processing_status === 'partial' ? 'bg-orange-500/10 text-orange-500' :
+                            'bg-muted text-muted-foreground'
+                          }`}>
+                            {t.processing_status}
+                          </span>
+                        )}
                       </div>
                     </Link>
                   );

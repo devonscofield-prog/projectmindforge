@@ -275,6 +275,35 @@ function sanitizeUserContent(content: string): string {
   return `<user_content>\n${escapeXmlTags(content)}\n</user_content>`;
 }
 
+const VALID_GRADES = ['A+', 'A', 'B', 'C', 'D', 'F'] as const;
+
+function validateGradeOutput(parsed: any): void {
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('Grade output is not an object');
+  }
+  if (!VALID_GRADES.includes(parsed.overall_grade)) {
+    throw new Error(`Invalid overall_grade: ${JSON.stringify(parsed.overall_grade)}. Must be one of ${VALID_GRADES.join(', ')}`);
+  }
+  for (const key of ['opener_score', 'engagement_score', 'objection_handling_score', 'appointment_setting_score', 'professionalism_score']) {
+    const val = parsed[key];
+    if (typeof val !== 'number' || val < 1 || val > 10) {
+      throw new Error(`Invalid ${key}: ${JSON.stringify(val)}. Must be a number between 1 and 10`);
+    }
+  }
+  if (!Array.isArray(parsed.strengths)) {
+    throw new Error('strengths must be an array');
+  }
+  if (!Array.isArray(parsed.improvements)) {
+    throw new Error('improvements must be an array');
+  }
+  if (!Array.isArray(parsed.key_moments)) {
+    throw new Error('key_moments must be an array');
+  }
+  if (typeof parsed.call_summary !== 'string') {
+    throw new Error('call_summary must be a string');
+  }
+}
+
 async function gradeCall(openaiApiKey: string, callText: string, customPrompt?: string): Promise<any> {
   const systemPrompt = customPrompt || DEFAULT_GRADER_PROMPT;
 
@@ -282,7 +311,7 @@ async function gradeCall(openaiApiKey: string, callText: string, customPrompt?: 
     'https://api.openai.com/v1/chat/completions',
     {
       method: 'POST',
-      signal: AbortSignal.timeout(55000),
+      signal: AbortSignal.timeout(75000),
       headers: {
         'Authorization': `Bearer ${openaiApiKey}`,
         'Content-Type': 'application/json',
@@ -297,16 +326,20 @@ async function gradeCall(openaiApiKey: string, callText: string, customPrompt?: 
         response_format: { type: 'json_object' },
       }),
     },
-    { maxRetries: 3, baseDelayMs: 2000, agentName: 'Grader' },
+    { maxRetries: 5, baseDelayMs: 3000, agentName: 'Grader' },
   );
 
   const data = await response.json();
   const content = data.choices?.[0]?.message?.content;
   if (!content) throw new Error('Grader returned empty response');
 
+  let parsed: any;
   try {
-    return JSON.parse(content);
+    parsed = JSON.parse(content);
   } catch {
     throw new Error(`Grader returned invalid JSON: ${content.slice(0, 200)}`);
   }
+
+  validateGradeOutput(parsed);
+  return parsed;
 }
