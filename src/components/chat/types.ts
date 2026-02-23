@@ -101,7 +101,7 @@ export interface ChatAdapter {
   rateLimitSeconds?: number;
   /** Custom loading history state UI */
   loadingHistoryState?: ReactNode;
-  /** Custom history sheet content */
+  /** Custom history sheet content (rendered inside a Sheet managed by ChatBase — return SheetContent, not a full Sheet) */
   renderHistorySheet?: (props: HistorySheetProps) => ReactNode;
 }
 

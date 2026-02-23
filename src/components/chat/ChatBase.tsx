@@ -330,13 +330,17 @@ export function ChatBase({ adapter }: ChatBaseProps) {
   // --- Default history sheet ---
   const renderDefaultHistory = () => {
     if (adapter.renderHistorySheet) {
-      return adapter.renderHistorySheet({
-        allSessions,
-        currentSessionId,
-        handleSwitchSession,
-        handleDeleteSession,
-        setShowHistorySheet,
-      });
+      return (
+        <Sheet open={showHistorySheet} onOpenChange={setShowHistorySheet}>
+          {adapter.renderHistorySheet({
+            allSessions,
+            currentSessionId,
+            handleSwitchSession,
+            handleDeleteSession,
+            setShowHistorySheet,
+          })}
+        </Sheet>
+      );
     }
 
     return (

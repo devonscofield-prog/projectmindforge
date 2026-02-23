@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
-  Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
@@ -597,21 +596,19 @@ export function SalesCoachChat({ prospectId, accountName, heatScore, lastContact
       </div>
     ),
 
-    // Custom history sheet
+    // Custom history sheet (rendered inside <Sheet> managed by ChatBase)
     renderHistorySheet: (props) => (
-      <Sheet open={true} onOpenChange={(open) => { if (!open) props.setShowHistorySheet(false); }}>
-        <SheetContent side="right" className="w-full sm:max-w-md">
-          <SheetHeader>
-            <SheetTitle className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                <History className="h-4 w-4 text-primary" />
-              </div>
-              Chat History
-            </SheetTitle>
-          </SheetHeader>
-          <CoachHistorySheet {...props} />
-        </SheetContent>
-      </Sheet>
+      <SheetContent side="right" className="w-full sm:max-w-md">
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <History className="h-4 w-4 text-primary" />
+            </div>
+            Chat History
+          </SheetTitle>
+        </SheetHeader>
+        <CoachHistorySheet {...props} />
+      </SheetContent>
     ),
 
     // Trigger button
