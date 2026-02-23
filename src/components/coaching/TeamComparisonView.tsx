@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
@@ -42,7 +42,7 @@ interface TeamAnalysisResult {
   error: string | null;
 }
 
-export function TeamComparisonView({ dateRange, onClose }: TeamComparisonViewProps) {
+export function TeamComparisonView({ dateRange: _dateRange, onClose }: TeamComparisonViewProps) {
   const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
   const [teamAnalyses, setTeamAnalyses] = useState<Map<string, TeamAnalysisResult>>(new Map());
   const [isComparing, setIsComparing] = useState(false);

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Bell, BellOff, Mail, Clock, AlertTriangle, CheckCircle, Send, History, Loader2 } from "lucide-react";
+import { Bell, BellOff, Mail, Clock, AlertTriangle, Send, History, Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,7 @@ import {
   updateAlertConfig,
   getAlertHistory,
   sendTestAlert,
-  AlertConfig,
+  type AlertConfig as _AlertConfig,
   AlertHistory,
 } from "@/api/performanceAlerts";
 import { useAuth } from "@/contexts/AuthContext";

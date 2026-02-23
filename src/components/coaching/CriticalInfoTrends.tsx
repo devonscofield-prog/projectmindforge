@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, CheckCircle2, AlertCircle, TrendingUp, TrendingDown, Minus } from 'lucide-react';
-import { cn } from '@/lib/utils';
+// cn import removed - unused
 
 interface PersistentGap {
   gap: string;
@@ -22,7 +22,7 @@ export function CriticalInfoTrends({
   resolvedIssues,
   recommendation,
 }: CriticalInfoTrendsProps) {
-  const getTrendIcon = (trend: 'improving' | 'stable' | 'worse') => {
+  const _getTrendIcon = (trend: 'improving' | 'stable' | 'worse') => {
     switch (trend) {
       case 'improving':
         return <TrendingUp className="h-3.5 w-3.5 text-green-500" />;

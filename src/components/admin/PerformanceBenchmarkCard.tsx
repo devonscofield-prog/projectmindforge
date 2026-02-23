@@ -11,7 +11,7 @@ interface PerformanceBenchmarkCardProps {
   isLoading?: boolean;
 }
 
-const ratingColors = {
+const _ratingColors = {
   excellent: 'bg-emerald-500',
   good: 'bg-green-500',
   acceptable: 'bg-yellow-500',

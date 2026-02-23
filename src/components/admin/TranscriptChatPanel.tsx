@@ -60,7 +60,7 @@ export function TranscriptChatPanel({ selectedTranscripts, useRag = false, selec
   const {
     selectedModeId,
     setSelectedModeId,
-    activePresetId,
+    activePresetId: _activePresetId,
     setActivePresetId,
     selectedMode,
     activePreset,

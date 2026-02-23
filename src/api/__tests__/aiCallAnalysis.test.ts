@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   determineAnalysisTier,
   defaultFrameworkTrend,
@@ -118,6 +118,35 @@ describe('aiCallAnalysis', () => {
   });
 
   describe('frameworkHelpers', () => {
+    const defaultPatience = {
+      trend: 'stable' as const,
+      startingAvg: 0,
+      endingAvg: 0,
+      avgInterruptions: 0,
+      keyInsight: '',
+      evidence: [],
+      recommendation: '',
+    };
+    const defaultStrategicThreading = {
+      trend: 'stable' as const,
+      startingAvg: 0,
+      endingAvg: 0,
+      avgRelevanceRatio: 0,
+      avgMissedOpportunities: 0,
+      keyInsight: '',
+      evidence: [],
+      recommendation: '',
+    };
+    const defaultMonologue = {
+      trend: 'stable' as const,
+      totalViolations: 0,
+      avgPerCall: 0,
+      avgLongestTurn: 0,
+      keyInsight: '',
+      evidence: [],
+      recommendation: '',
+    };
+
     const meddpiccTrend = {
       trend: 'improving' as const,
       startingAvg: 50,
@@ -136,9 +165,16 @@ describe('aiCallAnalysis', () => {
       recommendation: 'Practice',
     };
 
+    const baseFields = {
+      patience: defaultPatience,
+      strategicThreading: defaultStrategicThreading,
+      monologueViolations: defaultMonologue,
+    };
+
     describe('getPrimaryFrameworkTrend', () => {
       it('should return meddpicc when available', () => {
         const result = getPrimaryFrameworkTrend({
+          ...baseFields,
           meddpicc: meddpiccTrend,
           bant: bantTrend,
           gapSelling: defaultFrameworkTrend,
@@ -149,17 +185,21 @@ describe('aiCallAnalysis', () => {
 
       it('should fall back to bant when meddpicc is not available', () => {
         const result = getPrimaryFrameworkTrend({
+          ...baseFields,
           bant: bantTrend,
           gapSelling: defaultFrameworkTrend,
           activeListening: defaultFrameworkTrend,
+          meddpicc: defaultFrameworkTrend,
         });
         expect(result).toBe(bantTrend);
       });
 
       it('should return default when neither is available', () => {
         const result = getPrimaryFrameworkTrend({
+          ...baseFields,
           gapSelling: defaultFrameworkTrend,
           activeListening: defaultFrameworkTrend,
+          meddpicc: defaultFrameworkTrend,
         });
         expect(result).toBe(defaultFrameworkTrend);
       });
@@ -168,6 +208,7 @@ describe('aiCallAnalysis', () => {
     describe('getPrimaryFrameworkLabel', () => {
       it('should return MEDDPICC when meddpicc is available', () => {
         const label = getPrimaryFrameworkLabel({
+          ...baseFields,
           meddpicc: meddpiccTrend,
           gapSelling: defaultFrameworkTrend,
           activeListening: defaultFrameworkTrend,
@@ -177,9 +218,11 @@ describe('aiCallAnalysis', () => {
 
       it('should return BANT when meddpicc is not available', () => {
         const label = getPrimaryFrameworkLabel({
+          ...baseFields,
           bant: bantTrend,
           gapSelling: defaultFrameworkTrend,
           activeListening: defaultFrameworkTrend,
+          meddpicc: defaultFrameworkTrend,
         });
         expect(label).toBe('BANT');
       });
@@ -188,6 +231,7 @@ describe('aiCallAnalysis', () => {
     describe('usesMeddpicc', () => {
       it('should return true when meddpicc data exists', () => {
         expect(usesMeddpicc({
+          ...baseFields,
           meddpicc: meddpiccTrend,
           gapSelling: defaultFrameworkTrend,
           activeListening: defaultFrameworkTrend,
@@ -196,9 +240,11 @@ describe('aiCallAnalysis', () => {
 
       it('should return false when only bant exists', () => {
         expect(usesMeddpicc({
+          ...baseFields,
           bant: bantTrend,
           gapSelling: defaultFrameworkTrend,
           activeListening: defaultFrameworkTrend,
+          meddpicc: defaultFrameworkTrend,
         })).toBe(false);
       });
     });
@@ -206,16 +252,20 @@ describe('aiCallAnalysis', () => {
     describe('getBantTrend', () => {
       it('should return bant data when available', () => {
         expect(getBantTrend({
+          ...baseFields,
           bant: bantTrend,
           gapSelling: defaultFrameworkTrend,
           activeListening: defaultFrameworkTrend,
+          meddpicc: defaultFrameworkTrend,
         })).toBe(bantTrend);
       });
 
       it('should return default when bant is not available', () => {
         expect(getBantTrend({
+          ...baseFields,
           gapSelling: defaultFrameworkTrend,
           activeListening: defaultFrameworkTrend,
+          meddpicc: defaultFrameworkTrend,
         })).toBe(defaultFrameworkTrend);
       });
     });

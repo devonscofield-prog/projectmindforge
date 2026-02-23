@@ -9,7 +9,7 @@ import {
   fetchRecentSessionsForList, 
   fetchSessionById,
   deleteAnalysisSession, 
-  type AnalysisSession,
+  type AnalysisSession as _AnalysisSession,
   type AnalysisSessionListItem 
 } from '@/api/analysisSessions';
 

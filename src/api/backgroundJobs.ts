@@ -219,7 +219,7 @@ export async function processDealHeatBatch(
 }
 
 // Legacy function - kept for backward compatibility but now uses frontend-driven pattern
-export async function startNERBackfillJob(token: string): Promise<{ jobId: string }> {
+export async function startNERBackfillJob(_token: string): Promise<{ jobId: string }> {
   // This is now deprecated - use processNERBatch instead
   throw new Error('startNERBackfillJob is deprecated. Use processNERBatch for frontend-driven backfill.');
 }

@@ -2,14 +2,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { createLogger } from '@/lib/logger';
 import { toCallAnalysis, toCoachingTrendAnalysis } from '@/lib/supabaseAdapters';
 import type {
-  CallAnalysis,
   CoachingSummary,
   CoachingTrendAnalysis,
   CoachingTrendAnalysisWithMeta,
   AnalysisMetadata,
   AggregateAnalysisParams,
   AggregateCoachingTrendAnalysisWithMeta,
-  AggregateAnalysisMetadata,
   FormattedCall,
 } from './types';
 import { DIRECT_ANALYSIS_MAX } from './constants';
@@ -18,7 +16,6 @@ import {
   stratifiedSample,
   analyzeHierarchically,
   invokeCoachingTrendsFunction,
-  calculateRepContributions,
 } from './utils';
 
 const log = createLogger('coaching');

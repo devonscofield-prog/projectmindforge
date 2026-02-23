@@ -21,9 +21,9 @@ import {
 } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CallTranscript, UpdateCallTranscriptParams } from '@/api/aiCallAnalysis';
-import { callTypeOptions, CallType } from '@/constants/callTypes';
+import { callTypeOptions, type CallType as _CallType } from '@/constants/callTypes';
 import { OpportunityLabel, opportunityLabelOptions } from '@/constants/opportunityLabels';
-import { format } from 'date-fns';
+// format import removed - unused
 import { AlertTriangle, Loader2, Users } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 

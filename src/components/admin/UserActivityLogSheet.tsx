@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { fetchUserActivityLogs, UserActivityLog } from '@/api/userActivityLogs';
+import { fetchUserActivityLogs, type UserActivityLog as _UserActivityLog } from '@/api/userActivityLogs';
 import { format, formatDistanceToNow } from 'date-fns';
 import { LogIn, LogOut, RefreshCw, Clock, Monitor } from 'lucide-react';
 
