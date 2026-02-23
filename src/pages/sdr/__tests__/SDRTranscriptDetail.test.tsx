@@ -25,39 +25,6 @@ function computeIsStuck(transcript: TranscriptBase | undefined): boolean {
   return Date.now() - updatedAt > STUCK_THRESHOLD_MS;
 }
 
-// -- Processing stage display text --
-// From SDRTranscriptDetail.tsx lines 140-142 and SDRDashboard.tsx lines 692-695.
-
-function getProcessingStageText(
-  stage: string | null | undefined,
-  gradedCount?: number,
-  meaningfulCount?: number,
-): string {
-  if (stage === 'splitting') return 'Splitting transcript...';
-  if (stage === 'filtering') return 'Classifying calls...';
-  if (stage === 'grading') {
-    if (meaningfulCount != null && meaningfulCount > 0) {
-      return `Grading calls... ${gradedCount ?? 0}/${meaningfulCount}`;
-    }
-    return 'Grading calls...';
-  }
-  return 'Processing...';
-}
-
-// Short-form for dashboard list
-function getProcessingStageShortText(
-  stage: string | null | undefined,
-  gradedCount?: number,
-  meaningfulCount?: number,
-): string {
-  if (stage === 'splitting') return 'Splitting...';
-  if (stage === 'filtering') return 'Classifying...';
-  if (stage === 'grading' && meaningfulCount != null && meaningfulCount > 0) {
-    return `Grading... ${gradedCount ?? 0}/${meaningfulCount}`;
-  }
-  return 'Processing...';
-}
-
 // -- Processing error tooltip visibility --
 // From SDRTranscriptDetail.tsx lines 149-162, SDRHistory.tsx lines 201-214.
 // A tooltip with the error is shown when status is failed/partial AND processing_error exists.
@@ -311,53 +278,6 @@ describe('error display logic', () => {
           updated_at: '2026-02-21T12:00:00.000Z',
         }),
       ).toBe(true);
-    });
-  });
-
-  describe('progress stage display', () => {
-    it('shows "Splitting transcript..." for splitting stage', () => {
-      expect(getProcessingStageText('splitting')).toBe('Splitting transcript...');
-    });
-
-    it('shows "Classifying calls..." for filtering stage', () => {
-      expect(getProcessingStageText('filtering')).toBe('Classifying calls...');
-    });
-
-    it('shows grading progress with counts', () => {
-      expect(getProcessingStageText('grading', 3, 10)).toBe(
-        'Grading calls... 3/10',
-      );
-    });
-
-    it('shows grading without counts when meaningful is 0', () => {
-      expect(getProcessingStageText('grading', 0, 0)).toBe('Grading calls...');
-    });
-
-    it('shows "Processing..." for unknown or null stage', () => {
-      expect(getProcessingStageText(null)).toBe('Processing...');
-      expect(getProcessingStageText(undefined)).toBe('Processing...');
-      expect(getProcessingStageText('unknown_stage')).toBe('Processing...');
-    });
-
-    it('defaults graded_count to 0 when undefined', () => {
-      expect(getProcessingStageText('grading', undefined, 5)).toBe(
-        'Grading calls... 0/5',
-      );
-    });
-
-    // Dashboard short-form variants
-    it('shows short "Splitting..." for dashboard list', () => {
-      expect(getProcessingStageShortText('splitting')).toBe('Splitting...');
-    });
-
-    it('shows short "Classifying..." for dashboard list', () => {
-      expect(getProcessingStageShortText('filtering')).toBe('Classifying...');
-    });
-
-    it('shows short grading progress for dashboard list', () => {
-      expect(getProcessingStageShortText('grading', 2, 8)).toBe(
-        'Grading... 2/8',
-      );
     });
   });
 

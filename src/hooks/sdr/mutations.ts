@@ -66,8 +66,6 @@ export function useUploadSDRTranscript() {
         transcript_date: variables.transcriptDate ?? new Date().toISOString().split('T')[0],
         processing_status: 'processing',
         processing_error: null,
-        processing_stage: null,
-        graded_count: 0,
         total_calls_detected: 0,
         meaningful_calls_count: 0,
         created_at: new Date().toISOString(),

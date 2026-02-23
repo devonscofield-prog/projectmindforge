@@ -528,23 +528,11 @@ function SDRDashboard() {
                               <>
                                 <Loader2 className="h-3.5 w-3.5 animate-spin text-yellow-500 shrink-0" />
                                 <div className="flex-1">
-                                  <p className="text-xs text-yellow-500 font-medium">
-                                    {t.processing_stage === 'splitting' ? 'Splitting...' :
-                                     t.processing_stage === 'filtering' ? 'Classifying...' :
-                                     t.processing_stage === 'grading' ? `Grading... ${t.graded_count}/${t.meaningful_calls_count}` :
-                                     'Processing...'}
-                                  </p>
-                                  {t.processing_stage === 'grading' && t.meaningful_calls_count > 0 ? (
-                                    <Progress
-                                      value={Math.round((t.graded_count / t.meaningful_calls_count) * 100)}
-                                      className="h-1.5 mt-0.5 [&>div]:bg-yellow-500"
-                                    />
-                                  ) : (
-                                    <Progress
-                                      value={30}
-                                      className="h-1.5 mt-0.5 [&>div]:bg-yellow-500"
-                                    />
-                                  )}
+                                  <p className="text-xs text-yellow-500 font-medium">Processing...</p>
+                                  <Progress
+                                    value={30}
+                                    className="h-1.5 mt-0.5 [&>div]:bg-yellow-500"
+                                  />
                                 </div>
                               </>
                             )}

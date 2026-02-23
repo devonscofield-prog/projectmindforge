@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { useSDRTranscriptDetail, useSDRCallList, useReGradeCall, useRetrySDRTranscript } from '@/hooks/useSDR';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/contexts/AuthContext';
-import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ArrowLeft, Loader2, Phone, MessageSquare, Voicemail, PhoneOff, Users, TrendingUp, CalendarCheck, Target, AlertTriangle, RotateCcw } from 'lucide-react';
 import { format } from 'date-fns';
@@ -124,25 +123,7 @@ function SDRTranscriptDetail() {
           {transcript.processing_status === 'processing' && (
             <div className="ml-auto flex items-center gap-2 min-w-[180px]">
               <Loader2 className="h-4 w-4 animate-spin text-yellow-500 shrink-0" />
-              <div className="flex-1">
-                {transcript.processing_stage === 'grading' && transcript.meaningful_calls_count > 0 ? (
-                  <>
-                    <p className="text-xs text-yellow-500 font-medium">
-                      Grading calls... {transcript.graded_count}/{transcript.meaningful_calls_count}
-                    </p>
-                    <Progress
-                      value={Math.round((transcript.graded_count / transcript.meaningful_calls_count) * 100)}
-                      className="h-1.5 mt-0.5 [&>div]:bg-yellow-500"
-                    />
-                  </>
-                ) : (
-                  <p className="text-xs text-yellow-500 font-medium">
-                    {transcript.processing_stage === 'splitting' ? 'Splitting transcript...' :
-                     transcript.processing_stage === 'filtering' ? 'Classifying calls...' :
-                     'Processing...'}
-                  </p>
-                )}
-              </div>
+              <p className="text-xs text-yellow-500 font-medium">Processing...</p>
             </div>
           )}
           {transcript.processing_status !== 'processing' && (

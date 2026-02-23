@@ -31,8 +31,6 @@ export const SDR_TRANSCRIPT_LIST_SELECT = [
   'transcript_date',
   'processing_status',
   'processing_error',
-  'processing_stage',
-  'graded_count',
   'total_calls_detected',
   'meaningful_calls_count',
   'created_at',
