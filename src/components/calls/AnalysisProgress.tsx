@@ -155,7 +155,7 @@ export function AnalysisProgress({ isComplete = false }: AnalysisProgressProps) 
 
           {/* Steps List */}
           <div className="w-full max-w-md space-y-3">
-            {analysisSteps.map((step, index) => {
+            {analysisSteps.map((step, _index) => {
               const status = stepStatuses[step.id];
               return (
                 <div

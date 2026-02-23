@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+// Badge import removed - unused
 import {
   Collapsible,
   CollapsibleContent,
@@ -273,7 +273,7 @@ const markdownComponents = {
   ),
 };
 
-export function AnalysisMessageRenderer({ content, onSaveInsight, isStreaming }: AnalysisMessageRendererProps) {
+export function AnalysisMessageRenderer({ content, onSaveInsight: _onSaveInsight, isStreaming }: AnalysisMessageRendererProps) {
   const { sections, plainContent } = useMemo(() => parseContentIntoSections(content), [content]);
   
   // Track open state for each section (default to all collapsed)

@@ -67,7 +67,7 @@ export async function upsertDailyReportConfig(
     .upsert({
       user_id: user.id,
       ...updates,
-    }, {
+    } as any, {
       onConflict: 'user_id',
     })
     .select()

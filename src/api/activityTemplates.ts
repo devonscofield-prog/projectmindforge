@@ -47,7 +47,7 @@ export async function createActivityTemplate(
     .insert({
       activity_type: activityType as string,
       template_text: templateText,
-    })
+    } as any)
     .select()
     .single();
 

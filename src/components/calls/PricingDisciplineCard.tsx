@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown, DollarSign, CheckCircle, XCircle, AlertTriangle, Lightbulb, Clock, HandCoins } from 'lucide-react';
+import { ChevronDown, DollarSign, CheckCircle, AlertTriangle, Lightbulb, Clock, HandCoins } from 'lucide-react';
 import { useState } from 'react';
 import type { PricingDiscipline } from '@/utils/analysis-schemas';
 

@@ -24,7 +24,7 @@ interface BehaviorScorecardProps {
   onSeekToTimestamp?: (timestamp: string) => void;
 }
 
-export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecardProps) {
+export function BehaviorScorecard({ data, onSeekToTimestamp: _onSeekToTimestamp }: BehaviorScorecardProps) {
   const [questionsSheetOpen, setQuestionsSheetOpen] = useState(false);
   const [patienceSheetOpen, setPatienceSheetOpen] = useState(false);
 
@@ -79,7 +79,7 @@ export function BehaviorScorecard({ data, onSeekToTimestamp }: BehaviorScorecard
     ? (avgAnswerLength / avgQuestionLength).toFixed(1)
     : '0';
   const totalQuestions = highLeverageCount + lowLeverageCount;
-  const highLeveragePercent = totalQuestions > 0
+  const _highLeveragePercent = totalQuestions > 0
     ? Math.round((highLeverageCount / totalQuestions) * 100)
     : 0;
 

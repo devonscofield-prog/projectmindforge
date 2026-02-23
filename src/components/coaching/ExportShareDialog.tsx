@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import {
-  Download,
+  // Download removed - unused
   Share2,
   Copy,
   Mail,

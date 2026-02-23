@@ -16,7 +16,7 @@ interface FrameworkTrendChartProps {
 export function FrameworkTrendChart({ data }: FrameworkTrendChartProps) {
   // Transform data, using MEDDPICC if available, falling back to BANT for legacy
   const chartData = data.map(d => {
-    const primaryScore = d.meddpicc ?? d.bant ?? null;
+    const _primaryScore = d.meddpicc ?? d.bant ?? null;
     return {
       date: format(new Date(d.date), 'MMM d'),
       'MEDDPICC': d.meddpicc ?? null,

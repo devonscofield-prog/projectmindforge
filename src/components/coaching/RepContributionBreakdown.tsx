@@ -7,12 +7,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   ChevronDown, 
   ChevronUp, 
-  User, 
+  // User removed - unused
   Phone, 
   Flame, 
-  TrendingUp, 
-  TrendingDown,
-  BarChart3,
+  // TrendingUp, TrendingDown, BarChart3 removed - unused
   Users,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';

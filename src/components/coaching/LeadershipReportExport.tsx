@@ -18,7 +18,7 @@ import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import {
-  Download,
+  // Download removed - unused
   Share2,
   Copy,
   Mail,

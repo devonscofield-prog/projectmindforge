@@ -5,13 +5,9 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
+// Collapsible imports removed - unused
 import { 
-  ArrowRight, 
+  // ArrowRight removed - unused
   CheckCircle2, 
   XCircle, 
   AlertTriangle,

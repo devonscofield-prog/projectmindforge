@@ -65,7 +65,7 @@ export async function generateTeamInviteLink(
     .select()
     .single();
   if (error) throw error;
-  return data as TeamInviteLink;
+  return data as unknown as TeamInviteLink;
 }
 
 export async function deactivateTeamInviteLink(linkId: string): Promise<void> {
@@ -82,5 +82,5 @@ export async function fetchActiveTeamInviteLinks(teamId: string): Promise<TeamIn
     .eq('is_active', true)
     .order('created_at', { ascending: false });
   if (error) throw error;
-  return data as TeamInviteLink[];
+  return (data || []) as unknown as TeamInviteLink[];
 }
