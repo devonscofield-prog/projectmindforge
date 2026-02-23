@@ -894,7 +894,6 @@ export type Database = {
           notes: string | null
           rep_id: string
           session_date: string
-          source_call_id: string | null
           updated_at: string
         }
         Insert: {
@@ -907,7 +906,6 @@ export type Database = {
           notes?: string | null
           rep_id: string
           session_date?: string
-          source_call_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -920,7 +918,6 @@ export type Database = {
           notes?: string | null
           rep_id?: string
           session_date?: string
-          source_call_id?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -2595,9 +2592,6 @@ export type Database = {
           appointment_setting_score: number | null
           call_id: string
           call_summary: string | null
-          coaching_feedback_at: string | null
-          coaching_feedback_helpful: boolean | null
-          coaching_feedback_note: string | null
           coaching_notes: string | null
           created_at: string
           engagement_score: number | null
@@ -2618,9 +2612,6 @@ export type Database = {
           appointment_setting_score?: number | null
           call_id: string
           call_summary?: string | null
-          coaching_feedback_at?: string | null
-          coaching_feedback_helpful?: boolean | null
-          coaching_feedback_note?: string | null
           coaching_notes?: string | null
           created_at?: string
           engagement_score?: number | null
@@ -2641,9 +2632,6 @@ export type Database = {
           appointment_setting_score?: number | null
           call_id?: string
           call_summary?: string | null
-          coaching_feedback_at?: string | null
-          coaching_feedback_helpful?: boolean | null
-          coaching_feedback_note?: string | null
           coaching_notes?: string | null
           created_at?: string
           engagement_score?: number | null
@@ -2701,7 +2689,6 @@ export type Database = {
           duration_estimate_seconds: number | null
           id: string
           is_meaningful: boolean
-          processing_error: string | null
           prospect_company: string | null
           prospect_name: string | null
           raw_text: string
@@ -2718,7 +2705,6 @@ export type Database = {
           duration_estimate_seconds?: number | null
           id?: string
           is_meaningful?: boolean
-          processing_error?: string | null
           prospect_company?: string | null
           prospect_name?: string | null
           raw_text: string
@@ -2735,7 +2721,6 @@ export type Database = {
           duration_estimate_seconds?: number | null
           id?: string
           is_meaningful?: boolean
-          processing_error?: string | null
           prospect_company?: string | null
           prospect_name?: string | null
           raw_text?: string
@@ -2824,11 +2809,9 @@ export type Database = {
       sdr_daily_transcripts: {
         Row: {
           created_at: string
-          graded_count: number | null
           id: string
           meaningful_calls_count: number
           processing_error: string | null
-          processing_stage: string | null
           processing_status: string
           raw_text: string
           sdr_id: string
@@ -2839,11 +2822,9 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          graded_count?: number | null
           id?: string
           meaningful_calls_count?: number
           processing_error?: string | null
-          processing_stage?: string | null
           processing_status?: string
           raw_text: string
           sdr_id: string
@@ -2854,11 +2835,9 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          graded_count?: number | null
           id?: string
           meaningful_calls_count?: number
           processing_error?: string | null
-          processing_stage?: string | null
           processing_status?: string
           raw_text?: string
           sdr_id?: string
@@ -2983,60 +2962,6 @@ export type Database = {
             columns: ["manager_id"]
             isOneToOne: false
             referencedRelation: "user_with_role"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      sdr_team_invites: {
-        Row: {
-          created_at: string
-          created_by: string
-          expires_at: string | null
-          id: string
-          invite_token: string
-          is_active: boolean
-          max_uses: number | null
-          team_id: string
-          times_used: number
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          created_by: string
-          expires_at?: string | null
-          id?: string
-          invite_token?: string
-          is_active?: boolean
-          max_uses?: number | null
-          team_id: string
-          times_used?: number
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          created_by?: string
-          expires_at?: string | null
-          id?: string
-          invite_token?: string
-          is_active?: boolean
-          max_uses?: number | null
-          team_id?: string
-          times_used?: number
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sdr_team_invites_team_id_fkey"
-            columns: ["team_id"]
-            isOneToOne: false
-            referencedRelation: "sdr_teams"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sdr_team_invites_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
