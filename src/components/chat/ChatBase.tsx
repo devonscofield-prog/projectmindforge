@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, isValidElement, cloneElement } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -582,7 +582,11 @@ export function ChatBase({ adapter }: ChatBaseProps) {
     return createPortal(
       <>
         <Sheet open={isOpen} onOpenChange={setIsOpen}>
-          {adapter.triggerButton ?? (
+          {adapter.triggerButton && isValidElement(adapter.triggerButton)
+            ? cloneElement(adapter.triggerButton as React.ReactElement<{ onClick?: () => void }>, {
+                onClick: () => setIsOpen(true),
+              })
+            : (
             <Button
               size="lg"
               className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full shadow-lg bg-gradient-to-r from-primary via-primary/95 to-accent hover:from-primary/90 hover:to-accent/90 transition-all duration-300 hover:scale-105 hover:shadow-xl md:bottom-8 md:right-8"
@@ -599,7 +603,11 @@ export function ChatBase({ adapter }: ChatBaseProps) {
   }
 
   // Default: floating-button mode (SalesAssistantChat pattern)
-  const floatingButton = adapter.triggerButton ?? (
+  const floatingButton = adapter.triggerButton && isValidElement(adapter.triggerButton)
+    ? cloneElement(adapter.triggerButton as React.ReactElement<{ onClick?: () => void }>, {
+        onClick: () => setIsOpen(true),
+      })
+    : (
     <Button
       size="lg"
       className={cn(
