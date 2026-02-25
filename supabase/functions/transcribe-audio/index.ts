@@ -111,7 +111,8 @@ async function transcribeChunk(
   fileExtension: string = 'mp3',
 ): Promise<WhisperResponse> {
   const formData = new FormData();
-  formData.append('file', new Blob([audioBytes], { type: mimeType }), `chunk_${chunkIndex}.${fileExtension}`);
+  // Use audioBytes.buffer to satisfy Deno's Blob constructor (expects ArrayBuffer, not Uint8Array)
+  formData.append('file', new Blob([audioBytes.buffer], { type: mimeType }), `chunk_${chunkIndex}.${fileExtension}`);
   formData.append('model', 'whisper-1');
   formData.append('response_format', 'verbose_json');
   formData.append('timestamp_granularities[]', 'word');
