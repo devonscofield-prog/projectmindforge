@@ -2,6 +2,8 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { validateSignedRequest, timingSafeEqual } from "../_shared/hmac.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
 
+const corsHeaders = getCorsHeaders(null);
+
 interface ReportSections {
   summary_stats: boolean;
   wow_trends: boolean;
