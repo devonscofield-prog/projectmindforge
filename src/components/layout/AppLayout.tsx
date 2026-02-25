@@ -5,9 +5,9 @@ import { PageTransition } from '@/components/ui/page-transition';
 import { PullToRefresh } from '@/components/ui/pull-to-refresh';
 import { PullToRefreshProvider, usePullToRefreshContext } from '@/contexts/PullToRefreshContext';
 import { usePerformanceAlertToasts } from '@/hooks/usePerformanceAlertToasts';
-import { 
-  LayoutDashboard, 
-  Users, 
+import {
+  LayoutDashboard,
+  Users,
   LogOut,
   MessageSquare,
   Mic,
@@ -29,6 +29,7 @@ import {
   Target,
   Database,
   BarChart3,
+  Headphones,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -103,6 +104,7 @@ const adminNavGroups = [
       { href: '/admin/users', label: 'Users', icon: Users },
       { href: '/admin/teams', label: 'Teams', icon: Users },
       { href: '/admin/sdr', label: 'SDR Oversight', icon: Mic },
+      { href: '/admin/voice-quotas', label: 'Voice Quotas', icon: Headphones },
     ],
   },
   {
@@ -208,6 +210,7 @@ const sdrManagerNavGroups = [
       { href: '/sdr-manager/transcripts', label: 'Team Transcripts', icon: FileText },
       { href: '/sdr-manager/coaching', label: 'Coaching Prompts', icon: Sparkles },
       { href: '/sdr-manager/invite', label: 'Invite Members', icon: UserPlus },
+      { href: '/admin/voice-quotas', label: 'Voice Quotas', icon: Headphones },
     ],
   },
 ];

@@ -58,6 +58,7 @@ const AdminTrainingPersonas = lazy(() => import("./pages/admin/AdminTrainingPers
 const AdminReporting = lazy(() => import("./pages/admin/AdminReporting"));
 const AdminSDROverview = lazy(() => import("./pages/admin/AdminSDROverview"));
 const AdminEmailDelivery = lazy(() => import("./pages/admin/AdminEmailDelivery"));
+const AdminVoiceQuotas = lazy(() => import("./pages/admin/AdminVoiceQuotas"));
 // Lazy load - Shared pages
 const CallDetailPage = lazy(() => import("./pages/calls/CallDetailPage"));
 const UserSettings = lazy(() => import("./pages/UserSettings"));
@@ -361,6 +362,11 @@ const App = () => (
                 <Route path="/admin/email-delivery" element={
                   <ProtectedRoute allowedRoles={['admin']}>
                     <AdminEmailDelivery />
+                  </ProtectedRoute>
+                } />
+                <Route path="/admin/voice-quotas" element={
+                  <ProtectedRoute allowedRoles={['admin', 'sdr_manager']}>
+                    <AdminVoiceQuotas />
                   </ProtectedRoute>
                 } />
 

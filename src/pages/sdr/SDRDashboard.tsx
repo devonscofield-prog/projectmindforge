@@ -11,14 +11,15 @@ import {
   isTranscriptStuck,
 } from '@/hooks/useSDR';
 import { useAuth } from '@/contexts/AuthContext';
-import { Upload, Phone, MessageSquare, TrendingUp, Loader2, RotateCcw, ArrowRight, CalendarCheck, Target, Flame, Trophy, Hash, BarChart3, FileText, AlertTriangle } from 'lucide-react';
+import { Upload, Phone, MessageSquare, TrendingUp, Loader2, RotateCcw, ArrowRight, CalendarCheck, Target, Flame, Trophy, Hash, BarChart3, FileText, AlertTriangle, Headphones } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { EmptyState } from '@/components/ui/empty-state';
 import { TranscriptUploadForm } from '@/components/sdr/TranscriptUploadForm';
 import { Link } from 'react-router-dom';
 import { format, subDays, parseISO } from 'date-fns';
 import { gradeColors } from '@/constants/training';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 
 
 // Grade order for sorting in distribution chart
@@ -129,6 +130,15 @@ function SDRDashboard() {
   const recentGradedCalls = useMemo(() => {
     return gradedCallsWindow.slice(0, 5);
   }, [gradedCallsWindow]);
+
+  // Transcript IDs that came from audio uploads (for badge display)
+  const audioTranscriptIds = useMemo(() => {
+    const ids = new Set<string>();
+    transcripts.forEach((t) => {
+      if (t.upload_method === 'audio') ids.add(t.id);
+    });
+    return ids;
+  }, [transcripts]);
 
   // Meetings set count
   const meetingsSet = useMemo(() => {
@@ -359,6 +369,12 @@ function SDRDashboard() {
                               </div>
                             </div>
                             <div className="flex items-center gap-2 shrink-0 ml-3">
+                              {audioTranscriptIds.has(call.daily_transcript_id) && (
+                                <Badge variant="outline" className="text-xs gap-1 border-purple-300 text-purple-600">
+                                  <Headphones className="h-3 w-3" />
+                                  Audio
+                                </Badge>
+                              )}
                               {grade?.meeting_scheduled === true && (
                                 <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-600">Meeting</span>
                               )}
@@ -450,7 +466,7 @@ function SDRDashboard() {
                   <LineChart data={trendData}>
                     <XAxis dataKey="date" tick={{ fontSize: 12 }} />
                     <YAxis domain={[0, 10]} tick={{ fontSize: 12 }} />
-                    <Tooltip />
+                    <RechartsTooltip />
                     <Line type="monotone" dataKey="avg" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} name="Avg Score" />
                   </LineChart>
                 </ResponsiveContainer>
@@ -488,7 +504,15 @@ function SDRDashboard() {
                   <Link key={t.id} to={`/sdr/history/${t.id}`} className="block">
                     <div className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent/50 transition-colors">
                       <div>
-                        <p className="font-medium">{format(new Date(t.transcript_date), 'EEEE, MMM d, yyyy')}</p>
+                        <p className="font-medium flex items-center gap-2">
+                          {format(new Date(t.transcript_date), 'EEEE, MMM d, yyyy')}
+                          {t.upload_method === 'audio' && (
+                            <Badge variant="outline" className="text-xs gap-1 border-purple-300 text-purple-600">
+                              <Headphones className="h-3 w-3" />
+                              Audio
+                            </Badge>
+                          )}
+                        </p>
                         <p className="text-sm text-muted-foreground">
                           {t.total_calls_detected} calls detected • {t.meaningful_calls_count} meaningful
                         </p>

@@ -131,3 +131,12 @@ verify_jwt = false
 
 [functions.send-daily-report]
 verify_jwt = false
+
+[functions.process-audio-upload]
+verify_jwt = false
+
+[functions.transcribe-audio]
+verify_jwt = false
+
+[functions.analyze-audio-voice]
+verify_jwt = false

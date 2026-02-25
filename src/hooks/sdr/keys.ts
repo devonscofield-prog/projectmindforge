@@ -97,6 +97,16 @@ export const sdrKeys = {
     detail: (params: SDRTeamGradeSummaryParams) =>
       ['sdr', 'team-grade-summary', normalizeTeamGradeSummaryParams(params)] as const,
   },
+  audio: {
+    all: () => ['sdr', 'audio'] as const,
+    analysis: (transcriptId: string) => ['sdr', 'audio', 'analysis', transcriptId] as const,
+    signedUrl: (audioPath: string) => ['sdr', 'audio', 'signed-url', audioPath] as const,
+  },
+  voiceQuota: {
+    all: () => ['sdr', 'voice-quota'] as const,
+    byUser: (userId: string) => ['sdr', 'voice-quota', 'user', userId] as const,
+    adminOverview: () => ['sdr', 'voice-quota', 'admin-overview'] as const,
+  },
   profile: (sdrId: string) => ['sdr', 'profile', sdrId] as const,
   teamInviteLinks: (teamId?: string) => ['sdr', 'team-invite-links', teamId ?? 'none'] as const,
 };

@@ -4,6 +4,8 @@ export type SDRCallType = 'conversation' | 'voicemail' | 'hangup' | 'internal' |
 
 export type SDRCallAnalysisStatus = 'pending' | 'processing' | 'completed' | 'skipped' | 'failed';
 
+export type SDRUploadMethod = 'text' | 'audio';
+
 export interface SDRTranscriptListItem {
   id: string;
   sdr_id: string;
@@ -14,6 +16,9 @@ export interface SDRTranscriptListItem {
   meaningful_calls_count: number;
   created_at: string;
   updated_at: string;
+  upload_method?: SDRUploadMethod;
+  audio_file_path?: string | null;
+  audio_duration_seconds?: number | null;
 }
 
 export interface SDRTranscriptDetail extends SDRTranscriptListItem {

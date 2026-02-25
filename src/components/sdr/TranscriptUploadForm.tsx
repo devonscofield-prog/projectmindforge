@@ -15,9 +15,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useUploadSDRTranscript } from '@/hooks/sdr/mutations';
-import { Loader2, FileUp, AlertCircle, HelpCircle, ChevronDown } from 'lucide-react';
+import { Loader2, FileUp, AlertCircle, HelpCircle, ChevronDown, FileText, Mic } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { AudioUploadTab } from './AudioUploadTab';
 
 interface TranscriptUploadFormProps {
   sdrId?: string;
@@ -135,128 +137,151 @@ export function TranscriptUploadForm({
         </CardHeader>
         <CardContent className="space-y-4">
           {children}
-          <div className="space-y-2">
-            <Label htmlFor="transcript-date">Transcript Date</Label>
-            <Input
-              id="transcript-date"
-              type="date"
-              value={transcriptDate}
-              onChange={(e) => setTranscriptDate(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="transcript-text">Transcript Text</Label>
-            <div
-              className="relative"
-              onDragEnter={handleDragEnter}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-            >
-              <Textarea
-                id="transcript-text"
-                aria-label="Transcript text input"
-                placeholder="Paste your full-day transcript here or drag & drop a file..."
-                value={rawText}
-                onChange={(e) => setRawText(e.target.value)}
-                rows={10}
-                className={cn(
-                  'font-mono text-sm transition-colors',
-                  isDragging && 'border-primary border-dashed',
-                )}
-              />
-              {isDragging && (
-                <div className="absolute inset-0 rounded-md border-2 border-dashed border-primary bg-primary/5 flex items-center justify-center pointer-events-none">
-                  <div className="text-center">
-                    <FileUp className="h-10 w-10 mx-auto text-primary mb-2" />
-                    <p className="font-medium text-primary">Drop file here</p>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <div className="flex-1">
-                {validationError ? (
-                  <p className="text-destructive flex items-center gap-1">
-                    <AlertCircle className="h-3.5 w-3.5" />
-                    {validationError}
-                  </p>
-                ) : fileName ? (
-                  <p className="text-muted-foreground">Loaded from: {fileName}</p>
-                ) : (
-                  <span />
-                )}
-              </div>
-              <p className="text-muted-foreground ml-4">
-                {charCount.toLocaleString()} characters
-              </p>
-            </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".txt,.text"
-              className="hidden"
-              onChange={handleFileChange}
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <FileUp className="h-4 w-4 mr-2" />
-              Choose File
-            </Button>
-          </div>
-          <Collapsible open={formatGuideOpen} onOpenChange={setFormatGuideOpen}>
-            <CollapsibleTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                type="button"
-                className="gap-1.5 text-muted-foreground px-2"
-              >
-                <HelpCircle className="h-4 w-4" />
-                Format Guide
-                <ChevronDown
-                  className={cn(
-                    'h-3.5 w-3.5 transition-transform',
-                    formatGuideOpen && 'rotate-180',
-                  )}
+          <Tabs defaultValue="text">
+            <TabsList>
+              <TabsTrigger value="text" className="gap-1.5">
+                <FileText className="h-4 w-4" />
+                Text Transcript
+              </TabsTrigger>
+              <TabsTrigger value="audio" className="gap-1.5">
+                <Mic className="h-4 w-4" />
+                Audio Recording
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="text" className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="transcript-date">Transcript Date</Label>
+                <Input
+                  id="transcript-date"
+                  type="date"
+                  value={transcriptDate}
+                  onChange={(e) => setTranscriptDate(e.target.value)}
                 />
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="rounded-md border bg-muted/30 p-4 text-sm space-y-2 mt-2">
-                <p className="font-medium">
-                  Expected format: Your dialer transcript with timestamps.
-                </p>
-                <div>
-                  <p className="text-muted-foreground mb-1">Example:</p>
-                  <pre className="text-xs font-mono bg-background rounded p-2 overflow-x-auto">
-                    {`Speaker 1 | 09:15:23 | Hello, this is John from Acme...
-Speaker 2 | 09:15:28 | Hi John, what's this about?`}
-                  </pre>
-                </div>
-                <p className="text-muted-foreground">
-                  Supported: Otter.ai, Gong, Salesloft, or any timestamped transcript.
-                </p>
-                <p className="text-muted-foreground">
-                  Tip: Paste the full day's transcript — we'll automatically split it into
-                  individual calls.
-                </p>
               </div>
-            </CollapsibleContent>
-          </Collapsible>
-          <Button
-            onClick={handleUpload}
-            disabled={uploadMutation.isPending || !rawText.trim() || !!validationError}
-          >
-            {uploadMutation.isPending && (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            )}
-            Process Transcript
-          </Button>
+              <div className="space-y-2">
+                <Label htmlFor="transcript-text">Transcript Text</Label>
+                <div
+                  className="relative"
+                  onDragEnter={handleDragEnter}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                >
+                  <Textarea
+                    id="transcript-text"
+                    aria-label="Transcript text input"
+                    placeholder="Paste your full-day transcript here or drag & drop a file..."
+                    value={rawText}
+                    onChange={(e) => setRawText(e.target.value)}
+                    rows={10}
+                    className={cn(
+                      'font-mono text-sm transition-colors',
+                      isDragging && 'border-primary border-dashed',
+                    )}
+                  />
+                  {isDragging && (
+                    <div className="absolute inset-0 rounded-md border-2 border-dashed border-primary bg-primary/5 flex items-center justify-center pointer-events-none">
+                      <div className="text-center">
+                        <FileUp className="h-10 w-10 mx-auto text-primary mb-2" />
+                        <p className="font-medium text-primary">Drop file here</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <div className="flex-1">
+                    {validationError ? (
+                      <p className="text-destructive flex items-center gap-1">
+                        <AlertCircle className="h-3.5 w-3.5" />
+                        {validationError}
+                      </p>
+                    ) : fileName ? (
+                      <p className="text-muted-foreground">Loaded from: {fileName}</p>
+                    ) : (
+                      <span />
+                    )}
+                  </div>
+                  <p className="text-muted-foreground ml-4">
+                    {charCount.toLocaleString()} characters
+                  </p>
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".txt,.text"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <FileUp className="h-4 w-4 mr-2" />
+                  Choose File
+                </Button>
+              </div>
+              <Collapsible open={formatGuideOpen} onOpenChange={setFormatGuideOpen}>
+                <CollapsibleTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    type="button"
+                    className="gap-1.5 text-muted-foreground px-2"
+                  >
+                    <HelpCircle className="h-4 w-4" />
+                    Format Guide
+                    <ChevronDown
+                      className={cn(
+                        'h-3.5 w-3.5 transition-transform',
+                        formatGuideOpen && 'rotate-180',
+                      )}
+                    />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="rounded-md border bg-muted/30 p-4 text-sm space-y-2 mt-2">
+                    <p className="font-medium">
+                      Expected format: Your dialer transcript with timestamps.
+                    </p>
+                    <div>
+                      <p className="text-muted-foreground mb-1">Example:</p>
+                      <pre className="text-xs font-mono bg-background rounded p-2 overflow-x-auto">
+                        {`Speaker 1 | 09:15:23 | Hello, this is John from Acme...
+Speaker 2 | 09:15:28 | Hi John, what's this about?`}
+                      </pre>
+                    </div>
+                    <p className="text-muted-foreground">
+                      Supported: Otter.ai, Gong, Salesloft, or any timestamped transcript.
+                    </p>
+                    <p className="text-muted-foreground">
+                      Tip: Paste the full day's transcript — we'll automatically split it into
+                      individual calls.
+                    </p>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+              <Button
+                onClick={handleUpload}
+                disabled={uploadMutation.isPending || !rawText.trim() || !!validationError}
+              >
+                {uploadMutation.isPending && (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                )}
+                Process Transcript
+              </Button>
+            </TabsContent>
+
+            <TabsContent value="audio">
+              <AudioUploadTab
+                sdrId={sdrId}
+                onUploadComplete={onUploadComplete}
+                uploadForName={uploadForName}
+              />
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
 

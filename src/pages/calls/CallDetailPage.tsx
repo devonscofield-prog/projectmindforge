@@ -38,6 +38,8 @@ import { formatCurrency, parseDateOnly } from '@/lib/formatters';
 import { useCallWithAnalysis, useAnalysisPolling, callDetailKeys, useRetryAnalysis, useDeleteFailedCall, useUpdateCallTranscript, useUpdateAnalysisUserCounts, useReanalyzeCall, useCallProducts } from '@/hooks/useCallDetailQueries';
 import { downloadCallDetailCSV, CallExportData } from '@/lib/callDetailExport';
 import { useCallAnalysisRealtime } from '@/hooks/useCallAnalysisRealtime';
+import { useAudioAnalysis } from '@/hooks/sdr/audioHooks';
+import { AudioAnalysisTab } from '@/components/audio-analysis/AudioAnalysisTab';
 import { getStakeholdersForCall, influenceLevelLabels } from '@/api/stakeholders';
 import type { CallMetadata } from '@/utils/analysis-schemas';
 import { HeatScoreBadge } from '@/components/ui/heat-score-badge';
@@ -149,6 +151,14 @@ function CallDetailPage() {
 
   // Fetch products for this call (needed for CSV export)
   const { data: callProducts = [] } = useCallProducts(id);
+
+  // Fetch voice analysis to check if audio data exists
+  const { data: audioAnalysisData } = useAudioAnalysis(id);
+  const hasAudioAnalysis = !!(
+    audioAnalysisData &&
+    audioAnalysisData.processing_stage !== 'error' &&
+    (audioAnalysisData.metrics || audioAnalysisData.coaching || audioAnalysisData.audio_file_path)
+  );
 
   // Edit dialog states
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -682,6 +692,16 @@ function CallDetailPage() {
             onEditUserCounts={() => setIsUserCountsDialogOpen(true)}
             onReanalyze={() => reanalyzeMutation.mutate()}
             isReanalyzing={reanalyzeMutation.isPending}
+            hasAudioAnalysis={hasAudioAnalysis}
+            audioContent={
+              hasAudioAnalysis ? (
+                <AudioAnalysisTab
+                  transcriptId={transcript.id}
+                  audioFilePath={audioAnalysisData?.audio_file_path ?? null}
+                  pipeline="full_cycle"
+                />
+              ) : undefined
+            }
             behaviorContent={<BehaviorScorecard data={analysis.analysis_behavior} />}
             strategyContent={
               <div className="space-y-6">

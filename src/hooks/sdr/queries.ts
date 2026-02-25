@@ -33,6 +33,9 @@ export const SDR_TRANSCRIPT_LIST_SELECT = [
   'processing_error',
   'total_calls_detected',
   'meaningful_calls_count',
+  'upload_method',
+  'audio_file_path',
+  'audio_duration_seconds',
   'created_at',
   'updated_at',
 ].join(', ');

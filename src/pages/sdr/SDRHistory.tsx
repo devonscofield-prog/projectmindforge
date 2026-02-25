@@ -7,13 +7,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useSDRTranscriptList, useSDRCallList, useRetrySDRTranscript } from '@/hooks/useSDR';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, RotateCcw, X, FileText, AlertTriangle } from 'lucide-react';
+import { Loader2, RotateCcw, X, FileText, AlertTriangle, Headphones } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 
 const GRADE_OPTIONS = ['A+', 'A', 'B', 'C', 'D', 'F'] as const;
+const SOURCE_TYPE_OPTIONS = ['all', 'text', 'audio'] as const;
+type SourceTypeFilter = (typeof SOURCE_TYPE_OPTIONS)[number];
 
 function SDRHistory() {
   const { user } = useAuth();
@@ -21,6 +23,7 @@ function SDRHistory() {
   const [dateTo, setDateTo] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [gradeFilter, setGradeFilter] = useState<string[]>([]);
+  const [sourceTypeFilter, setSourceTypeFilter] = useState<SourceTypeFilter>('all');
   const statusesForFilter = statusFilter !== 'all'
     ? [statusFilter as 'pending' | 'processing' | 'completed' | 'failed' | 'partial']
     : undefined;
@@ -78,7 +81,7 @@ function SDRHistory() {
     );
   };
 
-  const hasFilters = dateFrom || dateTo || statusFilter !== 'all' || gradeFilter.length > 0;
+  const hasFilters = dateFrom || dateTo || statusFilter !== 'all' || gradeFilter.length > 0 || sourceTypeFilter !== 'all';
   const isLoading = transcriptsLoading || filteredLoading;
   const isError = transcriptsError || filteredError;
 
@@ -127,6 +130,18 @@ function SDRHistory() {
                 </select>
               </div>
               <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Source</Label>
+                <select
+                  value={sourceTypeFilter}
+                  onChange={(e) => setSourceTypeFilter(e.target.value as SourceTypeFilter)}
+                  className="flex h-10 w-32 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <option value="all">All</option>
+                  <option value="text">Text</option>
+                  <option value="audio">Audio</option>
+                </select>
+              </div>
+              <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground">Grade</Label>
                 <div className="flex flex-wrap gap-1.5">
                   {GRADE_OPTIONS.map(grade => (
@@ -144,7 +159,7 @@ function SDRHistory() {
                 </div>
               </div>
               {hasFilters && (
-                <Button variant="ghost" size="sm" onClick={() => { setDateFrom(''); setDateTo(''); setStatusFilter('all'); setGradeFilter([]); }}>
+                <Button variant="ghost" size="sm" onClick={() => { setDateFrom(''); setDateTo(''); setStatusFilter('all'); setGradeFilter([]); setSourceTypeFilter('all'); }}>
                   <X className="h-4 w-4 mr-1" />
                   Clear
                 </Button>
@@ -165,9 +180,17 @@ function SDRHistory() {
           </CardHeader>
           <CardContent>
             {(() => {
-              const displayTranscripts = gradeMatchTranscriptIds
+              let displayTranscripts = gradeMatchTranscriptIds
                 ? filteredTranscripts.filter(t => gradeMatchTranscriptIds.has(t.id))
                 : filteredTranscripts;
+
+              // Apply source type filter client-side
+              if (sourceTypeFilter !== 'all') {
+                displayTranscripts = displayTranscripts.filter(
+                  (t) => (t.upload_method ?? 'text') === sourceTypeFilter,
+                );
+              }
+
               return displayTranscripts.length === 0 ? (
               <EmptyState
                 icon={FileText}
@@ -179,7 +202,15 @@ function SDRHistory() {
                 {displayTranscripts.map((t) => (
                   <Link key={t.id} to={`/sdr/history/${t.id}`} className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent/50 transition-colors">
                     <div>
-                      <p className="font-medium">{format(new Date(t.transcript_date), 'EEEE, MMM d, yyyy')}</p>
+                      <p className="font-medium flex items-center gap-2">
+                        {format(new Date(t.transcript_date), 'EEEE, MMM d, yyyy')}
+                        {t.upload_method === 'audio' && (
+                          <Badge variant="outline" className="text-xs gap-1 border-purple-300 text-purple-600">
+                            <Headphones className="h-3 w-3" />
+                            Audio
+                          </Badge>
+                        )}
+                      </p>
                       <p className="text-sm text-muted-foreground">
                         {t.total_calls_detected} calls detected • {t.meaningful_calls_count} meaningful
                         {t.total_calls_detected > 0 && ` • ${Math.round((t.meaningful_calls_count / t.total_calls_detected) * 100)}% connect rate`}

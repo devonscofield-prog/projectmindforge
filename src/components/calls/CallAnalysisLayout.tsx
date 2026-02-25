@@ -8,6 +8,7 @@ import {
   Target,
   AlertTriangle,
   RefreshCw,
+  Headphones,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CallAnalysis, CallTranscript } from '@/api/aiCallAnalysis';
@@ -21,6 +22,8 @@ interface CallAnalysisLayoutProps {
   behaviorContent: ReactNode;
   strategyContent: ReactNode;
   hazardsContent: ReactNode;
+  audioContent?: ReactNode;
+  hasAudioAnalysis?: boolean;
   canEdit?: boolean;
   onEditUserCounts?: () => void;
   onReanalyze?: () => void;
@@ -33,6 +36,8 @@ export function CallAnalysisLayout({
   behaviorContent,
   strategyContent,
   hazardsContent,
+  audioContent,
+  hasAudioAnalysis = false,
   canEdit = false,
   onEditUserCounts,
   onReanalyze,
@@ -139,7 +144,10 @@ export function CallAnalysisLayout({
 
       {/* Tabbed Interface */}
       <Tabs defaultValue="behavior" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className={cn(
+          "grid w-full",
+          hasAudioAnalysis ? "grid-cols-4" : "grid-cols-3",
+        )}>
           <TabsTrigger
             value="behavior"
             className="flex items-center gap-1 sm:gap-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
@@ -161,6 +169,15 @@ export function CallAnalysisLayout({
             <AlertTriangle className="h-4 w-4" aria-hidden="true" />
             <span className="hidden sm:inline">Hazards</span>
           </TabsTrigger>
+          {hasAudioAnalysis && (
+            <TabsTrigger
+              value="voice"
+              className="flex items-center gap-1 sm:gap-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              <Headphones className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden sm:inline">Voice</span>
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="behavior" className="mt-6 animate-in fade-in-50 duration-300">
@@ -174,6 +191,12 @@ export function CallAnalysisLayout({
         <TabsContent value="hazards" className="mt-6 animate-in fade-in-50 duration-300">
           {hazardsContent}
         </TabsContent>
+
+        {hasAudioAnalysis && (
+          <TabsContent value="voice" className="mt-6 animate-in fade-in-50 duration-300">
+            {audioContent}
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
