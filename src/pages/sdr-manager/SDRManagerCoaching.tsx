@@ -208,8 +208,8 @@ function SDRManagerCoaching() {
   const feedbackStats = useMemo(() => {
     if (!feedbackData || feedbackData.length === 0) return null;
     const total = feedbackData.length;
-    const positive = feedbackData.filter(f => f.coaching_feedback_helpful === true).length;
-    const negative = feedbackData.filter(f => f.coaching_feedback_helpful === false);
+    const positive = feedbackData.filter((f: any) => f.coaching_feedback_helpful === true).length;
+    const negative = feedbackData.filter((f: any) => f.coaching_feedback_helpful === false);
     return {
       total,
       positive,
@@ -316,7 +316,7 @@ function SDRManagerCoaching() {
                     Recent negative feedback
                   </h4>
                   <div className="space-y-2">
-                    {feedbackStats.recentNegative.map((item) => (
+                    {feedbackStats.recentNegative.map((item: any) => (
                       <div key={item.id} className="text-sm p-3 rounded-lg border border-red-200/50 bg-red-50/30 dark:bg-red-950/10 dark:border-red-900/30">
                         <div className="flex items-center justify-between mb-1">
                           <Badge variant="outline" className="text-xs">{item.overall_grade}</Badge>

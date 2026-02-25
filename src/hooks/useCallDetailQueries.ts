@@ -154,7 +154,7 @@ export function useUpdateCallProduct(prospectId: string | null) {
     }) => {
       await updateCallProduct(productId, updates);
     },
-    onSuccess: async (_, variables) => {
+    onSuccess: async () => {
       // Extract callId from the current query data
       const allKeys = queryClient.getQueryCache().getAll();
       const callProductKey = allKeys.find(q => 

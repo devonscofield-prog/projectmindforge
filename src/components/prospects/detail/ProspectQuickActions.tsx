@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Phone, Mail, Search, UserPlus, MessageSquare, FileText, ClipboardList, Plus } from 'lucide-react';
+import { Phone, Mail, Search, UserPlus, MessageSquare, FileText, ClipboardList } from 'lucide-react';
 import type { ProspectActivityType } from '@/api/prospects';
 import { fetchActivityTemplates } from '@/api/activityTemplates';
 

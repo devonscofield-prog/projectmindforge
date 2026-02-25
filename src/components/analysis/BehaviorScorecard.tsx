@@ -79,9 +79,9 @@ export function BehaviorScorecard({ data, onSeekToTimestamp: _onSeekToTimestamp 
     ? (avgAnswerLength / avgQuestionLength).toFixed(1)
     : '0';
   const totalQuestions = highLeverageCount + lowLeverageCount;
-  const _highLeveragePercent = totalQuestions > 0
+  void (totalQuestions > 0
     ? Math.round((highLeverageCount / totalQuestions) * 100)
-    : 0;
+    : 0);
 
   return (
     <div className="space-y-6">

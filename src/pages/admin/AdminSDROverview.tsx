@@ -143,7 +143,7 @@ function AdminSDROverview() {
 
     const avgScore = grades.reduce((sum: number, g: SdrCallGradeRow) => {
       const scores = [g.opener_score, g.engagement_score, g.objection_handling_score, g.appointment_setting_score, g.professionalism_score].filter(Boolean);
-      return sum + (scores.length ? scores.reduce((a: number, b: number) => a + b, 0) / scores.length : 0);
+      return sum + (scores.length ? scores.reduce((a: number, b: number | null) => a + (b ?? 0), 0) / scores.length : 0);
     }, 0) / grades.length;
 
     const meetingsSet = grades.filter((g: SdrCallGradeRow) => g.meeting_scheduled === true).length;
@@ -160,7 +160,7 @@ function AdminSDROverview() {
       const s = memberStats[g.sdr_id];
       s.count++;
       const scores = [g.opener_score, g.engagement_score, g.objection_handling_score, g.appointment_setting_score, g.professionalism_score].filter(Boolean);
-      s.totalScore += scores.length ? scores.reduce((a: number, b: number) => a + b, 0) / scores.length : 0;
+      s.totalScore += scores.length ? scores.reduce((a: number, b: number | null) => a + (b ?? 0), 0) / scores.length : 0;
       if (g.meeting_scheduled) s.meetings++;
     });
     // Compute top grade per member
@@ -443,7 +443,7 @@ function AdminSDROverview() {
                       <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All SDRs</SelectItem>
-                        {visibleMembers.map((m: SDRTeamMemberWithProfile) => (
+                        {visibleMembers.map((m: any) => (
                           <SelectItem key={m.user_id} value={m.user_id}>
                             {m.profiles?.name || m.profiles?.email || 'Unknown'}
                           </SelectItem>

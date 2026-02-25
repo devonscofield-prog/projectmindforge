@@ -1,5 +1,4 @@
 import { useState, useCallback, useMemo, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -20,12 +19,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, Loader2, Sparkles, User, ChevronDown, Trash2, History, Plus, MoreVertical, MessageSquare, Phone, Mail, Target, TrendingUp, Calendar, Clock, Zap, FileText, Users, Wrench, Share2, ListChecks } from 'lucide-react';
+import { Sparkles, ChevronDown, Trash2, History, Plus, MoreVertical, MessageSquare, Phone, Mail, Target, TrendingUp, Calendar, Clock, Zap, FileText, Users, Wrench, Share2, ListChecks } from 'lucide-react';
 import { streamCoachResponse, type ChatMessage as ApiChatMessage } from '@/api/salesCoach';
 import {
   fetchCoachSession,
   saveCoachSession,
-  clearCoachSession,
+  clearCoachSession as _clearCoachSession,
   fetchAllCoachSessions,
   archiveAndStartNewSession,
   switchToSession,
@@ -37,7 +36,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatDistanceToNow } from 'date-fns';
 import { ChatBase } from '@/components/chat';
-import type { ChatAdapter, QuickAction, EmptyStateHandlers, HeaderMenuHandlers, HistorySheetProps, ChatSession } from '@/components/chat';
+import type { ChatAdapter, QuickAction, EmptyStateHandlers, HistorySheetProps } from '@/components/chat';
 
 // Heat score circular progress indicator
 const HeatScoreIndicator = ({ score, size = 56 }: { score: number; size?: number }) => {
@@ -324,7 +323,7 @@ function CoachEmptyState({
 }
 
 // --- Coach-specific history sheet ---
-function CoachHistorySheet({ allSessions, currentSessionId, handleSwitchSession, handleDeleteSession, setShowHistorySheet }: HistorySheetProps) {
+function CoachHistorySheet({ allSessions, currentSessionId: _currentSessionId, handleSwitchSession, handleDeleteSession, setShowHistorySheet }: HistorySheetProps) {
   return (
     <ScrollArea className="h-[calc(100vh-120px)] mt-4">
       <div className="space-y-2.5 pr-4">

@@ -160,7 +160,7 @@ function ImpactSummary({ data, type }: { data: PerformanceSummary[]; type: 'quer
   if (data.length === 0) return null;
 
   const totalCalls = data.reduce((sum, m) => sum + m.total_count, 0);
-  const _totalErrors = data.reduce((sum, m) => sum + m.error_count, 0);
+  void data.reduce((sum, m) => sum + m.error_count, 0);
   
   // Find worst performers
   const slowest = [...data].sort((a, b) => b.p99_duration_ms - a.p99_duration_ms)[0];
