@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
-import { Download, Printer, ArrowLeft, Edit2, Check } from 'lucide-react';
+import { Download, Printer, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { calculateROI, formatCurrency, ROIInputs } from '@/lib/roiCalculations';
 
@@ -33,7 +33,7 @@ const implementationPhases = [
 
 export function ExecutiveSummary() {
   const [companyName, setCompanyName] = useState('');
-  const [isEditingCompany, setIsEditingCompany] = useState(false);
+  const [_isEditingCompany, _setIsEditingCompany] = useState(false);
   const [roiInputs, setRoiInputs] = useState<ROIInputs>({
     teamSize: 10,
     avgDealValue: 50000,

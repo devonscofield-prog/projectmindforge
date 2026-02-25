@@ -1,12 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { createLogger } from '@/lib/logger';
+// createLogger available if needed
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { subDays, format } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 
-const _log = createLogger('CallTrendsChart');
+// const _log = createLogger('CallTrendsChart');
 
 interface DailyCount {
   date: string;

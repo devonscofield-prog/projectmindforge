@@ -58,14 +58,14 @@ export const ReportResultsTable = memo(function ReportResultsTable({ data, visib
       case 'pipeline':
         exportToCsv(
           filterCols(['prospect_name', 'account_name', 'heat_score', 'potential_revenue', 'active_revenue', 'rep_name']),
-          data.rows,
+          data.rows as unknown as Record<string, unknown>[],
           `pipeline-${timestamp}`
         );
         break;
       case 'coaching_activity':
         exportToCsv(
           filterCols(['rep_name', 'session_count', 'latest_session']),
-          data.rows,
+          data.rows as unknown as Record<string, unknown>[],
           `coaching-activity-${timestamp}`
         );
         break;

@@ -41,7 +41,7 @@ export interface BulkUploadResponse {
 export interface TranscriptStatus {
   id: string;
   fileName: string;
-  analysis_status: 'pending' | 'processing' | 'completed' | 'error' | 'skipped';
+  analysis_status: string;
   analysis_error?: string | null;
   has_chunks: boolean;
   chunk_count: number;

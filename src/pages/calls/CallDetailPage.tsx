@@ -2,9 +2,7 @@ import { useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
-import { createLogger } from '@/lib/logger';
-
-const log = createLogger('CallDetailPage');
+// Logger available: createLogger('CallDetailPage')
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
 import { CallAnalysisPageSkeleton } from '@/components/ui/skeletons';
-import { CallAnalysis, CallTranscript } from '@/api/aiCallAnalysis';
+import { CallTranscript } from '@/api/aiCallAnalysis';
 import { CallAnalysisResultsView } from '@/components/calls/CallAnalysisResultsView';
 import { CallProductsSummary } from '@/components/calls/CallProductsSummary';
 import { EditCallDetailsDialog } from '@/components/calls/EditCallDetailsDialog';
@@ -25,13 +23,13 @@ import { TranscriptViewer } from '@/components/calls/TranscriptViewer';
 import { CoachingCard } from '@/components/calls/coaching';
 import { DealHeatCard } from '@/components/calls/DealHeatCard';
 import { SalesCoachChat } from '@/components/prospects/SalesCoachChat';
-import { PostCallSuggestionsPanel, PostCallSuggestionsSkeleton, AddCustomTaskDialog } from '@/components/calls/suggestions';
+import { PostCallSuggestionsPanel, AddCustomTaskDialog } from '@/components/calls/suggestions';
 import type { FollowUpSuggestion } from '@/components/calls/suggestions';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CallType, callTypeLabels } from '@/constants/callTypes';
 import { format } from 'date-fns';
-import { getDashboardUrl, getCallHistoryUrl, getAccountDetailUrl, getCallDetailUrl } from '@/lib/routes';
+import { getCallHistoryUrl, getAccountDetailUrl } from '@/lib/routes';
 import { getCallDetailBreadcrumbs } from '@/lib/breadcrumbConfig';
 import { withPageErrorBoundary } from '@/components/ui/page-error-boundary';
 import { formatCurrency, parseDateOnly } from '@/lib/formatters';
@@ -71,10 +69,8 @@ import {
   ListTodo,
   Check,
   Lightbulb,
-  Flame,
+  // Flame, TrendingUp, TrendingDown available if needed
   Target,
-  TrendingUp,
-  TrendingDown,
   ArrowRight,
   ArrowUpRight,
   ArrowDownRight,

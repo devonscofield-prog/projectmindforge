@@ -1,11 +1,9 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   listProspectsForRep, 
   listProspectsForTeam,
   getCallCountsForProspects,
-  type Prospect,
-  type ProspectWithRep,
   type ProspectStatus,
   type ProspectFilters 
 } from '@/api/prospects';

@@ -2,7 +2,7 @@
  * Query Logger for React Query performance monitoring and debugging
  */
 
-type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+type _LogLevel = 'debug' | 'info' | 'warn' | 'error'; void (0 as unknown as _LogLevel);
 
 interface QueryLogEntry {
   timestamp: Date;

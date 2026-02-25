@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { KPICard } from './kpi-card';
-import { Phone } from 'lucide-react';
+// Phone icon available for tests if needed
 
 describe('KPICard', () => {
   it('should render title and formatted number value', () => {

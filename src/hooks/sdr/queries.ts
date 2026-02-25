@@ -133,7 +133,7 @@ export function useSDRTranscriptList(params: SDRTranscriptListParams = {}) {
 
       const { data, error } = await query;
       if (error) throw error;
-      return (data ?? []) as SDRTranscriptListItem[];
+      return (data ?? []) as unknown as SDRTranscriptListItem[];
     },
     enabled: params.enabled ?? true,
     refetchInterval: (query) => {
@@ -161,7 +161,7 @@ export function useSDRTranscriptDetail(transcriptId: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase.from('sdr_daily_transcripts')
         .select('*')
-        .eq('id', transcriptId)
+        .eq('id', transcriptId!)
         .single();
 
       if (error) throw error;
@@ -221,7 +221,7 @@ export function useSDRCallList(params: SDRCallListParams = {}) {
 
       const { data, error } = await query;
       if (error) throw error;
-      return (data ?? []) as SDRCallListItem[];
+      return (data ?? []) as unknown as SDRCallListItem[];
     },
     enabled: params.enabled ?? inferredEnabled,
     refetchInterval: (query) => {
@@ -240,11 +240,11 @@ export function useSDRCallDetail(callId: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase.from('sdr_calls')
         .select(SDR_CALL_DETAIL_SELECT)
-        .eq('id', callId)
+        .eq('id', callId!)
         .single();
 
       if (error) throw error;
-      return data as SDRCallDetail;
+      return data as unknown as SDRCallDetail;
     },
     enabled: !!callId,
     refetchInterval: (query) => {

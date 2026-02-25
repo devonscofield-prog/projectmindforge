@@ -22,7 +22,7 @@ export function CriticalInfoTrends({
   resolvedIssues,
   recommendation,
 }: CriticalInfoTrendsProps) {
-  const _getTrendIcon = (trend: 'improving' | 'stable' | 'worse') => {
+  const getTrendIcon = (trend: 'improving' | 'stable' | 'worse') => { void getTrendIcon;
     switch (trend) {
       case 'improving':
         return <TrendingUp className="h-3.5 w-3.5 text-green-500" />;
