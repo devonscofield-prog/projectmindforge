@@ -14,7 +14,7 @@ import {
 } from '@/hooks/useSDR';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2, Users, Phone, TrendingUp, MessageSquare, CalendarCheck, Upload, ArrowRight, BarChart3, FileText, ChevronDown, ChevronRight, Target, ArrowUp, ArrowDown, AlertTriangle } from 'lucide-react';
-import { Tooltip as TooltipUI, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SDRLeaderboard } from '@/components/sdr/SDRLeaderboard';
 import { TranscriptUploadForm } from '@/components/sdr/TranscriptUploadForm';
@@ -619,7 +619,7 @@ function SDRManagerDashboard() {
                         </p>
                       </div>
                       {(t.processing_status === 'failed' || t.processing_status === 'partial') && t.processing_error ? (
-                        <TooltipUI>
+                        <Tooltip>
                           <TooltipTrigger asChild>
                             <span className={`px-2 py-1 rounded text-xs font-medium inline-flex items-center gap-1 ${
                               t.processing_status === 'failed' ? 'bg-red-500/10 text-red-500' : 'bg-orange-500/10 text-orange-500'
@@ -631,7 +631,7 @@ function SDRManagerDashboard() {
                           <TooltipContent side="left" className="max-w-xs">
                             <p>{t.processing_error}</p>
                           </TooltipContent>
-                        </TooltipUI>
+                        </Tooltip>
                       ) : (
                         <span className={`px-2 py-1 rounded text-xs font-medium ${
                           t.processing_status === 'completed' ? 'bg-green-500/10 text-green-500' :

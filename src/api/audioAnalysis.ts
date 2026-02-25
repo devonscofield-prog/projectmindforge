@@ -193,7 +193,7 @@ export async function getAudioAnalysis(transcriptId: string): Promise<VoiceAnaly
   // Try ai_call_analysis first (AE/closer calls)
   const { data: aiAnalysis, error: aiError } = await supabase
     .from('ai_call_analysis')
-    .select('call_id, audio_voice_analysis, created_at')
+    .select('call_id, audio_voice_analysis, created_at, updated_at')
     .eq('call_id', transcriptId)
     .maybeSingle();
 
@@ -204,7 +204,7 @@ export async function getAudioAnalysis(transcriptId: string): Promise<VoiceAnaly
 
   if (aiAnalysis?.audio_voice_analysis) {
     const voiceData = aiAnalysis.audio_voice_analysis as Record<string, unknown>;
-    return mapVoiceAnalysisRow(transcriptId, voiceData, aiAnalysis.created_at, aiAnalysis.created_at);
+    return mapVoiceAnalysisRow(transcriptId, voiceData, aiAnalysis.created_at, aiAnalysis.updated_at);
   }
 
   // Fallback: try sdr_call_grades (SDR calls)

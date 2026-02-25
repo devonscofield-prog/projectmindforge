@@ -73,7 +73,7 @@ export function useProspectData(prospectId: string | undefined): UseProspectData
   // Real-time subscription
   useProspectRealtime({
     prospectId,
-    onCallsUpdate: (_calls) => core.refreshCalls(),
+    onCallsUpdate: (calls) => core.refreshCalls(),
     onAnalysisComplete: insights.handleRefreshAll,
   });
 

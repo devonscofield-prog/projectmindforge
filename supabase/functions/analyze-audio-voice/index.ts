@@ -191,7 +191,7 @@ Return ONLY valid JSON. No additional text or explanation.`;
 // ============================================================
 
 async function logEdgeMetric(
-  supabase: any,
+  supabase: ReturnType<typeof createClient>,
   metricName: string,
   durationMs: number,
   status: 'success' | 'error',
@@ -718,7 +718,7 @@ function inferCategory(description: string): VoiceAnalysisResult['coaching_tips'
  * Returns { allowed: true } if under limit, or { allowed: false, reason } if over.
  */
 async function checkUsageQuota(
-  supabase: any,
+  supabase: ReturnType<typeof createClient>,
   userId: string,
   teamId: string | null,
   log: ReturnType<typeof createTracedLogger>,
@@ -809,7 +809,7 @@ async function checkUsageQuota(
  * Increment usage counter for the current month.
  */
 async function incrementUsage(
-  supabase: any,
+  supabase: ReturnType<typeof createClient>,
   userId: string,
   log: ReturnType<typeof createTracedLogger>,
 ): Promise<boolean> {

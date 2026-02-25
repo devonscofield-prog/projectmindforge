@@ -57,7 +57,7 @@ export function StakeholderRelationshipMap({
   onStakeholderClick,
 }: StakeholderRelationshipMapProps) {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [_selectedRelationship, setSelectedRelationship] = useState<StakeholderRelationship | null>(null); void _selectedRelationship;
+  const [selectedRelationship, setSelectedRelationship] = useState<StakeholderRelationship | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
 
   // Calculate node positions using a simple hierarchical layout

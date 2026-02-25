@@ -36,7 +36,7 @@ import type {
   SalesAssets,
 } from '@/api/aiCallAnalysis/types';
 import type { UserActivityLog, UserActivityType } from '@/api/userActivityLogs';
-import { parseJsonField, isObject, isString } from './typeUtils';
+import { parseJsonField, isObject, isString, isStringArray, isNumber } from './typeUtils';
 
 // ============= ROW TYPE ALIASES =============
 type ProspectRow = Database['public']['Tables']['prospects']['Row'];
@@ -277,9 +277,9 @@ export function toCallTranscript(row: CallTranscriptRow, repName?: string | null
     manager_id: row.manager_id,
     call_date: row.call_date,
     source: row.source,
-    raw_text: row.raw_text ?? '',
+    raw_text: row.raw_text,
     notes: row.notes,
-    analysis_status: row.analysis_status as any,
+    analysis_status: row.analysis_status,
     analysis_error: row.analysis_error,
     analysis_version: row.analysis_version,
     created_at: row.created_at,
@@ -655,7 +655,7 @@ export function toCoachingSession(row: CoachingSessionRow): CoachingSession {
     notes: row.notes,
     action_items: row.action_items,
     follow_up_date: row.follow_up_date,
-    source_call_id: (row as any).source_call_id ?? null,
+    source_call_id: row.source_call_id,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };

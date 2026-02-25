@@ -217,7 +217,7 @@ function SDRDashboard() {
   }, [gradedCallsWindow, trendPeriod]);
 
   // --- Processing progress for transcripts (Task 2) ---
-  void useMemo(() => {
+  const _processingTranscripts = useMemo(() => {
     return recentTranscripts.filter(t => t.processing_status === 'processing');
   }, [recentTranscripts]);
 

@@ -11,8 +11,13 @@ interface PerformanceBenchmarkCardProps {
   isLoading?: boolean;
 }
 
-// Rating colors available for future use
-// const _ratingColors = { excellent: 'bg-emerald-500', good: 'bg-green-500', acceptable: 'bg-yellow-500', warning: 'bg-orange-500', critical: 'bg-destructive' } as const;
+const _ratingColors = {
+  excellent: 'bg-emerald-500',
+  good: 'bg-green-500',
+  acceptable: 'bg-yellow-500',
+  warning: 'bg-orange-500',
+  critical: 'bg-destructive',
+} as const;
 
 const ratingBadgeVariants = {
   excellent: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',

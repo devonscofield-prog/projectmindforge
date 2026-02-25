@@ -48,7 +48,7 @@ function SDRCallDetail() {
           coaching_feedback_helpful: helpful,
           coaching_feedback_note: note || null,
           coaching_feedback_at: new Date().toISOString(),
-        } as any)
+        })
         .eq('id', gradeId);
       if (error) throw error;
     },
@@ -243,21 +243,21 @@ function SDRCallDetail() {
                 <Card>
                   <CardHeader><CardTitle>Was this coaching helpful?</CardTitle></CardHeader>
                   <CardContent>
-                    {(grade as any).coaching_feedback_at && !feedbackSubmitted ? (
+                    {grade.coaching_feedback_at && !feedbackSubmitted ? (
                       // Already submitted feedback - read-only
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
-                          {(grade as any).coaching_feedback_helpful ? (
+                          {grade.coaching_feedback_helpful ? (
                             <ThumbsUp className="h-5 w-5 text-green-500" />
                           ) : (
                             <ThumbsDown className="h-5 w-5 text-red-500" />
                           )}
                           <span className="text-sm font-medium">
-                            {(grade as any).coaching_feedback_helpful ? 'You found this helpful' : 'You found this not helpful'}
+                            {grade.coaching_feedback_helpful ? 'You found this helpful' : 'You found this not helpful'}
                           </span>
                         </div>
-                        {(grade as any).coaching_feedback_note && (
-                          <p className="text-sm text-muted-foreground">{(grade as any).coaching_feedback_note}</p>
+                        {grade.coaching_feedback_note && (
+                          <p className="text-sm text-muted-foreground">{grade.coaching_feedback_note}</p>
                         )}
                       </div>
                     ) : feedbackSubmitted ? (

@@ -1,6 +1,8 @@
+import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "./skeleton";
 import { Card, CardContent, CardHeader } from "./card";
+import { Badge } from "./badge";
 
 /**
  * Skeleton for stat cards (e.g., dashboard KPIs)

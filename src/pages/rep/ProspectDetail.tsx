@@ -30,7 +30,7 @@ import { lazy, Suspense } from 'react';
 // Lazy-loaded dialog/sheet components
 const AddStakeholderDialog = lazy(() => import('@/components/prospects/AddStakeholderDialog').then(m => ({ default: m.AddStakeholderDialog })));
 const StakeholderDetailSheet = lazy(() => import('@/components/prospects/StakeholderDetailSheet').then(m => ({ default: m.StakeholderDetailSheet })));
-// StakeholderRelationshipMap available if needed
+import { StakeholderRelationshipMap } from '@/components/prospects/StakeholderRelationshipMap';
 const AddEmailLogDialog = lazy(() => import('@/components/prospects/AddEmailLogDialog').then(m => ({ default: m.AddEmailLogDialog })));
 const SalesCoachChat = lazy(() => import('@/components/prospects/SalesCoachChat').then(m => ({ default: m.SalesCoachChat })));
 const AccountResearchChat = lazy(() => import('@/components/prospects/AccountResearchChat').then(m => ({ default: m.AccountResearchChat })));
@@ -220,7 +220,7 @@ function ProspectDetail() {
           emailLogs={emailLogs}
           userId={user?.id}
           isRefreshingInsights={isRefreshingInsights}
-          onProspectUpdate={(_updated) => loadProspectData()}
+          onProspectUpdate={(updated) => loadProspectData()}
           onUpdateProspect={handleUpdateProspect}
           onStakeholderClick={handleStakeholderClick}
           onAddStakeholder={() => setIsAddStakeholderOpen(true)}

@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Target, RefreshCw, Loader2, Eye, ChevronDown } from 'lucide-react';
-// date-fns format available if needed
+import { format } from 'date-fns';
 import { FollowUpItem } from '@/components/prospects/FollowUpItem';
 import { CompletedFollowUpsDialog } from '@/components/prospects/CompletedFollowUpsDialog';
 import { DismissedFollowUpsDialog } from '@/components/prospects/DismissedFollowUpsDialog';

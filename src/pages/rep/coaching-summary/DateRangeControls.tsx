@@ -11,7 +11,7 @@ import {
   TIME_RANGES, 
   DateRange, 
   PeriodValidation, 
-  createPreviousPeriodRange as _createPreviousPeriodRange,
+  createPreviousPeriodRange,
   formatDateShort,
 } from './dateUtils';
 

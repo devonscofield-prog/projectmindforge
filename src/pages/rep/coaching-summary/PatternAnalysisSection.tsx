@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { MessageSquareQuote } from 'lucide-react';
+import { MessageSquareQuote, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { CriticalInfoTrends } from '@/components/coaching/CriticalInfoTrends';
 import { CoachingTrendAnalysis } from '@/api/aiCallAnalysis';
 

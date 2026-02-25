@@ -29,7 +29,7 @@ import {
 import { TableSkeleton } from '@/components/ui/skeletons';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Search, Users, Calendar, DollarSign, ChevronRight, Building2, Flame, RefreshCw, TrendingUp, TrendingDown, Minus } from 'lucide-react';
-import { differenceInDays } from 'date-fns';
+import { format, differenceInDays } from 'date-fns';
 import { 
   useTeamProspects,
   useCallCounts,
@@ -70,7 +70,7 @@ function ManagerAccounts() {
   const { 
     data: prospects = [], 
     isLoading: isLoadingProspects,
-    error: _prospectsError 
+    error: prospectsError 
   } = useTeamProspects(user?.id, filters);
 
   // Get prospect IDs for related data

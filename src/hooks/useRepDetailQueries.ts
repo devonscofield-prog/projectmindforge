@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toProfile, toCoachingSession } from '@/lib/supabaseAdapters';
-// Types available via supabaseAdapters
+import { Profile, CoachingSession } from '@/types/database';
 import { createLogger } from '@/lib/logger';
 
 const log = createLogger('repDetailQueries');

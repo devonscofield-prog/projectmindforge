@@ -369,7 +369,6 @@ export type Database = {
           analysis_pricing: Json | null
           analysis_psychology: Json | null
           analysis_strategy: Json | null
-          audio_voice_analysis: Json | null
           call_effectiveness_score: number | null
           call_id: string
           call_notes: string | null
@@ -412,7 +411,6 @@ export type Database = {
           analysis_pricing?: Json | null
           analysis_psychology?: Json | null
           analysis_strategy?: Json | null
-          audio_voice_analysis?: Json | null
           call_effectiveness_score?: number | null
           call_id: string
           call_notes?: string | null
@@ -455,7 +453,6 @@ export type Database = {
           analysis_pricing?: Json | null
           analysis_psychology?: Json | null
           analysis_strategy?: Json | null
-          audio_voice_analysis?: Json | null
           call_effectiveness_score?: number | null
           call_id?: string
           call_notes?: string | null
@@ -711,8 +708,6 @@ export type Database = {
           analysis_error: string | null
           analysis_status: Database["public"]["Enums"]["call_analysis_status"]
           analysis_version: string
-          audio_duration_seconds: number | null
-          audio_file_path: string | null
           call_date: string
           call_type: string | null
           call_type_other: string | null
@@ -728,14 +723,13 @@ export type Database = {
           potential_revenue: number | null
           primary_stakeholder_name: string | null
           prospect_id: string | null
-          raw_text: string | null
+          raw_text: string
           rep_id: string
           salesforce_demo_link: string | null
           source: Database["public"]["Enums"]["call_source_type"]
           suggestions_reviewed_at: string | null
           target_close_date: string | null
           updated_at: string
-          upload_method: string
         }
         Insert: {
           account_name?: string | null
@@ -743,8 +737,6 @@ export type Database = {
           analysis_error?: string | null
           analysis_status?: Database["public"]["Enums"]["call_analysis_status"]
           analysis_version?: string
-          audio_duration_seconds?: number | null
-          audio_file_path?: string | null
           call_date?: string
           call_type?: string | null
           call_type_other?: string | null
@@ -760,14 +752,13 @@ export type Database = {
           potential_revenue?: number | null
           primary_stakeholder_name?: string | null
           prospect_id?: string | null
-          raw_text?: string | null
+          raw_text: string
           rep_id: string
           salesforce_demo_link?: string | null
           source?: Database["public"]["Enums"]["call_source_type"]
           suggestions_reviewed_at?: string | null
           target_close_date?: string | null
           updated_at?: string
-          upload_method?: string
         }
         Update: {
           account_name?: string | null
@@ -775,8 +766,6 @@ export type Database = {
           analysis_error?: string | null
           analysis_status?: Database["public"]["Enums"]["call_analysis_status"]
           analysis_version?: string
-          audio_duration_seconds?: number | null
-          audio_file_path?: string | null
           call_date?: string
           call_type?: string | null
           call_type_other?: string | null
@@ -792,14 +781,13 @@ export type Database = {
           potential_revenue?: number | null
           primary_stakeholder_name?: string | null
           prospect_id?: string | null
-          raw_text?: string | null
+          raw_text?: string
           rep_id?: string
           salesforce_demo_link?: string | null
           source?: Database["public"]["Enums"]["call_source_type"]
           suggestions_reviewed_at?: string | null
           target_close_date?: string | null
           updated_at?: string
-          upload_method?: string
         }
         Relationships: [
           {
@@ -2602,7 +2590,6 @@ export type Database = {
       sdr_call_grades: {
         Row: {
           appointment_setting_score: number | null
-          audio_voice_analysis: Json | null
           call_id: string
           call_summary: string | null
           coaching_notes: string | null
@@ -2623,7 +2610,6 @@ export type Database = {
         }
         Insert: {
           appointment_setting_score?: number | null
-          audio_voice_analysis?: Json | null
           call_id: string
           call_summary?: string | null
           coaching_notes?: string | null
@@ -2644,7 +2630,6 @@ export type Database = {
         }
         Update: {
           appointment_setting_score?: number | null
-          audio_voice_analysis?: Json | null
           call_id?: string
           call_summary?: string | null
           coaching_notes?: string | null
@@ -2706,7 +2691,7 @@ export type Database = {
           is_meaningful: boolean
           prospect_company: string | null
           prospect_name: string | null
-          raw_text: string | null
+          raw_text: string
           sdr_id: string
           start_timestamp: string | null
           updated_at: string
@@ -2722,7 +2707,7 @@ export type Database = {
           is_meaningful?: boolean
           prospect_company?: string | null
           prospect_name?: string | null
-          raw_text?: string | null
+          raw_text: string
           sdr_id: string
           start_timestamp?: string | null
           updated_at?: string
@@ -2738,7 +2723,7 @@ export type Database = {
           is_meaningful?: boolean
           prospect_company?: string | null
           prospect_name?: string | null
-          raw_text?: string | null
+          raw_text?: string
           sdr_id?: string
           start_timestamp?: string | null
           updated_at?: string
@@ -2823,48 +2808,42 @@ export type Database = {
       }
       sdr_daily_transcripts: {
         Row: {
-          audio_file_path: string | null
           created_at: string
           id: string
           meaningful_calls_count: number
           processing_error: string | null
           processing_status: string
-          raw_text: string | null
+          raw_text: string
           sdr_id: string
           total_calls_detected: number
           transcript_date: string
           updated_at: string
-          upload_method: string
           uploaded_by: string
         }
         Insert: {
-          audio_file_path?: string | null
           created_at?: string
           id?: string
           meaningful_calls_count?: number
           processing_error?: string | null
           processing_status?: string
-          raw_text?: string | null
+          raw_text: string
           sdr_id: string
           total_calls_detected?: number
           transcript_date?: string
           updated_at?: string
-          upload_method?: string
           uploaded_by: string
         }
         Update: {
-          audio_file_path?: string | null
           created_at?: string
           id?: string
           meaningful_calls_count?: number
           processing_error?: string | null
           processing_status?: string
-          raw_text?: string | null
+          raw_text?: string
           sdr_id?: string
           total_calls_detected?: number
           transcript_date?: string
           updated_at?: string
-          upload_method?: string
           uploaded_by?: string
         }
         Relationships: [
@@ -3286,57 +3265,6 @@ export type Database = {
         }
         Relationships: []
       }
-      voice_analysis_limits: {
-        Row: {
-          created_at: string
-          id: string
-          monthly_limit: number
-          scope: string
-          target_id: string | null
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          monthly_limit?: number
-          scope: string
-          target_id?: string | null
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          monthly_limit?: number
-          scope?: string
-          target_id?: string | null
-        }
-        Relationships: []
-      }
-      voice_analysis_usage: {
-        Row: {
-          analyses_used: number
-          created_at: string
-          id: string
-          month: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          analyses_used?: number
-          created_at?: string
-          id?: string
-          month: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          analyses_used?: number
-          created_at?: string
-          id?: string
-          month?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
     }
     Views: {
       data_access_logs_with_user: {
@@ -3616,8 +3544,6 @@ export type Database = {
         | "completed"
         | "error"
         | "skipped"
-        | "transcribing"
-        | "transcribed"
       call_source_type: "zoom" | "teams" | "dialer" | "other" | "bulk_upload"
       email_direction: "incoming" | "outgoing"
       prospect_activity_type:
@@ -3788,8 +3714,6 @@ export const Constants = {
         "completed",
         "error",
         "skipped",
-        "transcribing",
-        "transcribed",
       ],
       call_source_type: ["zoom", "teams", "dialer", "other", "bulk_upload"],
       email_direction: ["incoming", "outgoing"],

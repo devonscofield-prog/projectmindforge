@@ -102,7 +102,7 @@ export default function AdminPerformanceMonitor() {
     }
   };
 
-  const _isLoading = healthLoading || summaryLoading || timelineLoading; void _isLoading;
+  const isLoading = healthLoading || summaryLoading || timelineLoading;
 
   return (
     <AppLayout>

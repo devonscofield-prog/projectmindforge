@@ -41,9 +41,9 @@ function CustomTooltip({
 }) {
   if (!active || !payload || payload.length === 0) return null;
 
-  const dataPoint = (payload[0] as any)?.payload as EnergySentimentDataPoint | undefined;
-  const energy = payload.find((p: any) => p.dataKey === 'energy');
-  const sentiment = payload.find((p: any) => p.dataKey === 'sentiment');
+  const dataPoint = payload[0]?.payload as EnergySentimentDataPoint | undefined;
+  const energy = payload.find((p) => p.dataKey === 'energy');
+  const sentiment = payload.find((p) => p.dataKey === 'sentiment');
 
   return (
     <div className="rounded-lg border bg-popover px-3 py-2 text-sm shadow-md">

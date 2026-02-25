@@ -1,4 +1,4 @@
-// CallType available from '@/constants/callTypes'
+import { CallType } from '@/constants/callTypes';
 import { HeatRange } from '@/api/aiCallAnalysis';
 
 export const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];

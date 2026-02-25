@@ -7,7 +7,7 @@ import { Menu, TrendingUp, UserPlus, Mic, Upload, ChevronLeft } from 'lucide-rea
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 
 // Map routes to page titles
-function getPageTitle(pathname: string, _role: string | null): string {
+function getPageTitle(pathname: string, role: string | null): string {
   // Handle dynamic routes first (with IDs)
   if (pathname.match(/\/calls\/[^/]+/)) return 'Call Details';
   if (pathname.match(/\/sdr\/history\/[^/]+/)) return 'Transcript Details';

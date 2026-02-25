@@ -199,9 +199,9 @@ if (typeof window !== 'undefined') {
     if (metricsQueue.length > 0) {
       // Use sendBeacon for reliable delivery on page unload
       const userId = null; // We can't get async data in beforeunload
-      const _data = JSON.stringify({
+      const data = JSON.stringify({
         metrics: metricsQueue.map(m => ({ ...m, user_id: userId })),
-      }); void _data;
+      });
       
       // Note: This would require a separate endpoint that accepts beacon data
       // For now, just try to flush synchronously

@@ -48,7 +48,7 @@ import {
 import { useAdminDeleteProspect } from '@/hooks/useProspectMutations';
 import { useTeams } from '@/hooks/useTeams';
 import { useReps } from '@/hooks/useReps';
-import { statusLabels, statusVariants } from '@/constants/prospects';
+import { statusLabels, statusVariants, industryOptions } from '@/constants/prospects';
 import { formatCurrency } from '@/lib/formatters';
 import { HeatScoreBadge } from '@/components/ui/heat-score-badge';
 import { CoachGradeBadge } from '@/components/ui/coach-grade-badge';
@@ -113,7 +113,7 @@ export default function AdminAccounts() {
   const { 
     data: prospectsData,
     isLoading: isLoadingProspects,
-    error: _prospectsError 
+    error: prospectsError 
   } = useAdminProspects(filters);
 
   const prospects = prospectsData?.prospects || [];

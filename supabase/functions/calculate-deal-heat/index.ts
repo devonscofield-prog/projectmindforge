@@ -1,8 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { getCorsHeaders } from "../_shared/cors.ts";
 
-const corsHeaders = getCorsHeaders(null);
-
 /**
  * Handle backfill batch - processes multiple calls missing deal_heat_analysis
  */
