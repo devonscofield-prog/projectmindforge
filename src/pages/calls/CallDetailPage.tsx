@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
 import { CallAnalysisPageSkeleton } from '@/components/ui/skeletons';
-import { CallAnalysis, CallTranscript } from '@/api/aiCallAnalysis';
+import { CallTranscript } from '@/api/aiCallAnalysis';
 import { CallAnalysisResultsView } from '@/components/calls/CallAnalysisResultsView';
 import { CallProductsSummary } from '@/components/calls/CallProductsSummary';
 import { EditCallDetailsDialog } from '@/components/calls/EditCallDetailsDialog';
