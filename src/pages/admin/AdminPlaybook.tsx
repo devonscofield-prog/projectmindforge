@@ -15,7 +15,6 @@ import {
   Target, 
   Lightbulb, 
   Search, 
-  Copy, 
   Copy,
   ExternalLink,
   User,
