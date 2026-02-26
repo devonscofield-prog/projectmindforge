@@ -197,13 +197,7 @@ export async function measureAsync<T>(
 if (typeof window !== 'undefined') {
   window.addEventListener('beforeunload', () => {
     if (metricsQueue.length > 0) {
-      // Use sendBeacon for reliable delivery on page unload
-      const _userId = null; // We can't get async data in beforeunload
-      // Note: sendBeacon would require a separate endpoint
-      // For now, just try to flush synchronously
-      
-      // Note: This would require a separate endpoint that accepts beacon data
-      // For now, just try to flush synchronously
+      // Try to flush synchronously on page unload
       flushMetrics();
     }
   });
