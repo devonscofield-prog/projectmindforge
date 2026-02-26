@@ -606,7 +606,7 @@ export async function getVoiceUsageAdmin(): Promise<VoiceUsageAdminOverview> {
 
   // Build per-user individual limit map
   const individualLimitMap = new Map<string, number>();
-  allLimits?.forEach((l: Record<string, unknown>) => {
+  allLimits?.forEach((l: { scope: string; target_id: string | null; monthly_limit: number }) => {
     if (l.scope === 'individual' && l.target_id) {
       individualLimitMap.set(l.target_id, l.monthly_limit);
     }
