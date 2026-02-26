@@ -14,7 +14,7 @@ import {
 } from '@/hooks/useSDR';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2, Users, Phone, TrendingUp, MessageSquare, CalendarCheck, Upload, ArrowRight, BarChart3, FileText, ChevronDown, ChevronRight, Target, ArrowUp, ArrowDown, AlertTriangle } from 'lucide-react';
-import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SDRLeaderboard } from '@/components/sdr/SDRLeaderboard';
 import { TranscriptUploadForm } from '@/components/sdr/TranscriptUploadForm';
