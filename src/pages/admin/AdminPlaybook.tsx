@@ -16,7 +16,7 @@ import {
   Lightbulb, 
   Search, 
   Copy, 
-  Check,
+  Copy,
   ExternalLink,
   User,
   Calendar,
