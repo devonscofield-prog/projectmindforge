@@ -599,7 +599,7 @@ export async function getVoiceUsageAdmin(): Promise<VoiceUsageAdminOverview> {
 
   // Build per-user usage map
   const usageMap = new Map<string, number>();
-  usageRows?.forEach((row) => {
+  usageRows?.forEach((row: Record<string, unknown>) => {
     const current = usageMap.get(row.user_id) ?? 0;
     usageMap.set(row.user_id, current + (row.analyses_used ?? 0));
   });
