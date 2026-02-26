@@ -2605,6 +2605,9 @@ export type Database = {
           audio_voice_analysis: Json | null
           call_id: string
           call_summary: string | null
+          coaching_feedback_at: string | null
+          coaching_feedback_helpful: boolean | null
+          coaching_feedback_note: string | null
           coaching_notes: string | null
           created_at: string
           engagement_score: number | null
@@ -2626,6 +2629,9 @@ export type Database = {
           audio_voice_analysis?: Json | null
           call_id: string
           call_summary?: string | null
+          coaching_feedback_at?: string | null
+          coaching_feedback_helpful?: boolean | null
+          coaching_feedback_note?: string | null
           coaching_notes?: string | null
           created_at?: string
           engagement_score?: number | null
@@ -2647,6 +2653,9 @@ export type Database = {
           audio_voice_analysis?: Json | null
           call_id?: string
           call_summary?: string | null
+          coaching_feedback_at?: string | null
+          coaching_feedback_helpful?: boolean | null
+          coaching_feedback_note?: string | null
           coaching_notes?: string | null
           created_at?: string
           engagement_score?: number | null
