@@ -68,7 +68,7 @@ export function ProspectDetailTabs({
   onStakeholderClick,
   onAddStakeholder,
   onStakeholderChanged,
-  onAddRelationship,
+  onAddRelationship: _onAddRelationship,
   onRelationshipsChanged,
   onRefreshInsights,
   onResearchAccount,

@@ -594,7 +594,7 @@ export async function getVoiceUsageAdmin(): Promise<VoiceUsageAdminOverview> {
   }
 
   // Global default
-  const globalRow = allLimits?.find((l: Record<string, unknown>) => l.scope === 'global' && l.target_id === null);
+  const globalRow = allLimits?.find((l: { scope: string; target_id: string | null; monthly_limit: number }) => l.scope === 'global' && l.target_id === null);
   const globalLimit = globalRow?.monthly_limit ?? 10;
 
   // Build per-user usage map

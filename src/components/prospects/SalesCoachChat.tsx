@@ -37,7 +37,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatDistanceToNow } from 'date-fns';
 import { ChatBase } from '@/components/chat';
-import type { ChatAdapter, QuickAction, EmptyStateHandlers, HeaderMenuHandlers, HistorySheetProps, ChatSession } from '@/components/chat';
+import type { ChatAdapter, QuickAction, EmptyStateHandlers, HistorySheetProps } from '@/components/chat';
 
 // Heat score circular progress indicator
 const HeatScoreIndicator = ({ score, size = 56 }: { score: number; size?: number }) => {

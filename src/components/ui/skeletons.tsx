@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "./skeleton";
 import { Card, CardContent, CardHeader } from "./card";
-import { Badge } from "./badge";
+import { Card, CardContent, CardHeader } from "./card";
 
 /**
  * Skeleton for stat cards (e.g., dashboard KPIs)

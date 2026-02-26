@@ -33,7 +33,7 @@ const implementationPhases = [
 
 export function ExecutiveSummary() {
   const [companyName, setCompanyName] = useState('');
-  const [isEditingCompany, setIsEditingCompany] = useState(false);
+  const [_isEditingCompany, _setIsEditingCompany] = useState(false);
   const [roiInputs, setRoiInputs] = useState<ROIInputs>({
     teamSize: 10,
     avgDealValue: 50000,

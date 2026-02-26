@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Target, RefreshCw, Loader2, Eye, ChevronDown } from 'lucide-react';
-import { format } from 'date-fns';
+import { FollowUpItem } from '@/components/prospects/FollowUpItem';
 import { FollowUpItem } from '@/components/prospects/FollowUpItem';
 import { CompletedFollowUpsDialog } from '@/components/prospects/CompletedFollowUpsDialog';
 import { DismissedFollowUpsDialog } from '@/components/prospects/DismissedFollowUpsDialog';

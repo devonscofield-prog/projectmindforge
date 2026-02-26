@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { CalendarCheck, Clock, RefreshCw, User, Users, AlertCircle, MessageSquare, CheckCircle2 } from 'lucide-react';
+import { CalendarCheck, Clock, RefreshCw, User, Users, AlertCircle, MessageSquare } from 'lucide-react';
 import { toast } from 'sonner';
 import { generateAgreedNextSteps, isAgreedNextSteps, type AgreedNextSteps } from '@/api/agreedNextSteps';
 import { formatDistanceToNow } from 'date-fns';
