@@ -6,8 +6,6 @@ import {
   getCallCountsForProspects,
   type ProspectStatus,
   type ProspectFilters 
-  type ProspectStatus,
-  type ProspectFilters 
 } from '@/api/prospects';
 import { 
   getStakeholderCountsForProspects, 
