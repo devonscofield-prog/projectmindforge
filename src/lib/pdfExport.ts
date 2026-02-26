@@ -58,7 +58,7 @@ export async function exportHtmlToPdf(
     });
 
     // Calculate dimensions
-    const _imgData = canvas.toDataURL('image/jpeg', config.imageQuality);
+    canvas.toDataURL('image/jpeg', config.imageQuality);
     
     // Page dimensions in mm
     const pageWidth = config.format === 'a4' ? 210 : 215.9; // A4 or Letter
