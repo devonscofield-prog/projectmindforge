@@ -443,7 +443,7 @@ function AdminSDROverview() {
                       <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All SDRs</SelectItem>
-                        {visibleMembers.map((m: SDRTeamMemberWithProfile) => (
+                        {visibleMembers.map((m) => (
                           <SelectItem key={m.user_id} value={m.user_id}>
                             {m.profiles?.name || m.profiles?.email || 'Unknown'}
                           </SelectItem>

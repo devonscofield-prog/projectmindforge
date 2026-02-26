@@ -5,7 +5,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { PageBreadcrumb } from '@/components/ui/page-breadcrumb';
 import { getManagerPageBreadcrumb } from '@/lib/breadcrumbConfig';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { listCallTranscriptsForTeamWithFilters } from '@/api/aiCallAnalysis';
 import { useManagerReps } from '@/hooks/useManagerDashboardQueries';

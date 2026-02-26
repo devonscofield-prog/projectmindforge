@@ -88,7 +88,7 @@ export async function exportHtmlToPdf(
     });
 
     // Handle multi-page content
-    let _yPosition = marginTop;
+    // marginTop is used inside the loop for pdf.addImage
     let remainingHeight = imgHeight;
     let sourceY = 0;
     let pageNum = 0;

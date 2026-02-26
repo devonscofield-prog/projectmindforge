@@ -220,7 +220,7 @@ function ProspectDetail() {
           emailLogs={emailLogs}
           userId={user?.id}
           isRefreshingInsights={isRefreshingInsights}
-          onProspectUpdate={(updated) => loadProspectData()}
+          onProspectUpdate={() => loadProspectData()}
           onUpdateProspect={handleUpdateProspect}
           onStakeholderClick={handleStakeholderClick}
           onAddStakeholder={() => setIsAddStakeholderOpen(true)}

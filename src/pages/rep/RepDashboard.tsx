@@ -58,7 +58,7 @@ const SALESFORCE_URL_PATTERN = /salesforce|force\.com/i;
 // Validation constants
 const MIN_TRANSCRIPT_LENGTH = 500;
 const MAX_ADDITIONAL_SPEAKERS = 5;
-const MAX_STAKEHOLDERS = 10;
+
 const SUBMISSION_COOLDOWN_MS = 2000;
 
 // Draft storage key

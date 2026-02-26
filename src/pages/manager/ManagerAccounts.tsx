@@ -70,7 +70,7 @@ function ManagerAccounts() {
   const { 
     data: prospects = [], 
     isLoading: isLoadingProspects,
-    error: prospectsError 
+    error: _prospectsError 
   } = useTeamProspects(user?.id, filters);
 
   // Get prospect IDs for related data

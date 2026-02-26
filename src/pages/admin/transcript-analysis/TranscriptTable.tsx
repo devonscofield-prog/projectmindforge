@@ -64,7 +64,7 @@ const STATUS_CONFIG = {
 } as const;
 
 // Helper to check if a pending call is stuck (>5 minutes old)
-function _isStuckPending(transcript: Transcript): boolean {
+function isStuckPending(transcript: Transcript): boolean { void isStuckPending;
   if (transcript.analysis_status !== 'pending') return false;
   // Use call_date as a proxy - in reality we'd want created_at or updated_at from the transcript
   // For now, check if the call was created more than 5 minutes ago

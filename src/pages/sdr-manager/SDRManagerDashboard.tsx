@@ -631,7 +631,7 @@ function SDRManagerDashboard() {
                           <TooltipContent side="left" className="max-w-xs">
                             <p>{t.processing_error}</p>
                           </TooltipContent>
-                        </Tooltip>
+                        </UITooltip>
                       ) : (
                         <span className={`px-2 py-1 rounded text-xs font-medium ${
                           t.processing_status === 'completed' ? 'bg-green-500/10 text-green-500' :

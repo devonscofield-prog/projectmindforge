@@ -11,7 +11,7 @@ interface PerformanceBenchmarkCardProps {
   isLoading?: boolean;
 }
 
-const _ratingColors = {
+const _ratingColors: Record<string, string> = {
   excellent: 'bg-emerald-500',
   good: 'bg-green-500',
   acceptable: 'bg-yellow-500',

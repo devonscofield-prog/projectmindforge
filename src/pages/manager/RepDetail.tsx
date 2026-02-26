@@ -86,7 +86,7 @@ export default function RepDetail() {
   const [snapshotOpen, setSnapshotOpen] = useState(true);
 
   // Fetch data using React Query
-  const { data: rep, isLoading: isLoadingProfile, error: profileError } = useRepProfile(repId);
+  const { data: rep, isLoading: isLoadingProfile } = useRepProfile(repId);
   const { data: coaching = [], isLoading: isLoadingCoaching } = useCoachingSessions(repId);
   const { data: transcripts = [], isLoading: isLoadingTranscripts } = useQuery({
     queryKey: ['callTranscripts', repId],

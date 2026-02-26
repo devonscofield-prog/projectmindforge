@@ -329,7 +329,7 @@ function AdminUserEdit() {
     }
   };
 
-  const _clearPasswordForm = () => {
+  const clearPasswordForm = () => { void clearPasswordForm;
     setNewPassword('');
     setConfirmPassword('');
     setPasswordError(null);
