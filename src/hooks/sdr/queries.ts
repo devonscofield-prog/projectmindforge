@@ -160,7 +160,7 @@ export function useSDRTranscriptDetail(transcriptId: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase.from('sdr_daily_transcripts')
         .select('*')
-        .eq('id', transcriptId)
+        .eq('id', transcriptId!)
         .single();
 
       if (error) throw error;
