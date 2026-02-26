@@ -142,8 +142,8 @@ function AdminSDROverview() {
     if (grades.length === 0) return null;
 
     const avgScore = grades.reduce((sum: number, g: SdrCallGradeRow) => {
-      const scores = [g.opener_score, g.engagement_score, g.objection_handling_score, g.appointment_setting_score, g.professionalism_score].filter(Boolean);
-      return sum + (scores.length ? scores.reduce((a: number, b: number) => a + b, 0) / scores.length : 0);
+      const scores = [g.opener_score, g.engagement_score, g.objection_handling_score, g.appointment_setting_score, g.professionalism_score].filter((s): s is number => s !== null);
+      return sum + (scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : 0);
     }, 0) / grades.length;
 
     const meetingsSet = grades.filter((g: SdrCallGradeRow) => g.meeting_scheduled === true).length;
