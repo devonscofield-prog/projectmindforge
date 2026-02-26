@@ -4,8 +4,8 @@ import {
   listProspectsForRep, 
   listProspectsForTeam,
   getCallCountsForProspects,
-  type Prospect,
-  type ProspectWithRep,
+  type ProspectStatus,
+  type ProspectFilters 
   type ProspectStatus,
   type ProspectFilters 
 } from '@/api/prospects';

@@ -199,7 +199,7 @@ if (typeof window !== 'undefined') {
     if (metricsQueue.length > 0) {
       // Use sendBeacon for reliable delivery on page unload
       const userId = null; // We can't get async data in beforeunload
-      const data = JSON.stringify({
+      const _data = JSON.stringify({
         metrics: metricsQueue.map(m => ({ ...m, user_id: userId })),
       });
       

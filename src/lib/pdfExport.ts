@@ -88,7 +88,7 @@ export async function exportHtmlToPdf(
     });
 
     // Handle multi-page content
-    let yPosition = marginTop;
+    let _yPosition = marginTop;
     let remainingHeight = imgHeight;
     let sourceY = 0;
     let pageNum = 0;

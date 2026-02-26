@@ -1,7 +1,5 @@
 import { cn } from "@/lib/utils";
-import { cn } from "@/lib/utils";
 import { Skeleton } from "./skeleton";
-import { Card, CardContent, CardHeader } from "./card";
 import { Card, CardContent, CardHeader } from "./card";
 
 /**

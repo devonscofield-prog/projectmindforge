@@ -323,7 +323,7 @@ function CoachEmptyState({
 }
 
 // --- Coach-specific history sheet ---
-function CoachHistorySheet({ allSessions, currentSessionId, handleSwitchSession, handleDeleteSession, setShowHistorySheet }: HistorySheetProps) {
+function CoachHistorySheet({ allSessions, currentSessionId: _currentSessionId, handleSwitchSession, handleDeleteSession, setShowHistorySheet }: HistorySheetProps) {
   return (
     <ScrollArea className="h-[calc(100vh-120px)] mt-4">
       <div className="space-y-2.5 pr-4">
