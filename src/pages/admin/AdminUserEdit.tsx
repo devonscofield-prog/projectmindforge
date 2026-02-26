@@ -13,7 +13,6 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ArrowLeft, Save, KeyRound, AlertTriangle, Loader2, ShieldOff, Trash2 } from 'lucide-react';
 import {
   AlertDialog,
