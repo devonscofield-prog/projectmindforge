@@ -16,7 +16,6 @@ import { Calendar } from '@/components/ui/calendar';
 import { Label } from '@/components/ui/label';
 import {
   generateAggregateCoachingTrends,
-  AggregateAnalysisMetadata,
   DIRECT_ANALYSIS_MAX,
   determineAnalysisTier,
   AnalysisTier,

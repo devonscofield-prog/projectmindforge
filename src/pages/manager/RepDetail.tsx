@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
@@ -86,7 +86,7 @@ export default function RepDetail() {
   const [snapshotOpen, setSnapshotOpen] = useState(true);
 
   // Fetch data using React Query
-  const { data: rep, isLoading: isLoadingProfile, error: profileError } = useRepProfile(repId);
+  const { data: rep, isLoading: isLoadingProfile } = useRepProfile(repId);
   const { data: coaching = [], isLoading: isLoadingCoaching } = useCoachingSessions(repId);
   const { data: transcripts = [], isLoading: isLoadingTranscripts } = useQuery({
     queryKey: ['callTranscripts', repId],

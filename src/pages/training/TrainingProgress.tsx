@@ -227,12 +227,12 @@ export default function TrainingProgress() {
     return 'text-red-500';
   };
 
-  const getProgressColor = (score: number) => {
+  const _getProgressColor = (score: number) => {
     if (score >= 80) return 'bg-green-500';
     if (score >= 60) return 'bg-blue-500';
     if (score >= 40) return 'bg-amber-500';
     return 'bg-red-500';
-  };
+  }; void _getProgressColor;
 
   if (isLoading) {
     return (

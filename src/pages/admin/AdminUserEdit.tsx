@@ -329,11 +329,6 @@ function AdminUserEdit() {
     }
   };
 
-  const _clearPasswordForm = () => {
-    setNewPassword('');
-    setConfirmPassword('');
-    setPasswordError(null);
-  };
 
   const isOwnAccount = currentUser?.id === userId;
 

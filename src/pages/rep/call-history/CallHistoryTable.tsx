@@ -76,7 +76,7 @@ export function CallHistoryTable({
   currentPage,
   pageSize,
   totalPages,
-  sortBy,
+  sortBy: _sortBy,
   onRefresh,
   onToggleSort,
   onGoToPage,

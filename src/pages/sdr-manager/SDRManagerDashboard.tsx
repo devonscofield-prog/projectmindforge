@@ -14,14 +14,14 @@ import {
 } from '@/hooks/useSDR';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2, Users, Phone, TrendingUp, MessageSquare, CalendarCheck, Upload, ArrowRight, BarChart3, FileText, ChevronDown, ChevronRight, Target, ArrowUp, ArrowDown, AlertTriangle } from 'lucide-react';
-import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'; void UITooltip;
+import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SDRLeaderboard } from '@/components/sdr/SDRLeaderboard';
 import { TranscriptUploadForm } from '@/components/sdr/TranscriptUploadForm';
 import { Link, useSearchParams } from 'react-router-dom';
 import { format, subDays, parseISO } from 'date-fns';
 import { gradeColors } from '@/constants/training';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
 
 const GRADE_ORDER = ['A+', 'A', 'B', 'C', 'D', 'F'];
 const GRADE_BAR_COLORS: Record<string, string> = {
@@ -511,7 +511,7 @@ function SDRManagerDashboard() {
                       <BarChart data={perSdrComparison} layout="vertical" margin={{ left: 0, right: 20, top: 5, bottom: 5 }}>
                         <XAxis type="number" domain={[0, 10]} tick={{ fontSize: 12 }} />
                         <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} width={120} />
-                        <Tooltip
+                        <RTooltip
                           formatter={(value: number) => [`${value}/10`, 'Avg Score']}
                           contentStyle={{
                             backgroundColor: 'hsl(var(--card))',
@@ -619,7 +619,7 @@ function SDRManagerDashboard() {
                         </p>
                       </div>
                       {(t.processing_status === 'failed' || t.processing_status === 'partial') && t.processing_error ? (
-                        <Tooltip>
+                        <UITooltip>
                           <TooltipTrigger asChild>
                             <span className={`px-2 py-1 rounded text-xs font-medium inline-flex items-center gap-1 ${
                               t.processing_status === 'failed' ? 'bg-red-500/10 text-red-500' : 'bg-orange-500/10 text-orange-500'
@@ -631,7 +631,7 @@ function SDRManagerDashboard() {
                           <TooltipContent side="left" className="max-w-xs">
                             <p>{t.processing_error}</p>
                           </TooltipContent>
-                        </Tooltip>
+                        </UITooltip>
                       ) : (
                         <span className={`px-2 py-1 rounded text-xs font-medium ${
                           t.processing_status === 'completed' ? 'bg-green-500/10 text-green-500' :
@@ -688,7 +688,7 @@ function SDRManagerDashboard() {
                   <LineChart data={teamTrendData}>
                     <XAxis dataKey="date" tick={{ fontSize: 12 }} />
                     <YAxis domain={[0, 10]} tick={{ fontSize: 12 }} />
-                    <Tooltip />
+                    <RTooltip />
                     <Line type="monotone" dataKey="avg" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} name="Avg Score" />
                   </LineChart>
                 </ResponsiveContainer>

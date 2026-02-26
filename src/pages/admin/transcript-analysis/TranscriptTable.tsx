@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { format, differenceInMinutes } from 'date-fns';
+import { format } from 'date-fns';
 import { parseDateOnly } from '@/lib/formatters';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -63,15 +63,6 @@ const STATUS_CONFIG = {
   },
 } as const;
 
-// Helper to check if a pending call is stuck (>5 minutes old)
-function _isStuckPending(transcript: Transcript): boolean {
-  if (transcript.analysis_status !== 'pending') return false;
-  // Use call_date as a proxy - in reality we'd want created_at or updated_at from the transcript
-  // For now, check if the call was created more than 5 minutes ago
-  const createdAt = new Date(transcript.call_date);
-  const now = new Date();
-  return differenceInMinutes(now, createdAt) > 5;
-}
 
 export function TranscriptTable({
   transcripts,
