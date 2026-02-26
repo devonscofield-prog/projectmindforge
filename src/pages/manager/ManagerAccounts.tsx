@@ -29,7 +29,7 @@ import {
 import { TableSkeleton } from '@/components/ui/skeletons';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Search, Users, Calendar, DollarSign, ChevronRight, Building2, Flame, RefreshCw, TrendingUp, TrendingDown, Minus } from 'lucide-react';
-import { format, differenceInDays } from 'date-fns';
+import { differenceInDays } from 'date-fns';
 import { 
   useTeamProspects,
   useCallCounts,
