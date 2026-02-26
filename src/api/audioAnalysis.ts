@@ -614,8 +614,8 @@ export async function getVoiceUsageAdmin(): Promise<VoiceUsageAdminOverview> {
 
   // Collect unique user IDs from usage and individual limits
   const allUserIds = new Set<string>();
-  usageRows?.forEach((row) => allUserIds.add(row.user_id));
-  allLimits?.forEach((l) => {
+  usageRows?.forEach((row: Record<string, unknown>) => allUserIds.add(row.user_id as string));
+  allLimits?.forEach((l: Record<string, unknown>) => {
     if (l.scope === 'individual' && l.target_id) allUserIds.add(l.target_id);
   });
 

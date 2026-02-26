@@ -36,7 +36,7 @@ import type {
   SalesAssets,
 } from '@/api/aiCallAnalysis/types';
 import type { UserActivityLog, UserActivityType } from '@/api/userActivityLogs';
-import { parseJsonField, isObject, isString, isStringArray, isNumber } from './typeUtils';
+import { parseJsonField, isObject, isString } from './typeUtils';
 
 // ============= ROW TYPE ALIASES =============
 type ProspectRow = Database['public']['Tables']['prospects']['Row'];

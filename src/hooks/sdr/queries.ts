@@ -239,11 +239,11 @@ export function useSDRCallDetail(callId: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase.from('sdr_calls')
         .select(SDR_CALL_DETAIL_SELECT)
-        .eq('id', callId)
+        .eq('id', callId!)
         .single();
 
       if (error) throw error;
-      return data as SDRCallDetail;
+      return data as unknown as SDRCallDetail;
     },
     enabled: !!callId,
     refetchInterval: (query) => {

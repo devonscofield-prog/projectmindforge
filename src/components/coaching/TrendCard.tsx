@@ -27,7 +27,7 @@ export const TrendCard = memo(function TrendCard({
   recommendation,
 }: TrendCardProps) {
   const change = endingAvg - startingAvg;
-  const changePercent = startingAvg > 0 ? Math.round((change / startingAvg) * 100) : 0;
+  const changePercent = startingAvg > 0 ? Math.round((change / startingAvg) * 100) : 0; void changePercent;
 
   const getTrendIcon = () => {
     switch (trend) {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, X, AlertCircle, Check, ChevronsUpDown, Package } from 'lucide-react';
+import { X, AlertCircle, Check, ChevronsUpDown, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';

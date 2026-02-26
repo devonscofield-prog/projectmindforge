@@ -36,7 +36,7 @@ function CustomTooltip({
   label,
 }: {
   active?: boolean;
-  payload?: Array<{ value: number; dataKey: string; color: string }>;
+  payload?: Array<{ value: number; dataKey: string; color: string; payload?: unknown }>;
   label?: number;
 }) {
   if (!active || !payload || payload.length === 0) return null;
