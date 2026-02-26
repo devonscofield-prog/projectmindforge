@@ -511,7 +511,7 @@ function SDRManagerDashboard() {
                       <BarChart data={perSdrComparison} layout="vertical" margin={{ left: 0, right: 20, top: 5, bottom: 5 }}>
                         <XAxis type="number" domain={[0, 10]} tick={{ fontSize: 12 }} />
                         <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} width={120} />
-                        <Tooltip
+                        <RTooltip
                           formatter={(value: number) => [`${value}/10`, 'Avg Score']}
                           contentStyle={{
                             backgroundColor: 'hsl(var(--card))',
