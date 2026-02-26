@@ -25,7 +25,7 @@ import { TranscriptViewer } from '@/components/calls/TranscriptViewer';
 import { CoachingCard } from '@/components/calls/coaching';
 import { DealHeatCard } from '@/components/calls/DealHeatCard';
 import { SalesCoachChat } from '@/components/prospects/SalesCoachChat';
-import { PostCallSuggestionsPanel, PostCallSuggestionsSkeleton, AddCustomTaskDialog } from '@/components/calls/suggestions';
+import { PostCallSuggestionsPanel, AddCustomTaskDialog } from '@/components/calls/suggestions';
 import type { FollowUpSuggestion } from '@/components/calls/suggestions';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Skeleton } from '@/components/ui/skeleton';
