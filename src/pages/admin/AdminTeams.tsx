@@ -8,7 +8,7 @@ import {
   useManagerOptions,
   adminTeamsKeys,
   type TeamWithManager,
-  type ManagerOption 
+  type TeamWithManager, 
 } from '@/hooks/useAdminTeamsQueries';
 
 const log = createLogger('AdminTeams');

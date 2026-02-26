@@ -66,7 +66,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 type AnalysisScope = 'organization' | 'team' | 'rep';
 
 export default function AdminCoachingTrends() {
-  const { role } = useAuth();
+  const { role: _role } = useAuth();
   
   // Scope and filter state
   const [scope, setScope] = useState<AnalysisScope>('organization');

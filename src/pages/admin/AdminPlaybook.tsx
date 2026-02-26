@@ -283,7 +283,7 @@ export default function AdminPlaybook() {
   const [severityFilter, setSeverityFilter] = useState<string>('all');
   const [repFilter, setRepFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [_copiedId, setCopiedId] = useState<string | null>(null);
 
   const { data: reps } = useReps();
 

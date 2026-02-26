@@ -113,7 +113,7 @@ export default function AdminAccounts() {
   const { 
     data: prospectsData,
     isLoading: isLoadingProspects,
-    error: prospectsError 
+    error: _prospectsError 
   } = useAdminProspects(filters);
 
   const prospects = prospectsData?.prospects || [];
