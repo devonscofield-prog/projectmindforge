@@ -132,7 +132,7 @@ export function useSDRTranscriptList(params: SDRTranscriptListParams = {}) {
 
       const { data, error } = await query;
       if (error) throw error;
-      return (data ?? []) as SDRTranscriptListItem[];
+      return (data ?? []) as unknown as SDRTranscriptListItem[];
     },
     enabled: params.enabled ?? true,
     refetchInterval: (query) => {
