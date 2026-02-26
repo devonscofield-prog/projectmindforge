@@ -14,10 +14,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   generateAggregateCoachingTrends,
-  AggregateAnalysisMetadata,
   DIRECT_ANALYSIS_MAX,
   determineAnalysisTier,
   AnalysisTier,
@@ -66,7 +65,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 type AnalysisScope = 'organization' | 'team' | 'rep';
 
 export default function AdminCoachingTrends() {
-  const { role } = useAuth();
+  const { role: _role } = useAuth();
   
   // Scope and filter state
   const [scope, setScope] = useState<AnalysisScope>('organization');

@@ -58,7 +58,7 @@ describe('ComponentErrorBoundary', () => {
       return <div>Recovered</div>;
     };
 
-    const { rerender } = render(
+    const { rerender: _rerender } = render(
       <ComponentErrorBoundary onReset={onReset}>
         <MaybeThrow />
       </ComponentErrorBoundary>

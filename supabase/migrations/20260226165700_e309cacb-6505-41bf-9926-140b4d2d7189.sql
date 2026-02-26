@@ -1,0 +1,1 @@
+ALTER TABLE public.sdr_calls ADD COLUMN IF NOT EXISTS processing_error text;

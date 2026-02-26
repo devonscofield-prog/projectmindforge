@@ -13,11 +13,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Separator } from '@/components/ui/separator';
 import { ArrowLeft, Save, KeyRound, AlertTriangle, Loader2, ShieldOff, Trash2 } from 'lucide-react';
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -331,7 +329,7 @@ function AdminUserEdit() {
     }
   };
 
-  const clearPasswordForm = () => {
+  const _clearPasswordForm = () => {
     setNewPassword('');
     setConfirmPassword('');
     setPasswordError(null);

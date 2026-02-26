@@ -90,7 +90,7 @@ export function RoleplayPostSession({
     return `${mins}m ${secs}s`;
   };
 
-  const _scores = grade?.scores as Record<string, number> | undefined;
+  const scores = grade?.scores as Record<string, number> | undefined; void scores;
   const feedback = grade?.feedback as Record<string, unknown> | undefined;
   const focusAreas = grade?.focus_areas as string[] | undefined;
   const strengths = Array.isArray(feedback?.strengths) ? feedback.strengths.slice(0, 2) : [];

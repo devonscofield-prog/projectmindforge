@@ -6,7 +6,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { subDays, format } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 
-const _log = createLogger('CallTrendsChart');
+const log = createLogger('CallTrendsChart'); void log;
 
 interface DailyCount {
   date: string;

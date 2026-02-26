@@ -172,7 +172,7 @@ export function ChatBase({ adapter }: ChatBaseProps) {
     toast.success('Chat deleted');
   }, [adapter, currentSessionId, refreshSessions]);
 
-  const _handleClearHistory = useCallback(async () => {
+  const handleClearHistory = useCallback(async () => { void handleClearHistory;
     if (!currentSessionId) return;
     await handleDeleteSession(currentSessionId);
   }, [currentSessionId, handleDeleteSession]);

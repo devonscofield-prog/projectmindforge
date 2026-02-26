@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -15,8 +15,7 @@ import {
   Target, 
   Lightbulb, 
   Search, 
-  Copy, 
-  Check,
+  Copy,
   ExternalLink,
   User,
   Calendar,
@@ -283,7 +282,7 @@ export default function AdminPlaybook() {
   const [severityFilter, setSeverityFilter] = useState<string>('all');
   const [repFilter, setRepFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [_copiedId, setCopiedId] = useState<string | null>(null);
 
   const { data: reps } = useReps();
 

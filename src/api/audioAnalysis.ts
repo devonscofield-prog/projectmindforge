@@ -594,19 +594,19 @@ export async function getVoiceUsageAdmin(): Promise<VoiceUsageAdminOverview> {
   }
 
   // Global default
-  const globalRow = allLimits?.find((l) => l.scope === 'global' && l.target_id === null);
+  const globalRow = allLimits?.find((l: { scope: string; target_id: string | null; monthly_limit: number }) => l.scope === 'global' && l.target_id === null);
   const globalLimit = globalRow?.monthly_limit ?? 10;
 
   // Build per-user usage map
   const usageMap = new Map<string, number>();
-  usageRows?.forEach((row) => {
+  usageRows?.forEach((row: { user_id: string; analyses_used: number | null }) => {
     const current = usageMap.get(row.user_id) ?? 0;
     usageMap.set(row.user_id, current + (row.analyses_used ?? 0));
   });
 
   // Build per-user individual limit map
   const individualLimitMap = new Map<string, number>();
-  allLimits?.forEach((l) => {
+  allLimits?.forEach((l: { scope: string; target_id: string | null; monthly_limit: number }) => {
     if (l.scope === 'individual' && l.target_id) {
       individualLimitMap.set(l.target_id, l.monthly_limit);
     }
@@ -614,8 +614,8 @@ export async function getVoiceUsageAdmin(): Promise<VoiceUsageAdminOverview> {
 
   // Collect unique user IDs from usage and individual limits
   const allUserIds = new Set<string>();
-  usageRows?.forEach((row) => allUserIds.add(row.user_id));
-  allLimits?.forEach((l) => {
+  usageRows?.forEach((row: { user_id: string }) => allUserIds.add(row.user_id));
+  allLimits?.forEach((l: { scope: string; target_id: string | null }) => {
     if (l.scope === 'individual' && l.target_id) allUserIds.add(l.target_id);
   });
 
