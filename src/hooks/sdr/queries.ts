@@ -220,7 +220,7 @@ export function useSDRCallList(params: SDRCallListParams = {}) {
 
       const { data, error } = await query;
       if (error) throw error;
-      return (data ?? []) as SDRCallListItem[];
+      return (data ?? []) as unknown as SDRCallListItem[];
     },
     enabled: params.enabled ?? inferredEnabled,
     refetchInterval: (query) => {
