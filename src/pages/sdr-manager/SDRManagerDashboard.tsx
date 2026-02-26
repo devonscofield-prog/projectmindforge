@@ -619,7 +619,7 @@ function SDRManagerDashboard() {
                         </p>
                       </div>
                       {(t.processing_status === 'failed' || t.processing_status === 'partial') && t.processing_error ? (
-                        <Tooltip>
+                        <UITooltip>
                           <TooltipTrigger asChild>
                             <span className={`px-2 py-1 rounded text-xs font-medium inline-flex items-center gap-1 ${
                               t.processing_status === 'failed' ? 'bg-red-500/10 text-red-500' : 'bg-orange-500/10 text-orange-500'
