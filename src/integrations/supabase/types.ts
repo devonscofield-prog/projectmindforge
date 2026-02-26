@@ -2704,6 +2704,7 @@ export type Database = {
           duration_estimate_seconds: number | null
           id: string
           is_meaningful: boolean
+          processing_error: string | null
           prospect_company: string | null
           prospect_name: string | null
           raw_text: string | null
@@ -2720,6 +2721,7 @@ export type Database = {
           duration_estimate_seconds?: number | null
           id?: string
           is_meaningful?: boolean
+          processing_error?: string | null
           prospect_company?: string | null
           prospect_name?: string | null
           raw_text?: string | null
@@ -2736,6 +2738,7 @@ export type Database = {
           duration_estimate_seconds?: number | null
           id?: string
           is_meaningful?: boolean
+          processing_error?: string | null
           prospect_company?: string | null
           prospect_name?: string | null
           raw_text?: string | null
