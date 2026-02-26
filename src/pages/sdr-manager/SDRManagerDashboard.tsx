@@ -21,7 +21,7 @@ import { TranscriptUploadForm } from '@/components/sdr/TranscriptUploadForm';
 import { Link, useSearchParams } from 'react-router-dom';
 import { format, subDays, parseISO } from 'date-fns';
 import { gradeColors } from '@/constants/training';
-import { LineChart, Line, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
 
 const GRADE_ORDER = ['A+', 'A', 'B', 'C', 'D', 'F'];
 const GRADE_BAR_COLORS: Record<string, string> = {
