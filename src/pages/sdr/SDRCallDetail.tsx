@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useSDRCallDetail, useSDRCallList, useReGradeCall } from '@/hooks/useSDR';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { sdrKeys } from '@/hooks/sdr/keys';
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, Loader2, RefreshCw, Star, TrendingUp, MessageSquare, Target, Award, Clock, ChevronLeft, ChevronRight, CalendarCheck, ThumbsUp, ThumbsDown, CheckCircle2 } from 'lucide-react';
 import { gradeColors } from '@/constants/training';
@@ -54,7 +55,7 @@ function SDRCallDetail() {
     },
     onSuccess: () => {
       setFeedbackSubmitted(true);
-      queryClient.invalidateQueries({ queryKey: ['sdr-call-detail', callId] });
+      queryClient.invalidateQueries({ queryKey: sdrKeys.calls.detail(callId!) });
     },
   });
 
@@ -359,6 +360,9 @@ function SDRCallDetail() {
           <Card>
             <CardContent className="py-12 text-center">
               <p className="text-destructive mb-3">Grading failed for this call.</p>
+              {call.processing_error && (
+                <p className="text-sm text-muted-foreground mb-4">{call.processing_error}</p>
+              )}
               <Button variant="outline" onClick={() => reGradeMutation.mutate(call.id)} disabled={reGradeMutation.isPending}>
                 <RefreshCw className={`h-4 w-4 mr-2 ${reGradeMutation.isPending ? 'animate-spin' : ''}`} />
                 Retry Grading
@@ -367,11 +371,35 @@ function SDRCallDetail() {
           </Card>
         )}
 
+        {!grade && call.analysis_status === 'pending' && (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <p className="text-muted-foreground mb-3">This call is queued for grading.</p>
+              <Button variant="outline" onClick={() => reGradeMutation.mutate(call.id)} disabled={reGradeMutation.isPending}>
+                <RefreshCw className={`h-4 w-4 mr-2 ${reGradeMutation.isPending ? 'animate-spin' : ''}`} />
+                Grade Now
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {!grade && call.analysis_status === 'skipped' && (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <p className="text-muted-foreground">This call was skipped (not meaningful enough to grade).</p>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Raw Transcript */}
         <Card>
           <CardHeader><CardTitle>Call Transcript</CardTitle></CardHeader>
           <CardContent>
-            <pre className="whitespace-pre-wrap text-sm font-mono bg-muted/50 p-4 rounded-lg max-h-96 overflow-y-auto">{call.raw_text}</pre>
+            {call.raw_text ? (
+              <pre className="whitespace-pre-wrap text-sm font-mono bg-muted/50 p-4 rounded-lg max-h-96 overflow-y-auto">{call.raw_text}</pre>
+            ) : (
+              <p className="text-sm text-muted-foreground italic">Transcript not yet available. This call may still be processing.</p>
+            )}
           </CardContent>
         </Card>
       </main>

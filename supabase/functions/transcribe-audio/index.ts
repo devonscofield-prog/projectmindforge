@@ -611,12 +611,18 @@ Deno.serve(async (req) => {
         } else {
           await supabaseAdmin
             .from('sdr_daily_transcripts')
-            .update({ processing_status: 'failed' })
+            .update({
+              processing_status: 'failed',
+              processing_error: `Transcription failed: ${errorMessage}`.slice(0, 1000),
+            })
             .eq('id', transcriptId);
           if (callId) {
             await supabaseAdmin
               .from('sdr_calls')
-              .update({ analysis_status: 'failed' })
+              .update({
+                analysis_status: 'failed',
+                processing_error: `Transcription failed: ${errorMessage}`.slice(0, 500),
+              })
               .eq('id', callId);
           }
         }

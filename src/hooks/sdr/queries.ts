@@ -90,7 +90,7 @@ export const SDR_CALL_DETAIL_SELECT = [
   'processing_error',
   'created_at',
   'updated_at',
-  'sdr_call_grades(id, call_id, sdr_id, overall_grade, opener_score, engagement_score, objection_handling_score, appointment_setting_score, professionalism_score, call_summary, strengths, improvements, key_moments, coaching_notes, meeting_scheduled, model_name, raw_json, created_at)',
+  'sdr_call_grades(id, call_id, sdr_id, overall_grade, opener_score, engagement_score, objection_handling_score, appointment_setting_score, professionalism_score, call_summary, strengths, improvements, key_moments, coaching_notes, coaching_feedback_helpful, coaching_feedback_note, coaching_feedback_at, meeting_scheduled, model_name, raw_json, created_at)',
 ].join(', ');
 
 export function isTranscriptStuck(t: SDRTranscriptListItem): boolean {

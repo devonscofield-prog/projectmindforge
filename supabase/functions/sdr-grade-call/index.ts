@@ -163,7 +163,7 @@ Deno.serve(async (req) => {
           key_moments: grade.key_moments,
           coaching_notes: grade.coaching_notes,
           meeting_scheduled: grade.meeting_scheduled ?? null,
-          model_name: Deno.env.get('SDR_GPT_MODEL') || 'gpt-5.2-2025-12-11',
+          model_name: Deno.env.get('SDR_GPT_MODEL') || 'gpt-4o',
           raw_json: grade,
         }).select('id').single();
 
@@ -188,7 +188,7 @@ Deno.serve(async (req) => {
         console.error(`[sdr-grade-call] Failed to grade ${call.id} after retries:`, error);
         const { error: markFailedError } = await supabase
           .from('sdr_calls')
-          .update({ analysis_status: 'failed' })
+          .update({ analysis_status: 'failed', processing_error: message.slice(0, 500) })
           .eq('id', call.id);
         if (markFailedError) {
           console.error(`[sdr-grade-call] Failed to mark ${call.id} as failed:`, markFailedError);
@@ -355,7 +355,7 @@ async function gradeCall(openaiApiKey: string, callText: string, customPrompt?: 
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: Deno.env.get('SDR_GPT_MODEL') || 'gpt-5.2-2025-12-11',
+        model: Deno.env.get('SDR_GPT_MODEL') || 'gpt-4o',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `Grade this SDR cold call:\n\n${sanitizeUserContent(callText)}` },

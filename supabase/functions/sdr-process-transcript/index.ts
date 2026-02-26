@@ -527,7 +527,7 @@ async function processTranscriptPipeline(
             key_moments: grade.key_moments,
             coaching_notes: grade.coaching_notes,
             meeting_scheduled: grade.meeting_scheduled ?? null,
-            model_name: Deno.env.get('SDR_GPT_MODEL') || 'gpt-5.2-2025-12-11',
+            model_name: Deno.env.get('SDR_GPT_MODEL') || 'gpt-4o',
             raw_json: grade,
           }).select('id').single();
           if (gradeInsertError) throw gradeInsertError;
@@ -776,7 +776,7 @@ async function runSplitterOnChunk(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: Deno.env.get('SDR_GPT_MODEL') || 'gpt-5.2-2025-12-11',
+        model: Deno.env.get('SDR_GPT_MODEL') || 'gpt-4o',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `Here is a section of an SDR dialer transcript. Split it into individual call segments:\n\n${sanitizeUserContent(chunkText)}` },
@@ -964,7 +964,7 @@ async function runFilterOnBatch(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: Deno.env.get('SDR_GPT_MODEL') || 'gpt-5.2-2025-12-11',
+        model: Deno.env.get('SDR_GPT_MODEL') || 'gpt-4o',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `Classify these ${batchSegments.length} transcript segments:\n\n${JSON.stringify(segmentInputs)}` },
@@ -1194,7 +1194,7 @@ async function runGraderAgent(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: Deno.env.get('SDR_GPT_MODEL') || 'gpt-5.2-2025-12-11',
+        model: Deno.env.get('SDR_GPT_MODEL') || 'gpt-4o',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `Grade this SDR cold call:\n\n${sanitizeUserContent(callText)}` },

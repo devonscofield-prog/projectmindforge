@@ -46,6 +46,9 @@ export interface SDRCallGradeDetail extends SDRCallGradeListItem {
   improvements: string[] | null;
   key_moments: Array<{ timestamp: string; description: string; sentiment: string }> | null;
   coaching_notes: string | null;
+  coaching_feedback_helpful: boolean | null;
+  coaching_feedback_note: string | null;
+  coaching_feedback_at: string | null;
   model_name: string;
   raw_json: unknown;
 }

@@ -20,6 +20,29 @@ interface UploadSDRTranscriptInput {
   sdrId?: string;
 }
 
+/**
+ * Extract a user-friendly error message from a supabase.functions.invoke error.
+ * When an Edge Function returns non-2xx, the Supabase client sets error.message
+ * to the generic "Edge Function returned a non-2xx status code". The actual error
+ * body is in error.context (a Response object).
+ */
+async function extractEdgeFunctionError(error: unknown): Promise<Error> {
+  if (error && typeof error === 'object' && 'context' in error) {
+    try {
+      const context = (error as { context: Response }).context;
+      if (context && typeof context.json === 'function') {
+        const body = await context.json();
+        if (body?.error && typeof body.error === 'string') {
+          return new Error(body.error);
+        }
+      }
+    } catch {
+      // Fall through to original error
+    }
+  }
+  return error instanceof Error ? error : new Error(String(error));
+}
+
 /** Simple string hash for deduplication (not cryptographic). */
 function simpleHash(str: string): number {
   let hash = 0;
@@ -52,7 +75,7 @@ export function useUploadSDRTranscript() {
         body: { raw_text: rawText, transcript_date: transcriptDate, sdr_id: sdrId },
       });
 
-      if (error) throw error;
+      if (error) throw await extractEdgeFunctionError(error);
       return data;
     },
     onMutate: async (variables) => {
@@ -112,7 +135,7 @@ export function useRetrySDRTranscript() {
         body: { daily_transcript_id: transcriptId },
       });
 
-      if (error) throw error;
+      if (error) throw await extractEdgeFunctionError(error);
       return data;
     },
     onMutate: async (transcriptId) => {
@@ -155,7 +178,7 @@ export function useReGradeCall() {
         body: { call_id: callId },
       });
 
-      if (error) throw error;
+      if (error) throw await extractEdgeFunctionError(error);
       return data;
     },
     onMutate: async (callId) => {
