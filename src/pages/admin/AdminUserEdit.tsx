@@ -17,7 +17,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ArrowLeft, Save, KeyRound, AlertTriangle, Loader2, ShieldOff, Trash2 } from 'lucide-react';
 import {
   AlertDialog,
-  AlertDialogAction,
+  AlertDialogCancel,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
