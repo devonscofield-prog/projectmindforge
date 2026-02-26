@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   generateAggregateCoachingTrends,
-  AggregateAnalysisMetadata,
+  generateAggregateCoachingTrends,
   DIRECT_ANALYSIS_MAX,
   determineAnalysisTier,
   AnalysisTier,
