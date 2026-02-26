@@ -64,7 +64,7 @@ export function ProspectDetailTabs({
   userId,
   isRefreshingInsights,
   onProspectUpdate,
-  onUpdateProspect,
+  onUpdateProspect: _onUpdateProspect,
   onStakeholderClick,
   onAddStakeholder,
   onStakeholderChanged,
