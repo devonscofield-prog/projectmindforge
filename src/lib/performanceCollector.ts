@@ -198,7 +198,7 @@ if (typeof window !== 'undefined') {
   window.addEventListener('beforeunload', () => {
     if (metricsQueue.length > 0) {
       // Use sendBeacon for reliable delivery on page unload
-      const userId = null; // We can't get async data in beforeunload
+      const _userId = null; // We can't get async data in beforeunload
       // Note: sendBeacon would require a separate endpoint
       // For now, just try to flush synchronously
       

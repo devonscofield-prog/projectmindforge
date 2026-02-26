@@ -688,7 +688,7 @@ function SDRManagerDashboard() {
                   <LineChart data={teamTrendData}>
                     <XAxis dataKey="date" tick={{ fontSize: 12 }} />
                     <YAxis domain={[0, 10]} tick={{ fontSize: 12 }} />
-                    <Tooltip />
+                    <RTooltip />
                     <Line type="monotone" dataKey="avg" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} name="Avg Score" />
                   </LineChart>
                 </ResponsiveContainer>
