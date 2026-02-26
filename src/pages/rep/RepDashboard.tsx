@@ -21,7 +21,7 @@ import { updateProspect } from '@/api/prospects';
 import { CallType, callTypeOptions } from '@/constants/callTypes';
 import { OpportunityLabel, opportunityLabelOptions } from '@/constants/opportunityLabels';
 import { format, formatDistanceToNow } from 'date-fns';
-import { Send, Loader2, FileText, Pencil, BarChart3, Users, AlertTriangle, Info, Keyboard, RotateCcw, ClipboardList, Package, CheckCircle2, ChevronDown } from 'lucide-react';
+import { Send, Loader2, FileText, Pencil, Users, AlertTriangle, Info, Keyboard, RotateCcw, ClipboardList, CheckCircle2, ChevronDown } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
