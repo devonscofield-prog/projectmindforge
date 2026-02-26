@@ -655,7 +655,7 @@ export function toCoachingSession(row: CoachingSessionRow): CoachingSession {
     notes: row.notes,
     action_items: row.action_items,
     follow_up_date: row.follow_up_date,
-    source_call_id: row.source_call_id,
+    source_call_id: (row as Record<string, unknown>).source_call_id as string | null ?? null,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
