@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { createLogger } from '@/lib/logger';
 
-const log = createLogger('CallDetailPage');
+const _log = createLogger('CallDetailPage'); void _log;
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
