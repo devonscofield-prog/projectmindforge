@@ -20,7 +20,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, Loader2, Sparkles, User, ChevronDown, Trash2, History, Plus, MoreVertical, MessageSquare, Phone, Mail, Target, TrendingUp, Calendar, Clock, Zap, FileText, Users, Wrench, Share2, ListChecks } from 'lucide-react';
+import { Sparkles, ChevronDown, Trash2, History, Plus, MoreVertical, MessageSquare, Phone, Mail, Target, TrendingUp, Calendar, Clock, Zap, FileText, Users, Wrench, Share2, ListChecks } from 'lucide-react';
 import { streamCoachResponse, type ChatMessage as ApiChatMessage } from '@/api/salesCoach';
 import {
   fetchCoachSession,
