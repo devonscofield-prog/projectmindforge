@@ -159,8 +159,8 @@ function AdminSDROverview() {
       if (!memberStats[g.sdr_id]) memberStats[g.sdr_id] = { count: 0, totalScore: 0, meetings: 0, topGrade: null };
       const s = memberStats[g.sdr_id];
       s.count++;
-      const scores = [g.opener_score, g.engagement_score, g.objection_handling_score, g.appointment_setting_score, g.professionalism_score].filter(Boolean);
-      s.totalScore += scores.length ? scores.reduce((a: number, b: number) => a + b, 0) / scores.length : 0;
+      const scores = [g.opener_score, g.engagement_score, g.objection_handling_score, g.appointment_setting_score, g.professionalism_score].filter((s): s is number => s !== null);
+      s.totalScore += scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
       if (g.meeting_scheduled) s.meetings++;
     });
     // Compute top grade per member
