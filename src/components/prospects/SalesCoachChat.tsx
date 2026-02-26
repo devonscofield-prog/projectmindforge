@@ -25,7 +25,7 @@ import { streamCoachResponse, type ChatMessage as ApiChatMessage } from '@/api/s
 import {
   fetchCoachSession,
   saveCoachSession,
-  clearCoachSession,
+  clearCoachSession as _clearCoachSession,
   fetchAllCoachSessions,
   archiveAndStartNewSession,
   switchToSession,
