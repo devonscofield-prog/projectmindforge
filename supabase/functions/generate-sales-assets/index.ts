@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { getCorsHeaders } from "../_shared/cors.ts";
 
-const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
 const MAX_AI_RETRIES = 2;
 const AI_RETRY_DELAY_MS = 1000;
 
