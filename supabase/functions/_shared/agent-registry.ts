@@ -362,7 +362,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (input) => `Based on the following analysis reports from 9 specialized agents, synthesize a coaching plan for the sales rep:\n\n${input}`,
     toolName: 'synthesize_coaching',
     toolDescription: 'Synthesize all analysis into a prioritized coaching plan',
-    options: { model: 'google/gemini-3-pro-preview', temperature: 0.3, maxTokens: 16384 }, // Gemini 3 Pro for superior reasoning - maximum token budget for deep synthesis
+    options: { model: 'openai/gpt-5.2', maxTokens: 16384 },
     isCritical: false,
     default: DEFAULT_COACH,
     phase: 2,
