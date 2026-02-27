@@ -277,7 +277,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (t) => `Analyze this sales call for strategic alignment. Map pains to pitches and score:\n\n${t}`,
     toolName: 'audit_call_strategy',
     toolDescription: 'Audit strategic alignment in a sales call - mapping pains to pitches',
-    options: { model: 'google/gemini-3-pro-preview', temperature: 0.2, maxTokens: 8192 },
+    options: { model: 'openai/gpt-5.2', maxTokens: 8192 },
     isCritical: false,
     default: DEFAULT_STRATEGIST,
     phase: 1,
