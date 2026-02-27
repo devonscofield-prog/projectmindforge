@@ -1,43 +1,117 @@
 
 
-# Slim Down + Add Call Intelligence to Opportunity Enrichment
+# SDR Assistant Chatbots: Manager + Rep
 
-## Fields to Keep (per user request)
-- `SW_Match_Status`
-- `SW_Prospect_Name`
-- `SW_Matched_Account`
-- `SW_Matched_Contact`
-- `SW_Contact_Title`
-- `SW_Heat_Score`
-- `SW_Assigned_Rep`
+## Overview
 
-## Fields to Remove
-- `SW_Confidence`, `SW_Match_Source`, `SW_Account_Status`, `SW_Industry`, `SW_Active_Revenue`, `SW_Potential_Revenue`, `SW_Last_Contact`, `SW_Latest_Call_Date`, `SW_Total_Calls`
+Create two AI chatbots following the exact same pattern as the existing Sales Assistant Chat -- floating button, slide-out sheet, streaming responses, session persistence -- but tailored for the SDR module:
 
-## New Call-Level Fields to Add
-From `ai_call_analysis` joined to `call_transcripts` for matched prospect IDs:
+1. **SDR Manager Assistant** -- Helps managers identify coaching opportunities, analyze team performance, and ask questions about their team's transcripts/grades
+2. **SDR Rep Assistant** -- Helps individual SDRs get coaching advice, review their call grades, and improve their performance
 
-| New Column | Source | Description |
-|---|---|---|
-| `SW_Total_Calls` | count of `call_transcripts` | Keep this one — useful context |
-| `SW_Latest_Call_Date` | `call_transcripts.call_date` | Keep — when was last interaction |
-| `SW_Latest_Call_Summary` | `ai_call_analysis.call_summary` | AI summary of the most recent call |
-| `SW_Deal_Temperature` | `deal_heat_analysis.temperature` | Hot / Warm / Lukewarm / Cold |
-| `SW_Deal_Trend` | `deal_heat_analysis.trend` | Heating Up / Cooling Down / Stagnant |
-| `SW_Win_Probability` | `deal_heat_analysis.winning_probability` | e.g. "Medium (50%)" |
-| `SW_Recommended_Action` | `deal_heat_analysis.recommended_action` | Next best action from deal heat |
-| `SW_Coach_Grade` | `analysis_coaching.overall_grade` | Overall coaching grade (A+, B-, etc.) |
-| `SW_Key_Deal_Factors` | `deal_heat_analysis.key_factors` | Concatenated positive/negative factors |
+Both will use the same OpenAI `gpt-5.2` API as the Sales Assistant (not Lovable AI Gateway), matching the existing architecture.
 
-## Implementation
+---
 
-### 1. Update edge function (`enrich-opportunities-csv/index.ts`)
-- In step 4, change the `call_transcripts` query to also fetch `id` (call_id)
-- After getting call IDs, batch-query `ai_call_analysis` for matched calls: `call_summary`, `deal_heat_analysis`, `analysis_coaching`
-- For each prospect, pick the **most recent call's** analysis data
-- Build the new SW_ columns from parsed JSON fields
-- Remove the dropped columns from the results object
+## What Gets Built
 
-### 2. No frontend changes needed
-The frontend already dynamically renders whatever `SW_*` columns the edge function returns. The new columns will appear automatically in the preview table and downloaded CSV.
+### 1. Edge Function: `sdr-assistant-chat`
+
+A single edge function that handles both SDR and SDR Manager chat, differentiating by the caller's role.
+
+**For SDR Managers:**
+- Fetches all team members via `sdr_teams` + `sdr_team_members`
+- Fetches recent transcripts for all team SDRs
+- Fetches all calls + grades for the team
+- Builds context showing: team roster, grade distribution per rep, recent coaching notes, lowest-performing areas, reps with the most D/F grades, meetings scheduled rate
+- System prompt focused on identifying coaching opportunities, comparing rep performance, and surfacing patterns
+
+**For SDRs:**
+- Fetches only that SDR's transcripts, calls, and grades
+- Builds context showing: their grade history, strengths/improvements from grading, call summaries, trends over time
+- System prompt focused on personal coaching, skill improvement, and call review
+
+### 2. Database: `sdr_assistant_sessions` table
+
+New table mirroring `sales_assistant_sessions` structure for session persistence:
+- `id`, `user_id`, `messages` (jsonb), `title`, `is_active`, `created_at`, `updated_at`
+- RLS: users can only access their own sessions
+
+### 3. Client API: `src/api/sdrAssistant.ts`
+
+Streaming client matching `salesAssistant.ts` pattern -- calls the `sdr-assistant-chat` edge function with message windowing and truncation.
+
+### 4. Session API: `src/api/sdrAssistantSessions.ts`
+
+Session management matching `salesAssistantSessions.ts` -- fetch, save, archive, switch, delete sessions from `sdr_assistant_sessions`.
+
+### 5. Chat Component: `src/components/SDRAssistantChat.tsx`
+
+Floating chat component matching `SalesAssistantChat.tsx` UI:
+- Floating sparkle button in bottom-right
+- Slide-out sheet with streaming markdown responses
+- Quick actions tailored per role:
+  - **Manager**: "Team Performance", "Coaching Opportunities", "Grade Trends", "Weakest Areas"
+  - **SDR**: "My Performance", "Improve My Calls", "Recent Grades", "Best Practices"
+- Session history, new chat, delete chat
+- Rate limit handling
+
+### 6. Integration
+
+- Add `<SDRAssistantChat />` to `SDRManagerDashboard.tsx` and related manager pages
+- Add `<SDRAssistantChat />` to `SDRDashboard.tsx` and SDR history page
+
+---
+
+## Technical Details
+
+### Edge Function Context Building
+
+**Manager context includes:**
+```
+TEAM OVERVIEW
+- Team name, member count
+- Per-rep stats: total calls, meaningful calls, grade distribution, avg scores, meetings booked
+
+COACHING PRIORITIES  
+- Reps with lowest average grades
+- Most common improvement areas across team
+- Reps trending down vs up
+
+RECENT CALL DETAILS
+- Last 5 graded calls per rep with summaries, grades, coaching notes
+```
+
+**SDR context includes:**
+```
+PERFORMANCE SUMMARY
+- Total transcripts, calls detected, meaningful calls
+- Grade distribution, average scores per category
+- Meetings scheduled count
+
+RECENT CALLS
+- Last 20 graded calls with summaries, grades, strengths, improvements, coaching notes
+
+TRENDS
+- Score trends over time
+- Most frequent improvement areas
+```
+
+### Files to Create
+| File | Purpose |
+|------|---------|
+| `supabase/functions/sdr-assistant-chat/index.ts` | Edge function |
+| `src/api/sdrAssistant.ts` | Streaming client |
+| `src/api/sdrAssistantSessions.ts` | Session persistence |
+| `src/components/SDRAssistantChat.tsx` | Chat UI component |
+
+### Files to Modify
+| File | Change |
+|------|--------|
+| `src/pages/sdr-manager/SDRManagerDashboard.tsx` | Add `<SDRAssistantChat />` |
+| `src/pages/sdr/SDRDashboard.tsx` | Add `<SDRAssistantChat />` |
+| `supabase/config.toml` | Not edited (auto-configured) |
+
+### Database Migration
+- Create `sdr_assistant_sessions` table with RLS policies (users read/write own rows only)
 
