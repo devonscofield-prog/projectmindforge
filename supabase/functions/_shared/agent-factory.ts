@@ -631,7 +631,7 @@ export async function executeCoachWithConsensus(
 
   // Both succeeded - reconcile outputs
   console.log('[Coach Consensus] Both models succeeded, reconciling...');
-  const reconciled = await reconcileCoachOutputs(gptData, geminiData, supabase, callId);
+  const reconciled = await reconcileCoachOutputs(gptData, modelBData, supabase, callId);
   
   const totalDuration = performance.now() - start;
   await logPerformance(supabase, 'agent_coach_consensus', totalDuration, 'success', {
