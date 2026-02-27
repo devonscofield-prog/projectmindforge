@@ -39,8 +39,27 @@ const ACCOUNT_NAME_VARIANTS = [
   'Company Name',
 ];
 
+const CONTRACT_CONTACT_VARIANTS = [
+  'Contract Contact',
+  'Contact Name',
+  'Primary Contact',
+  'contract_contact',
+  'contact_name',
+  'ContactName',
+  'Contact',
+  'contact',
+];
+
 function findAccountNameColumn(headers: string[]): string | null {
   for (const variant of ACCOUNT_NAME_VARIANTS) {
+    const found = headers.find((h) => h.trim().toLowerCase() === variant.toLowerCase());
+    if (found) return found;
+  }
+  return null;
+}
+
+function findContactNameColumn(headers: string[]): string | null {
+  for (const variant of CONTRACT_CONTACT_VARIANTS) {
     const found = headers.find((h) => h.trim().toLowerCase() === variant.toLowerCase());
     if (found) return found;
   }
