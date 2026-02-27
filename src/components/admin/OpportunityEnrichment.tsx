@@ -73,7 +73,14 @@ export function OpportunityEnrichment() {
   const [isEnriching, setIsEnriching] = useState(false);
   const [enrichedRows, setEnrichedRows] = useState<Record<string, string>[] | null>(null);
   const [enrichedHeaders, setEnrichedHeaders] = useState<string[]>([]);
-  const [matchStats, setMatchStats] = useState<{ matched: number; unmatched: number } | null>(null);
+  const [matchStats, setMatchStats] = useState<{
+    matched: number;
+    unmatched: number;
+    byAccount: number;
+    byContact: number;
+    exact: number;
+    fuzzy: number;
+  } | null>(null);
   const [confidenceThreshold, setConfidenceThreshold] = useState(30);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -244,16 +251,23 @@ export function OpportunityEnrichment() {
       });
 
       // Calculate match stats
-      let matched = 0;
-      let unmatched = 0;
+      let matched = 0, unmatched = 0, byAccount = 0, byContact = 0, exact = 0, fuzzy = 0;
       for (const row of newRows) {
-        if (row['SW_Match_Status'] === 'Matched' || row['SW_Match_Status'] === 'Fuzzy Match') matched++;
-        else unmatched++;
+        const status = row['SW_Match_Status'];
+        if (status === 'Matched' || status === 'Fuzzy Match') {
+          matched++;
+          if (status === 'Matched') exact++;
+          else fuzzy++;
+          if (row['SW_Match_Source'] === 'Contact') byContact++;
+          else byAccount++;
+        } else {
+          unmatched++;
+        }
       }
 
       setEnrichedHeaders(newHeaders);
       setEnrichedRows(newRows);
-      setMatchStats({ matched, unmatched });
+      setMatchStats({ matched, unmatched, byAccount, byContact, exact, fuzzy });
       toast.success(`Enrichment complete: ${matched} matched, ${unmatched} unmatched`);
     } catch (err) {
       console.error('Enrichment error:', err);
@@ -406,15 +420,35 @@ export function OpportunityEnrichment() {
               )}
 
               {matchStats && (
-                <div className="flex items-center gap-4 mb-4">
-                  <Badge variant="default" className="gap-1.5">
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    {matchStats.matched} matched
-                  </Badge>
-                  <Badge variant="secondary" className="gap-1.5">
-                    <XCircle className="h-3.5 w-3.5" />
-                    {matchStats.unmatched} unmatched
-                  </Badge>
+                <div className="mb-4 space-y-3">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <Badge variant="default" className="gap-1.5">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      {matchStats.matched} matched
+                    </Badge>
+                    <Badge variant="secondary" className="gap-1.5">
+                      <XCircle className="h-3.5 w-3.5" />
+                      {matchStats.unmatched} unmatched
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-center">
+                      <p className="text-lg font-semibold text-foreground">{matchStats.byAccount}</p>
+                      <p className="text-[11px] text-muted-foreground">By Account Name</p>
+                    </div>
+                    <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-center">
+                      <p className="text-lg font-semibold text-foreground">{matchStats.byContact}</p>
+                      <p className="text-[11px] text-muted-foreground">By Contact Name</p>
+                    </div>
+                    <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-center">
+                      <p className="text-lg font-semibold text-primary">{matchStats.exact}</p>
+                      <p className="text-[11px] text-muted-foreground">Exact (≥95%)</p>
+                    </div>
+                    <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-center">
+                      <p className="text-lg font-semibold text-foreground">{matchStats.fuzzy}</p>
+                      <p className="text-[11px] text-muted-foreground">Fuzzy Match</p>
+                    </div>
+                  </div>
                 </div>
               )}
 
