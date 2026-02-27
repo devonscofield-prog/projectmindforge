@@ -444,8 +444,8 @@ async function reconcileCoachOutputs(
 
   // Grades are close (within 1 level) but focus areas differ - use GPT's grade, merge insights
   const gptGradeNum = gradeToNumber(gptCoach.overall_grade as GradeType);
-  const geminiGradeNum = gradeToNumber(geminiCoach.overall_grade as GradeType);
-  const gradeDiff = Math.abs(gptGradeNum - geminiGradeNum);
+  const modelBGradeNum = gradeToNumber(modelBCoach.overall_grade as GradeType);
+  const gradeDiff = Math.abs(gptGradeNum - modelBGradeNum);
 
   if (gradeDiff <= 1) {
     console.log(`[Coach Reconciler] Close grades (diff=${gradeDiff}) - averaging and using GPT focus`);
