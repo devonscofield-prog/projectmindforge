@@ -50,8 +50,8 @@ async function callLovableAI(
   tools: unknown[],
   toolChoice: unknown
 ): Promise<FollowUpSuggestion[] | null> {
-  const LOVABLE_API_KEY = Deno.env.get('OPENAI_API_KEY');
-  if (!LOVABLE_API_KEY) {
+  const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+  if (!OPENAI_API_KEY) {
     console.error('[advisor] OPENAI_API_KEY not configured');
     return null;
   }
