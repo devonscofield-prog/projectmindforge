@@ -243,9 +243,9 @@ export function OpportunityEnrichment() {
               onClick={() => fileInputRef.current?.click()}
             >
               <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-4" />
-              <p className="text-lg font-medium">Drop your CSV file here</p>
+              <p className="text-lg font-medium">Drop your CSV or Excel file here</p>
               <p className="text-sm text-muted-foreground mt-1">
-                or click to browse. Standard Salesforce export with "Account Name" column required.
+                or click to browse. Supports .csv, .xlsx, and .xls files with an "Account Name" column.
               </p>
               <input
                 ref={fileInputRef}
