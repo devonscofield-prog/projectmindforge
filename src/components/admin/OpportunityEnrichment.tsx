@@ -372,6 +372,30 @@ export function OpportunityEnrichment() {
               </div>
             </CardHeader>
             <CardContent>
+              {/* Confidence threshold slider */}
+              {!enrichedRows && (
+                <div className="mb-5 rounded-lg border border-border bg-muted/30 p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">Match Confidence Threshold</span>
+                    <Badge variant="outline" className="ml-auto text-xs font-mono">
+                      {confidenceThreshold}%
+                    </Badge>
+                  </div>
+                  <Slider
+                    value={[confidenceThreshold]}
+                    onValueChange={([v]) => setConfidenceThreshold(v)}
+                    min={10}
+                    max={100}
+                    step={5}
+                    className="w-full"
+                  />
+                  <div className="flex justify-between text-[11px] text-muted-foreground mt-1.5">
+                    <span>Loose (more matches)</span>
+                    <span>Strict (fewer, higher quality)</span>
+                  </div>
+                </div>
+              )}
               {isEnriching && (
                 <div className="mb-4 space-y-2">
                   <Progress value={undefined} className="h-2" />
