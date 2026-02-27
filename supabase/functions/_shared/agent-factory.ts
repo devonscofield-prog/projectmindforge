@@ -637,7 +637,7 @@ export async function executeCoachWithConsensus(
   await logPerformance(supabase, 'agent_coach_consensus', totalDuration, 'success', {
     call_id: callId,
     gpt_grade: gptData.overall_grade,
-    gemini_grade: geminiData.overall_grade,
+    model_b_grade: modelBData.overall_grade,
     final_grade: reconciled.overall_grade,
     reconciliation_needed: gptData.overall_grade !== geminiData.overall_grade || gptData.primary_focus_area !== geminiData.primary_focus_area,
   });
