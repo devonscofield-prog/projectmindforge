@@ -1,52 +1,117 @@
 
 
-# Audio Upload Failure: Root Cause Analysis
+# SDR Assistant Chatbots: Manager + Rep
 
-## Summary
+## Overview
 
-There are **two issues** preventing audio uploads:
+Create two AI chatbots following the exact same pattern as the existing Sales Assistant Chat -- floating button, slide-out sheet, streaming responses, session persistence -- but tailored for the SDR module:
 
-1. **Missing storage INSERT policy** — The `call-audio` storage bucket has no RLS policy allowing users to upload files. SELECT and DELETE policies exist, but no INSERT policy. When the client-side code tries to upload via XHR to `/storage/v1/object/call-audio/...`, the request is silently rejected by RLS. This is why no edge function logs appear — the upload fails before `process-audio-upload` is ever called.
+1. **SDR Manager Assistant** -- Helps managers identify coaching opportunities, analyze team performance, and ask questions about their team's transcripts/grades
+2. **SDR Rep Assistant** -- Helps individual SDRs get coaching advice, review their call grades, and improve their performance
 
-2. **Missing `updated_at` column on `ai_call_analysis`** — The Postgres logs show `column ai_call_analysis.updated_at does not exist`. The `getAudioAnalysis()` function in `src/api/audioAnalysis.ts` selects this column (line 201). This would cause errors when trying to retrieve analysis results later, but is secondary to the upload failure.
+Both will use the same OpenAI `gpt-5.2` API as the Sales Assistant (not Lovable AI Gateway), matching the existing architecture.
 
-## Fix
+---
 
-### Step 1: Add storage INSERT policy for `call-audio` bucket
-Create an RLS policy allowing authenticated users to upload files to their own folder (`user_id/` prefix):
+## What Gets Built
 
-```sql
-CREATE POLICY "Users can upload own call audio"
-ON storage.objects
-FOR INSERT
-WITH CHECK (
-  bucket_id = 'call-audio'
-  AND (auth.uid())::text = (storage.foldername(name))[1]
-);
+### 1. Edge Function: `sdr-assistant-chat`
+
+A single edge function that handles both SDR and SDR Manager chat, differentiating by the caller's role.
+
+**For SDR Managers:**
+- Fetches all team members via `sdr_teams` + `sdr_team_members`
+- Fetches recent transcripts for all team SDRs
+- Fetches all calls + grades for the team
+- Builds context showing: team roster, grade distribution per rep, recent coaching notes, lowest-performing areas, reps with the most D/F grades, meetings scheduled rate
+- System prompt focused on identifying coaching opportunities, comparing rep performance, and surfacing patterns
+
+**For SDRs:**
+- Fetches only that SDR's transcripts, calls, and grades
+- Builds context showing: their grade history, strengths/improvements from grading, call summaries, trends over time
+- System prompt focused on personal coaching, skill improvement, and call review
+
+### 2. Database: `sdr_assistant_sessions` table
+
+New table mirroring `sales_assistant_sessions` structure for session persistence:
+- `id`, `user_id`, `messages` (jsonb), `title`, `is_active`, `created_at`, `updated_at`
+- RLS: users can only access their own sessions
+
+### 3. Client API: `src/api/sdrAssistant.ts`
+
+Streaming client matching `salesAssistant.ts` pattern -- calls the `sdr-assistant-chat` edge function with message windowing and truncation.
+
+### 4. Session API: `src/api/sdrAssistantSessions.ts`
+
+Session management matching `salesAssistantSessions.ts` -- fetch, save, archive, switch, delete sessions from `sdr_assistant_sessions`.
+
+### 5. Chat Component: `src/components/SDRAssistantChat.tsx`
+
+Floating chat component matching `SalesAssistantChat.tsx` UI:
+- Floating sparkle button in bottom-right
+- Slide-out sheet with streaming markdown responses
+- Quick actions tailored per role:
+  - **Manager**: "Team Performance", "Coaching Opportunities", "Grade Trends", "Weakest Areas"
+  - **SDR**: "My Performance", "Improve My Calls", "Recent Grades", "Best Practices"
+- Session history, new chat, delete chat
+- Rate limit handling
+
+### 6. Integration
+
+- Add `<SDRAssistantChat />` to `SDRManagerDashboard.tsx` and related manager pages
+- Add `<SDRAssistantChat />` to `SDRDashboard.tsx` and SDR history page
+
+---
+
+## Technical Details
+
+### Edge Function Context Building
+
+**Manager context includes:**
+```
+TEAM OVERVIEW
+- Team name, member count
+- Per-rep stats: total calls, meaningful calls, grade distribution, avg scores, meetings booked
+
+COACHING PRIORITIES  
+- Reps with lowest average grades
+- Most common improvement areas across team
+- Reps trending down vs up
+
+RECENT CALL DETAILS
+- Last 5 graded calls per rep with summaries, grades, coaching notes
 ```
 
-### Step 2: Add `updated_at` column to `ai_call_analysis`
-```sql
-ALTER TABLE public.ai_call_analysis
-ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
+**SDR context includes:**
+```
+PERFORMANCE SUMMARY
+- Total transcripts, calls detected, meaningful calls
+- Grade distribution, average scores per category
+- Meetings scheduled count
+
+RECENT CALLS
+- Last 20 graded calls with summaries, grades, strengths, improvements, coaching notes
+
+TRENDS
+- Score trends over time
+- Most frequent improvement areas
 ```
 
-### Step 3: Add UPDATE policy for `call-audio` (needed for overwrites)
-```sql
-CREATE POLICY "Users can update own call audio"
-ON storage.objects
-FOR UPDATE
-USING (
-  bucket_id = 'call-audio'
-  AND (auth.uid())::text = (storage.foldername(name))[1]
-);
-```
+### Files to Create
+| File | Purpose |
+|------|---------|
+| `supabase/functions/sdr-assistant-chat/index.ts` | Edge function |
+| `src/api/sdrAssistant.ts` | Streaming client |
+| `src/api/sdrAssistantSessions.ts` | Session persistence |
+| `src/components/SDRAssistantChat.tsx` | Chat UI component |
 
-## Why No Error Was Visible
+### Files to Modify
+| File | Change |
+|------|--------|
+| `src/pages/sdr-manager/SDRManagerDashboard.tsx` | Add `<SDRAssistantChat />` |
+| `src/pages/sdr/SDRDashboard.tsx` | Add `<SDRAssistantChat />` |
+| `supabase/config.toml` | Not edited (auto-configured) |
 
-The client-side `uploadAudioFile()` function uses XHR to upload directly to storage. When storage RLS rejects the upload, it returns a 400/403 which the XHR error handler catches with a generic "Storage upload failed" message. The toast from the mutation hook shows "Failed to upload audio" but without clear indication that it's a permissions issue. The edge functions themselves never fire because the upload never succeeds.
-
-## Files Modified
-- One database migration (storage policies + `updated_at` column)
-- No code changes needed
+### Database Migration
+- Create `sdr_assistant_sessions` table with RLS policies (users read/write own rows only)
 

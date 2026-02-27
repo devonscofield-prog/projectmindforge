@@ -403,6 +403,7 @@ export type Database = {
           skill_tags: string[] | null
           strengths: Json | null
           trend_indicators: Json | null
+          updated_at: string | null
         }
         Insert: {
           analysis_behavior?: Json | null
@@ -446,6 +447,7 @@ export type Database = {
           skill_tags?: string[] | null
           strengths?: Json | null
           trend_indicators?: Json | null
+          updated_at?: string | null
         }
         Update: {
           analysis_behavior?: Json | null
@@ -489,6 +491,7 @@ export type Database = {
           skill_tags?: string[] | null
           strengths?: Json | null
           trend_indicators?: Json | null
+          updated_at?: string | null
         }
         Relationships: [
           {
