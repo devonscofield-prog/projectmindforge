@@ -23,6 +23,7 @@ interface ParsedCSV {
   headers: string[];
   rows: Record<string, string>[];
   accountNameColumn: string | null;
+  contactNameColumn: string | null;
 }
 
 // Standard Salesforce account name column variants
