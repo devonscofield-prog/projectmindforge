@@ -833,7 +833,7 @@ async function processFullReindexJob(
   jobId: string,
   supabase: SupabaseClient<any, "public", any>,
   openaiApiKey: string,
-  lovableApiKey: string
+  openaiNerKey: string
 ) {
   console.log(`[chunk-transcripts] Starting full reindex background job ${jobId}`);
   
