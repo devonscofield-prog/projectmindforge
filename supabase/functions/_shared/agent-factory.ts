@@ -297,8 +297,9 @@ async function callOpenAIAPI<T extends z.ZodTypeAny>(
     } catch (err) {
       clearTimeout(timeoutId);
       if (err instanceof Error && err.name === 'AbortError') {
-        lastError = new Error(`OpenAI API timeout after ${agentTimeoutMs / 1000}s`);
-        continue; // Retry on timeout
+        // Do NOT retry on timeout — the same transcript will almost certainly
+        // time out again, burning through the pipeline hard limit.
+        throw new Error(`OpenAI API timeout after ${agentTimeoutMs / 1000}s`);
       }
       throw err;
     }
