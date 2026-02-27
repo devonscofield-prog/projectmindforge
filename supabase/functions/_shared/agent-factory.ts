@@ -297,8 +297,9 @@ async function callOpenAIAPI<T extends z.ZodTypeAny>(
     } catch (err) {
       clearTimeout(timeoutId);
       if (err instanceof Error && err.name === 'AbortError') {
-        lastError = new Error(`OpenAI API timeout after ${agentTimeoutMs / 1000}s`);
-        continue; // Retry on timeout
+        // Do NOT retry on timeout — the same transcript will almost certainly
+        // time out again, burning through the pipeline hard limit.
+        throw new Error(`OpenAI API timeout after ${agentTimeoutMs / 1000}s`);
       }
       throw err;
     }
@@ -593,7 +594,7 @@ export async function executeCoachWithConsensus(
 
   // Extract results with fallback handling
   const gptData = gptResult.status === 'fulfilled' && gptResult.value.success ? gptResult.value.data : null;
-  const modelBData = geminiResult.status === 'fulfilled' && geminiResult.value.success ? geminiResult.value.data : null;
+  const modelBData = modelBResult.status === 'fulfilled' && modelBResult.value.success ? modelBResult.value.data : null;
 
   const duration = performance.now() - start;
 
@@ -638,7 +639,7 @@ export async function executeCoachWithConsensus(
     gpt_grade: gptData.overall_grade,
     model_b_grade: modelBData.overall_grade,
     final_grade: reconciled.overall_grade,
-    reconciliation_needed: gptData.overall_grade !== geminiData.overall_grade || gptData.primary_focus_area !== geminiData.primary_focus_area,
+    reconciliation_needed: gptData.overall_grade !== modelBData.overall_grade || gptData.primary_focus_area !== modelBData.primary_focus_area,
   });
 
   console.log(`[Coach Consensus] Complete in ${Math.round(totalDuration)}ms - Final grade: ${reconciled.overall_grade}`);
