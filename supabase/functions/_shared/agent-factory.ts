@@ -324,7 +324,7 @@ async function callLovableAI<T extends z.ZodTypeAny>(
 
 // ============= CONSENSUS CONFIGURATION =============
 
-const CONSENSUS_MODELS = ['openai/gpt-5.2', 'google/gemini-3-pro-preview'] as const;
+const CONSENSUS_MODELS = ['openai/gpt-5.2'] as const;
 
 // Grade ranking for averaging
 const GRADE_ORDER = ['F', 'D', 'C', 'B', 'A', 'A+'] as const;
