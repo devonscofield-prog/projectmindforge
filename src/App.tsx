@@ -56,6 +56,7 @@ const AdminPlaybook = lazy(() => import("./pages/admin/AdminPlaybook"));
 const AdminCompetitors = lazy(() => import("./pages/admin/AdminCompetitors"));
 const AdminTrainingPersonas = lazy(() => import("./pages/admin/AdminTrainingPersonas"));
 const AdminReporting = lazy(() => import("./pages/admin/AdminReporting"));
+const AdminOpportunityEnrichment = lazy(() => import("./pages/admin/AdminOpportunityEnrichment"));
 const AdminSDROverview = lazy(() => import("./pages/admin/AdminSDROverview"));
 const AdminEmailDelivery = lazy(() => import("./pages/admin/AdminEmailDelivery"));
 const AdminVoiceQuotas = lazy(() => import("./pages/admin/AdminVoiceQuotas"));
