@@ -661,7 +661,7 @@ Deno.serve(async (req) => {
           supabase, 
           validatedTranscriptIds, 
           validatedMessages, 
-          LOVABLE_API_KEY,
+          OPENAI_API_KEY,
           OPENAI_API_KEY
         );
       } catch (ragError) {
