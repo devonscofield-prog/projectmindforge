@@ -87,11 +87,13 @@ export function OpportunityEnrichment() {
       return;
     }
 
-    setParsedCSV({ headers, rows, accountNameColumn });
+    const contactNameColumn = findContactNameColumn(headers);
+
+    setParsedCSV({ headers, rows, accountNameColumn, contactNameColumn });
     setEnrichedRows(null);
     setEnrichedHeaders([]);
     setMatchStats(null);
-    toast.success(`Parsed ${rows.length} opportunities`);
+    toast.success(`Parsed ${rows.length} opportunities${contactNameColumn ? ` (contact column: "${contactNameColumn}")` : ''}`);
   }, []);
 
   const handleFile = useCallback((file: File) => {
