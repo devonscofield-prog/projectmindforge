@@ -10,17 +10,14 @@ import { AgentConfig } from './agent-registry.ts';
 import { createToolFromSchema } from './zod-to-json-schema.ts';
 import { sanitizeUserContent } from './sanitize.ts';
 
-// AI Gateway configuration
-const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+// AI API configuration
 const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
 const AI_GATEWAY_TIMEOUT_MS = 90000; // 90s - extended for fire-and-forget background processing
 
 // Per-agent timeouts based on model - extended for background processing
 // analyze-call now returns 202 immediately and processes in background
 const AGENT_TIMEOUT_MS = {
-  'google/gemini-2.5-flash': 60000,
-  'google/gemini-2.5-pro': 90000,
-  'google/gemini-3-pro-preview': 90000,
+  'openai/gpt-5-mini': 60000,
   'openai/gpt-5.2': 90000,
 } as const;
 
