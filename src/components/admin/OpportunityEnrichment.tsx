@@ -73,7 +73,14 @@ export function OpportunityEnrichment() {
   const [isEnriching, setIsEnriching] = useState(false);
   const [enrichedRows, setEnrichedRows] = useState<Record<string, string>[] | null>(null);
   const [enrichedHeaders, setEnrichedHeaders] = useState<string[]>([]);
-  const [matchStats, setMatchStats] = useState<{ matched: number; unmatched: number } | null>(null);
+  const [matchStats, setMatchStats] = useState<{
+    matched: number;
+    unmatched: number;
+    byAccount: number;
+    byContact: number;
+    exact: number;
+    fuzzy: number;
+  } | null>(null);
   const [confidenceThreshold, setConfidenceThreshold] = useState(30);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
