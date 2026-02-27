@@ -373,7 +373,7 @@ Deno.serve(async (req) => {
     }
 
     const firecrawlApiKey = Deno.env.get('FIRECRAWL_API_KEY');
-    const lovableApiKey = Deno.env.get('OPENAI_API_KEY');
+    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
     
     if (!firecrawlApiKey) {
       return new Response(
