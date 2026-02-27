@@ -6,7 +6,7 @@ import { Upload, Download, FileSpreadsheet, CheckCircle2, XCircle, Loader2 } fro
 import { cn } from '@/lib/utils';
 import { parseCSV, generateCSV, downloadCSV } from '@/lib/csvParser';
 import * as XLSX from 'xlsx';
-import { enrichOpportunities, type ContactNameEntry } from '@/api/opportunityEnrichment';
+import { enrichOpportunities } from '@/api/opportunityEnrichment';
 import { toast } from 'sonner';
 import {
   Table,
