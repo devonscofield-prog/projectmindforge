@@ -263,7 +263,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (t) => `Analyze this sales call transcript for Question/Answer dynamics. Identify the Rep's questions, filter out logistical questions, and calculate the leverage (Yield Ratio) of each valid sales question:\n\n${t}`,
     toolName: 'analyze_question_leverage',
     toolDescription: 'Analyze question/answer dynamics from a sales call transcript',
-    options: { model: 'google/gemini-2.5-flash', maxTokens: 8192 },
+    options: { model: 'openai/gpt-5-mini', maxTokens: 8192 },
     isCritical: false,
     default: DEFAULT_INTERROGATOR,
     phase: 1,
