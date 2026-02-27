@@ -701,14 +701,14 @@ Deno.serve(async (req) => {
     
     let aiResponse: Response;
     try {
-      aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'google/gemini-3-pro-preview',
+          model: 'gpt-5.2',
           messages: [
             { 
               role: 'system', 
