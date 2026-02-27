@@ -194,7 +194,7 @@ async function handleBackfillBatch(correlationId: string, batchSize: number): Pr
   );
 }
 
-const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
 
 const DEAL_HEAT_TOOL = {
   type: "function",
