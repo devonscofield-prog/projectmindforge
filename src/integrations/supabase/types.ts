@@ -3487,6 +3487,23 @@ export type Database = {
           vector_score: number
         }[]
       }
+      fuzzy_match_prospects: {
+        Args: { p_account_names: string[]; p_threshold?: number }
+        Returns: {
+          account_name: string
+          active_revenue: number
+          heat_score: number
+          industry: string
+          input_name: string
+          last_contact_date: string
+          potential_revenue: number
+          prospect_id: string
+          prospect_name: string
+          rep_id: string
+          similarity_score: number
+          status: string
+        }[]
+      }
       get_admin_prospects_with_call_counts: {
         Args: {
           p_limit?: number
@@ -3612,6 +3629,8 @@ export type Database = {
           trainee_name: string
         }[]
       }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
       soft_delete_record: {
         Args: { p_record_id: string; p_table_name: string }
         Returns: boolean
