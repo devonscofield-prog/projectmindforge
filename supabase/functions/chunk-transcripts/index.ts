@@ -1408,7 +1408,7 @@ Deno.serve(async (req) => {
 
       try {
         // SINGLE AI CALL for all chunks - true batching!
-        const nerResults = await extractEntitiesBatch(batchInput, context, lovableApiKey);
+        const nerResults = await extractEntitiesBatch(batchInput, context, openaiNerKey);
         
         const aiCallTime = Date.now() - batchStartTime;
         console.log(`[chunk-transcripts] AI batch call completed in ${aiCallTime}ms for ${batchInput.length} chunks`);
