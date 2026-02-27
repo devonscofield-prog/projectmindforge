@@ -1,61 +1,117 @@
 
 
-# Add Contract Contact Matching to Opportunity Enrichment
+# SDR Assistant Chatbots: Manager + Rep
 
-## Problem
-Currently the enrichment only matches by Account Name against `prospects.account_name` / `prospects.prospect_name`. The user wants to also match by "Contract Contact" column from the Excel against stakeholder names in the `stakeholders` table.
+## Overview
 
-## Changes
+Create two AI chatbots following the exact same pattern as the existing Sales Assistant Chat -- floating button, slide-out sheet, streaming responses, session persistence -- but tailored for the SDR module:
 
-### 1. New DB function: `fuzzy_match_stakeholders`
-Create a new RPC that fuzzy-matches contact names against `stakeholders.name`, returning the linked `prospect_id` and similarity score. This gives a second path to find the right prospect when account name matching fails or is weak.
+1. **SDR Manager Assistant** -- Helps managers identify coaching opportunities, analyze team performance, and ask questions about their team's transcripts/grades
+2. **SDR Rep Assistant** -- Helps individual SDRs get coaching advice, review their call grades, and improve their performance
 
-### 2. Update frontend: detect "Contract Contact" column
-- Add `CONTRACT_CONTACT_VARIANTS` list (e.g., "Contract Contact", "Contact Name", "Primary Contact", "contract_contact")
-- Detect this column during parsing (similar to account name detection)
-- Send both `accountNames` and `contactNames` arrays (with a mapping of which contact belongs to which row) to the edge function
+Both will use the same OpenAI `gpt-5.2` API as the Sales Assistant (not Lovable AI Gateway), matching the existing architecture.
 
-### 3. Update edge function to accept contact names
-- Accept new `contactNames` parameter (array of objects: `{ accountName, contactName }`)
-- For each row:
-  1. First try `fuzzy_match_prospects` by account name (existing)
-  2. If no match or low confidence, try `fuzzy_match_stakeholders` by contact name
-  3. If stakeholder matches, use its `prospect_id` to pull the same enrichment data
-  4. Pick whichever match has highest combined confidence
-- Add `SW_Contact_Match` and `SW_Matched_Contact` columns to output
+---
 
-### 4. Update match stats display
-- Include "Fuzzy Match" in the matched count (currently only counts exact "Matched")
-- Show contact-based matches in the preview table
+## What Gets Built
+
+### 1. Edge Function: `sdr-assistant-chat`
+
+A single edge function that handles both SDR and SDR Manager chat, differentiating by the caller's role.
+
+**For SDR Managers:**
+- Fetches all team members via `sdr_teams` + `sdr_team_members`
+- Fetches recent transcripts for all team SDRs
+- Fetches all calls + grades for the team
+- Builds context showing: team roster, grade distribution per rep, recent coaching notes, lowest-performing areas, reps with the most D/F grades, meetings scheduled rate
+- System prompt focused on identifying coaching opportunities, comparing rep performance, and surfacing patterns
+
+**For SDRs:**
+- Fetches only that SDR's transcripts, calls, and grades
+- Builds context showing: their grade history, strengths/improvements from grading, call summaries, trends over time
+- System prompt focused on personal coaching, skill improvement, and call review
+
+### 2. Database: `sdr_assistant_sessions` table
+
+New table mirroring `sales_assistant_sessions` structure for session persistence:
+- `id`, `user_id`, `messages` (jsonb), `title`, `is_active`, `created_at`, `updated_at`
+- RLS: users can only access their own sessions
+
+### 3. Client API: `src/api/sdrAssistant.ts`
+
+Streaming client matching `salesAssistant.ts` pattern -- calls the `sdr-assistant-chat` edge function with message windowing and truncation.
+
+### 4. Session API: `src/api/sdrAssistantSessions.ts`
+
+Session management matching `salesAssistantSessions.ts` -- fetch, save, archive, switch, delete sessions from `sdr_assistant_sessions`.
+
+### 5. Chat Component: `src/components/SDRAssistantChat.tsx`
+
+Floating chat component matching `SalesAssistantChat.tsx` UI:
+- Floating sparkle button in bottom-right
+- Slide-out sheet with streaming markdown responses
+- Quick actions tailored per role:
+  - **Manager**: "Team Performance", "Coaching Opportunities", "Grade Trends", "Weakest Areas"
+  - **SDR**: "My Performance", "Improve My Calls", "Recent Grades", "Best Practices"
+- Session history, new chat, delete chat
+- Rate limit handling
+
+### 6. Integration
+
+- Add `<SDRAssistantChat />` to `SDRManagerDashboard.tsx` and related manager pages
+- Add `<SDRAssistantChat />` to `SDRDashboard.tsx` and SDR history page
+
+---
 
 ## Technical Details
 
-**New migration SQL** — `fuzzy_match_stakeholders` function:
-```sql
-CREATE OR REPLACE FUNCTION public.fuzzy_match_stakeholders(
-  p_contact_names text[],
-  p_threshold float DEFAULT 0.3
-)
-RETURNS TABLE(
-  input_name text,
-  stakeholder_id uuid,
-  stakeholder_name text,
-  prospect_id uuid,
-  rep_id uuid,
-  job_title text,
-  similarity_score float
-)
--- Matches against stakeholders.name using pg_trgm similarity
--- Returns top 3 per input, ordered by similarity
+### Edge Function Context Building
+
+**Manager context includes:**
+```
+TEAM OVERVIEW
+- Team name, member count
+- Per-rep stats: total calls, meaningful calls, grade distribution, avg scores, meetings booked
+
+COACHING PRIORITIES  
+- Reps with lowest average grades
+- Most common improvement areas across team
+- Reps trending down vs up
+
+RECENT CALL DETAILS
+- Last 5 graded calls per rep with summaries, grades, coaching notes
 ```
 
-**Edge function flow** — for each opportunity row:
-1. Look up account name match from `fuzzy_match_prospects` results
-2. If contact name provided, also call `fuzzy_match_stakeholders`
-3. If stakeholder match found and its `prospect_id` yields a better or supplementary match, use it
-4. Merge: account-level enrichment + `SW_Matched_Contact` / `SW_Contact_Title` columns
+**SDR context includes:**
+```
+PERFORMANCE SUMMARY
+- Total transcripts, calls detected, meaningful calls
+- Grade distribution, average scores per category
+- Meetings scheduled count
 
-**Frontend changes** — `OpportunityEnrichment.tsx`:
-- Detect contact column, pass `contactNames` alongside `accountNames` to edge function
-- Display `SW_Matched_Contact` in preview
+RECENT CALLS
+- Last 20 graded calls with summaries, grades, strengths, improvements, coaching notes
+
+TRENDS
+- Score trends over time
+- Most frequent improvement areas
+```
+
+### Files to Create
+| File | Purpose |
+|------|---------|
+| `supabase/functions/sdr-assistant-chat/index.ts` | Edge function |
+| `src/api/sdrAssistant.ts` | Streaming client |
+| `src/api/sdrAssistantSessions.ts` | Session persistence |
+| `src/components/SDRAssistantChat.tsx` | Chat UI component |
+
+### Files to Modify
+| File | Change |
+|------|--------|
+| `src/pages/sdr-manager/SDRManagerDashboard.tsx` | Add `<SDRAssistantChat />` |
+| `src/pages/sdr/SDRDashboard.tsx` | Add `<SDRAssistantChat />` |
+| `supabase/config.toml` | Not edited (auto-configured) |
+
+### Database Migration
+- Create `sdr_assistant_sessions` table with RLS policies (users read/write own rows only)
 

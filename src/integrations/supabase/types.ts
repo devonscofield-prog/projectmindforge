@@ -3504,6 +3504,26 @@ export type Database = {
           status: string
         }[]
       }
+      fuzzy_match_stakeholders: {
+        Args: { p_contact_names: string[]; p_threshold?: number }
+        Returns: {
+          account_name: string
+          active_revenue: number
+          heat_score: number
+          industry: string
+          input_name: string
+          job_title: string
+          last_contact_date: string
+          potential_revenue: number
+          prospect_id: string
+          prospect_name: string
+          rep_id: string
+          similarity_score: number
+          stakeholder_id: string
+          stakeholder_name: string
+          status: string
+        }[]
+      }
       get_admin_prospects_with_call_counts: {
         Args: {
           p_limit?: number
