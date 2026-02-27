@@ -387,9 +387,12 @@ export function OpportunityEnrichment() {
                                 key={h}
                                 className={cn(
                                   'max-w-[200px] truncate',
-                                  h === 'SW_Match_Status' &&
-                                    row[h] === 'Matched' &&
+                              h === 'SW_Match_Status' &&
+                                    (row[h] === 'Matched' || row[h] === 'Fuzzy Match') &&
                                     'text-primary font-medium',
+                                  h === 'SW_Match_Status' &&
+                                    row[h] === 'No Match' &&
+                                    'text-destructive font-medium',
                                 )}
                               >
                                 {row[h] || '—'}
