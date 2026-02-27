@@ -54,7 +54,7 @@ export default function AdminPerformanceMonitor() {
   } = useQuery({
     queryKey: ['system-health'],
     queryFn: getSystemHealth,
-    refetchInterval: 60000, // Refresh every minute
+    refetchInterval: 300000, // Refresh every 5 minutes
   });
 
   const {
