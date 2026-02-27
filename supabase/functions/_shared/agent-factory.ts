@@ -411,7 +411,7 @@ async function executeAgentWithModel<T extends z.ZodTypeAny>(
  */
 async function reconcileCoachOutputs(
   gptCoach: z.infer<typeof import('./agent-schemas.ts').CoachSchema>,
-  geminiCoach: z.infer<typeof import('./agent-schemas.ts').CoachSchema>,
+  modelBCoach: z.infer<typeof import('./agent-schemas.ts').CoachSchema>,
   supabase: SupabaseClient,
   callId: string
 ): Promise<z.infer<typeof import('./agent-schemas.ts').CoachSchema>> {
