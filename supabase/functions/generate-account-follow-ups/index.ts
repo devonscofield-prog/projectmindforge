@@ -241,7 +241,7 @@ Deno.serve(async (req) => {
     try {
       const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
+        headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
         signal: controller.signal,
         body: JSON.stringify({
           model: 'gpt-5.2',

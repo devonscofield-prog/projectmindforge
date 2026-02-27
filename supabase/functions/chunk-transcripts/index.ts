@@ -2082,7 +2082,7 @@ Deno.serve(async (req) => {
             text: chunk.chunk_text
           }));
 
-          const nerResults = await extractEntitiesBatch(batchInput, context, lovableApiKey);
+          const nerResults = await extractEntitiesBatch(batchInput, context, openaiNerKey);
 
           for (const chunk of batch) {
             const nerResult = nerResults.get(chunk.id);
