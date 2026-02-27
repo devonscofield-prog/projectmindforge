@@ -117,10 +117,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
 
     setPresenceChannel(channel);
 
-    // Periodically update last_seen_at (every 30 seconds)
+    // Periodically update last_seen_at (every 5 minutes)
     const lastSeenInterval = setInterval(() => {
       updateLastSeen(user.id);
-    }, 30000);
+    }, 300000);
 
     return () => {
       channel.unsubscribe();
