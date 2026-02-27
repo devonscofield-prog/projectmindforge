@@ -68,7 +68,7 @@ async function handleBackfillBatch(correlationId: string, batchSize: number): Pr
   
   console.log(`[${correlationId}] Found ${callsToProcess.length} calls to process, ${totalRemaining} total remaining`);
   
-  const apiKey = Deno.env.get('LOVABLE_API_KEY');
+  const apiKey = Deno.env.get('OPENAI_API_KEY');
   if (!apiKey) {
     return new Response(
       JSON.stringify({ error: 'AI service not configured' }),
