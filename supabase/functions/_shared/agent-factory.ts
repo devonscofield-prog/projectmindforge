@@ -594,7 +594,7 @@ export async function executeCoachWithConsensus(
 
   // Extract results with fallback handling
   const gptData = gptResult.status === 'fulfilled' && gptResult.value.success ? gptResult.value.data : null;
-  const geminiData = geminiResult.status === 'fulfilled' && geminiResult.value.success ? geminiResult.value.data : null;
+  const modelBData = geminiResult.status === 'fulfilled' && geminiResult.value.success ? geminiResult.value.data : null;
 
   const duration = performance.now() - start;
 
