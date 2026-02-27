@@ -305,7 +305,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (t) => `Analyze this sales call transcript for objections and pushback. Identify how the rep handled each moment of friction:\n\n${t}`,
     toolName: 'analyze_objection_handling',
     toolDescription: 'Analyze how the rep handled objections and pushback during the sales call',
-    options: { model: 'google/gemini-2.5-flash', temperature: 0.1, maxTokens: 8192 },
+    options: { model: 'openai/gpt-5-mini', maxTokens: 8192 },
     isCritical: false,
     default: DEFAULT_NEGOTIATOR,
     phase: 1,
