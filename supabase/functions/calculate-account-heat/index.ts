@@ -347,14 +347,14 @@ No calls recorded for this account.`);
     let analysis: AccountHeatAnalysis;
 
     try {
-      const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${lovableApiKey}`,
+          'Authorization': `Bearer ${openaiApiKey}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          model: 'google/gemini-3-pro-preview',
+          model: 'gpt-5.2',
           messages: [
             { role: 'system', content: SYSTEM_PROMPT },
             { role: 'user', content: fullContext }

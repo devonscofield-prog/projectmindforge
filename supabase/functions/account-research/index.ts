@@ -177,9 +177,9 @@ Deno.serve(async (req) => {
 
     console.log('[account-research] Processing structured research request for:', companyName);
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      console.error('[account-research] LOVABLE_API_KEY is not configured');
+    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+    if (!OPENAI_API_KEY) {
+      console.error('[account-research] OPENAI_API_KEY is not configured');
       return new Response(
         JSON.stringify({ error: 'AI service not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -219,14 +219,14 @@ Call submit_account_research with findings.`;
 
     let response: Response;
     try {
-      response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'google/gemini-3-pro-preview',
+          model: 'gpt-5.2',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt }

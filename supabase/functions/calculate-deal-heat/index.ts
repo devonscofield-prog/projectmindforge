@@ -369,25 +369,24 @@ Deno.serve(async (req) => {
 
     // Build the user prompt with all available context
     const userPrompt = buildUserPrompt(transcript, strategy_data, behavior_data, metadata);
-    console.log(`[${correlationId}] Calling Lovable AI (gemini-2.5-pro)`);
+    console.log(`[${correlationId}] Calling OpenAI (gpt-5.2)`);
 
     const startTime = Date.now();
-    const response = await fetch(LOVABLE_AI_URL, {
+    const response = await fetch(OPENAI_API_URL, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-pro',
+        model: 'gpt-5.2',
         messages: [
           { role: 'system', content: ACTUARY_SYSTEM_PROMPT },
           { role: 'user', content: userPrompt }
         ],
         tools: [DEAL_HEAT_TOOL],
         tool_choice: { type: 'function', function: { name: 'calculate_deal_heat' } },
-        max_tokens: 4096,
-        temperature: 0.2,
+        max_completion_tokens: 4096,
       }),
     });
 

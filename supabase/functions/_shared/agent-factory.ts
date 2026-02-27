@@ -501,29 +501,28 @@ Output your reconciled assessment using the same schema.`;
     const { createToolFromSchema } = await import('./zod-to-json-schema.ts');
     
     const tool = createToolFromSchema('reconcile_coaching', 'Synthesize two coaching assessments into one', CoachSchema);
-    const apiKey = Deno.env.get('LOVABLE_API_KEY');
+    const apiKey = Deno.env.get('OPENAI_API_KEY');
     
     if (!apiKey) {
       console.warn('[Coach Reconciler] No API key - falling back to GPT result');
       return gptCoach;
     }
 
-    const response = await fetch(LOVABLE_AI_URL, {
+    const response = await fetch(OPENAI_API_URL, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash', // Fast model for reconciliation
+        model: 'gpt-5-mini', // Fast model for reconciliation
         messages: [
           { role: 'system', content: 'You are a senior sales coach reconciling two assessments. Be decisive and evidence-based.' },
           { role: 'user', content: reconcilerPrompt },
         ],
         tools: [tool],
         tool_choice: { type: 'function', function: { name: 'reconcile_coaching' } },
-        max_tokens: 8192,
-        temperature: 0.2,
+        max_completion_tokens: 8192,
       }),
     });
 

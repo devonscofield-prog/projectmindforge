@@ -200,16 +200,16 @@ export interface AIRequestOptions {
 }
 
 /**
- * Call Lovable AI Gateway
+ * Call OpenAI API
  */
 export async function callLovableAI(options: AIRequestOptions): Promise<Response> {
-  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-  if (!LOVABLE_API_KEY) {
-    throw new Error('LOVABLE_API_KEY not configured');
+  const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+  if (!OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY not configured');
   }
 
   const body: Record<string, unknown> = {
-    model: options.model || 'google/gemini-2.5-flash',
+    model: options.model || 'gpt-5-mini',
     messages: [
       { role: 'system', content: options.systemPrompt },
       ...options.messages,
@@ -226,10 +226,10 @@ export async function callLovableAI(options: AIRequestOptions): Promise<Response
     body.stream = true;
   }
 
-  return fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+  return fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+      'Authorization': `Bearer ${OPENAI_API_KEY}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
