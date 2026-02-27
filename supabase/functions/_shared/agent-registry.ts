@@ -249,7 +249,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (t) => `Analyze this sales call transcript for behavioral dynamics and score the rep's performance:\n\n${t}`,
     toolName: 'score_call_behavior',
     toolDescription: 'Analyze and score the behavioral dynamics of a sales call',
-    options: { model: 'google/gemini-2.5-flash', temperature: 0.1, maxTokens: 8192 },
+    options: { model: 'openai/gpt-5-mini', maxTokens: 8192 },
     isCritical: false,
     default: DEFAULT_REFEREE,
     phase: 1,
