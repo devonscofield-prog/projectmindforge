@@ -212,8 +212,8 @@ ${email.body}
     console.log(`[generate-agreed-next-steps] Processing ${calls?.length || 0} calls, ${emails?.length || 0} emails, ~${contextPrompt.length} chars`);
 
     // Call AI
-    const LOVABLE_API_KEY = Deno.env.get('OPENAI_API_KEY');
-    if (!LOVABLE_API_KEY) throw new Error('OPENAI_API_KEY not configured');
+    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+    if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY not configured');
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 60000);
