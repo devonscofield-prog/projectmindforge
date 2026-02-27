@@ -82,7 +82,7 @@ export default function AdminPerformanceMonitor() {
   } = useQuery({
     queryKey: ['benchmark-comparison'],
     queryFn: () => getBenchmarkComparison(1, 7),
-    refetchInterval: 60000,
+    refetchInterval: 300000, // Refresh every 5 minutes
   });
 
   const handleRefresh = () => {
