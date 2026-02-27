@@ -55,36 +55,71 @@ export function OpportunityEnrichment() {
   const [matchStats, setMatchStats] = useState<{ matched: number; unmatched: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const processData = useCallback((headers: string[], rows: Record<string, string>[]) => {
+    if (headers.length === 0 || rows.length === 0) {
+      toast.error('File appears empty or invalid');
+      return;
+    }
+
+    const accountNameColumn = findAccountNameColumn(headers);
+    if (!accountNameColumn) {
+      toast.error('Could not find an "Account Name" column. Expected columns: ' + ACCOUNT_NAME_VARIANTS.slice(0, 4).join(', '));
+      return;
+    }
+
+    setParsedCSV({ headers, rows, accountNameColumn });
+    setEnrichedRows(null);
+    setEnrichedHeaders([]);
+    setMatchStats(null);
+    toast.success(`Parsed ${rows.length} opportunities`);
+  }, []);
+
   const handleFile = useCallback((file: File) => {
-    if (!file.name.endsWith('.csv')) {
-      toast.error('Please upload a CSV file');
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    const isExcel = ext === 'xlsx' || ext === 'xls';
+    const isCsv = ext === 'csv';
+
+    if (!isCsv && !isExcel) {
+      toast.error('Please upload a CSV or Excel (.xlsx/.xls) file');
       return;
     }
 
     const reader = new FileReader();
     reader.onload = (e) => {
-      const text = e.target?.result as string;
-      const { headers, rows } = parseCSV(text);
+      if (isCsv) {
+        const text = e.target?.result as string;
+        const { headers, rows } = parseCSV(text);
+        processData(headers, rows);
+      } else {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
 
-      if (headers.length === 0 || rows.length === 0) {
-        toast.error('CSV file appears empty or invalid');
-        return;
+        if (jsonData.length === 0) {
+          toast.error('Excel file appears empty');
+          return;
+        }
+
+        const headers = Object.keys(jsonData[0]);
+        const rows = jsonData.map((row) => {
+          const obj: Record<string, string> = {};
+          for (const h of headers) {
+            obj[h] = String(row[h] ?? '');
+          }
+          return obj;
+        });
+        processData(headers, rows);
       }
-
-      const accountNameColumn = findAccountNameColumn(headers);
-      if (!accountNameColumn) {
-        toast.error('Could not find an "Account Name" column in the CSV. Expected columns: ' + ACCOUNT_NAME_VARIANTS.slice(0, 4).join(', '));
-        return;
-      }
-
-      setParsedCSV({ headers, rows, accountNameColumn });
-      setEnrichedRows(null);
-      setEnrichedHeaders([]);
-      setMatchStats(null);
-      toast.success(`Parsed ${rows.length} opportunities from CSV`);
     };
-    reader.readAsText(file);
-  }, []);
+
+    if (isCsv) {
+      reader.readAsText(file);
+    } else {
+      reader.readAsArrayBuffer(file);
+    }
+  }, [processData]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
