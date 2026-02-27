@@ -263,10 +263,11 @@ Deno.serve(async (req) => {
 
       results[key] = {
         SW_Match_Status: m.similarity_score >= 0.95 ? 'Matched' : 'Fuzzy Match',
+        SW_Match_Source: fm.source === 'contact' ? 'Contact' : 'Account',
         SW_Prospect_Name: m.prospect_name || '',
         SW_Matched_Account: m.account_name || m.prospect_name || '',
         SW_Matched_Contact: fm.contactName || '',
-        SW_Contact_Title: fm.source === 'contact' ? (m.job_title || '') : '',
+        SW_Contact_Title: fm.contactTitle || '',
         SW_Heat_Score: m.heat_score != null ? String(m.heat_score) : '',
         SW_Assigned_Rep: repName,
         SW_Total_Calls: String(callCount),
