@@ -103,7 +103,7 @@ Deno.serve(async (req) => {
       const uniqueContacts = [...new Set(contactNamesList)];
       const { data: contactMatches, error: contactError } = await supabase.rpc('fuzzy_match_stakeholders', {
         p_contact_names: uniqueContacts,
-        p_threshold: 0.3,
+        p_threshold: matchThreshold,
       });
 
       if (contactError) {
