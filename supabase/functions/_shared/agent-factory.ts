@@ -599,12 +599,12 @@ export async function executeCoachWithConsensus(
   const duration = performance.now() - start;
 
   // If both models fail, return default
-  if (!gptData && !geminiData) {
+  if (!gptData && !modelBData) {
     console.error('[Coach Consensus] Both models failed');
     await logPerformance(supabase, 'agent_coach_consensus', duration, 'error', {
       call_id: callId,
       gpt_failed: true,
-      gemini_failed: true,
+      model_b_failed: true,
     });
     return { success: false, data: config.default, durationMs: duration, error: 'Both consensus models failed' };
   }
