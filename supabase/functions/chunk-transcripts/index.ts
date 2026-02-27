@@ -1662,7 +1662,7 @@ Deno.serve(async (req) => {
       }
 
       // Start background processing
-      EdgeRuntime.waitUntil(processNERBackfillJob(job.id, supabase, lovableApiKey));
+      EdgeRuntime.waitUntil(processNERBackfillJob(job.id, supabase, openaiNerKey));
 
       // Return immediately with job ID
       return new Response(
