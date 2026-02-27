@@ -416,7 +416,7 @@ async function reconcileCoachOutputs(
   callId: string
 ): Promise<z.infer<typeof import('./agent-schemas.ts').CoachSchema>> {
   console.log(`[Coach Reconciler] GPT grade: ${gptCoach.overall_grade}, focus: ${gptCoach.primary_focus_area}`);
-  console.log(`[Coach Reconciler] Gemini grade: ${geminiCoach.overall_grade}, focus: ${geminiCoach.primary_focus_area}`);
+  console.log(`[Coach Reconciler] Model B grade: ${modelBCoach.overall_grade}, focus: ${modelBCoach.primary_focus_area}`);
 
   // If grades match and primary focus matches, merge arrays and combine reasoning
   if (gptCoach.overall_grade === geminiCoach.overall_grade && 
