@@ -639,7 +639,7 @@ export async function executeCoachWithConsensus(
     gpt_grade: gptData.overall_grade,
     model_b_grade: modelBData.overall_grade,
     final_grade: reconciled.overall_grade,
-    reconciliation_needed: gptData.overall_grade !== geminiData.overall_grade || gptData.primary_focus_area !== geminiData.primary_focus_area,
+    reconciliation_needed: gptData.overall_grade !== modelBData.overall_grade || gptData.primary_focus_area !== modelBData.primary_focus_area,
   });
 
   console.log(`[Coach Consensus] Complete in ${Math.round(totalDuration)}ms - Final grade: ${reconciled.overall_grade}`);
