@@ -182,7 +182,7 @@ function extractUserIdFromJWT(authHeader: string | null): string {
 }
 ```
 
-### Lovable AI Gateway Helper
+### OpenAI API Helper
 
 ```typescript
 interface AIRequestOptions {
@@ -194,14 +194,14 @@ interface AIRequestOptions {
   stream?: boolean;
 }
 
-async function callLovableAI(options: AIRequestOptions): Promise<Response> {
-  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-  if (!LOVABLE_API_KEY) {
-    throw new Error('LOVABLE_API_KEY not configured');
+async function callOpenAI(options: AIRequestOptions): Promise<Response> {
+  const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+  if (!OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY not configured');
   }
 
   const body: Record<string, unknown> = {
-    model: options.model || 'google/gemini-2.5-flash',
+    model: options.model || 'gpt-5-mini',
     messages: [
       { role: 'system', content: options.systemPrompt },
       ...options.messages,
@@ -218,10 +218,10 @@ async function callLovableAI(options: AIRequestOptions): Promise<Response> {
     body.stream = true;
   }
 
-  return fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+  return fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+      'Authorization': `Bearer ${OPENAI_API_KEY}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
@@ -241,8 +241,8 @@ async function handleAIResponse(
       return errorResponse('Usage limit reached, please add credits', 402, corsHeaders);
     }
     const errorText = await response.text();
-    console.error(`[${functionName}] AI Gateway error:`, response.status, errorText);
-    throw new Error(`AI Gateway error: ${response.status}`);
+    console.error(`[${functionName}] OpenAI API error:`, response.status, errorText);
+    throw new Error(`OpenAI API error: ${response.status}`);
   }
   return response;
 }

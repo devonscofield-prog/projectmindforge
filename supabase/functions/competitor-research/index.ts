@@ -412,7 +412,7 @@ Deno.serve(async (req) => {
 
       // Run research in background - function continues after response
       EdgeRuntime.waitUntil(
-        runCompetitorResearch(competitor_id, formattedUrl, name, firecrawlApiKey, lovableApiKey)
+        runCompetitorResearch(competitor_id, formattedUrl, name, firecrawlApiKey, openaiApiKey)
       );
 
       // Return immediately - research continues in background

@@ -279,7 +279,7 @@ ${transcript.substring(0, 30000)}`;
       const response = await fetch(OPENAI_API_URL, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${lovableApiKey}`,
+          'Authorization': `Bearer ${openaiApiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
