@@ -61,53 +61,39 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Build a lowercase lookup set
-    const lookupNames = accountNames.map((n: string) => n.toLowerCase().trim());
+    // Use fuzzy matching via pg_trgm similarity (threshold 0.3 ≈ catches 80-90% confidence matches)
+    const { data: matches, error: matchError } = await supabase.rpc('fuzzy_match_prospects', {
+      p_account_names: accountNames,
+      p_threshold: 0.3,
+    });
 
-    // Fetch all prospects (account_name is used for matching)
-    const { data: prospects, error: prospectError } = await supabase
-      .from('prospects')
-      .select(
-        'id, prospect_name, account_name, status, heat_score, potential_revenue, active_revenue, last_contact_date, industry, rep_id'
-      )
-      .is('deleted_at', null);
-
-    if (prospectError) {
-      throw new Error(`Failed to fetch prospects: ${prospectError.message}`);
+    if (matchError) {
+      throw new Error(`Fuzzy match failed: ${matchError.message}`);
     }
 
-    // Build a map of lowercase account_name -> prospect(s)
-    // If multiple prospects share the same account_name, aggregate
-    const prospectMap = new Map<string, typeof prospects>();
-    for (const p of prospects || []) {
-      const key = (p.account_name || p.prospect_name || '').toLowerCase().trim();
-      if (!key) continue;
-      if (!prospectMap.has(key)) {
-        prospectMap.set(key, []);
-      }
-      prospectMap.get(key)!.push(p);
-    }
+    // Group matches by input_name, pick best match per input
+    const bestMatches = new Map<string, (typeof matches)[number]>();
+    const allMatchesByName = new Map<string, (typeof matches)[number][]>();
 
-    // Gather prospect IDs that matched for call counting
-    const matchedProspectIds: string[] = [];
-    const prospectIdToKey = new Map<string, string>();
+    for (const m of matches || []) {
+      const key = m.input_name.toLowerCase().trim();
+      if (!allMatchesByName.has(key)) allMatchesByName.set(key, []);
+      allMatchesByName.get(key)!.push(m);
 
-    for (const name of lookupNames) {
-      const matches = prospectMap.get(name);
-      if (matches) {
-        for (const m of matches) {
-          matchedProspectIds.push(m.id);
-          prospectIdToKey.set(m.id, name);
-        }
+      const existing = bestMatches.get(key);
+      if (!existing || m.similarity_score > existing.similarity_score) {
+        bestMatches.set(key, m);
       }
     }
+
+    // Gather matched prospect IDs for call counting
+    const matchedProspectIds = [...bestMatches.values()].map((m) => m.prospect_id);
 
     // Fetch call counts per prospect
     const callCountMap = new Map<string, number>();
     const latestCallMap = new Map<string, string>();
 
     if (matchedProspectIds.length > 0) {
-      // Batch in chunks of 200 to avoid query limits
       for (let i = 0; i < matchedProspectIds.length; i += 200) {
         const batch = matchedProspectIds.slice(i, i + 200);
         const { data: calls } = await supabase
@@ -119,65 +105,58 @@ Deno.serve(async (req) => {
 
         for (const c of calls || []) {
           if (!c.prospect_id) continue;
-          const key = prospectIdToKey.get(c.prospect_id) || '';
-          callCountMap.set(key, (callCountMap.get(key) || 0) + 1);
-          if (!latestCallMap.has(key)) {
-            latestCallMap.set(key, c.call_date);
+          // Map prospect_id back to input_name
+          for (const [key, best] of bestMatches) {
+            if (best.prospect_id === c.prospect_id) {
+              callCountMap.set(key, (callCountMap.get(key) || 0) + 1);
+              if (!latestCallMap.has(key)) latestCallMap.set(key, c.call_date);
+            }
           }
         }
       }
     }
 
-    // Fetch rep names for matched prospects
-    const repIds = [...new Set((prospects || []).filter(p => p.rep_id).map(p => p.rep_id))];
+    // Fetch rep names
+    const repIds = [...new Set([...bestMatches.values()].filter((m) => m.rep_id).map((m) => m.rep_id))];
     const repNameMap = new Map<string, string>();
     if (repIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, name')
-        .in('id', repIds);
+      const { data: profiles } = await supabase.from('profiles').select('id, name').in('id', repIds);
       for (const p of profiles || []) {
         repNameMap.set(p.id, p.name);
       }
     }
 
-    // Build enrichment results
+    // Build results
     const results: Record<string, Record<string, string>> = {};
 
-    for (const name of lookupNames) {
-      const matches = prospectMap.get(name);
-      if (!matches || matches.length === 0) {
-        results[name] = { SW_Match_Status: 'No Match' };
+    for (const inputName of accountNames) {
+      const key = inputName.toLowerCase().trim();
+      const best = bestMatches.get(key);
+
+      if (!best) {
+        results[key] = { SW_Match_Status: 'No Match' };
         continue;
       }
 
-      // Use the "best" prospect: highest heat score, or most recent contact
-      const best = matches.sort((a, b) => {
-        if ((b.heat_score || 0) !== (a.heat_score || 0)) return (b.heat_score || 0) - (a.heat_score || 0);
-        return (b.last_contact_date || '').localeCompare(a.last_contact_date || '');
-      })[0];
+      const callCount = callCountMap.get(key) || 0;
+      const latestCall = latestCallMap.get(key) || '';
+      const repName = best.rep_id ? repNameMap.get(best.rep_id) || '' : '';
+      const confidencePct = Math.round(best.similarity_score * 100);
 
-      const callCount = callCountMap.get(name) || 0;
-      const latestCall = latestCallMap.get(name) || '';
-      const repName = best.rep_id ? (repNameMap.get(best.rep_id) || '') : '';
-
-      // Aggregate revenue across all matching prospects
-      const totalActiveRevenue = matches.reduce((sum, p) => sum + (p.active_revenue || 0), 0);
-      const totalPotentialRevenue = matches.reduce((sum, p) => sum + (p.potential_revenue || 0), 0);
-
-      results[name] = {
-        SW_Match_Status: 'Matched',
+      results[key] = {
+        SW_Match_Status: best.similarity_score >= 0.95 ? 'Matched' : 'Fuzzy Match',
+        SW_Confidence: `${confidencePct}%`,
+        SW_Matched_Account: best.account_name || best.prospect_name || '',
         SW_Prospect_Name: best.prospect_name || '',
         SW_Account_Status: best.status || '',
         SW_Heat_Score: best.heat_score != null ? String(best.heat_score) : '',
         SW_Industry: best.industry || '',
-        SW_Active_Revenue: totalActiveRevenue > 0 ? String(totalActiveRevenue) : '',
-        SW_Potential_Revenue: totalPotentialRevenue > 0 ? String(totalPotentialRevenue) : '',
+        SW_Active_Revenue: best.active_revenue ? String(best.active_revenue) : '',
+        SW_Potential_Revenue: best.potential_revenue ? String(best.potential_revenue) : '',
         SW_Last_Contact: best.last_contact_date || '',
         SW_Latest_Call_Date: latestCall,
         SW_Total_Calls: String(callCount),
         SW_Assigned_Rep: repName,
-        SW_Prospect_Count: matches.length > 1 ? String(matches.length) : '1',
       };
     }
 
