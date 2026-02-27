@@ -153,7 +153,7 @@ async function runCompetitorResearch(
   formattedUrl: string,
   name: string,
   firecrawlApiKey: string,
-  lovableApiKey: string
+  openaiApiKey: string
 ): Promise<void> {
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
