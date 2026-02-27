@@ -1,312 +1,197 @@
-import { createClient } from "@supabase/supabase-js";
-import { getCorsHeaders } from "../_shared/cors.ts";
+import { createClient } from 'npm:@supabase/supabase-js@2';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers':
+    'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
+};
 
 Deno.serve(async (req) => {
-  const origin = req.headers.get("Origin");
-  const corsHeaders = getCorsHeaders(origin);
-
-  if (req.method === "OPTIONS") {
+  if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Verify admin role via JWT
-    const authHeader = req.headers.get("Authorization");
+    const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Missing authorization" }), {
+      return new Response(JSON.stringify({ error: 'Missing authorization' }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Verify the calling user is an admin
-    const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: { user }, error: userError } = await userClient.auth.getUser();
-    if (userError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+    // Verify the caller is an admin
+    const anonClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!);
+    const {
+      data: { user },
+      error: authError,
+    } = await anonClient.auth.getUser(authHeader.replace('Bearer ', ''));
+
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     // Check admin role
-    const adminClient = createClient(supabaseUrl, serviceKey);
-    const { data: roleData } = await adminClient
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
+    const { data: roleData } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
       .single();
 
-    if (roleData?.role !== "admin") {
-      return new Response(JSON.stringify({ error: "Admin access required" }), {
+    if (!roleData || roleData.role !== 'admin') {
+      return new Response(JSON.stringify({ error: 'Admin access required' }), {
         status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const { accountNames } = await req.json() as { accountNames: string[] };
-    if (!accountNames || !Array.isArray(accountNames) || accountNames.length === 0) {
-      return new Response(JSON.stringify({ error: "accountNames array required" }), {
+    const { accountNames } = await req.json();
+
+    if (!Array.isArray(accountNames) || accountNames.length === 0) {
+      return new Response(JSON.stringify({ error: 'accountNames array required' }), {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Limit batch size
-    const names = accountNames.slice(0, 500);
-    const lowerNames = names.map((n) => n.toLowerCase().trim());
+    // Build a lowercase lookup set
+    const lookupNames = accountNames.map((n: string) => n.toLowerCase().trim());
 
-    // 1. Find matching prospects (case-insensitive)
-    const { data: prospects } = await adminClient
-      .from("prospects")
-      .select("id, prospect_name, account_name, rep_id, heat_score, account_heat_score, account_heat_analysis, ai_extracted_info, status, potential_revenue, active_revenue, last_contact_date, industry")
-      .is("deleted_at", null);
+    // Fetch all prospects (account_name is used for matching)
+    const { data: prospects, error: prospectError } = await supabase
+      .from('prospects')
+      .select(
+        'id, prospect_name, account_name, status, heat_score, potential_revenue, active_revenue, last_contact_date, industry, rep_id'
+      )
+      .is('deleted_at', null);
 
-    // Build a map: lowercase account_name -> prospect
-    const prospectMap = new Map<string, typeof prospects extends (infer T)[] | null ? T : never>();
-    for (const p of prospects ?? []) {
-      const key = (p.account_name || p.prospect_name || "").toLowerCase().trim();
-      if (key && lowerNames.includes(key)) {
-        // Keep the one with the highest heat score if duplicates
-        const existing = prospectMap.get(key);
-        if (!existing || (p.account_heat_score ?? 0) > (existing.account_heat_score ?? 0)) {
-          prospectMap.set(key, p);
+    if (prospectError) {
+      throw new Error(`Failed to fetch prospects: ${prospectError.message}`);
+    }
+
+    // Build a map of lowercase account_name -> prospect(s)
+    // If multiple prospects share the same account_name, aggregate
+    const prospectMap = new Map<string, typeof prospects>();
+    for (const p of prospects || []) {
+      const key = (p.account_name || p.prospect_name || '').toLowerCase().trim();
+      if (!key) continue;
+      if (!prospectMap.has(key)) {
+        prospectMap.set(key, []);
+      }
+      prospectMap.get(key)!.push(p);
+    }
+
+    // Gather prospect IDs that matched for call counting
+    const matchedProspectIds: string[] = [];
+    const prospectIdToKey = new Map<string, string>();
+
+    for (const name of lookupNames) {
+      const matches = prospectMap.get(name);
+      if (matches) {
+        for (const m of matches) {
+          matchedProspectIds.push(m.id);
+          prospectIdToKey.set(m.id, name);
         }
       }
     }
 
-    // Collect matched prospect IDs for batch queries
-    const matchedProspects = Array.from(prospectMap.values());
-    const prospectIds = matchedProspects.map((p) => p.id);
+    // Fetch call counts per prospect
+    const callCountMap = new Map<string, number>();
+    const latestCallMap = new Map<string, string>();
 
-    // 2. Batch query call_transcripts for matched prospects
-    let callsByProspect = new Map<string, { total: number; lastDate: string; callTypes: string[] }>();
-    if (prospectIds.length > 0) {
-      const { data: calls } = await adminClient
-        .from("call_transcripts")
-        .select("id, prospect_id, call_date, call_type")
-        .in("prospect_id", prospectIds)
-        .is("deleted_at", null)
-        .order("call_date", { ascending: false });
+    if (matchedProspectIds.length > 0) {
+      // Batch in chunks of 200 to avoid query limits
+      for (let i = 0; i < matchedProspectIds.length; i += 200) {
+        const batch = matchedProspectIds.slice(i, i + 200);
+        const { data: calls } = await supabase
+          .from('call_transcripts')
+          .select('prospect_id, call_date')
+          .in('prospect_id', batch)
+          .is('deleted_at', null)
+          .order('call_date', { ascending: false });
 
-      for (const c of calls ?? []) {
-        if (!c.prospect_id) continue;
-        const existing = callsByProspect.get(c.prospect_id);
-        if (existing) {
-          existing.total++;
-          if (c.call_type && !existing.callTypes.includes(c.call_type)) {
-            existing.callTypes.push(c.call_type);
-          }
-        } else {
-          callsByProspect.set(c.prospect_id, {
-            total: 1,
-            lastDate: c.call_date,
-            callTypes: c.call_type ? [c.call_type] : [],
-          });
-        }
-      }
-    }
-
-    // 3. Get latest AI analysis per prospect (via call)
-    let analysisByProspect = new Map<string, Record<string, unknown>>();
-    if (prospectIds.length > 0) {
-      // Get the latest call per prospect, then its analysis
-      const { data: latestCalls } = await adminClient
-        .from("call_transcripts")
-        .select("id, prospect_id")
-        .in("prospect_id", prospectIds)
-        .is("deleted_at", null)
-        .order("call_date", { ascending: false });
-
-      // Deduplicate to get only the latest call per prospect
-      const latestCallByProspect = new Map<string, string>();
-      for (const c of latestCalls ?? []) {
-        if (c.prospect_id && !latestCallByProspect.has(c.prospect_id)) {
-          latestCallByProspect.set(c.prospect_id, c.id);
-        }
-      }
-
-      const latestCallIds = Array.from(latestCallByProspect.values());
-      if (latestCallIds.length > 0) {
-        const { data: analyses } = await adminClient
-          .from("ai_call_analysis")
-          .select("call_id, call_summary, call_effectiveness_score, discovery_score, objection_handling_score, rapport_communication_score, product_knowledge_score, deal_advancement_score, deal_heat_analysis, prospect_intel, deal_gaps, strengths, opportunities, analysis_behavior, deal_tags, skill_tags")
-          .in("call_id", latestCallIds)
-          .is("deleted_at", null);
-
-        for (const a of analyses ?? []) {
-          // Find the prospect_id for this call
-          for (const [pid, cid] of latestCallByProspect.entries()) {
-            if (cid === a.call_id) {
-              analysisByProspect.set(pid, a as Record<string, unknown>);
-              break;
-            }
+        for (const c of calls || []) {
+          if (!c.prospect_id) continue;
+          const key = prospectIdToKey.get(c.prospect_id) || '';
+          callCountMap.set(key, (callCountMap.get(key) || 0) + 1);
+          if (!latestCallMap.has(key)) {
+            latestCallMap.set(key, c.call_date);
           }
         }
       }
     }
 
-    // 4. Stakeholders per prospect
-    let stakeholdersByProspect = new Map<string, { names: string[]; titles: string[]; influenceLevels: string[]; championScores: number[] }>();
-    if (prospectIds.length > 0) {
-      const { data: stakeholders } = await adminClient
-        .from("stakeholders")
-        .select("prospect_id, name, job_title, influence_level, champion_score")
-        .in("prospect_id", prospectIds)
-        .is("deleted_at", null);
-
-      for (const s of stakeholders ?? []) {
-        const existing = stakeholdersByProspect.get(s.prospect_id);
-        if (existing) {
-          existing.names.push(s.name);
-          if (s.job_title) existing.titles.push(s.job_title);
-          if (s.influence_level) existing.influenceLevels.push(s.influence_level);
-          if (s.champion_score != null) existing.championScores.push(s.champion_score);
-        } else {
-          stakeholdersByProspect.set(s.prospect_id, {
-            names: [s.name],
-            titles: s.job_title ? [s.job_title] : [],
-            influenceLevels: s.influence_level ? [s.influence_level] : [],
-            championScores: s.champion_score != null ? [s.champion_score] : [],
-          });
-        }
+    // Fetch rep names for matched prospects
+    const repIds = [...new Set((prospects || []).filter(p => p.rep_id).map(p => p.rep_id))];
+    const repNameMap = new Map<string, string>();
+    if (repIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, name')
+        .in('id', repIds);
+      for (const p of profiles || []) {
+        repNameMap.set(p.id, p.name);
       }
     }
 
-    // 5. Follow-ups per prospect
-    let followUpsByProspect = new Map<string, { count: number; nextDue: string | null; titles: string[] }>();
-    if (prospectIds.length > 0) {
-      const { data: followUps } = await adminClient
-        .from("account_follow_ups")
-        .select("prospect_id, title, due_date, status")
-        .in("prospect_id", prospectIds)
-        .in("status", ["pending", "in_progress"])
-        .order("due_date", { ascending: true });
-
-      for (const f of followUps ?? []) {
-        const existing = followUpsByProspect.get(f.prospect_id);
-        if (existing) {
-          existing.count++;
-          existing.titles.push(f.title);
-          if (!existing.nextDue && f.due_date) existing.nextDue = f.due_date;
-        } else {
-          followUpsByProspect.set(f.prospect_id, {
-            count: 1,
-            nextDue: f.due_date,
-            titles: [f.title],
-          });
-        }
-      }
-    }
-
-    // 6. Build enrichment results keyed by lowercase account name
+    // Build enrichment results
     const results: Record<string, Record<string, string>> = {};
 
-    for (const name of lowerNames) {
-      const prospect = prospectMap.get(name);
-      if (!prospect) {
-        results[name] = { "SW_Match_Status": "No Match" };
+    for (const name of lookupNames) {
+      const matches = prospectMap.get(name);
+      if (!matches || matches.length === 0) {
+        results[name] = { SW_Match_Status: 'No Match' };
         continue;
       }
 
-      const calls = callsByProspect.get(prospect.id);
-      const analysis = analysisByProspect.get(prospect.id);
-      const stakeholders = stakeholdersByProspect.get(prospect.id);
-      const followUps = followUpsByProspect.get(prospect.id);
+      // Use the "best" prospect: highest heat score, or most recent contact
+      const best = matches.sort((a, b) => {
+        if ((b.heat_score || 0) !== (a.heat_score || 0)) return (b.heat_score || 0) - (a.heat_score || 0);
+        return (b.last_contact_date || '').localeCompare(a.last_contact_date || '');
+      })[0];
 
-      // Parse AI extracted info
-      const aiInfo = prospect.ai_extracted_info as Record<string, unknown> | null;
-      const heatAnalysis = prospect.account_heat_analysis as Record<string, unknown> | null;
+      const callCount = callCountMap.get(name) || 0;
+      const latestCall = latestCallMap.get(name) || '';
+      const repName = best.rep_id ? (repNameMap.get(best.rep_id) || '') : '';
 
-      // Extract MEDDPICC from analysis
-      const behavior = analysis?.analysis_behavior as Record<string, unknown> | null;
-      const dealHeat = analysis?.deal_heat_analysis as Record<string, unknown> | null;
-      const prospectIntel = analysis?.prospect_intel as Record<string, unknown> | null;
+      // Aggregate revenue across all matching prospects
+      const totalActiveRevenue = matches.reduce((sum, p) => sum + (p.active_revenue || 0), 0);
+      const totalPotentialRevenue = matches.reduce((sum, p) => sum + (p.potential_revenue || 0), 0);
 
       results[name] = {
-        "SW_Match_Status": "Matched",
-        // Heat Score
-        "SW_Account_Heat_Score": String(prospect.account_heat_score ?? ""),
-        "SW_Temperature": String(heatAnalysis?.temperature ?? ""),
-        "SW_Heat_Trend": String(heatAnalysis?.trend ?? ""),
-        "SW_Account_Status": prospect.status ?? "",
-        "SW_Potential_Revenue": String(prospect.potential_revenue ?? ""),
-        "SW_Active_Revenue": String(prospect.active_revenue ?? ""),
-        "SW_Last_Contact": prospect.last_contact_date ?? "",
-        "SW_Industry": prospect.industry ?? "",
-        // AI Insights
-        "SW_Deal_Blockers": jsonArrayToString(aiInfo?.deal_blockers),
-        "SW_Buying_Signals": jsonArrayToString(aiInfo?.buying_signals),
-        "SW_Stall_Signals": jsonArrayToString(aiInfo?.stall_signals),
-        "SW_Relationship_Trajectory": String(aiInfo?.relationship_trajectory ?? ""),
-        "SW_Next_Best_Action": String(aiInfo?.next_best_action ?? ""),
-        "SW_Pain_Points": jsonArrayToString(aiInfo?.pain_points),
-        "SW_Competitors_Mentioned": jsonArrayToString(aiInfo?.competitors_mentioned ?? prospectIntel?.competitors_mentioned),
-        // Call Activity
-        "SW_Total_Calls": String(calls?.total ?? 0),
-        "SW_Last_Call_Date": calls?.lastDate ?? "",
-        "SW_Call_Types": (calls?.callTypes ?? []).join("; "),
-        // Latest Analysis
-        "SW_Call_Summary": String(analysis?.call_summary ?? ""),
-        "SW_Effectiveness_Score": String(analysis?.call_effectiveness_score ?? ""),
-        "SW_Discovery_Score": String(analysis?.discovery_score ?? ""),
-        "SW_Objection_Handling": String(analysis?.objection_handling_score ?? ""),
-        "SW_Rapport_Score": String(analysis?.rapport_communication_score ?? ""),
-        "SW_Product_Knowledge": String(analysis?.product_knowledge_score ?? ""),
-        "SW_Deal_Advancement": String(analysis?.deal_advancement_score ?? ""),
-        "SW_Coach_Grade": String(behavior?.overall_score ?? ""),
-        "SW_Deal_Tags": jsonArrayToString(analysis?.deal_tags),
-        "SW_Skill_Tags": jsonArrayToString(analysis?.skill_tags),
-        "SW_Deal_Gaps": jsonArrayToString(analysis?.deal_gaps),
-        "SW_Strengths": jsonArrayToString(analysis?.strengths),
-        "SW_Opportunities": jsonArrayToString(analysis?.opportunities),
-        // Deal Heat
-        "SW_Deal_Temperature": String(dealHeat?.temperature ?? ""),
-        "SW_Deal_Momentum": String(dealHeat?.momentum ?? ""),
-        // Stakeholders
-        "SW_Stakeholder_Names": (stakeholders?.names ?? []).join("; "),
-        "SW_Stakeholder_Titles": (stakeholders?.titles ?? []).join("; "),
-        "SW_Influence_Levels": (stakeholders?.influenceLevels ?? []).join("; "),
-        "SW_Champion_Scores": (stakeholders?.championScores ?? []).join("; "),
-        // Follow-Ups
-        "SW_Pending_FollowUps": String(followUps?.count ?? 0),
-        "SW_Next_FollowUp_Due": followUps?.nextDue ?? "",
-        "SW_FollowUp_Titles": (followUps?.titles ?? []).slice(0, 5).join("; "),
+        SW_Match_Status: 'Matched',
+        SW_Prospect_Name: best.prospect_name || '',
+        SW_Account_Status: best.status || '',
+        SW_Heat_Score: best.heat_score != null ? String(best.heat_score) : '',
+        SW_Industry: best.industry || '',
+        SW_Active_Revenue: totalActiveRevenue > 0 ? String(totalActiveRevenue) : '',
+        SW_Potential_Revenue: totalPotentialRevenue > 0 ? String(totalPotentialRevenue) : '',
+        SW_Last_Contact: best.last_contact_date || '',
+        SW_Latest_Call_Date: latestCall,
+        SW_Total_Calls: String(callCount),
+        SW_Assigned_Rep: repName,
+        SW_Prospect_Count: matches.length > 1 ? String(matches.length) : '1',
       };
     }
 
     return new Response(JSON.stringify({ results }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
-  } catch (error) {
-    console.error("Enrichment error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  } catch (err) {
+    console.error('enrich-opportunities-csv error:', err);
+    return new Response(
+      JSON.stringify({ error: err instanceof Error ? err.message : 'Internal error' }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
   }
 });
-
-function jsonArrayToString(val: unknown): string {
-  if (!val) return "";
-  if (Array.isArray(val)) {
-    return val
-      .map((item) => {
-        if (typeof item === "string") return item;
-        if (typeof item === "object" && item !== null) {
-          // Handle objects like {label: "...", description: "..."}
-          return (item as Record<string, unknown>).label || (item as Record<string, unknown>).description || (item as Record<string, unknown>).text || JSON.stringify(item);
-        }
-        return String(item);
-      })
-      .join("; ");
-  }
-  if (typeof val === "string") return val;
-  return JSON.stringify(val);
-}
