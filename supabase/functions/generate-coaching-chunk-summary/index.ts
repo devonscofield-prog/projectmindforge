@@ -168,8 +168,8 @@ Deno.serve(async (req) => {
 
     console.log(`[generate-coaching-chunk-summary] Analyzing chunk ${chunkIndex} with ${calls.length} calls`);
 
-    const LOVABLE_API_KEY = Deno.env.get('OPENAI_API_KEY');
-    if (!LOVABLE_API_KEY) {
+    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+    if (!OPENAI_API_KEY) {
       throw new Error('OPENAI_API_KEY not configured');
     }
 
