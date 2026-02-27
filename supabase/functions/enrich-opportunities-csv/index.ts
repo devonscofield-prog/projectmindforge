@@ -52,7 +52,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { accountNames, contactNames } = await req.json();
+    const { accountNames, contactNames, threshold } = await req.json();
+    const matchThreshold = typeof threshold === 'number' && threshold >= 0.1 && threshold <= 1.0 ? threshold : 0.3;
 
     if (!Array.isArray(accountNames) || accountNames.length === 0) {
       return new Response(JSON.stringify({ error: 'accountNames array required' }), {

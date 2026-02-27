@@ -224,7 +224,7 @@ export function OpportunityEnrichment() {
             .filter((e) => e.contactName);
         }
 
-        const result = await enrichOpportunities(batch, contactEntries);
+        const result = await enrichOpportunities(batch, contactEntries, confidenceThreshold / 100);
         Object.assign(allResults, result.results);
       }
 
