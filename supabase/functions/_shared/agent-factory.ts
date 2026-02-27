@@ -587,7 +587,7 @@ export async function executeCoachWithConsensus(
   console.log('[Coach Consensus] Starting multi-model execution...');
 
   // Run both models in parallel
-  const [gptResult, geminiResult] = await Promise.allSettled([
+  const [gptResult, modelBResult] = await Promise.allSettled([
     executeAgentWithModel(config, userPrompt, 'openai/gpt-5.2', supabase, callId),
     executeAgentWithModel(config, userPrompt, 'openai/gpt-5-mini', supabase, callId),
   ]);
