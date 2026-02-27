@@ -333,7 +333,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (t) => `Analyze this sales call transcript for competitive intelligence. Find ALL mentions of other vendors, tools, or incumbents and build a battlecard:\n\n${t}`,
     toolName: 'analyze_competitors',
     toolDescription: 'Extract competitive intelligence from a sales call transcript',
-    options: { model: 'google/gemini-2.5-flash', temperature: 0.2, maxTokens: 8192 },
+    options: { model: 'openai/gpt-5-mini', maxTokens: 8192 },
     isCritical: false,
     default: DEFAULT_SPY,
     phase: 1,
