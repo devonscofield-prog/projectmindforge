@@ -450,20 +450,19 @@ async function reconcileCoachOutputs(
   if (gradeDiff <= 1) {
     console.log(`[Coach Reconciler] Close grades (diff=${gradeDiff}) - averaging and using GPT focus`);
     // Average the grades
-    const avgGrade = numberToGrade((gptGradeNum * 0.55 + geminiGradeNum * 0.45));
+    const avgGrade = numberToGrade((gptGradeNum * 0.55 + modelBGradeNum * 0.45));
     
     return {
       overall_grade: avgGrade,
       executive_summary: gptCoach.executive_summary,
-      top_3_strengths: deduplicateStrings([...gptCoach.top_3_strengths, ...geminiCoach.top_3_strengths]).slice(0, 3),
-      top_3_areas_for_improvement: deduplicateStrings([...gptCoach.top_3_areas_for_improvement, ...geminiCoach.top_3_areas_for_improvement]).slice(0, 3),
-      // GPT wins tiebreaker on focus area
+      top_3_strengths: deduplicateStrings([...gptCoach.top_3_strengths, ...modelBCoach.top_3_strengths]).slice(0, 3),
+      top_3_areas_for_improvement: deduplicateStrings([...gptCoach.top_3_areas_for_improvement, ...modelBCoach.top_3_areas_for_improvement]).slice(0, 3),
       primary_focus_area: gptCoach.primary_focus_area,
       coaching_prescription: gptCoach.coaching_prescription,
-      coaching_drill: gptCoach.coaching_drill || geminiCoach.coaching_drill,
-      immediate_action: gptCoach.immediate_action || geminiCoach.immediate_action,
-      grade_reasoning: `[Multi-model consensus - GPT: ${gptCoach.overall_grade}, Gemini: ${geminiCoach.overall_grade}]\n\nGPT reasoning: ${gptCoach.grade_reasoning}\n\nGemini perspective: ${geminiCoach.grade_reasoning}`,
-      deal_progression: gptCoach.deal_progression || geminiCoach.deal_progression,
+      coaching_drill: gptCoach.coaching_drill || modelBCoach.coaching_drill,
+      immediate_action: gptCoach.immediate_action || modelBCoach.immediate_action,
+      grade_reasoning: `[Multi-model consensus - Model A: ${gptCoach.overall_grade}, Model B: ${modelBCoach.overall_grade}]\n\nModel A reasoning: ${gptCoach.grade_reasoning}\n\nModel B perspective: ${modelBCoach.grade_reasoning}`,
+      deal_progression: gptCoach.deal_progression || modelBCoach.deal_progression,
     };
   }
 
