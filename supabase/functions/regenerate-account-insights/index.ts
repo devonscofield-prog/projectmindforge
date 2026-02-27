@@ -196,19 +196,19 @@ Deno.serve(async (req) => {
     console.log(`[regenerate-account-insights] Context built: ${calls.length} calls, ${emailLogs.length} emails, ~${contextPrompt.length} chars`);
 
     // Call AI with 60-second timeout
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY not configured');
+    const LOVABLE_API_KEY = Deno.env.get('OPENAI_API_KEY');
+    if (!LOVABLE_API_KEY) throw new Error('OPENAI_API_KEY not configured');
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 60000);
 
     try {
-      const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
         signal: controller.signal,
         body: JSON.stringify({
-          model: 'google/gemini-3-pro-preview',
+          model: 'gpt-5.2',
           messages: [
             { role: 'system', content: INSIGHTS_SYSTEM_PROMPT },
             { role: 'user', content: contextPrompt }

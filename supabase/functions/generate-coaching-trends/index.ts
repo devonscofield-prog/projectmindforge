@@ -691,9 +691,9 @@ Deno.serve(async (req) => {
   try {
     // requestBody already parsed above with HMAC validation
     
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const LOVABLE_API_KEY = Deno.env.get('OPENAI_API_KEY');
     if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
+      throw new Error('OPENAI_API_KEY not configured');
     }
 
     let systemPrompt: string;
@@ -765,16 +765,16 @@ Provide a comprehensive trend analysis with specific evidence and actionable rec
     
     let aiResponse: Response;
     try {
-      aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${LOVABLE_API_KEY}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'google/gemini-3-pro-preview',
+          model: 'gpt-5.2',
           temperature: 0.2,
-          max_tokens: 8192,
+          max_completion_tokens: 8192,
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt }

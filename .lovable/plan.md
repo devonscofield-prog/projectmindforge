@@ -1,80 +1,117 @@
 
 
-# Migrate All AI Calls from Lovable AI Gateway to OpenAI API
+# SDR Assistant Chatbots: Manager + Rep
 
-## Scope
+## Overview
 
-19 files currently use `https://ai.gateway.lovable.dev/v1/chat/completions` with `LOVABLE_API_KEY`. All must be migrated to `https://api.openai.com/v1/chat/completions` with `OPENAI_API_KEY`. The project already has `OPENAI_API_KEY` configured as a secret.
+Create two AI chatbots following the exact same pattern as the existing Sales Assistant Chat -- floating button, slide-out sheet, streaming responses, session persistence -- but tailored for the SDR module:
 
-## Model Mapping
+1. **SDR Manager Assistant** -- Helps managers identify coaching opportunities, analyze team performance, and ask questions about their team's transcripts/grades
+2. **SDR Rep Assistant** -- Helps individual SDRs get coaching advice, review their call grades, and improve their performance
 
-Gemini models used via Lovable Gateway will be replaced with OpenAI equivalents:
+Both will use the same OpenAI `gpt-5.2` API as the Sales Assistant (not Lovable AI Gateway), matching the existing architecture.
 
-| Current (Lovable Gateway) | New (OpenAI) |
-|---|---|
-| `google/gemini-3-pro-preview` | `gpt-5.2` |
-| `google/gemini-2.5-pro` | `gpt-5.2` |
-| `google/gemini-2.5-flash` | `gpt-5-mini` |
-| `google/gemini-2.5-flash-lite` | `gpt-5-nano` |
+---
 
-## Files to Update
+## What Gets Built
 
-### Shared Infrastructure (affects analyze-call pipeline)
-1. **`supabase/functions/_shared/agent-factory.ts`** — Remove `LOVABLE_AI_URL`, remove `callLovableAI` function, route ALL models through OpenAI API. Update the coach reconciler (~line 644) to use OpenAI. Update `agent-registry.ts` model types.
-2. **`supabase/functions/_shared/agent-registry.ts`** — Change all `google/gemini-*` model references to OpenAI equivalents.
-3. **`supabase/functions/_shared/utils.ts`** — Replace `callLovableAI()` helper to use OpenAI API instead of Lovable Gateway.
+### 1. Edge Function: `sdr-assistant-chat`
 
-### Individual Edge Functions (16 files)
-4. **`account-research/index.ts`** — `gemini-3-pro-preview` → `gpt-5.2`
-5. **`admin-transcript-chat/index.ts`** — Two calls: query classification (`gemini-2.5-flash-lite` → `gpt-5-nano`) and main analysis (`gemini-3-pro-preview` → `gpt-5.2`)
-6. **`analyze-performance/index.ts`** — `gemini-2.5-flash` → `gpt-5-mini`
-7. **`calculate-account-heat/index.ts`** — `gemini-3-pro-preview` → `gpt-5.2`
-8. **`calculate-deal-heat/index.ts`** — Two calls: flash for backfill, pro for main. Both → OpenAI equivalents
-9. **`chunk-transcripts/index.ts`** — NER extraction (`gemini-2.5-flash-lite` → `gpt-5-nano`). Note: embedding calls already use OpenAI.
-10. **`competitor-research/index.ts`** — `gemini-3-pro-preview` → `gpt-5.2`
-11. **`edit-recap-email/index.ts`** — `gemini-2.5-flash` → `gpt-5-mini`
-12. **`generate-account-follow-ups/index.ts`** — `gemini-3-pro-preview` → `gpt-5.2`
-13. **`generate-agreed-next-steps/index.ts`** — `gemini-3-pro-preview` → `gpt-5.2`
-14. **`generate-call-follow-up-suggestions/index.ts`** — `gemini-2.5-flash` → `gpt-5-mini`
-15. **`generate-coaching-chunk-summary/index.ts`** — `gemini-2.5-flash` → `gpt-5-mini`
-16. **`generate-coaching-trends/index.ts`** — `gemini-3-pro-preview` → `gpt-5.2`
-17. **`generate-sales-assets/index.ts`** — `gemini-2.5-flash` → `gpt-5-mini`
-18. **`regenerate-account-insights/index.ts`** — `gemini-3-pro-preview` → `gpt-5.2`
-19. **`roleplay-grade-session/index.ts`** — Remove Lovable AI fallback, use OpenAI only with `gpt-5.2`
+A single edge function that handles both SDR and SDR Manager chat, differentiating by the caller's role.
 
-### Already Using OpenAI (no changes needed)
-- `sales-coach-chat` — already `gpt-5.2` via OpenAI
-- `sales-assistant-chat` — already `gpt-5.2` via OpenAI
-- `admin-assistant-chat` — already `gpt-5.2` via OpenAI
-- `sdr-assistant-chat` — already `gpt-5.2` via OpenAI
-- `sdr-process-transcript` — already `gpt-5.2` via OpenAI
-- `sdr-grade-call` — already `gpt-5.2` via OpenAI
-- `analyze-audio-voice` — already OpenAI
-- `transcribe-audio` — already OpenAI
-- `roleplay-session-manager` — already OpenAI
+**For SDR Managers:**
+- Fetches all team members via `sdr_teams` + `sdr_team_members`
+- Fetches recent transcripts for all team SDRs
+- Fetches all calls + grades for the team
+- Builds context showing: team roster, grade distribution per rep, recent coaching notes, lowest-performing areas, reps with the most D/F grades, meetings scheduled rate
+- System prompt focused on identifying coaching opportunities, comparing rep performance, and surfacing patterns
 
-## Pattern for Each Change
+**For SDRs:**
+- Fetches only that SDR's transcripts, calls, and grades
+- Builds context showing: their grade history, strengths/improvements from grading, call summaries, trends over time
+- System prompt focused on personal coaching, skill improvement, and call review
 
-In every file, the change follows the same pattern:
-```typescript
-// BEFORE
-const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-  headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}` },
-  body: JSON.stringify({ model: 'google/gemini-2.5-flash', ... })
-});
+### 2. Database: `sdr_assistant_sessions` table
 
-// AFTER
-const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-await fetch('https://api.openai.com/v1/chat/completions', {
-  headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}` },
-  body: JSON.stringify({ model: 'gpt-5-mini', ... })
-});
+New table mirroring `sales_assistant_sessions` structure for session persistence:
+- `id`, `user_id`, `messages` (jsonb), `title`, `is_active`, `created_at`, `updated_at`
+- RLS: users can only access their own sessions
+
+### 3. Client API: `src/api/sdrAssistant.ts`
+
+Streaming client matching `salesAssistant.ts` pattern -- calls the `sdr-assistant-chat` edge function with message windowing and truncation.
+
+### 4. Session API: `src/api/sdrAssistantSessions.ts`
+
+Session management matching `salesAssistantSessions.ts` -- fetch, save, archive, switch, delete sessions from `sdr_assistant_sessions`.
+
+### 5. Chat Component: `src/components/SDRAssistantChat.tsx`
+
+Floating chat component matching `SalesAssistantChat.tsx` UI:
+- Floating sparkle button in bottom-right
+- Slide-out sheet with streaming markdown responses
+- Quick actions tailored per role:
+  - **Manager**: "Team Performance", "Coaching Opportunities", "Grade Trends", "Weakest Areas"
+  - **SDR**: "My Performance", "Improve My Calls", "Recent Grades", "Best Practices"
+- Session history, new chat, delete chat
+- Rate limit handling
+
+### 6. Integration
+
+- Add `<SDRAssistantChat />` to `SDRManagerDashboard.tsx` and related manager pages
+- Add `<SDRAssistantChat />` to `SDRDashboard.tsx` and SDR history page
+
+---
+
+## Technical Details
+
+### Edge Function Context Building
+
+**Manager context includes:**
+```
+TEAM OVERVIEW
+- Team name, member count
+- Per-rep stats: total calls, meaningful calls, grade distribution, avg scores, meetings booked
+
+COACHING PRIORITIES  
+- Reps with lowest average grades
+- Most common improvement areas across team
+- Reps trending down vs up
+
+RECENT CALL DETAILS
+- Last 5 graded calls per rep with summaries, grades, coaching notes
 ```
 
-## Risk & Notes
-- All 19 edge functions will be redeployed automatically
-- No client-side code changes needed (streaming format is identical between OpenAI and Lovable Gateway)
-- `OPENAI_API_KEY` is already configured as a secret
-- Error handling for 429/402 remains the same (OpenAI uses the same status codes)
+**SDR context includes:**
+```
+PERFORMANCE SUMMARY
+- Total transcripts, calls detected, meaningful calls
+- Grade distribution, average scores per category
+- Meetings scheduled count
+
+RECENT CALLS
+- Last 20 graded calls with summaries, grades, strengths, improvements, coaching notes
+
+TRENDS
+- Score trends over time
+- Most frequent improvement areas
+```
+
+### Files to Create
+| File | Purpose |
+|------|---------|
+| `supabase/functions/sdr-assistant-chat/index.ts` | Edge function |
+| `src/api/sdrAssistant.ts` | Streaming client |
+| `src/api/sdrAssistantSessions.ts` | Session persistence |
+| `src/components/SDRAssistantChat.tsx` | Chat UI component |
+
+### Files to Modify
+| File | Change |
+|------|--------|
+| `src/pages/sdr-manager/SDRManagerDashboard.tsx` | Add `<SDRAssistantChat />` |
+| `src/pages/sdr/SDRDashboard.tsx` | Add `<SDRAssistantChat />` |
+| `supabase/config.toml` | Not edited (auto-configured) |
+
+### Database Migration
+- Create `sdr_assistant_sessions` table with RLS policies (users read/write own rows only)
 

@@ -68,7 +68,7 @@ async function handleBackfillBatch(correlationId: string, batchSize: number): Pr
   
   console.log(`[${correlationId}] Found ${callsToProcess.length} calls to process, ${totalRemaining} total remaining`);
   
-  const apiKey = Deno.env.get('LOVABLE_API_KEY');
+  const apiKey = Deno.env.get('OPENAI_API_KEY');
   if (!apiKey) {
     return new Response(
       JSON.stringify({ error: 'AI service not configured' }),
@@ -99,22 +99,21 @@ async function handleBackfillBatch(correlationId: string, batchSize: number): Pr
         call.analysis_metadata
       );
       
-      const response = await fetch(LOVABLE_AI_URL, {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'google/gemini-2.5-flash', // Use flash for backfill efficiency
+          model: 'gpt-5-mini', // Use mini for backfill efficiency
           messages: [
             { role: 'system', content: ACTUARY_SYSTEM_PROMPT },
             { role: 'user', content: userPrompt }
           ],
           tools: [DEAL_HEAT_TOOL],
           tool_choice: { type: 'function', function: { name: 'calculate_deal_heat' } },
-          max_tokens: 4096,
-          temperature: 0.2,
+          max_completion_tokens: 4096,
         }),
       });
       
@@ -195,7 +194,7 @@ async function handleBackfillBatch(correlationId: string, batchSize: number): Pr
   );
 }
 
-const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
 
 const DEAL_HEAT_TOOL = {
   type: "function",
@@ -359,9 +358,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    const apiKey = Deno.env.get('LOVABLE_API_KEY');
+    const apiKey = Deno.env.get('OPENAI_API_KEY');
     if (!apiKey) {
-      console.error(`[${correlationId}] LOVABLE_API_KEY not configured`);
+      console.error(`[${correlationId}] OPENAI_API_KEY not configured`);
       return new Response(
         JSON.stringify({ error: 'AI service not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -370,25 +369,24 @@ Deno.serve(async (req) => {
 
     // Build the user prompt with all available context
     const userPrompt = buildUserPrompt(transcript, strategy_data, behavior_data, metadata);
-    console.log(`[${correlationId}] Calling Lovable AI (gemini-2.5-pro)`);
+    console.log(`[${correlationId}] Calling OpenAI (gpt-5.2)`);
 
     const startTime = Date.now();
-    const response = await fetch(LOVABLE_AI_URL, {
+    const response = await fetch(OPENAI_API_URL, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-pro',
+        model: 'gpt-5.2',
         messages: [
           { role: 'system', content: ACTUARY_SYSTEM_PROMPT },
           { role: 'user', content: userPrompt }
         ],
         tools: [DEAL_HEAT_TOOL],
         tool_choice: { type: 'function', function: { name: 'calculate_deal_heat' } },
-        max_tokens: 4096,
-        temperature: 0.2,
+        max_completion_tokens: 4096,
       }),
     });
 

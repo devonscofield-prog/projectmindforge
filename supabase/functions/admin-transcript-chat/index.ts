@@ -387,14 +387,14 @@ async function classifyQueryIntent(query: string, apiKey: string): Promise<Query
   const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
   
   try {
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash-lite',
+        model: 'gpt-5-nano',
         messages: [{
           role: 'user',
           content: `Analyze this sales transcript analysis query and extract search parameters for finding relevant transcript sections:
@@ -641,9 +641,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
+    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+    if (!OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY not configured');
     }
 
     const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
@@ -661,7 +661,7 @@ Deno.serve(async (req) => {
           supabase, 
           validatedTranscriptIds, 
           validatedMessages, 
-          LOVABLE_API_KEY,
+          OPENAI_API_KEY,
           OPENAI_API_KEY
         );
       } catch (ragError) {
@@ -701,14 +701,14 @@ Deno.serve(async (req) => {
     
     let aiResponse: Response;
     try {
-      aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'google/gemini-3-pro-preview',
+          model: 'gpt-5.2',
           messages: [
             { 
               role: 'system', 
@@ -865,7 +865,7 @@ async function buildRagContext(
   }
 
   // Step 2: Classify query intent
-  const intent = await classifyQueryIntent(latestUserMessage.content, apiKey);
+  const intent = await classifyQueryIntent(latestUserMessage.content, openaiApiKey);
   console.log(`[admin-transcript-chat] Query intent: keywords=${intent.keywords.join(',')}, topics=${intent.topics.join(',')}, meddpicc=${intent.meddpicc_elements.join(',')}`);
 
   // Step 3: Call unified hybrid search RPC

@@ -296,11 +296,10 @@ async function gradeWithAI(
   sessionType: string,
   durationSeconds: number
 ): Promise<GradingResult> {
-  const lovableKey = Deno.env.get('LOVABLE_API_KEY');
   const openaiKey = Deno.env.get('OPENAI_API_KEY');
   
-  if (!lovableKey && !openaiKey) {
-    throw new Error('No AI API key configured');
+  if (!openaiKey) {
+    throw new Error('OPENAI_API_KEY not configured');
   }
 
   // Check if persona has custom grading criteria
@@ -314,17 +313,13 @@ async function gradeWithAI(
   
   console.log(`Using ${hasCustomCriteria ? 'persona-specific' : 'default'} grading criteria for ${persona.name}`);
   
-  // Use Lovable AI Gateway with upgraded model, or fall back to OpenAI with gpt-4o
-  const isLovableAI = !!lovableKey;
-  const apiUrl = isLovableAI 
-    ? 'https://ai.gateway.lovable.dev/v1/chat/completions'
-    : 'https://api.openai.com/v1/chat/completions';
-  const apiKey = isLovableAI ? lovableKey : openaiKey;
+  const apiUrl = 'https://api.openai.com/v1/chat/completions';
+  const apiKey = openaiKey;
   
-  // Use more powerful models for better grading quality
-  const model = isLovableAI ? 'google/gemini-3-pro-preview' : 'gpt-4o';
+  // Use GPT-5.2 for grading
+  const model = 'gpt-5.2';
   
-  console.log(`Using ${isLovableAI ? 'Lovable AI Gateway' : 'OpenAI'} (${model}) for grading`);
+  console.log(`Using OpenAI (${model}) for grading`);
 
   const response = await fetch(apiUrl, {
     method: 'POST',

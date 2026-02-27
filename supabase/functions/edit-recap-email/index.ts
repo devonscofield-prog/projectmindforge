@@ -138,9 +138,9 @@ Deno.serve(async (req) => {
     console.log('[edit-recap-email] Instructions:', edit_instructions.substring(0, 100) + '...');
 
     // Get API key
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      console.error('[edit-recap-email] LOVABLE_API_KEY is not configured');
+    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+    if (!OPENAI_API_KEY) {
+      console.error('[edit-recap-email] OPENAI_API_KEY is not configured');
       return new Response(
         JSON.stringify({ error: 'AI service not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -157,16 +157,16 @@ Deno.serve(async (req) => {
     userMessage += `## Edit Instructions:\n\n${edit_instructions}\n\n`;
     userMessage += `Please provide the updated email draft based on these instructions. Remember to preserve all links and placeholders exactly.`;
 
-    // Call Lovable AI Gateway
-    console.log('[edit-recap-email] Calling Lovable AI Gateway...');
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    // Call OpenAI API
+    console.log('[edit-recap-email] Calling OpenAI API...');
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'gpt-5-mini',
         messages: [
           { role: 'system', content: EDIT_SYSTEM_PROMPT },
           { role: 'user', content: userMessage }

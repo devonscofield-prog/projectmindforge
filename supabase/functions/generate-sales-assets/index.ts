@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { getCorsHeaders } from "../_shared/cors.ts";
 
-const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
 const MAX_AI_RETRIES = 2;
 const AI_RETRY_DELAY_MS = 1000;
 
@@ -171,10 +171,10 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+    const lovableApiKey = Deno.env.get('OPENAI_API_KEY');
 
     if (!lovableApiKey) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+      throw new Error('OPENAI_API_KEY is not configured');
     }
 
     // Verify auth
@@ -276,21 +276,21 @@ ${transcript.substring(0, 30000)}`;
         await delay(AI_RETRY_DELAY_MS);
       }
 
-      const response = await fetch(LOVABLE_AI_URL, {
+      const response = await fetch(OPENAI_API_URL, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${lovableApiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
+          model: 'gpt-5-mini',
           messages: [
             { role: 'system', content: CRM_NOTES_SYSTEM_PROMPT },
             { role: 'user', content: userPrompt }
           ],
           tools: [CALL_NOTES_TOOL],
           tool_choice: { type: 'function', function: { name: 'generate_call_notes' } },
-          max_tokens: 4096,
+          max_completion_tokens: 4096,
           temperature: 0.5,
         }),
       });

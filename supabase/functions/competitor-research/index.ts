@@ -280,14 +280,14 @@ ${sanitizeUserContent(combinedContent)}
 
 Extract comprehensive intel including overview, products, pricing (if visible), positioning, weaknesses, and create a detailed battlecard for the sales team.`;
 
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${lovableApiKey}`,
+        'Authorization': `Bearer ${lovableApiKey}`, // Variable name reused but contains OpenAI key
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-3-pro-preview',
+        model: 'gpt-5.2',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
@@ -373,7 +373,7 @@ Deno.serve(async (req) => {
     }
 
     const firecrawlApiKey = Deno.env.get('FIRECRAWL_API_KEY');
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+    const lovableApiKey = Deno.env.get('OPENAI_API_KEY');
     
     if (!firecrawlApiKey) {
       return new Response(
@@ -384,7 +384,7 @@ Deno.serve(async (req) => {
     
     if (!lovableApiKey) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Lovable API key not configured' }),
+        JSON.stringify({ success: false, error: 'OpenAI API key not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

@@ -10,17 +10,14 @@ import { AgentConfig } from './agent-registry.ts';
 import { createToolFromSchema } from './zod-to-json-schema.ts';
 import { sanitizeUserContent } from './sanitize.ts';
 
-// AI Gateway configuration
-const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+// AI API configuration
 const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
 const AI_GATEWAY_TIMEOUT_MS = 90000; // 90s - extended for fire-and-forget background processing
 
 // Per-agent timeouts based on model - extended for background processing
 // analyze-call now returns 202 immediately and processes in background
 const AGENT_TIMEOUT_MS = {
-  'google/gemini-2.5-flash': 60000,
-  'google/gemini-2.5-pro': 90000,
-  'google/gemini-3-pro-preview': 90000,
+  'openai/gpt-5-mini': 60000,
   'openai/gpt-5.2': 90000,
 } as const;
 
@@ -58,9 +55,7 @@ export function getAgentTimeout(model: ModelType, agentId?: string): number {
   return AGENT_TIMEOUT_MS[model] || 15000;
 }
 
-function isOpenAIModel(model: string): boolean {
-  return model.startsWith('openai/');
-}
+// All models now route through OpenAI
 
 export function isNonCriticalAgent(agentId: string): boolean {
   return NON_CRITICAL_AGENTS.has(agentId);
@@ -323,148 +318,13 @@ async function callLovableAI<T extends z.ZodTypeAny>(
   // Use per-agent timeout with optional agent-specific override
   const agentTimeoutMs = getAgentTimeout(config.options.model as ModelType, config.id);
 
-  // Route to OpenAI if model starts with "openai/"
-  if (isOpenAIModel(config.options.model)) {
-    return callOpenAIAPI(config, userPrompt, tool, agentTimeoutMs);
-  }
-
-  // Otherwise use Lovable AI Gateway
-  const apiKey = Deno.env.get('LOVABLE_API_KEY');
-  if (!apiKey) {
-    throw new Error('LOVABLE_API_KEY is not configured');
-  }
-
-  const requestBody: Record<string, unknown> = {
-    model: config.options.model,
-    messages: [
-      { role: 'system', content: config.systemPrompt },
-      { role: 'user', content: userPrompt },
-    ],
-    tools: [tool],
-    tool_choice: { type: 'function', function: { name: config.toolName } },
-    max_tokens: config.options.maxTokens || 4096,
-  };
-
-  if (config.options.temperature !== undefined) {
-    requestBody.temperature = config.options.temperature;
-  }
-
-  let lastError: Error | null = null;
-
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    if (attempt > 0) {
-      const delayMs = BASE_RETRY_DELAY_MS * Math.pow(2, attempt - 1);
-      console.log(`[agent-factory] Retry ${attempt}/${MAX_RETRIES} for ${config.id} after ${delayMs}ms...`);
-      await delay(delayMs);
-    }
-
-    // Create AbortController with per-agent timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), agentTimeoutMs);
-
-    let response: Response;
-    try {
-      response = await fetch(LOVABLE_AI_URL, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-        signal: controller.signal,
-      });
-    } catch (fetchError) {
-      clearTimeout(timeoutId);
-      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-        const isNonCritical = isNonCriticalAgent(config.id);
-        lastError = new Error(`Agent ${config.id} ${isNonCritical ? 'early terminated' : 'timeout'} after ${agentTimeoutMs / 1000}s`);
-        console.warn(`[agent-factory] ${config.id} ${isNonCritical ? 'EARLY TERMINATED' : 'timed out'} after ${agentTimeoutMs}ms (non-critical: ${isNonCritical})`);
-        if (isNonCritical) {
-          // Don't retry non-critical agents - fail fast with defaults
-          throw lastError;
-        }
-        continue; // Only retry critical agents on timeout
-      }
-      throw fetchError;
-    } finally {
-      clearTimeout(timeoutId);
-    }
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[agent-factory] AI Gateway error ${response.status} for ${config.id}:`, errorText);
-      
-      if (response.status === 402) {
-        throw new Error('AI credits exhausted. Please add funds to continue.');
-      }
-      
-      if (isRetryableError(response.status)) {
-        lastError = new Error(`AI Gateway error: ${response.status}`);
-        continue; // Retry on 429 or 5xx
-      }
-      
-      throw new Error(`AI Gateway error: ${response.status}`);
-    }
-
-    const data = await response.json();
-
-    // Check for Gemini reasoning model truncation (content empty but reasoning exists)
-    const message = data.choices?.[0]?.message;
-    const finishReason = data.choices?.[0]?.finish_reason;
-    if (finishReason === 'length' || (message?.reasoning && (!message?.content || message.content === '') && !message?.tool_calls?.[0])) {
-      console.warn(`[agent-factory] Gemini reasoning truncation detected for ${config.id} - reasoning used all tokens, no output generated`);
-      console.warn(`[agent-factory] finish_reason: ${finishReason}, has_reasoning: ${!!message?.reasoning}, content_length: ${message?.content?.length || 0}`);
-      lastError = new Error(`Agent ${config.id} output truncated - reasoning exhausted token budget`);
-      continue; // Retry - may succeed on second attempt with different reasoning path
-    }
-
-    // Extract tool call arguments
-    const toolCall = message?.tool_calls?.[0];
-    if (!toolCall || toolCall.function.name !== config.toolName) {
-      console.error(`[agent-factory] Unexpected response structure for ${config.id}:`, JSON.stringify(data).substring(0, 500));
-      throw new Error('Invalid AI response structure');
-    }
-
-    let parsedResult: unknown;
-    try {
-      parsedResult = JSON.parse(toolCall.function.arguments);
-    } catch (e) {
-      console.error(`[agent-factory] Failed to parse tool arguments for ${config.id}:`, toolCall.function.arguments.substring(0, 500));
-      // Treat JSON parse errors as retryable - AI may have returned truncated JSON
-      lastError = new Error('Failed to parse AI response - truncated JSON');
-      continue; // Retry
-    }
-
-    // Apply agent-specific coercion before validation
-    const coercedResult = applySchemaCoercion(config.id, parsedResult);
-
-    // Validate against schema
-    const validationResult = config.schema.safeParse(coercedResult);
-    
-    // If validation fails, handle gracefully for non-critical agents
-    if (!validationResult.success) {
-      console.warn(`[agent-factory] Validation failed for ${config.id}: ${validationResult.error.message}`);
-      console.warn(`[agent-factory] Validation errors: ${JSON.stringify(validationResult.error.issues.slice(0, 3))}`);
-      
-      // For non-critical agents, return defaults rather than throwing
-      if (isNonCriticalAgent(config.id)) {
-        console.warn(`[agent-factory] Non-critical agent ${config.id} - returning default values`);
-        return config.default as z.infer<T>;
-      }
-      
-      throw new Error(`Schema validation failed: ${validationResult.error.message}`);
-    }
-
-    return validationResult.data;
-  }
-
-  // All retries exhausted
-  throw lastError || new Error(`Failed after ${MAX_RETRIES + 1} attempts`);
+  // All models now route through OpenAI API
+  return callOpenAIAPI(config, userPrompt, tool, agentTimeoutMs);
 }
 
 // ============= CONSENSUS CONFIGURATION =============
 
-const CONSENSUS_MODELS = ['openai/gpt-5.2', 'google/gemini-3-pro-preview'] as const;
+const CONSENSUS_MODELS = ['openai/gpt-5.2'] as const;
 
 // Grade ranking for averaging
 const GRADE_ORDER = ['F', 'D', 'C', 'B', 'A', 'A+'] as const;
@@ -641,29 +501,28 @@ Output your reconciled assessment using the same schema.`;
     const { createToolFromSchema } = await import('./zod-to-json-schema.ts');
     
     const tool = createToolFromSchema('reconcile_coaching', 'Synthesize two coaching assessments into one', CoachSchema);
-    const apiKey = Deno.env.get('LOVABLE_API_KEY');
+    const apiKey = Deno.env.get('OPENAI_API_KEY');
     
     if (!apiKey) {
       console.warn('[Coach Reconciler] No API key - falling back to GPT result');
       return gptCoach;
     }
 
-    const response = await fetch(LOVABLE_AI_URL, {
+    const response = await fetch(OPENAI_API_URL, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash', // Fast model for reconciliation
+        model: 'gpt-5-mini', // Fast model for reconciliation
         messages: [
           { role: 'system', content: 'You are a senior sales coach reconciling two assessments. Be decisive and evidence-based.' },
           { role: 'user', content: reconcilerPrompt },
         ],
         tools: [tool],
         tool_choice: { type: 'function', function: { name: 'reconcile_coaching' } },
-        max_tokens: 8192,
-        temperature: 0.2,
+        max_completion_tokens: 8192,
       }),
     });
 

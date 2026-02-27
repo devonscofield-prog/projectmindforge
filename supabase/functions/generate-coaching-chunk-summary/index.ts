@@ -168,9 +168,9 @@ Deno.serve(async (req) => {
 
     console.log(`[generate-coaching-chunk-summary] Analyzing chunk ${chunkIndex} with ${calls.length} calls`);
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const LOVABLE_API_KEY = Deno.env.get('OPENAI_API_KEY');
     if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
+      throw new Error('OPENAI_API_KEY not configured');
     }
 
     // Calculate quick stats for the prompt - MEDDPICC first, fall back to BANT
@@ -238,16 +238,16 @@ Provide a condensed summary of this chunk's patterns and trends.`;
     
     let aiResponse: Response;
     try {
-      aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${LOVABLE_API_KEY}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
+          model: 'gpt-5-mini',
           temperature: 0.3, // Lower temperature for consistency
-          max_tokens: 4096, // Explicit token limit
+          max_completion_tokens: 4096, // Explicit token limit
           messages: [
             { role: 'system', content: CHUNK_SUMMARY_SYSTEM_PROMPT },
             { role: 'user', content: userPrompt }
