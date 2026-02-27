@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { accountNames } = await req.json();
+    const { accountNames, contactNames } = await req.json();
 
     if (!Array.isArray(accountNames) || accountNames.length === 0) {
       return new Response(JSON.stringify({ error: 'accountNames array required' }), {
@@ -61,8 +61,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Use fuzzy matching via pg_trgm similarity (threshold 0.3 ≈ catches 80-90% confidence matches)
-    const { data: matches, error: matchError } = await supabase.rpc('fuzzy_match_prospects', {
+    // 1. Fuzzy match by account name
+    const { data: accountMatches, error: matchError } = await supabase.rpc('fuzzy_match_prospects', {
       p_account_names: accountNames,
       p_threshold: 0.3,
     });
@@ -71,25 +71,81 @@ Deno.serve(async (req) => {
       throw new Error(`Fuzzy match failed: ${matchError.message}`);
     }
 
-    // Group matches by input_name, pick best match per input
-    const bestMatches = new Map<string, (typeof matches)[number]>();
-    const allMatchesByName = new Map<string, (typeof matches)[number][]>();
-
-    for (const m of matches || []) {
+    // Group best account matches by input_name
+    const bestAccountMatches = new Map<string, (typeof accountMatches)[number]>();
+    for (const m of accountMatches || []) {
       const key = m.input_name.toLowerCase().trim();
-      if (!allMatchesByName.has(key)) allMatchesByName.set(key, []);
-      allMatchesByName.get(key)!.push(m);
-
-      const existing = bestMatches.get(key);
+      const existing = bestAccountMatches.get(key);
       if (!existing || m.similarity_score > existing.similarity_score) {
-        bestMatches.set(key, m);
+        bestAccountMatches.set(key, m);
       }
     }
 
-    // Gather matched prospect IDs for call counting
-    const matchedProspectIds = [...bestMatches.values()].map((m) => m.prospect_id);
+    // 2. Fuzzy match by contact name (if provided)
+    // contactNames is an array of { accountName, contactName } objects
+    const contactNamesList: string[] = [];
+    const contactToAccountMap = new Map<string, string>(); // contactName lower -> accountName lower
 
-    // Fetch call counts per prospect
+    if (Array.isArray(contactNames) && contactNames.length > 0) {
+      for (const entry of contactNames) {
+        if (entry.contactName) {
+          const cKey = entry.contactName.toLowerCase().trim();
+          contactNamesList.push(entry.contactName);
+          contactToAccountMap.set(cKey, (entry.accountName || '').toLowerCase().trim());
+        }
+      }
+    }
+
+    const bestContactMatches = new Map<string, { match: any; contactName: string }>();
+
+    if (contactNamesList.length > 0) {
+      const uniqueContacts = [...new Set(contactNamesList)];
+      const { data: contactMatches, error: contactError } = await supabase.rpc('fuzzy_match_stakeholders', {
+        p_contact_names: uniqueContacts,
+        p_threshold: 0.3,
+      });
+
+      if (contactError) {
+        console.error('Contact fuzzy match failed:', contactError.message);
+      } else {
+        // Group best contact match by the associated account name key
+        for (const m of contactMatches || []) {
+          const contactKey = m.input_name.toLowerCase().trim();
+          const accountKey = contactToAccountMap.get(contactKey);
+          if (!accountKey) continue;
+
+          const existing = bestContactMatches.get(accountKey);
+          if (!existing || m.similarity_score > existing.match.similarity_score) {
+            bestContactMatches.set(accountKey, { match: m, contactName: m.stakeholder_name });
+          }
+        }
+      }
+    }
+
+    // 3. Merge: pick best match per account (account match vs contact match)
+    const finalMatches = new Map<string, { match: any; source: 'account' | 'contact'; contactName?: string }>();
+
+    for (const inputName of accountNames) {
+      const key = inputName.toLowerCase().trim();
+      const accountMatch = bestAccountMatches.get(key);
+      const contactMatch = bestContactMatches.get(key);
+
+      if (accountMatch && contactMatch) {
+        // Pick whichever has higher similarity
+        if (accountMatch.similarity_score >= contactMatch.match.similarity_score) {
+          finalMatches.set(key, { match: accountMatch, source: 'account', contactName: contactMatch.contactName });
+        } else {
+          finalMatches.set(key, { match: contactMatch.match, source: 'contact', contactName: contactMatch.contactName });
+        }
+      } else if (accountMatch) {
+        finalMatches.set(key, { match: accountMatch, source: 'account' });
+      } else if (contactMatch) {
+        finalMatches.set(key, { match: contactMatch.match, source: 'contact', contactName: contactMatch.contactName });
+      }
+    }
+
+    // 4. Gather matched prospect IDs for call counting
+    const matchedProspectIds = [...finalMatches.values()].map((m) => m.match.prospect_id);
     const callCountMap = new Map<string, number>();
     const latestCallMap = new Map<string, string>();
 
@@ -105,9 +161,8 @@ Deno.serve(async (req) => {
 
         for (const c of calls || []) {
           if (!c.prospect_id) continue;
-          // Map prospect_id back to input_name
-          for (const [key, best] of bestMatches) {
-            if (best.prospect_id === c.prospect_id) {
+          for (const [key, fm] of finalMatches) {
+            if (fm.match.prospect_id === c.prospect_id) {
               callCountMap.set(key, (callCountMap.get(key) || 0) + 1);
               if (!latestCallMap.has(key)) latestCallMap.set(key, c.call_date);
             }
@@ -116,8 +171,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Fetch rep names
-    const repIds = [...new Set([...bestMatches.values()].filter((m) => m.rep_id).map((m) => m.rep_id))];
+    // 5. Fetch rep names
+    const repIds = [...new Set([...finalMatches.values()].filter((m) => m.match.rep_id).map((m) => m.match.rep_id))];
     const repNameMap = new Map<string, string>();
     if (repIds.length > 0) {
       const { data: profiles } = await supabase.from('profiles').select('id, name').in('id', repIds);
@@ -126,34 +181,38 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Build results
+    // 6. Build results
     const results: Record<string, Record<string, string>> = {};
 
     for (const inputName of accountNames) {
       const key = inputName.toLowerCase().trim();
-      const best = bestMatches.get(key);
+      const fm = finalMatches.get(key);
 
-      if (!best) {
+      if (!fm) {
         results[key] = { SW_Match_Status: 'No Match' };
         continue;
       }
 
+      const m = fm.match;
       const callCount = callCountMap.get(key) || 0;
       const latestCall = latestCallMap.get(key) || '';
-      const repName = best.rep_id ? repNameMap.get(best.rep_id) || '' : '';
-      const confidencePct = Math.round(best.similarity_score * 100);
+      const repName = m.rep_id ? repNameMap.get(m.rep_id) || '' : '';
+      const confidencePct = Math.round(m.similarity_score * 100);
 
       results[key] = {
-        SW_Match_Status: best.similarity_score >= 0.95 ? 'Matched' : 'Fuzzy Match',
+        SW_Match_Status: m.similarity_score >= 0.95 ? 'Matched' : 'Fuzzy Match',
         SW_Confidence: `${confidencePct}%`,
-        SW_Matched_Account: best.account_name || best.prospect_name || '',
-        SW_Prospect_Name: best.prospect_name || '',
-        SW_Account_Status: best.status || '',
-        SW_Heat_Score: best.heat_score != null ? String(best.heat_score) : '',
-        SW_Industry: best.industry || '',
-        SW_Active_Revenue: best.active_revenue ? String(best.active_revenue) : '',
-        SW_Potential_Revenue: best.potential_revenue ? String(best.potential_revenue) : '',
-        SW_Last_Contact: best.last_contact_date || '',
+        SW_Match_Source: fm.source === 'contact' ? 'Contact' : 'Account',
+        SW_Matched_Account: m.account_name || m.prospect_name || '',
+        SW_Prospect_Name: m.prospect_name || '',
+        SW_Matched_Contact: fm.contactName || '',
+        SW_Contact_Title: fm.source === 'contact' ? (m.job_title || '') : '',
+        SW_Account_Status: m.status || '',
+        SW_Heat_Score: m.heat_score != null ? String(m.heat_score) : '',
+        SW_Industry: m.industry || '',
+        SW_Active_Revenue: m.active_revenue ? String(m.active_revenue) : '',
+        SW_Potential_Revenue: m.potential_revenue ? String(m.potential_revenue) : '',
+        SW_Last_Contact: m.last_contact_date || '',
         SW_Latest_Call_Date: latestCall,
         SW_Total_Calls: String(callCount),
         SW_Assigned_Rep: repName,
