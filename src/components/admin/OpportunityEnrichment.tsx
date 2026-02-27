@@ -251,16 +251,23 @@ export function OpportunityEnrichment() {
       });
 
       // Calculate match stats
-      let matched = 0;
-      let unmatched = 0;
+      let matched = 0, unmatched = 0, byAccount = 0, byContact = 0, exact = 0, fuzzy = 0;
       for (const row of newRows) {
-        if (row['SW_Match_Status'] === 'Matched' || row['SW_Match_Status'] === 'Fuzzy Match') matched++;
-        else unmatched++;
+        const status = row['SW_Match_Status'];
+        if (status === 'Matched' || status === 'Fuzzy Match') {
+          matched++;
+          if (status === 'Matched') exact++;
+          else fuzzy++;
+          if (row['SW_Match_Source'] === 'Contact') byContact++;
+          else byAccount++;
+        } else {
+          unmatched++;
+        }
       }
 
       setEnrichedHeaders(newHeaders);
       setEnrichedRows(newRows);
-      setMatchStats({ matched, unmatched });
+      setMatchStats({ matched, unmatched, byAccount, byContact, exact, fuzzy });
       toast.success(`Enrichment complete: ${matched} matched, ${unmatched} unmatched`);
     } catch (err) {
       console.error('Enrichment error:', err);
