@@ -283,7 +283,7 @@ Extract comprehensive intel including overview, products, pricing (if visible), 
     const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${lovableApiKey}`, // Variable name reused but contains OpenAI key
+        'Authorization': `Bearer ${openaiApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
