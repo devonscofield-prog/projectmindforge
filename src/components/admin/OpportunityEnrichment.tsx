@@ -219,10 +219,10 @@ export function OpportunityEnrichment() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileSpreadsheet className="h-5 w-5 text-primary" />
-              Upload Salesforce Opportunities CSV
+              Upload Salesforce Opportunities
             </CardTitle>
             <CardDescription>
-              Upload your standard Salesforce Opportunities export. The tool will match each
+              Upload your Salesforce Opportunities export (CSV or Excel). The tool will match each
               opportunity by Account Name and enrich it with your platform intelligence.
             </CardDescription>
           </CardHeader>
