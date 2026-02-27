@@ -50,8 +50,8 @@ async function callLovableAI(
   tools: unknown[],
   toolChoice: unknown
 ): Promise<FollowUpSuggestion[] | null> {
-  const LOVABLE_API_KEY = Deno.env.get('OPENAI_API_KEY');
-  if (!LOVABLE_API_KEY) {
+  const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+  if (!OPENAI_API_KEY) {
     console.error('[advisor] OPENAI_API_KEY not configured');
     return null;
   }
@@ -60,7 +60,7 @@ async function callLovableAI(
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({

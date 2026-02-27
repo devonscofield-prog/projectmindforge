@@ -411,59 +411,58 @@ async function executeAgentWithModel<T extends z.ZodTypeAny>(
  */
 async function reconcileCoachOutputs(
   gptCoach: z.infer<typeof import('./agent-schemas.ts').CoachSchema>,
-  geminiCoach: z.infer<typeof import('./agent-schemas.ts').CoachSchema>,
+  modelBCoach: z.infer<typeof import('./agent-schemas.ts').CoachSchema>,
   supabase: SupabaseClient,
   callId: string
 ): Promise<z.infer<typeof import('./agent-schemas.ts').CoachSchema>> {
   console.log(`[Coach Reconciler] GPT grade: ${gptCoach.overall_grade}, focus: ${gptCoach.primary_focus_area}`);
-  console.log(`[Coach Reconciler] Gemini grade: ${geminiCoach.overall_grade}, focus: ${geminiCoach.primary_focus_area}`);
+  console.log(`[Coach Reconciler] Model B grade: ${modelBCoach.overall_grade}, focus: ${modelBCoach.primary_focus_area}`);
 
   // If grades match and primary focus matches, merge arrays and combine reasoning
-  if (gptCoach.overall_grade === geminiCoach.overall_grade && 
-      gptCoach.primary_focus_area === geminiCoach.primary_focus_area) {
+  if (gptCoach.overall_grade === modelBCoach.overall_grade && 
+      gptCoach.primary_focus_area === modelBCoach.primary_focus_area) {
     console.log('[Coach Reconciler] Full agreement - merging outputs');
     return {
       overall_grade: gptCoach.overall_grade,
-      executive_summary: gptCoach.executive_summary.length > geminiCoach.executive_summary.length 
+      executive_summary: gptCoach.executive_summary.length > modelBCoach.executive_summary.length 
         ? gptCoach.executive_summary 
-        : geminiCoach.executive_summary,
-      top_3_strengths: deduplicateStrings([...gptCoach.top_3_strengths, ...geminiCoach.top_3_strengths]).slice(0, 3),
-      top_3_areas_for_improvement: deduplicateStrings([...gptCoach.top_3_areas_for_improvement, ...geminiCoach.top_3_areas_for_improvement]).slice(0, 3),
+        : modelBCoach.executive_summary,
+      top_3_strengths: deduplicateStrings([...gptCoach.top_3_strengths, ...modelBCoach.top_3_strengths]).slice(0, 3),
+      top_3_areas_for_improvement: deduplicateStrings([...gptCoach.top_3_areas_for_improvement, ...modelBCoach.top_3_areas_for_improvement]).slice(0, 3),
       primary_focus_area: gptCoach.primary_focus_area,
-      coaching_prescription: gptCoach.coaching_prescription.length > geminiCoach.coaching_prescription.length
+      coaching_prescription: gptCoach.coaching_prescription.length > modelBCoach.coaching_prescription.length
         ? gptCoach.coaching_prescription
-        : geminiCoach.coaching_prescription,
-      coaching_drill: (gptCoach.coaching_drill?.length || 0) > (geminiCoach.coaching_drill?.length || 0)
+        : modelBCoach.coaching_prescription,
+      coaching_drill: (gptCoach.coaching_drill?.length || 0) > (modelBCoach.coaching_drill?.length || 0)
         ? gptCoach.coaching_drill
-        : geminiCoach.coaching_drill,
-      immediate_action: gptCoach.immediate_action || geminiCoach.immediate_action,
-      grade_reasoning: `${gptCoach.grade_reasoning}\n\n[Corroborated by second model]: ${geminiCoach.grade_reasoning}`,
-      deal_progression: gptCoach.deal_progression || geminiCoach.deal_progression,
+        : modelBCoach.coaching_drill,
+      immediate_action: gptCoach.immediate_action || modelBCoach.immediate_action,
+      grade_reasoning: `${gptCoach.grade_reasoning}\n\n[Corroborated by second model]: ${modelBCoach.grade_reasoning}`,
+      deal_progression: gptCoach.deal_progression || modelBCoach.deal_progression,
     };
   }
 
   // Grades are close (within 1 level) but focus areas differ - use GPT's grade, merge insights
   const gptGradeNum = gradeToNumber(gptCoach.overall_grade as GradeType);
-  const geminiGradeNum = gradeToNumber(geminiCoach.overall_grade as GradeType);
-  const gradeDiff = Math.abs(gptGradeNum - geminiGradeNum);
+  const modelBGradeNum = gradeToNumber(modelBCoach.overall_grade as GradeType);
+  const gradeDiff = Math.abs(gptGradeNum - modelBGradeNum);
 
   if (gradeDiff <= 1) {
     console.log(`[Coach Reconciler] Close grades (diff=${gradeDiff}) - averaging and using GPT focus`);
     // Average the grades
-    const avgGrade = numberToGrade((gptGradeNum * 0.55 + geminiGradeNum * 0.45));
+    const avgGrade = numberToGrade((gptGradeNum * 0.55 + modelBGradeNum * 0.45));
     
     return {
       overall_grade: avgGrade,
       executive_summary: gptCoach.executive_summary,
-      top_3_strengths: deduplicateStrings([...gptCoach.top_3_strengths, ...geminiCoach.top_3_strengths]).slice(0, 3),
-      top_3_areas_for_improvement: deduplicateStrings([...gptCoach.top_3_areas_for_improvement, ...geminiCoach.top_3_areas_for_improvement]).slice(0, 3),
-      // GPT wins tiebreaker on focus area
+      top_3_strengths: deduplicateStrings([...gptCoach.top_3_strengths, ...modelBCoach.top_3_strengths]).slice(0, 3),
+      top_3_areas_for_improvement: deduplicateStrings([...gptCoach.top_3_areas_for_improvement, ...modelBCoach.top_3_areas_for_improvement]).slice(0, 3),
       primary_focus_area: gptCoach.primary_focus_area,
       coaching_prescription: gptCoach.coaching_prescription,
-      coaching_drill: gptCoach.coaching_drill || geminiCoach.coaching_drill,
-      immediate_action: gptCoach.immediate_action || geminiCoach.immediate_action,
-      grade_reasoning: `[Multi-model consensus - GPT: ${gptCoach.overall_grade}, Gemini: ${geminiCoach.overall_grade}]\n\nGPT reasoning: ${gptCoach.grade_reasoning}\n\nGemini perspective: ${geminiCoach.grade_reasoning}`,
-      deal_progression: gptCoach.deal_progression || geminiCoach.deal_progression,
+      coaching_drill: gptCoach.coaching_drill || modelBCoach.coaching_drill,
+      immediate_action: gptCoach.immediate_action || modelBCoach.immediate_action,
+      grade_reasoning: `[Multi-model consensus - Model A: ${gptCoach.overall_grade}, Model B: ${modelBCoach.overall_grade}]\n\nModel A reasoning: ${gptCoach.grade_reasoning}\n\nModel B perspective: ${modelBCoach.grade_reasoning}`,
+      deal_progression: gptCoach.deal_progression || modelBCoach.deal_progression,
     };
   }
 
@@ -480,13 +479,13 @@ async function reconcileCoachOutputs(
 - Strengths: ${gptCoach.top_3_strengths.join(', ')}
 - Improvements: ${gptCoach.top_3_areas_for_improvement.join(', ')}
 
-**Coach B (Gemini):**
-- Grade: ${geminiCoach.overall_grade}
-- Focus Area: ${geminiCoach.primary_focus_area}
-- Prescription: ${geminiCoach.coaching_prescription}
-- Reasoning: ${geminiCoach.grade_reasoning}
-- Strengths: ${geminiCoach.top_3_strengths.join(', ')}
-- Improvements: ${geminiCoach.top_3_areas_for_improvement.join(', ')}
+**Coach B (Model B):**
+- Grade: ${modelBCoach.overall_grade}
+- Focus Area: ${modelBCoach.primary_focus_area}
+- Prescription: ${modelBCoach.coaching_prescription}
+- Reasoning: ${modelBCoach.grade_reasoning}
+- Strengths: ${modelBCoach.top_3_strengths.join(', ')}
+- Improvements: ${modelBCoach.top_3_areas_for_improvement.join(', ')}
 
 Your task: Synthesize these into ONE final coaching assessment. Consider:
 1. If grades differ significantly, determine which reasoning is more evidence-based
@@ -552,7 +551,7 @@ Output your reconciled assessment using the same schema.`;
     // Add reconciliation metadata to reasoning
     return {
       ...validationResult.data,
-      grade_reasoning: `[Reconciled from GPT: ${gptCoach.overall_grade} and Gemini: ${geminiCoach.overall_grade}]\n\n${validationResult.data.grade_reasoning}`,
+      grade_reasoning: `[Reconciled from Model A: ${gptCoach.overall_grade} and Model B: ${modelBCoach.overall_grade}]\n\n${validationResult.data.grade_reasoning}`,
     };
   } catch (err) {
     console.error('[Coach Reconciler] Error during reconciliation:', err);
@@ -566,7 +565,7 @@ export interface CoachConsensusOptions {
 
 /**
  * Execute Coach agent with multi-model consensus
- * Runs on both GPT-5.2 and Gemini 3 Pro in parallel, then reconciles
+ * Runs on both GPT-5.2 and GPT-5-mini in parallel, then reconciles
  * Set skipConsensus=true for faster single-model execution when speed is preferred over maximum accuracy
  */
 export async function executeCoachWithConsensus(
@@ -587,43 +586,43 @@ export async function executeCoachWithConsensus(
   console.log('[Coach Consensus] Starting multi-model execution...');
 
   // Run both models in parallel
-  const [gptResult, geminiResult] = await Promise.allSettled([
+  const [gptResult, modelBResult] = await Promise.allSettled([
     executeAgentWithModel(config, userPrompt, 'openai/gpt-5.2', supabase, callId),
-    executeAgentWithModel(config, userPrompt, 'google/gemini-3-pro-preview', supabase, callId),
+    executeAgentWithModel(config, userPrompt, 'openai/gpt-5-mini', supabase, callId),
   ]);
 
   // Extract results with fallback handling
   const gptData = gptResult.status === 'fulfilled' && gptResult.value.success ? gptResult.value.data : null;
-  const geminiData = geminiResult.status === 'fulfilled' && geminiResult.value.success ? geminiResult.value.data : null;
+  const modelBData = geminiResult.status === 'fulfilled' && geminiResult.value.success ? geminiResult.value.data : null;
 
   const duration = performance.now() - start;
 
   // If both models fail, return default
-  if (!gptData && !geminiData) {
+  if (!gptData && !modelBData) {
     console.error('[Coach Consensus] Both models failed');
     await logPerformance(supabase, 'agent_coach_consensus', duration, 'error', {
       call_id: callId,
       gpt_failed: true,
-      gemini_failed: true,
+      model_b_failed: true,
     });
     return { success: false, data: config.default, durationMs: duration, error: 'Both consensus models failed' };
   }
 
   // If one model fails, use the other
   if (!gptData) {
-    console.warn('[Coach Consensus] GPT failed, using Gemini result');
+    console.warn('[Coach Consensus] Model A (GPT) failed, using Model B result');
     await logPerformance(supabase, 'agent_coach_consensus', duration, 'success', {
       call_id: callId,
       gpt_failed: true,
-      gemini_only: true,
+      model_b_only: true,
     });
-    return { success: true, data: geminiData!, durationMs: duration };
+    return { success: true, data: modelBData!, durationMs: duration };
   }
-  if (!geminiData) {
-    console.warn('[Coach Consensus] Gemini failed, using GPT result');
+  if (!modelBData) {
+    console.warn('[Coach Consensus] Model B failed, using GPT result');
     await logPerformance(supabase, 'agent_coach_consensus', duration, 'success', {
       call_id: callId,
-      gemini_failed: true,
+      model_b_failed: true,
       gpt_only: true,
     });
     return { success: true, data: gptData!, durationMs: duration };
@@ -631,13 +630,13 @@ export async function executeCoachWithConsensus(
 
   // Both succeeded - reconcile outputs
   console.log('[Coach Consensus] Both models succeeded, reconciling...');
-  const reconciled = await reconcileCoachOutputs(gptData, geminiData, supabase, callId);
+  const reconciled = await reconcileCoachOutputs(gptData, modelBData, supabase, callId);
   
   const totalDuration = performance.now() - start;
   await logPerformance(supabase, 'agent_coach_consensus', totalDuration, 'success', {
     call_id: callId,
     gpt_grade: gptData.overall_grade,
-    gemini_grade: geminiData.overall_grade,
+    model_b_grade: modelBData.overall_grade,
     final_grade: reconciled.overall_grade,
     reconciliation_needed: gptData.overall_grade !== geminiData.overall_grade || gptData.primary_focus_area !== geminiData.primary_focus_area,
   });

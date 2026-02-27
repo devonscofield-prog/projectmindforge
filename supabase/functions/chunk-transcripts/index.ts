@@ -519,7 +519,7 @@ ${chunkList}`
 async function processNERBackfillJob(
   jobId: string,
   supabase: SupabaseClient<any, "public", any>,
-  lovableApiKey: string
+  openaiNerKey: string
 ) {
   console.log(`[chunk-transcripts] Starting background NER backfill for job ${jobId}`);
   
@@ -618,7 +618,7 @@ async function processNERBackfillJob(
             text: chunk.chunk_text
           }));
           
-          const nerResults = await extractEntitiesBatch(batchInput, context, lovableApiKey);
+          const nerResults = await extractEntitiesBatch(batchInput, context, openaiNerKey);
           
           for (const chunk of batch) {
             const nerResult = nerResults.get(chunk.id);
@@ -833,7 +833,7 @@ async function processFullReindexJob(
   jobId: string,
   supabase: SupabaseClient<any, "public", any>,
   openaiApiKey: string,
-  lovableApiKey: string
+  openaiNerKey: string
 ) {
   console.log(`[chunk-transcripts] Starting full reindex background job ${jobId}`);
   
@@ -1093,7 +1093,7 @@ async function processFullReindexJob(
         
         try {
           const batchInput = batch.map(chunk => ({ id: chunk.id, text: chunk.chunk_text }));
-          const nerResults = await extractEntitiesBatch(batchInput, context, lovableApiKey);
+          const nerResults = await extractEntitiesBatch(batchInput, context, openaiNerKey);
           
           for (const chunk of batch) {
             const nerResult = nerResults.get(chunk.id);
@@ -1201,7 +1201,7 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY')!;
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY')!;
+    const openaiNerKey = Deno.env.get('OPENAI_API_KEY')!;
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -1408,7 +1408,7 @@ Deno.serve(async (req) => {
 
       try {
         // SINGLE AI CALL for all chunks - true batching!
-        const nerResults = await extractEntitiesBatch(batchInput, context, lovableApiKey);
+        const nerResults = await extractEntitiesBatch(batchInput, context, openaiNerKey);
         
         const aiCallTime = Date.now() - batchStartTime;
         console.log(`[chunk-transcripts] AI batch call completed in ${aiCallTime}ms for ${batchInput.length} chunks`);
@@ -1662,7 +1662,7 @@ Deno.serve(async (req) => {
       }
 
       // Start background processing
-      EdgeRuntime.waitUntil(processNERBackfillJob(job.id, supabase, lovableApiKey));
+      EdgeRuntime.waitUntil(processNERBackfillJob(job.id, supabase, openaiNerKey));
 
       // Return immediately with job ID
       return new Response(
@@ -1853,7 +1853,7 @@ Deno.serve(async (req) => {
       }
 
       // Start background processing
-      EdgeRuntime.waitUntil(processFullReindexJob(job.id, supabase, openaiApiKey, lovableApiKey));
+      EdgeRuntime.waitUntil(processFullReindexJob(job.id, supabase, openaiApiKey, openaiNerKey));
 
       // Return immediately with job ID
       return new Response(
@@ -2082,7 +2082,7 @@ Deno.serve(async (req) => {
             text: chunk.chunk_text
           }));
 
-          const nerResults = await extractEntitiesBatch(batchInput, context, lovableApiKey);
+          const nerResults = await extractEntitiesBatch(batchInput, context, openaiNerKey);
 
           for (const chunk of batch) {
             const nerResult = nerResults.get(chunk.id);

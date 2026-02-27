@@ -153,7 +153,7 @@ async function runCompetitorResearch(
   formattedUrl: string,
   name: string,
   firecrawlApiKey: string,
-  lovableApiKey: string
+  openaiApiKey: string
 ): Promise<void> {
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
@@ -283,7 +283,7 @@ Extract comprehensive intel including overview, products, pricing (if visible), 
     const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${lovableApiKey}`, // Variable name reused but contains OpenAI key
+        'Authorization': `Bearer ${openaiApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -373,7 +373,7 @@ Deno.serve(async (req) => {
     }
 
     const firecrawlApiKey = Deno.env.get('FIRECRAWL_API_KEY');
-    const lovableApiKey = Deno.env.get('OPENAI_API_KEY');
+    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
     
     if (!firecrawlApiKey) {
       return new Response(
@@ -382,7 +382,7 @@ Deno.serve(async (req) => {
       );
     }
     
-    if (!lovableApiKey) {
+    if (!openaiApiKey) {
       return new Response(
         JSON.stringify({ success: false, error: 'OpenAI API key not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -412,7 +412,7 @@ Deno.serve(async (req) => {
 
       // Run research in background - function continues after response
       EdgeRuntime.waitUntil(
-        runCompetitorResearch(competitor_id, formattedUrl, name, firecrawlApiKey, lovableApiKey)
+        runCompetitorResearch(competitor_id, formattedUrl, name, firecrawlApiKey, openaiApiKey)
       );
 
       // Return immediately - research continues in background
