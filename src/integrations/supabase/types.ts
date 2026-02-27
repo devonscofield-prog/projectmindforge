@@ -2034,6 +2034,24 @@ export type Database = {
         }
         Relationships: []
       }
+      rate_limits: {
+        Row: {
+          key: string
+          request_count: number
+          window_start: string
+        }
+        Insert: {
+          key: string
+          request_count?: number
+          window_start?: string
+        }
+        Update: {
+          key?: string
+          request_count?: number
+          window_start?: string
+        }
+        Relationships: []
+      }
       rep_performance_snapshots: {
         Row: {
           created_at: string
