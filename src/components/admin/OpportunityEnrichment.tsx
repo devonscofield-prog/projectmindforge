@@ -250,7 +250,7 @@ export function OpportunityEnrichment() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".csv"
+                accept=".csv,.xlsx,.xls"
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
