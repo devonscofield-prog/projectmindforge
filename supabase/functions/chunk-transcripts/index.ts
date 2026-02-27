@@ -519,7 +519,7 @@ ${chunkList}`
 async function processNERBackfillJob(
   jobId: string,
   supabase: SupabaseClient<any, "public", any>,
-  lovableApiKey: string
+  openaiNerKey: string
 ) {
   console.log(`[chunk-transcripts] Starting background NER backfill for job ${jobId}`);
   
