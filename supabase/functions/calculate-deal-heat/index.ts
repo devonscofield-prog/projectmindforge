@@ -99,22 +99,21 @@ async function handleBackfillBatch(correlationId: string, batchSize: number): Pr
         call.analysis_metadata
       );
       
-      const response = await fetch(LOVABLE_AI_URL, {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'google/gemini-2.5-flash', // Use flash for backfill efficiency
+          model: 'gpt-5-mini', // Use mini for backfill efficiency
           messages: [
             { role: 'system', content: ACTUARY_SYSTEM_PROMPT },
             { role: 'user', content: userPrompt }
           ],
           tools: [DEAL_HEAT_TOOL],
           tool_choice: { type: 'function', function: { name: 'calculate_deal_heat' } },
-          max_tokens: 4096,
-          temperature: 0.2,
+          max_completion_tokens: 4096,
         }),
       });
       
