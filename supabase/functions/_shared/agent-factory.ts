@@ -55,9 +55,7 @@ export function getAgentTimeout(model: ModelType, agentId?: string): number {
   return AGENT_TIMEOUT_MS[model] || 15000;
 }
 
-function isOpenAIModel(model: string): boolean {
-  return model.startsWith('openai/');
-}
+// All models now route through OpenAI
 
 export function isNonCriticalAgent(agentId: string): boolean {
   return NON_CRITICAL_AGENTS.has(agentId);
