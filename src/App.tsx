@@ -350,6 +350,11 @@ const App = () => (
                     <AdminReporting />
                   </ProtectedRoute>
                 } />
+                <Route path="/admin/opportunity-enrichment" element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <AdminOpportunityEnrichment />
+                  </ProtectedRoute>
+                } />
                 <Route path="/manager/reporting" element={
                   <ProtectedRoute allowedRoles={['manager']}>
                     <AdminReporting />

@@ -32,6 +32,7 @@ function getPageTitle(pathname: string, _role: string | null): string {
     '/admin/bulk-upload': 'Bulk Upload',
     '/admin/performance': 'Performance',
     '/admin/audit-log': 'Audit Log',
+    '/admin/opportunity-enrichment': 'SF Enrichment',
     // Manager routes
     '/manager': 'Team Overview',
     '/manager/history': 'Call History',

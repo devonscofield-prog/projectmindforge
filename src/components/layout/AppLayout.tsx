@@ -111,6 +111,7 @@ const adminNavGroups = [
     label: 'Reporting',
     items: [
       { href: '/admin/reporting', label: 'Reporting', icon: BarChart3 },
+      { href: '/admin/opportunity-enrichment', label: 'SF Enrichment', icon: FileText },
     ],
   },
   {
