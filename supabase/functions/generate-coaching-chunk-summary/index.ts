@@ -168,9 +168,9 @@ Deno.serve(async (req) => {
 
     console.log(`[generate-coaching-chunk-summary] Analyzing chunk ${chunkIndex} with ${calls.length} calls`);
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const LOVABLE_API_KEY = Deno.env.get('OPENAI_API_KEY');
     if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
+      throw new Error('OPENAI_API_KEY not configured');
     }
 
     // Calculate quick stats for the prompt - MEDDPICC first, fall back to BANT
