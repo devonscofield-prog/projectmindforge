@@ -319,7 +319,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (t) => `Analyze this sales call transcript to profile the PROSPECT's communication style and create a behavioral persona. Focus on how THEY speak, respond, and what they seem to value:\n\n${t}`,
     toolName: 'analyze_prospect_psychology',
     toolDescription: 'Analyze the primary decision maker\'s communication style and create a behavioral profile',
-    options: { model: 'google/gemini-2.5-flash', temperature: 0.3, maxTokens: 8192 },
+    options: { model: 'openai/gpt-5-mini', maxTokens: 8192 },
     isCritical: false,
     default: DEFAULT_PROFILER,
     phase: 1,
