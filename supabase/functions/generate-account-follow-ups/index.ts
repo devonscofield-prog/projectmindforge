@@ -232,8 +232,8 @@ Deno.serve(async (req) => {
     console.log(`[generate-account-follow-ups] Context built: ${calls.length} calls, ${emailLogs.length} emails, ~${contextPrompt.length} chars`);
 
     // Call AI with 60-second timeout
-    const LOVABLE_API_KEY = Deno.env.get('OPENAI_API_KEY');
-    if (!LOVABLE_API_KEY) throw new Error('OPENAI_API_KEY not configured');
+    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+    if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY not configured');
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 60000);
