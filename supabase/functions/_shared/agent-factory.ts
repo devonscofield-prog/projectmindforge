@@ -551,7 +551,7 @@ Output your reconciled assessment using the same schema.`;
     // Add reconciliation metadata to reasoning
     return {
       ...validationResult.data,
-      grade_reasoning: `[Reconciled from GPT: ${gptCoach.overall_grade} and Gemini: ${geminiCoach.overall_grade}]\n\n${validationResult.data.grade_reasoning}`,
+      grade_reasoning: `[Reconciled from Model A: ${gptCoach.overall_grade} and Model B: ${modelBCoach.overall_grade}]\n\n${validationResult.data.grade_reasoning}`,
     };
   } catch (err) {
     console.error('[Coach Reconciler] Error during reconciliation:', err);
