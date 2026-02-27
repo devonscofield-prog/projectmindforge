@@ -611,19 +611,19 @@ export async function executeCoachWithConsensus(
 
   // If one model fails, use the other
   if (!gptData) {
-    console.warn('[Coach Consensus] GPT failed, using Gemini result');
+    console.warn('[Coach Consensus] Model A (GPT) failed, using Model B result');
     await logPerformance(supabase, 'agent_coach_consensus', duration, 'success', {
       call_id: callId,
       gpt_failed: true,
-      gemini_only: true,
+      model_b_only: true,
     });
-    return { success: true, data: geminiData!, durationMs: duration };
+    return { success: true, data: modelBData!, durationMs: duration };
   }
-  if (!geminiData) {
-    console.warn('[Coach Consensus] Gemini failed, using GPT result');
+  if (!modelBData) {
+    console.warn('[Coach Consensus] Model B failed, using GPT result');
     await logPerformance(supabase, 'agent_coach_consensus', duration, 'success', {
       call_id: callId,
-      gemini_failed: true,
+      model_b_failed: true,
       gpt_only: true,
     });
     return { success: true, data: gptData!, durationMs: duration };
