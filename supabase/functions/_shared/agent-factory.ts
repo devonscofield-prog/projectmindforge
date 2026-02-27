@@ -479,13 +479,13 @@ async function reconcileCoachOutputs(
 - Strengths: ${gptCoach.top_3_strengths.join(', ')}
 - Improvements: ${gptCoach.top_3_areas_for_improvement.join(', ')}
 
-**Coach B (Gemini):**
-- Grade: ${geminiCoach.overall_grade}
-- Focus Area: ${geminiCoach.primary_focus_area}
-- Prescription: ${geminiCoach.coaching_prescription}
-- Reasoning: ${geminiCoach.grade_reasoning}
-- Strengths: ${geminiCoach.top_3_strengths.join(', ')}
-- Improvements: ${geminiCoach.top_3_areas_for_improvement.join(', ')}
+**Coach B (Model B):**
+- Grade: ${modelBCoach.overall_grade}
+- Focus Area: ${modelBCoach.primary_focus_area}
+- Prescription: ${modelBCoach.coaching_prescription}
+- Reasoning: ${modelBCoach.grade_reasoning}
+- Strengths: ${modelBCoach.top_3_strengths.join(', ')}
+- Improvements: ${modelBCoach.top_3_areas_for_improvement.join(', ')}
 
 Your task: Synthesize these into ONE final coaching assessment. Consider:
 1. If grades differ significantly, determine which reasoning is more evidence-based
