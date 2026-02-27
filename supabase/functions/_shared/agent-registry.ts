@@ -291,7 +291,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (t) => `Analyze this sales call transcript. Find the 3-5 most dangerous UNKNOWNS or MISSING INFORMATION that could block this deal:\n\n${t}`,
     toolName: 'identify_deal_gaps',
     toolDescription: 'Identify critical information gaps blocking a sales deal',
-    options: { model: 'openai/gpt-5.2', temperature: 0.1, maxTokens: 8192 },
+    options: { model: 'openai/gpt-5.2', maxTokens: 8192 },
     isCritical: false,
     default: DEFAULT_SKEPTIC,
     phase: 1,
