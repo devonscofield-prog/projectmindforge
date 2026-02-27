@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Upload, Download, FileSpreadsheet, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { parseCSV, generateCSV, downloadCSV } from '@/lib/csvParser';
+import * as XLSX from 'xlsx';
 import { enrichOpportunities } from '@/api/opportunityEnrichment';
 import { toast } from 'sonner';
 import {
