@@ -51,7 +51,7 @@ export interface AgentConfig<T extends z.ZodTypeAny = z.ZodTypeAny> {
   toolName: string;                        // Tool function name
   toolDescription: string;                 // Tool description for AI
   options: {
-    model: 'google/gemini-2.5-flash' | 'google/gemini-2.5-pro' | 'google/gemini-3-pro-preview' | 'openai/gpt-5.2';
+    model: 'openai/gpt-5-mini' | 'openai/gpt-5.2';
     temperature?: number;
     maxTokens?: number;
   };
