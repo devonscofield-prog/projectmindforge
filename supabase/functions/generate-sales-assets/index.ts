@@ -291,7 +291,6 @@ ${transcript.substring(0, 30000)}`;
           tools: [CALL_NOTES_TOOL],
           tool_choice: { type: 'function', function: { name: 'generate_call_notes' } },
           max_completion_tokens: 4096,
-          temperature: 0.5,
         }),
       });
 
