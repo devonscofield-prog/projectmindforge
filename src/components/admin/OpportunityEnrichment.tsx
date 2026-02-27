@@ -95,21 +95,48 @@ export function OpportunityEnrichment() {
         const workbook = XLSX.read(data, { type: 'array' });
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
 
-        if (jsonData.length === 0) {
-          toast.error('Excel file appears empty');
+        // Read as array-of-arrays to auto-detect header row
+        // Salesforce exports often have title/filter rows before the actual headers
+        const aoa = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: '' });
+
+        // Find the header row: first row containing a cell matching an account name variant
+        let headerRowIdx = -1;
+        const lowerVariants = ACCOUNT_NAME_VARIANTS.map((v) => v.toLowerCase());
+        for (let i = 0; i < Math.min(30, aoa.length); i++) {
+          const row = aoa[i] as string[];
+          if (row.some((cell) => lowerVariants.includes(String(cell).trim().toLowerCase()))) {
+            headerRowIdx = i;
+            break;
+          }
+        }
+
+        if (headerRowIdx === -1) {
+          toast.error('Could not find an "Account Name" column. Expected columns: ' + ACCOUNT_NAME_VARIANTS.slice(0, 4).join(', '));
           return;
         }
 
-        const headers = Object.keys(jsonData[0]);
-        const rows = jsonData.map((row) => {
+        const headerRow = (aoa[headerRowIdx] as unknown[]).map((c) => String(c).trim());
+        const dataRows = aoa.slice(headerRowIdx + 1);
+
+        // Filter out empty rows and build row objects
+        const headers = headerRow.filter((h) => h !== '');
+        const headerIndices = headerRow.map((h, idx) => h !== '' ? idx : -1).filter((i) => i >= 0);
+
+        const rows: Record<string, string>[] = [];
+        for (const raw of dataRows) {
+          const rawRow = raw as unknown[];
+          // Skip rows where all relevant cells are empty
+          const hasData = headerIndices.some((idx) => String(rawRow[idx] ?? '').trim() !== '');
+          if (!hasData) continue;
+
           const obj: Record<string, string> = {};
-          for (const h of headers) {
-            obj[h] = String(row[h] ?? '');
-          }
-          return obj;
-        });
+          headerIndices.forEach((colIdx, i) => {
+            obj[headers[i]] = String(rawRow[colIdx] ?? '').trim();
+          });
+          rows.push(obj);
+        }
+
         processData(headers, rows);
       }
     };
