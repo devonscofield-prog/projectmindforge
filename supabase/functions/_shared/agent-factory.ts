@@ -566,7 +566,7 @@ export interface CoachConsensusOptions {
 
 /**
  * Execute Coach agent with multi-model consensus
- * Runs on both GPT-5.2 and Gemini 3 Pro in parallel, then reconciles
+ * Runs on both GPT-5.2 and GPT-5-mini in parallel, then reconciles
  * Set skipConsensus=true for faster single-model execution when speed is preferred over maximum accuracy
  */
 export async function executeCoachWithConsensus(
