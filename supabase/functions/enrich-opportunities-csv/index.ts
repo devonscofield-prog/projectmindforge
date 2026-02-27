@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const bestContactMatches = new Map<string, { match: any; contactName: string }>();
+    const bestContactMatches = new Map<string, { match: any; contactName: string; jobTitle: string }>();
 
     if (contactNamesList.length > 0) {
       const uniqueContacts = [...new Set(contactNamesList)];
@@ -115,14 +115,23 @@ Deno.serve(async (req) => {
 
           const existing = bestContactMatches.get(accountKey);
           if (!existing || m.similarity_score > existing.match.similarity_score) {
-            bestContactMatches.set(accountKey, { match: m, contactName: m.stakeholder_name });
+            bestContactMatches.set(accountKey, {
+              match: m,
+              contactName: m.stakeholder_name,
+              jobTitle: m.job_title || '',
+            });
           }
         }
       }
     }
 
-    // 3. Merge: pick best match per account
-    const finalMatches = new Map<string, { match: any; source: 'account' | 'contact'; contactName?: string }>();
+    // 3. Merge: pick best match per account, always preserve contact info
+    const finalMatches = new Map<string, {
+      match: any;
+      source: 'account' | 'contact';
+      contactName?: string;
+      contactTitle?: string;
+    }>();
 
     for (const inputName of accountNames) {
       const key = inputName.toLowerCase().trim();
@@ -131,14 +140,29 @@ Deno.serve(async (req) => {
 
       if (accountMatch && contactMatch) {
         if (accountMatch.similarity_score >= contactMatch.match.similarity_score) {
-          finalMatches.set(key, { match: accountMatch, source: 'account', contactName: contactMatch.contactName });
+          finalMatches.set(key, {
+            match: accountMatch,
+            source: 'account',
+            contactName: contactMatch.contactName,
+            contactTitle: contactMatch.jobTitle,
+          });
         } else {
-          finalMatches.set(key, { match: contactMatch.match, source: 'contact', contactName: contactMatch.contactName });
+          finalMatches.set(key, {
+            match: contactMatch.match,
+            source: 'contact',
+            contactName: contactMatch.contactName,
+            contactTitle: contactMatch.jobTitle,
+          });
         }
       } else if (accountMatch) {
         finalMatches.set(key, { match: accountMatch, source: 'account' });
       } else if (contactMatch) {
-        finalMatches.set(key, { match: contactMatch.match, source: 'contact', contactName: contactMatch.contactName });
+        finalMatches.set(key, {
+          match: contactMatch.match,
+          source: 'contact',
+          contactName: contactMatch.contactName,
+          contactTitle: contactMatch.jobTitle,
+        });
       }
     }
 
