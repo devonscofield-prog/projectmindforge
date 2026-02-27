@@ -326,10 +326,7 @@ export function OpportunityEnrichment() {
                                   'max-w-[200px] truncate',
                                   h === 'SW_Match_Status' &&
                                     row[h] === 'Matched' &&
-                                    'text-green-600 dark:text-green-400 font-medium',
-                                  h === 'SW_Match_Status' &&
-                                    row[h] === 'No Match' &&
-                                    'text-muted-foreground'
+                                    'text-primary font-medium',
                                 )}
                               >
                                 {row[h] || '—'}
