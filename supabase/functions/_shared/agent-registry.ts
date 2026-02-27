@@ -192,7 +192,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (t) => `Label all speakers in this sales call transcript:\n\n${t}`,
     toolName: 'label_speakers',
     toolDescription: 'Identify and label all speakers in a sales call transcript',
-    options: { model: 'google/gemini-2.5-flash', maxTokens: 8192 },
+    options: { model: 'openai/gpt-5-mini', maxTokens: 8192 },
     isCritical: false, // Falls back to raw transcript if fails
     default: DEFAULT_SPEAKER_LABELER,
     phase: 0,
