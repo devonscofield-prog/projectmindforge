@@ -1,71 +1,117 @@
 
 
-# Salesforce Opportunity CSV Enrichment Tool
+# SDR Assistant Chatbots: Manager + Rep
 
 ## Overview
-Admin uploads a standard Salesforce Opportunities CSV. The app matches each opportunity to existing prospects/accounts by Account Name, then enriches each row with the full intelligence package from the platform and exports the enriched CSV.
 
-## Matching Strategy
-- Parse CSV and extract `Account Name` column (standard SF export field)
-- Match against `prospects.account_name` (case-insensitive) and also `call_transcripts.account_name` for unlinked calls
-- For each matched prospect, pull all related data across tables
+Create two AI chatbots following the exact same pattern as the existing Sales Assistant Chat -- floating button, slide-out sheet, streaming responses, session persistence -- but tailored for the SDR module:
 
-## Data to Append Per Opportunity Row
+1. **SDR Manager Assistant** -- Helps managers identify coaching opportunities, analyze team performance, and ask questions about their team's transcripts/grades
+2. **SDR Rep Assistant** -- Helps individual SDRs get coaching advice, review their call grades, and improve their performance
 
-| Column Group | Source | Fields Added |
-|---|---|---|
-| Heat Score | `prospects` | Account Heat Score, Temperature, Trend |
-| AI Insights | `prospects.ai_extracted_info` | Deal Blockers, Buying Signals, Stall Signals, Relationship Trajectory, Next Best Action, Pain Points, Competitors Mentioned |
-| Call Activity | `call_transcripts` | Total Calls, Last Call Date, Call Types |
-| Latest Analysis | `ai_call_analysis` (latest by call) | Call Summary, MEDDPICC Score, Coach Grade, Effectiveness Score, Deal Heat |
-| Stakeholders | `stakeholders` | Names, Titles, Influence Levels, Champion Scores |
-| Follow-Ups | `account_follow_ups` | Pending Follow-Up Count, Next Due Date, Titles |
-| Competitor Intel | `ai_call_analysis.prospect_intel` | Competitors mentioned across calls |
+Both will use the same OpenAI `gpt-5.2` API as the Sales Assistant (not Lovable AI Gateway), matching the existing architecture.
 
-## Implementation
+---
 
-### 1. New Edge Function: `enrich-opportunities-csv`
-- Receives parsed CSV rows (account names) from client
-- Uses service-role client to query across all reps' data (admin-level access)
-- For each account name:
-  - Find matching prospect(s) via case-insensitive `account_name` match
-  - Query `call_transcripts` + `ai_call_analysis` for latest call data
-  - Query `stakeholders` for contact info
-  - Query `account_follow_ups` for pending tasks
-- Returns enriched data array back to client
-- Client merges original CSV columns with enrichment columns and triggers download
+## What Gets Built
 
-### 2. New Admin Page: `/admin/opportunity-enrichment`
-- File upload zone (reuse existing drop zone pattern from `UploadDocumentDialog`)
-- CSV parsing on client side (simple split-based parser, no new dependency needed)
-- Preview table showing parsed rows + match status
-- "Enrich & Download" button
-- Progress indicator during processing
-- Downloads enriched CSV with original columns preserved + new columns appended
+### 1. Edge Function: `sdr-assistant-chat`
 
-### 3. New Files
-- `supabase/functions/enrich-opportunities-csv/index.ts` — Edge function
-- `src/pages/admin/AdminOpportunityEnrichment.tsx` — Page component
-- `src/components/admin/OpportunityEnrichment.tsx` — Main enrichment UI component
-- `src/api/opportunityEnrichment.ts` — API layer
-- `src/lib/csvParser.ts` — Simple CSV parse/generate utility
+A single edge function that handles both SDR and SDR Manager chat, differentiating by the caller's role.
 
-### 4. Route & Navigation
-- Add route `/admin/opportunity-enrichment` in `App.tsx` with admin protection
-- Add nav item in `AppLayout.tsx` under Reporting section
-- Add to `MobileHeader.tsx` route labels
-- Add breadcrumb config
+**For SDR Managers:**
+- Fetches all team members via `sdr_teams` + `sdr_team_members`
+- Fetches recent transcripts for all team SDRs
+- Fetches all calls + grades for the team
+- Builds context showing: team roster, grade distribution per rep, recent coaching notes, lowest-performing areas, reps with the most D/F grades, meetings scheduled rate
+- System prompt focused on identifying coaching opportunities, comparing rep performance, and surfacing patterns
 
-### 5. Processing Flow
-```text
-Upload CSV → Parse on client → Extract account names
-    → Send to edge function (batch)
-    → Edge function queries DB for each account
-    → Returns enrichment data
-    → Client merges original + enrichment columns
-    → Download enriched CSV
+**For SDRs:**
+- Fetches only that SDR's transcripts, calls, and grades
+- Builds context showing: their grade history, strengths/improvements from grading, call summaries, trends over time
+- System prompt focused on personal coaching, skill improvement, and call review
+
+### 2. Database: `sdr_assistant_sessions` table
+
+New table mirroring `sales_assistant_sessions` structure for session persistence:
+- `id`, `user_id`, `messages` (jsonb), `title`, `is_active`, `created_at`, `updated_at`
+- RLS: users can only access their own sessions
+
+### 3. Client API: `src/api/sdrAssistant.ts`
+
+Streaming client matching `salesAssistant.ts` pattern -- calls the `sdr-assistant-chat` edge function with message windowing and truncation.
+
+### 4. Session API: `src/api/sdrAssistantSessions.ts`
+
+Session management matching `salesAssistantSessions.ts` -- fetch, save, archive, switch, delete sessions from `sdr_assistant_sessions`.
+
+### 5. Chat Component: `src/components/SDRAssistantChat.tsx`
+
+Floating chat component matching `SalesAssistantChat.tsx` UI:
+- Floating sparkle button in bottom-right
+- Slide-out sheet with streaming markdown responses
+- Quick actions tailored per role:
+  - **Manager**: "Team Performance", "Coaching Opportunities", "Grade Trends", "Weakest Areas"
+  - **SDR**: "My Performance", "Improve My Calls", "Recent Grades", "Best Practices"
+- Session history, new chat, delete chat
+- Rate limit handling
+
+### 6. Integration
+
+- Add `<SDRAssistantChat />` to `SDRManagerDashboard.tsx` and related manager pages
+- Add `<SDRAssistantChat />` to `SDRDashboard.tsx` and SDR history page
+
+---
+
+## Technical Details
+
+### Edge Function Context Building
+
+**Manager context includes:**
+```
+TEAM OVERVIEW
+- Team name, member count
+- Per-rep stats: total calls, meaningful calls, grade distribution, avg scores, meetings booked
+
+COACHING PRIORITIES  
+- Reps with lowest average grades
+- Most common improvement areas across team
+- Reps trending down vs up
+
+RECENT CALL DETAILS
+- Last 5 graded calls per rep with summaries, grades, coaching notes
 ```
 
-### 6. No Database Changes Required
-All data already exists in current tables. The edge function reads existing data with service-role access.
+**SDR context includes:**
+```
+PERFORMANCE SUMMARY
+- Total transcripts, calls detected, meaningful calls
+- Grade distribution, average scores per category
+- Meetings scheduled count
+
+RECENT CALLS
+- Last 20 graded calls with summaries, grades, strengths, improvements, coaching notes
+
+TRENDS
+- Score trends over time
+- Most frequent improvement areas
+```
+
+### Files to Create
+| File | Purpose |
+|------|---------|
+| `supabase/functions/sdr-assistant-chat/index.ts` | Edge function |
+| `src/api/sdrAssistant.ts` | Streaming client |
+| `src/api/sdrAssistantSessions.ts` | Session persistence |
+| `src/components/SDRAssistantChat.tsx` | Chat UI component |
+
+### Files to Modify
+| File | Change |
+|------|--------|
+| `src/pages/sdr-manager/SDRManagerDashboard.tsx` | Add `<SDRAssistantChat />` |
+| `src/pages/sdr/SDRDashboard.tsx` | Add `<SDRAssistantChat />` |
+| `supabase/config.toml` | Not edited (auto-configured) |
+
+### Database Migration
+- Create `sdr_assistant_sessions` table with RLS policies (users read/write own rows only)
 
