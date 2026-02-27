@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
     // 1. Fuzzy match by account name
     const { data: accountMatches, error: matchError } = await supabase.rpc('fuzzy_match_prospects', {
       p_account_names: accountNames,
-      p_threshold: 0.3,
+      p_threshold: matchThreshold,
     });
 
     if (matchError) {
