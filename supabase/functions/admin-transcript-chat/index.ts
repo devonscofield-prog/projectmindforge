@@ -865,7 +865,7 @@ async function buildRagContext(
   }
 
   // Step 2: Classify query intent
-  const intent = await classifyQueryIntent(latestUserMessage.content, apiKey);
+  const intent = await classifyQueryIntent(latestUserMessage.content, openaiApiKey);
   console.log(`[admin-transcript-chat] Query intent: keywords=${intent.keywords.join(',')}, topics=${intent.topics.join(',')}, meddpicc=${intent.meddpicc_elements.join(',')}`);
 
   // Step 3: Call unified hybrid search RPC

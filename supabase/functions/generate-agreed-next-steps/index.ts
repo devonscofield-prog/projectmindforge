@@ -219,12 +219,12 @@ ${email.body}
     const timeoutId = setTimeout(() => controller.abort(), 60000);
 
     try {
-      const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
         signal: controller.signal,
         body: JSON.stringify({
-          model: 'google/gemini-3-pro-preview',
+          model: 'gpt-5.2',
           messages: [
             { role: 'system', content: SYSTEM_PROMPT },
             { role: 'user', content: contextPrompt }

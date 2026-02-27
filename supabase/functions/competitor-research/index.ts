@@ -384,7 +384,7 @@ Deno.serve(async (req) => {
     
     if (!lovableApiKey) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Lovable API key not configured' }),
+        JSON.stringify({ success: false, error: 'OpenAI API key not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

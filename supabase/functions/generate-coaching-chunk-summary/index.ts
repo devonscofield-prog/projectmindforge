@@ -238,16 +238,16 @@ Provide a condensed summary of this chunk's patterns and trends.`;
     
     let aiResponse: Response;
     try {
-      aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${LOVABLE_API_KEY}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
+          model: 'gpt-5-mini',
           temperature: 0.3, // Lower temperature for consistency
-          max_tokens: 4096, // Explicit token limit
+          max_completion_tokens: 4096, // Explicit token limit
           messages: [
             { role: 'system', content: CHUNK_SUMMARY_SYSTEM_PROMPT },
             { role: 'user', content: userPrompt }
