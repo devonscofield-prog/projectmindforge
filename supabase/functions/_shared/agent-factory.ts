@@ -419,26 +419,26 @@ async function reconcileCoachOutputs(
   console.log(`[Coach Reconciler] Model B grade: ${modelBCoach.overall_grade}, focus: ${modelBCoach.primary_focus_area}`);
 
   // If grades match and primary focus matches, merge arrays and combine reasoning
-  if (gptCoach.overall_grade === geminiCoach.overall_grade && 
-      gptCoach.primary_focus_area === geminiCoach.primary_focus_area) {
+  if (gptCoach.overall_grade === modelBCoach.overall_grade && 
+      gptCoach.primary_focus_area === modelBCoach.primary_focus_area) {
     console.log('[Coach Reconciler] Full agreement - merging outputs');
     return {
       overall_grade: gptCoach.overall_grade,
-      executive_summary: gptCoach.executive_summary.length > geminiCoach.executive_summary.length 
+      executive_summary: gptCoach.executive_summary.length > modelBCoach.executive_summary.length 
         ? gptCoach.executive_summary 
-        : geminiCoach.executive_summary,
-      top_3_strengths: deduplicateStrings([...gptCoach.top_3_strengths, ...geminiCoach.top_3_strengths]).slice(0, 3),
-      top_3_areas_for_improvement: deduplicateStrings([...gptCoach.top_3_areas_for_improvement, ...geminiCoach.top_3_areas_for_improvement]).slice(0, 3),
+        : modelBCoach.executive_summary,
+      top_3_strengths: deduplicateStrings([...gptCoach.top_3_strengths, ...modelBCoach.top_3_strengths]).slice(0, 3),
+      top_3_areas_for_improvement: deduplicateStrings([...gptCoach.top_3_areas_for_improvement, ...modelBCoach.top_3_areas_for_improvement]).slice(0, 3),
       primary_focus_area: gptCoach.primary_focus_area,
-      coaching_prescription: gptCoach.coaching_prescription.length > geminiCoach.coaching_prescription.length
+      coaching_prescription: gptCoach.coaching_prescription.length > modelBCoach.coaching_prescription.length
         ? gptCoach.coaching_prescription
-        : geminiCoach.coaching_prescription,
-      coaching_drill: (gptCoach.coaching_drill?.length || 0) > (geminiCoach.coaching_drill?.length || 0)
+        : modelBCoach.coaching_prescription,
+      coaching_drill: (gptCoach.coaching_drill?.length || 0) > (modelBCoach.coaching_drill?.length || 0)
         ? gptCoach.coaching_drill
-        : geminiCoach.coaching_drill,
-      immediate_action: gptCoach.immediate_action || geminiCoach.immediate_action,
-      grade_reasoning: `${gptCoach.grade_reasoning}\n\n[Corroborated by second model]: ${geminiCoach.grade_reasoning}`,
-      deal_progression: gptCoach.deal_progression || geminiCoach.deal_progression,
+        : modelBCoach.coaching_drill,
+      immediate_action: gptCoach.immediate_action || modelBCoach.immediate_action,
+      grade_reasoning: `${gptCoach.grade_reasoning}\n\n[Corroborated by second model]: ${modelBCoach.grade_reasoning}`,
+      deal_progression: gptCoach.deal_progression || modelBCoach.deal_progression,
     };
   }
 
