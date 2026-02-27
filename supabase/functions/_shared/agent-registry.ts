@@ -376,7 +376,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (input) => `Generate internal CRM notes for this sales call:\n\n${input}`,
     toolName: 'generate_crm_notes',
     toolDescription: 'Generate CRM-ready internal notes from call analysis',
-    options: { model: 'google/gemini-2.5-flash', temperature: 0.4, maxTokens: 4096 },
+    options: { model: 'openai/gpt-5-mini', maxTokens: 4096 },
     isCritical: false,
     default: DEFAULT_SCRIBE,
     phase: 2,
