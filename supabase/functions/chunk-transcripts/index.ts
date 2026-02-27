@@ -1853,7 +1853,7 @@ Deno.serve(async (req) => {
       }
 
       // Start background processing
-      EdgeRuntime.waitUntil(processFullReindexJob(job.id, supabase, openaiApiKey, lovableApiKey));
+      EdgeRuntime.waitUntil(processFullReindexJob(job.id, supabase, openaiApiKey, openaiNerKey));
 
       // Return immediately with job ID
       return new Response(
