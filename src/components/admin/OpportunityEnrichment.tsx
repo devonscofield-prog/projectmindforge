@@ -203,9 +203,26 @@ export function OpportunityEnrichment() {
       const batchSize = 100;
       const allResults: Record<string, Record<string, string>> = {};
 
+      // Build contact name entries if contact column exists
+      const hasContactCol = !!parsedCSV.contactNameColumn;
+
       for (let i = 0; i < accountNames.length; i += batchSize) {
         const batch = accountNames.slice(i, i + batchSize);
-        const result = await enrichOpportunities(batch);
+
+        // Build contactNames array for this batch
+        let contactEntries: { accountName: string; contactName: string }[] | undefined;
+        if (hasContactCol) {
+          const batchSet = new Set(batch.map((n) => n.toLowerCase().trim()));
+          contactEntries = parsedCSV.rows
+            .filter((r) => batchSet.has((r[parsedCSV.accountNameColumn!] || '').toLowerCase().trim()))
+            .map((r) => ({
+              accountName: r[parsedCSV.accountNameColumn!] || '',
+              contactName: r[parsedCSV.contactNameColumn!] || '',
+            }))
+            .filter((e) => e.contactName);
+        }
+
+        const result = await enrichOpportunities(batch, contactEntries);
         Object.assign(allResults, result.results);
       }
 
@@ -228,7 +245,7 @@ export function OpportunityEnrichment() {
       let matched = 0;
       let unmatched = 0;
       for (const row of newRows) {
-        if (row['SW_Match_Status'] === 'Matched') matched++;
+        if (row['SW_Match_Status'] === 'Matched' || row['SW_Match_Status'] === 'Fuzzy Match') matched++;
         else unmatched++;
       }
 
