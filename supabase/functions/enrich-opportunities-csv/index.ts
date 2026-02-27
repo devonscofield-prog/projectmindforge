@@ -83,9 +83,8 @@ Deno.serve(async (req) => {
     }
 
     // 2. Fuzzy match by contact name (if provided)
-    // contactNames is an array of { accountName, contactName } objects
     const contactNamesList: string[] = [];
-    const contactToAccountMap = new Map<string, string>(); // contactName lower -> accountName lower
+    const contactToAccountMap = new Map<string, string>();
 
     if (Array.isArray(contactNames) && contactNames.length > 0) {
       for (const entry of contactNames) {
@@ -109,7 +108,6 @@ Deno.serve(async (req) => {
       if (contactError) {
         console.error('Contact fuzzy match failed:', contactError.message);
       } else {
-        // Group best contact match by the associated account name key
         for (const m of contactMatches || []) {
           const contactKey = m.input_name.toLowerCase().trim();
           const accountKey = contactToAccountMap.get(contactKey);
@@ -123,7 +121,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 3. Merge: pick best match per account (account match vs contact match)
+    // 3. Merge: pick best match per account
     const finalMatches = new Map<string, { match: any; source: 'account' | 'contact'; contactName?: string }>();
 
     for (const inputName of accountNames) {
@@ -132,7 +130,6 @@ Deno.serve(async (req) => {
       const contactMatch = bestContactMatches.get(key);
 
       if (accountMatch && contactMatch) {
-        // Pick whichever has higher similarity
         if (accountMatch.similarity_score >= contactMatch.match.similarity_score) {
           finalMatches.set(key, { match: accountMatch, source: 'account', contactName: contactMatch.contactName });
         } else {
@@ -145,17 +142,17 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 4. Gather matched prospect IDs for call counting
+    // 4. Fetch call data + analysis for matched prospects
     const matchedProspectIds = [...finalMatches.values()].map((m) => m.match.prospect_id);
     const callCountMap = new Map<string, number>();
-    const latestCallMap = new Map<string, string>();
+    const latestCallMap = new Map<string, { callDate: string; callId: string }>();
 
     if (matchedProspectIds.length > 0) {
       for (let i = 0; i < matchedProspectIds.length; i += 200) {
         const batch = matchedProspectIds.slice(i, i + 200);
         const { data: calls } = await supabase
           .from('call_transcripts')
-          .select('prospect_id, call_date')
+          .select('id, prospect_id, call_date')
           .in('prospect_id', batch)
           .is('deleted_at', null)
           .order('call_date', { ascending: false });
@@ -165,14 +162,38 @@ Deno.serve(async (req) => {
           for (const [key, fm] of finalMatches) {
             if (fm.match.prospect_id === c.prospect_id) {
               callCountMap.set(key, (callCountMap.get(key) || 0) + 1);
-              if (!latestCallMap.has(key)) latestCallMap.set(key, c.call_date);
+              if (!latestCallMap.has(key)) {
+                latestCallMap.set(key, { callDate: c.call_date, callId: c.id });
+              }
             }
           }
         }
       }
     }
 
-    // 5. Fetch rep names
+    // 5. Fetch ai_call_analysis for the latest call of each matched prospect
+    const latestCallIds = [...new Set([...latestCallMap.values()].map((v) => v.callId))];
+    const analysisMap = new Map<string, any>();
+
+    if (latestCallIds.length > 0) {
+      for (let i = 0; i < latestCallIds.length; i += 200) {
+        const batch = latestCallIds.slice(i, i + 200);
+        const { data: analyses } = await supabase
+          .from('ai_call_analysis')
+          .select('call_id, call_summary, deal_heat_analysis, analysis_coaching')
+          .in('call_id', batch)
+          .is('deleted_at', null);
+
+        for (const a of analyses || []) {
+          // Keep only first (most recent) per call_id
+          if (!analysisMap.has(a.call_id)) {
+            analysisMap.set(a.call_id, a);
+          }
+        }
+      }
+    }
+
+    // 6. Fetch rep names
     const repIds = [...new Set([...finalMatches.values()].filter((m) => m.match.rep_id).map((m) => m.match.rep_id))];
     const repNameMap = new Map<string, string>();
     if (repIds.length > 0) {
@@ -182,7 +203,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 6. Build results
+    // 7. Build results
     const results: Record<string, Record<string, string>> = {};
 
     for (const inputName of accountNames) {
@@ -196,27 +217,43 @@ Deno.serve(async (req) => {
 
       const m = fm.match;
       const callCount = callCountMap.get(key) || 0;
-      const latestCall = latestCallMap.get(key) || '';
+      const latestCallInfo = latestCallMap.get(key);
       const repName = m.rep_id ? repNameMap.get(m.rep_id) || '' : '';
-      const confidencePct = Math.round(m.similarity_score * 100);
+
+      // Get analysis data for latest call
+      const analysis = latestCallInfo ? analysisMap.get(latestCallInfo.callId) : null;
+      const dealHeat = analysis?.deal_heat_analysis as Record<string, any> | null;
+      const coaching = analysis?.analysis_coaching as Record<string, any> | null;
+
+      // Parse key factors into a readable string
+      let keyFactors = '';
+      if (dealHeat?.key_factors) {
+        const kf = dealHeat.key_factors;
+        const positives = Array.isArray(kf.positive) ? kf.positive.join('; ') : '';
+        const negatives = Array.isArray(kf.negative) ? kf.negative.join('; ') : '';
+        const parts: string[] = [];
+        if (positives) parts.push(`+: ${positives}`);
+        if (negatives) parts.push(`-: ${negatives}`);
+        keyFactors = parts.join(' | ');
+      }
 
       results[key] = {
         SW_Match_Status: m.similarity_score >= 0.95 ? 'Matched' : 'Fuzzy Match',
-        SW_Confidence: `${confidencePct}%`,
-        SW_Match_Source: fm.source === 'contact' ? 'Contact' : 'Account',
-        SW_Matched_Account: m.account_name || m.prospect_name || '',
         SW_Prospect_Name: m.prospect_name || '',
+        SW_Matched_Account: m.account_name || m.prospect_name || '',
         SW_Matched_Contact: fm.contactName || '',
         SW_Contact_Title: fm.source === 'contact' ? (m.job_title || '') : '',
-        SW_Account_Status: m.status || '',
         SW_Heat_Score: m.heat_score != null ? String(m.heat_score) : '',
-        SW_Industry: m.industry || '',
-        SW_Active_Revenue: m.active_revenue ? String(m.active_revenue) : '',
-        SW_Potential_Revenue: m.potential_revenue ? String(m.potential_revenue) : '',
-        SW_Last_Contact: m.last_contact_date || '',
-        SW_Latest_Call_Date: latestCall,
-        SW_Total_Calls: String(callCount),
         SW_Assigned_Rep: repName,
+        SW_Total_Calls: String(callCount),
+        SW_Latest_Call_Date: latestCallInfo?.callDate || '',
+        SW_Latest_Call_Summary: analysis?.call_summary || '',
+        SW_Deal_Temperature: dealHeat?.temperature || '',
+        SW_Deal_Trend: dealHeat?.trend || '',
+        SW_Win_Probability: dealHeat?.winning_probability || '',
+        SW_Recommended_Action: dealHeat?.recommended_action || '',
+        SW_Coach_Grade: coaching?.overall_grade || '',
+        SW_Key_Deal_Factors: keyFactors,
       };
     }
 
