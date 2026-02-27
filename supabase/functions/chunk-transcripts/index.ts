@@ -1093,7 +1093,7 @@ async function processFullReindexJob(
         
         try {
           const batchInput = batch.map(chunk => ({ id: chunk.id, text: chunk.chunk_text }));
-          const nerResults = await extractEntitiesBatch(batchInput, context, lovableApiKey);
+          const nerResults = await extractEntitiesBatch(batchInput, context, openaiNerKey);
           
           for (const chunk of batch) {
             const nerResult = nerResults.get(chunk.id);
