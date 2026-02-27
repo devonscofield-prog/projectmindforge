@@ -2,7 +2,8 @@ import { useState, useCallback, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Upload, Download, FileSpreadsheet, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
+import { Upload, Download, FileSpreadsheet, CheckCircle2, XCircle, Loader2, SlidersHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { parseCSV, generateCSV, downloadCSV } from '@/lib/csvParser';
 import * as XLSX from 'xlsx';
@@ -73,6 +74,7 @@ export function OpportunityEnrichment() {
   const [enrichedRows, setEnrichedRows] = useState<Record<string, string>[] | null>(null);
   const [enrichedHeaders, setEnrichedHeaders] = useState<string[]>([]);
   const [matchStats, setMatchStats] = useState<{ matched: number; unmatched: number } | null>(null);
+  const [confidenceThreshold, setConfidenceThreshold] = useState(30);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const processData = useCallback((headers: string[], rows: Record<string, string>[]) => {
@@ -222,7 +224,7 @@ export function OpportunityEnrichment() {
             .filter((e) => e.contactName);
         }
 
-        const result = await enrichOpportunities(batch, contactEntries);
+        const result = await enrichOpportunities(batch, contactEntries, confidenceThreshold / 100);
         Object.assign(allResults, result.results);
       }
 
@@ -370,6 +372,30 @@ export function OpportunityEnrichment() {
               </div>
             </CardHeader>
             <CardContent>
+              {/* Confidence threshold slider */}
+              {!enrichedRows && (
+                <div className="mb-5 rounded-lg border border-border bg-muted/30 p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">Match Confidence Threshold</span>
+                    <Badge variant="outline" className="ml-auto text-xs font-mono">
+                      {confidenceThreshold}%
+                    </Badge>
+                  </div>
+                  <Slider
+                    value={[confidenceThreshold]}
+                    onValueChange={([v]) => setConfidenceThreshold(v)}
+                    min={10}
+                    max={100}
+                    step={5}
+                    className="w-full"
+                  />
+                  <div className="flex justify-between text-[11px] text-muted-foreground mt-1.5">
+                    <span>Loose (more matches)</span>
+                    <span>Strict (fewer, higher quality)</span>
+                  </div>
+                </div>
+              )}
               {isEnriching && (
                 <div className="mb-4 space-y-2">
                   <Progress value={undefined} className="h-2" />

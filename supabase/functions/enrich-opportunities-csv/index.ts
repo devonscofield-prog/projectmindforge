@@ -52,7 +52,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { accountNames, contactNames } = await req.json();
+    const { accountNames, contactNames, threshold } = await req.json();
+    const matchThreshold = typeof threshold === 'number' && threshold >= 0.1 && threshold <= 1.0 ? threshold : 0.3;
 
     if (!Array.isArray(accountNames) || accountNames.length === 0) {
       return new Response(JSON.stringify({ error: 'accountNames array required' }), {
@@ -64,7 +65,7 @@ Deno.serve(async (req) => {
     // 1. Fuzzy match by account name
     const { data: accountMatches, error: matchError } = await supabase.rpc('fuzzy_match_prospects', {
       p_account_names: accountNames,
-      p_threshold: 0.3,
+      p_threshold: matchThreshold,
     });
 
     if (matchError) {
@@ -102,7 +103,7 @@ Deno.serve(async (req) => {
       const uniqueContacts = [...new Set(contactNamesList)];
       const { data: contactMatches, error: contactError } = await supabase.rpc('fuzzy_match_stakeholders', {
         p_contact_names: uniqueContacts,
-        p_threshold: 0.3,
+        p_threshold: matchThreshold,
       });
 
       if (contactError) {

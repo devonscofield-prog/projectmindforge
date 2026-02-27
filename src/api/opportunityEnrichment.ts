@@ -15,10 +15,11 @@ export interface ContactNameEntry {
  */
 export async function enrichOpportunities(
   accountNames: string[],
-  contactNames?: ContactNameEntry[]
+  contactNames?: ContactNameEntry[],
+  threshold?: number
 ): Promise<EnrichmentResult> {
   const { data, error } = await supabase.functions.invoke('enrich-opportunities-csv', {
-    body: { accountNames, contactNames },
+    body: { accountNames, contactNames, threshold },
   });
 
   if (error) throw new Error(error.message || 'Enrichment failed');
