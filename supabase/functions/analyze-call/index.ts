@@ -122,6 +122,10 @@ async function triggerBackgroundChunking(callId: string, supabaseUrl: string, se
  */
 async function triggerFollowUpSuggestions(callId: string, supabaseUrl: string, serviceKey: string): Promise<void> {
   try {
+    // Use AbortController with 45s timeout to prevent hanging and blocking the status update
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 45_000);
+
     const response = await fetch(`${supabaseUrl}/functions/v1/generate-call-follow-up-suggestions`, {
       method: 'POST',
       headers: {
@@ -129,7 +133,10 @@ async function triggerFollowUpSuggestions(callId: string, supabaseUrl: string, s
         'Authorization': `Bearer ${serviceKey}`,
       },
       body: JSON.stringify({ call_id: callId, trigger_source: 'analyze-call' }),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -139,7 +146,11 @@ async function triggerFollowUpSuggestions(callId: string, supabaseUrl: string, s
       console.log(`[analyze-call] Follow-up suggestions generated for ${callId}: ${result.count || 0} suggestions`);
     }
   } catch (err) {
-    console.warn(`[analyze-call] Failed to trigger follow-up suggestions for ${callId}:`, err);
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      console.warn(`[analyze-call] Follow-up suggestions timed out for ${callId} (45s) - will complete in background`);
+    } else {
+      console.warn(`[analyze-call] Failed to trigger follow-up suggestions for ${callId}:`, err);
+    }
   }
 }
 
