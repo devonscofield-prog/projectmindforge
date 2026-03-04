@@ -26,18 +26,18 @@ type ModelType = keyof typeof AGENT_TIMEOUT_MS;
 // Agent-specific timeout overrides - tuned per agent complexity
 // Since analyze-call runs in background, we can afford longer timeouts for quality
 const AGENT_TIMEOUT_OVERRIDES: Record<string, number> = {
-  'speaker_labeler': 60000,   // Simple labeling task
+  'speaker_labeler': 90000,   // Full transcript labeling - upgraded timeout for reliability
   'sentinel': 45000,          // Fast classification
   'census': 90000,            // Entity extraction - extended for complex transcripts
   'historian': 60000,         // Summary generation
   'spy': 75000,               // Competitive intel extraction
   'profiler': 60000,          // Psychology profiling
   'strategist': 75000,        // Reduced from 90000 - force faster completion or fail-fast
-  'referee': 75000,           // Behavioral scoring with nuance
-  'interrogator': 75000,      // Question/answer analysis
+  'referee': 120000,          // Behavioral scoring - extended to eliminate timeout errors
+  'interrogator': 120000,     // Question/answer analysis - extended (was 55% error rate from timeouts)
   'skeptic': 75000,           // Complex gap reasoning
   'negotiator': 75000,        // LAER framework analysis
-  'auditor': 60000,           // Simple pricing analysis
+  'auditor': 90000,           // Pricing analysis - extended for reliability
   'coach': 120000,            // Synthesis of all agents - needs most time
 } as const;
 
