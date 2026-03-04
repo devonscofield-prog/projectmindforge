@@ -1372,7 +1372,7 @@ export async function runAnalysisPipeline(
   const scribeConfig = getAgent('scribe')!;
 
   // Run Coach and Scribe in parallel - Coach uses consensus, Scribe uses single model
-  const [coachResult, scribeResult] = await Promise.all([
+  const [coachResult, initialScribeResult] = await Promise.all([
     executeCoachWithConsensus(coachConfig, coachingReport, supabase, callId),
     cachedExecuteAgentWithPrompt<ScribeOutput>(scribeConfig, scribeInput, supabase, callId),
   ]);
@@ -1380,8 +1380,17 @@ export async function runAnalysisPipeline(
   if (!coachResult.success) {
     warnings.push(`Coaching synthesis failed: ${coachResult.error}`);
   }
+  
+  // Auto-retry Scribe once on failure before falling back to default
+  let scribeResult = initialScribeResult;
   if (!scribeResult.success) {
-    warnings.push(`CRM notes generation failed: ${scribeResult.error}`);
+    console.log(`${logPrefix} Scribe failed (${scribeResult.error}), retrying once...`);
+    scribeResult = await cachedExecuteAgentWithPrompt<ScribeOutput>(scribeConfig, scribeInput, supabase, callId);
+    if (scribeResult.success) {
+      console.log(`${logPrefix} Scribe retry succeeded`);
+    } else {
+      warnings.push(`CRM notes generation failed after retry: ${scribeResult.error}`);
+    }
   }
 
   const phase2Duration = performance.now() - phase2Start;

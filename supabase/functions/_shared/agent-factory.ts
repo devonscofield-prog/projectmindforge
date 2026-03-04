@@ -39,6 +39,7 @@ const AGENT_TIMEOUT_OVERRIDES: Record<string, number> = {
   'negotiator': 75000,        // LAER framework analysis
   'auditor': 90000,           // Pricing analysis - extended for reliability
   'coach': 120000,            // Synthesis of all agents - needs most time
+  'scribe': 90000,            // CRM notes generation - needs headroom for long transcripts
 } as const;
 
 // Non-critical agents that can fail gracefully without blocking analysis
