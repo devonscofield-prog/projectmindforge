@@ -4,14 +4,14 @@
  * Performance optimizations (P1):
  * - Phase 0: Speaker Labeler + Sentinel (call classifier) run in parallel
  * - Sentinel provides scoring hints to calibrate downstream agents
- * - Skeptic runs async (non-blocking) at start of Batch 2
+ * - Skeptic + Interrogator run async (non-blocking) to avoid blocking batches
  * - Per-agent timeouts with graceful degradation
- * - Reduced batch count from 3 to 2 + async Skeptic
+ * - Reduced batch count from 3 to 2 + async agents
  * 
  * Phase 0: Speaker Labeler + Sentinel (parallel pre-processing)
  * Batch 1: Critical (Census, Historian, Spy)
- * Batch 2: Strategic (Profiler, Strategist, Referee, Interrogator, Negotiator) + Skeptic (async)
- * Phase 2: Coach (synthesis)
+ * Batch 2: Strategic (Profiler, Strategist, Referee, Negotiator, Auditor) + Skeptic/Interrogator (async)
+ * Phase 2: Coach + Scribe (synthesis)
  */
 
 import { z } from "zod";
@@ -964,8 +964,9 @@ export async function runAnalysisPipeline(
     return result as AgentResult<T>;
   }
 
-  // Async agent result holder (scoped to this pipeline run to avoid race conditions)
+  // Async agent result holders (scoped to this pipeline run to avoid race conditions)
   let pendingSkepticResult: Promise<AgentResult<SkepticOutput>> | null = null;
+  let pendingInterrogatorResult: Promise<AgentResult<InterrogatorOutput>> | null = null;
 
   // Determine which transcript to use (labeled or raw)
   let processedTranscript = transcript;
@@ -1160,8 +1161,9 @@ export async function runAnalysisPipeline(
   await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
 
   // ============= BATCH 2: Strategic + Deep Dive (Split into 2a/2b for rate limit control) =============
-  // Skeptic runs async (non-blocking) and we await before Coach
-  console.log(`${logPrefix} Batch 2a: Running Profiler, Strategist, Referee, Interrogator + Skeptic (async)...`);
+  // Skeptic + Interrogator run async (non-blocking) - both are non-critical and can be slow
+  // We await them before Coach synthesis
+  console.log(`${logPrefix} Batch 2a: Running Profiler, Strategist, Referee + Skeptic, Interrogator (async)...`);
   const batch2Start = performance.now();
 
   // Build context-aware prompts using processedTranscript
@@ -1199,19 +1201,22 @@ export async function runAnalysisPipeline(
   pendingSkepticResult = cachedExecuteAgentWithPrompt<SkepticOutput>(skepticConfig, skepticPrompt, supabase, callId);
   console.log(`${logPrefix} Skeptic fired async (non-blocking)`);
 
-  // Batch 2a: Profiler, Strategist, Referee, Interrogator (4 agents in parallel)
-  // Interrogator moved here from Batch 2b - it doesn't need Strategist context
+  // Fire Interrogator async (non-blocking) - it's non-critical and its 120s timeout
+  // was blocking the entire Batch 2a via Promise.all, causing pipeline kills
   const interrogatorPrompt = buildInterrogatorPrompt(
     processedTranscript, 
     callClassification?.scoring_hints,
     callClassification?.detected_call_type
   );
-  
-  const [profilerResult, strategistResult, refereeResult, interrogatorResult] = await Promise.all([
+  pendingInterrogatorResult = cachedExecuteAgentWithPrompt<InterrogatorOutput>(interrogatorConfig, interrogatorPrompt, supabase, callId);
+  console.log(`${logPrefix} Interrogator fired async (non-blocking)`);
+
+  // Batch 2a: Profiler, Strategist, Referee (3 critical agents in parallel)
+  // Interrogator moved to async - its 120s timeout was blocking the pipeline
+  const [profilerResult, strategistResult, refereeResult] = await Promise.all([
     cachedExecuteAgentWithPrompt<ProfilerOutput>(profilerConfig, profilerPrompt, supabase, callId),
     cachedExecuteAgentWithPrompt<StrategistOutput>(strategistConfig, strategistPrompt, supabase, callId),
     cachedExecuteAgentWithPrompt<RefereeOutput>(refereeConfig, behaviorPrompt, supabase, callId),
-    cachedExecuteAgentWithPrompt<InterrogatorOutput>(interrogatorConfig, interrogatorPrompt, supabase, callId),
   ]);
   
   const batch2aDuration = performance.now() - batch2Start;
@@ -1261,17 +1266,21 @@ export async function runAnalysisPipeline(
   if (!profilerResult.success) warnings.push(`Psychology profiling failed: ${profilerResult.error}`);
   if (!strategistResult.success) warnings.push(`Strategy analysis failed: ${strategistResult.error}`);
   if (!refereeResult.success) warnings.push(`Behavior analysis failed: ${refereeResult.error}`);
-  if (!interrogatorResult.success) warnings.push(`Question analysis failed: ${interrogatorResult.error}`);
   if (!auditorResult.success) warnings.push(`Pricing discipline analysis failed: ${auditorResult.error}`);
   if (!negotiatorResult.success) warnings.push(`Objection handling analysis failed: ${negotiatorResult.error}`);
 
-  // Now await Skeptic (should be done or nearly done)
-  console.log(`${logPrefix} Awaiting async Skeptic result...`);
-  const skepticResult = await pendingSkepticResult;
-  pendingSkepticResult = null; // Clear for next run
+  // Now await async agents (Skeptic + Interrogator - should be done or nearly done)
+  console.log(`${logPrefix} Awaiting async Skeptic + Interrogator results...`);
+  const [skepticResult, interrogatorResult] = await Promise.all([
+    pendingSkepticResult!,
+    pendingInterrogatorResult!,
+  ]);
+  pendingSkepticResult = null;
+  pendingInterrogatorResult = null;
   
   if (!skepticResult.success) warnings.push(`Deal gaps analysis failed: ${skepticResult.error}`);
-  console.log(`${logPrefix} Skeptic complete (was running async)`);
+  if (!interrogatorResult.success) warnings.push(`Question analysis failed: ${interrogatorResult.error}`);
+  console.log(`${logPrefix} Async agents complete (Skeptic + Interrogator)`);
   
   // Check timeout before Phase 2
   checkTimeout(pipelineStart, 'Before Phase 2');
