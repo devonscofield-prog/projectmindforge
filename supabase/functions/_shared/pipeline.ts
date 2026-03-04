@@ -964,8 +964,9 @@ export async function runAnalysisPipeline(
     return result as AgentResult<T>;
   }
 
-  // Async agent result holder (scoped to this pipeline run to avoid race conditions)
+  // Async agent result holders (scoped to this pipeline run to avoid race conditions)
   let pendingSkepticResult: Promise<AgentResult<SkepticOutput>> | null = null;
+  let pendingInterrogatorResult: Promise<AgentResult<InterrogatorOutput>> | null = null;
 
   // Determine which transcript to use (labeled or raw)
   let processedTranscript = transcript;
