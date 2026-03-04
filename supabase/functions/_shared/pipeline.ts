@@ -1266,17 +1266,21 @@ export async function runAnalysisPipeline(
   if (!profilerResult.success) warnings.push(`Psychology profiling failed: ${profilerResult.error}`);
   if (!strategistResult.success) warnings.push(`Strategy analysis failed: ${strategistResult.error}`);
   if (!refereeResult.success) warnings.push(`Behavior analysis failed: ${refereeResult.error}`);
-  if (!interrogatorResult.success) warnings.push(`Question analysis failed: ${interrogatorResult.error}`);
   if (!auditorResult.success) warnings.push(`Pricing discipline analysis failed: ${auditorResult.error}`);
   if (!negotiatorResult.success) warnings.push(`Objection handling analysis failed: ${negotiatorResult.error}`);
 
-  // Now await Skeptic (should be done or nearly done)
-  console.log(`${logPrefix} Awaiting async Skeptic result...`);
-  const skepticResult = await pendingSkepticResult;
-  pendingSkepticResult = null; // Clear for next run
+  // Now await async agents (Skeptic + Interrogator - should be done or nearly done)
+  console.log(`${logPrefix} Awaiting async Skeptic + Interrogator results...`);
+  const [skepticResult, interrogatorResult] = await Promise.all([
+    pendingSkepticResult!,
+    pendingInterrogatorResult!,
+  ]);
+  pendingSkepticResult = null;
+  pendingInterrogatorResult = null;
   
   if (!skepticResult.success) warnings.push(`Deal gaps analysis failed: ${skepticResult.error}`);
-  console.log(`${logPrefix} Skeptic complete (was running async)`);
+  if (!interrogatorResult.success) warnings.push(`Question analysis failed: ${interrogatorResult.error}`);
+  console.log(`${logPrefix} Async agents complete (Skeptic + Interrogator)`);
   
   // Check timeout before Phase 2
   checkTimeout(pipelineStart, 'Before Phase 2');
