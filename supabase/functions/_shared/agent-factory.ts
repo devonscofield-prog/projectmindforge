@@ -180,12 +180,102 @@ function coerceRefereeOutput(data: unknown): unknown {
 /**
  * Apply agent-specific coercion based on agent ID
  */
+/**
+ * Coerce Auditor output - truncate coaching_tips to max 5 items
+ */
+function coerceAuditorOutput(data: unknown): unknown {
+  if (!data || typeof data !== 'object') return data;
+  const obj = data as Record<string, unknown>;
+  if (Array.isArray(obj.coaching_tips) && obj.coaching_tips.length > 5) {
+    console.log(`[agent-factory] Coercing auditor coaching_tips from ${obj.coaching_tips.length} to 5`);
+    obj.coaching_tips = obj.coaching_tips.slice(0, 5);
+  }
+  return obj;
+}
+
+/**
+ * Coerce Spy output - provide defaults for optional fields AI may omit
+ */
+function coerceSpyOutput(data: unknown): unknown {
+  if (!data || typeof data !== 'object') return data;
+  const obj = data as Record<string, unknown>;
+  if (Array.isArray(obj.competitive_intel)) {
+    obj.competitive_intel = obj.competitive_intel.map((item: unknown) => {
+      if (item && typeof item === 'object') {
+        const intel = item as Record<string, unknown>;
+        if (!intel.silver_bullet_question) {
+          intel.silver_bullet_question = 'Not identified';
+        }
+        if (!intel.question_timing) {
+          intel.question_timing = 'Use when appropriate';
+        }
+      }
+      return item;
+    });
+  }
+  return obj;
+}
+
+/**
+ * Coerce Speaker Labeler output - fix common typos in speaker enum values
+ */
+function coerceSpeakerLabelerOutput(data: unknown): unknown {
+  if (!data || typeof data !== 'object') return data;
+  const obj = data as Record<string, unknown>;
+  
+  const VALID_SPEAKERS = new Set(['REP', 'PROSPECT', 'MANAGER', 'OTHER']);
+  const SPEAKER_FIXES: Record<string, string> = {
+    'RE P': 'REP', 'RE_P': 'REP', 'Rep': 'REP',
+    'PROSPE CT': 'PROSPECT', 'PROSPEC T': 'PROSPECT',
+    'MANA GER': 'MANAGER', 'MANAGE R': 'MANAGER',
+  };
+  
+  if (Array.isArray(obj.line_labels)) {
+    obj.line_labels = obj.line_labels.map((label: unknown) => {
+      if (label && typeof label === 'object') {
+        const l = label as Record<string, unknown>;
+        const speaker = String(l.speaker || '').trim();
+        if (!VALID_SPEAKERS.has(speaker)) {
+          const fixed = SPEAKER_FIXES[speaker] || 'OTHER';
+          console.log(`[agent-factory] Coercing speaker label "${speaker}" to "${fixed}"`);
+          l.speaker = fixed;
+        }
+      }
+      return label;
+    });
+  }
+  
+  if (Array.isArray(obj.speaker_mapping)) {
+    obj.speaker_mapping = obj.speaker_mapping.map((mapping: unknown) => {
+      if (mapping && typeof mapping === 'object') {
+        const m = mapping as Record<string, unknown>;
+        const role = String(m.role || '').trim();
+        if (!VALID_SPEAKERS.has(role)) {
+          m.role = SPEAKER_FIXES[role] || 'OTHER';
+        }
+      }
+      return mapping;
+    });
+  }
+  
+  return obj;
+}
+
+/**
+ * Apply agent-specific coercion based on agent ID
+ */
 function applySchemaCoercion(agentId: string, data: unknown): unknown {
   switch (agentId) {
     case 'strategist':
       return coerceStrategistOutput(data);
     case 'referee':
       return coerceRefereeOutput(data);
+    case 'auditor':
+      return coerceAuditorOutput(data);
+    case 'spy':
+      return coerceSpyOutput(data);
+    case 'speaker_labeler':
+      return coerceSpeakerLabelerOutput(data);
     default:
       return data;
   }
