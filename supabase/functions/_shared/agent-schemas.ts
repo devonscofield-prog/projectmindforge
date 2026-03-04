@@ -124,7 +124,7 @@ export const StrategistSchema = z.object({
 // The Skeptic - deal gaps
 export const SkepticSchema = z.object({
   critical_gaps: z.array(z.object({
-    category: z.enum(['Budget', 'Authority', 'Need', 'Timeline', 'Competition', 'Technical', 'Procurement', 'Process', 'Stakeholder', 'Integration', 'Security', 'Training']),
+    category: z.enum(['Budget', 'Authority', 'Need', 'Timeline', 'Competition', 'Technical', 'Procurement', 'Process', 'Stakeholder', 'Integration', 'Security', 'Training', 'Compliance', 'Legal']),
     description: z.string(),
     impact: z.enum(['High', 'Medium', 'Low']),
     suggested_question: z.string(),
@@ -171,8 +171,8 @@ export const SpySchema = z.object({
     evidence_quote: z.string().describe("Verbatim quote from transcript proving this competitor intel"),
     competitive_position: z.enum(['Winning', 'Losing', 'Neutral', 'At Risk']).describe("Our position relative to this competitor based on prospect sentiment"),
     positioning_strategy: z.string().describe("1-2 sentences: how to de-position this competitor based on their weakness"),
-    silver_bullet_question: z.string(),
-    question_timing: z.string().describe("When to use the silver bullet question (e.g., 'Use during demo', 'Save for proposal stage')"),
+    silver_bullet_question: z.string().optional().describe("A killer question to expose this competitor's weakness"),
+    question_timing: z.string().optional().describe("When to use the silver bullet question (e.g., 'Use during demo', 'Save for proposal stage')"),
   })),
 });
 

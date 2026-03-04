@@ -94,7 +94,7 @@ export interface PipelineResult {
 }
 
 // Delay between batches to allow rate limits to recover
-const BATCH_DELAY_MS = 300;
+const BATCH_DELAY_MS = 100;
 
 // Phase 0 time budget - extended for maximum quality
 const PHASE0_BUDGET_MS = 60000;
@@ -1161,7 +1161,7 @@ export async function runAnalysisPipeline(
 
   // ============= BATCH 2: Strategic + Deep Dive (Split into 2a/2b for rate limit control) =============
   // Skeptic runs async (non-blocking) and we await before Coach
-  console.log(`${logPrefix} Batch 2a: Running Profiler, Strategist, Referee + Skeptic (async)...`);
+  console.log(`${logPrefix} Batch 2a: Running Profiler, Strategist, Referee, Interrogator + Skeptic (async)...`);
   const batch2Start = performance.now();
 
   // Build context-aware prompts using processedTranscript
@@ -1199,29 +1199,27 @@ export async function runAnalysisPipeline(
   pendingSkepticResult = cachedExecuteAgentWithPrompt<SkepticOutput>(skepticConfig, skepticPrompt, supabase, callId);
   console.log(`${logPrefix} Skeptic fired async (non-blocking)`);
 
-  // Batch 2a: Profiler, Strategist, Referee (3 agents)
-  const [profilerResult, strategistResult, refereeResult] = await Promise.all([
-    cachedExecuteAgentWithPrompt<ProfilerOutput>(profilerConfig, profilerPrompt, supabase, callId),
-    cachedExecuteAgentWithPrompt<StrategistOutput>(strategistConfig, strategistPrompt, supabase, callId),
-    cachedExecuteAgentWithPrompt<RefereeOutput>(refereeConfig, behaviorPrompt, supabase, callId),
-  ]);
-  
-  const batch2aDuration = performance.now() - batch2Start;
-  console.log(`${logPrefix} Batch 2a complete in ${Math.round(batch2aDuration)}ms`);
-  
-  // Small delay between sub-batches to reduce API pressure
-  await new Promise(resolve => setTimeout(resolve, 200));
-  
-  // Batch 2b: Interrogator, Negotiator, Auditor (3 agents)
-  // These need context from Batch 2a (Strategist)
-  console.log(`${logPrefix} Batch 2b: Running Interrogator, Negotiator, Auditor...`);
-  const batch2bStart = performance.now();
-  
+  // Batch 2a: Profiler, Strategist, Referee, Interrogator (4 agents in parallel)
+  // Interrogator moved here from Batch 2b - it doesn't need Strategist context
   const interrogatorPrompt = buildInterrogatorPrompt(
     processedTranscript, 
     callClassification?.scoring_hints,
     callClassification?.detected_call_type
   );
+  
+  const [profilerResult, strategistResult, refereeResult, interrogatorResult] = await Promise.all([
+    cachedExecuteAgentWithPrompt<ProfilerOutput>(profilerConfig, profilerPrompt, supabase, callId),
+    cachedExecuteAgentWithPrompt<StrategistOutput>(strategistConfig, strategistPrompt, supabase, callId),
+    cachedExecuteAgentWithPrompt<RefereeOutput>(refereeConfig, behaviorPrompt, supabase, callId),
+    cachedExecuteAgentWithPrompt<InterrogatorOutput>(interrogatorConfig, interrogatorPrompt, supabase, callId),
+  ]);
+  
+  const batch2aDuration = performance.now() - batch2Start;
+  console.log(`${logPrefix} Batch 2a complete in ${Math.round(batch2aDuration)}ms`);
+  
+  // Batch 2b: Negotiator, Auditor (2 agents - need Strategist context)
+  console.log(`${logPrefix} Batch 2b: Running Negotiator, Auditor...`);
+  const batch2bStart = performance.now();
   
   // Extract context from Strategist for Negotiator and Auditor
   const strategistDataForContext = strategistResult.data as StrategistOutput;
@@ -1246,8 +1244,7 @@ export async function runAnalysisPipeline(
     painSeverities
   );
   
-  const [interrogatorResult, negotiatorResult, auditorResult] = await Promise.all([
-    cachedExecuteAgentWithPrompt<InterrogatorOutput>(interrogatorConfig, interrogatorPrompt, supabase, callId),
+  const [negotiatorResult, auditorResult] = await Promise.all([
     cachedExecuteAgentWithPrompt<NegotiatorOutput>(negotiatorConfig, negotiatorPrompt, supabase, callId),
     cachedExecuteAgentWithPrompt<AuditorOutput>(auditorConfig, auditorPrompt, supabase, callId),
   ]);

@@ -1,90 +1,117 @@
 
 
-# Pipeline Performance Review & Optimization Plan
+# SDR Assistant Chatbots: Manager + Rep
 
-## Current Performance Data (Last 7 Days)
+## Overview
 
-| Agent | Avg (ms) | P90 (ms) | Max (ms) | Errors | Error Rate |
-|-------|----------|----------|----------|--------|------------|
-| Interrogator | 71,675 | 75,002 | 226,804 | 43 | 55% |
-| Speaker Labeler | 50,571 | 69,402 | 181,531 | 41 | 51% |
-| Strategist | 38,608 | 50,927 | 194,070 | 1 | 1% |
-| Referee | 36,577 | 75,001 | 122,743 | 10 | 13% |
-| Spy | 31,776 | 50,723 | 87,328 | 10 | 13% |
-| Auditor | 26,798 | 58,895 | 171,361 | 11 | 14% |
-| Census | 30,757 | 47,671 | 59,667 | 0 | 0% |
-| Negotiator | 30,555 | 54,046 | 90,602 | 0 | 0% |
-| Historian | 23,039 | 33,275 | 106,927 | 0 | 0% |
-| Profiler | 15,285 | 25,488 | 36,020 | 0 | 0% |
-| Skeptic | 9,803 | 12,414 | 19,794 | 1 | 1% |
-| Sentinel | 8,626 | 16,901 | 27,581 | 0 | 0% |
+Create two AI chatbots following the exact same pattern as the existing Sales Assistant Chat -- floating button, slide-out sheet, streaming responses, session persistence -- but tailored for the SDR module:
+
+1. **SDR Manager Assistant** -- Helps managers identify coaching opportunities, analyze team performance, and ask questions about their team's transcripts/grades
+2. **SDR Rep Assistant** -- Helps individual SDRs get coaching advice, review their call grades, and improve their performance
+
+Both will use the same OpenAI `gpt-5.2` API as the Sales Assistant (not Lovable AI Gateway), matching the existing architecture.
 
 ---
 
-## Issues Identified
+## What Gets Built
 
-### Issue 1: Interrogator — 55% Error Rate (Critical Bottleneck)
-The Interrogator uses `gpt-5-mini` but has a 75s timeout, and 42/43 errors are "timeout after 75s." It's the slowest agent on average (71s) and times out on over half of all calls. This is the single biggest reliability problem.
+### 1. Edge Function: `sdr-assistant-chat`
 
-**Root cause:** `gpt-5-mini` is struggling with the Interrogator's complex question-extraction task on long transcripts. The 75s timeout is insufficient.
+A single edge function that handles both SDR and SDR Manager chat, differentiating by the caller's role.
 
-**Fix:** Increase Interrogator timeout to 120s (matching Coach). Since this runs in background via fire-and-forget, there's no HTTP timeout concern.
+**For SDR Managers:**
+- Fetches all team members via `sdr_teams` + `sdr_team_members`
+- Fetches recent transcripts for all team SDRs
+- Fetches all calls + grades for the team
+- Builds context showing: team roster, grade distribution per rep, recent coaching notes, lowest-performing areas, reps with the most D/F grades, meetings scheduled rate
+- System prompt focused on identifying coaching opportunities, comparing rep performance, and surfacing patterns
 
-### Issue 2: Speaker Labeler — 51% Error Rate
-40/41 errors are "timeout after 60s." The Speaker Labeler processes full transcripts and its 60s timeout is too tight for long calls.
+**For SDRs:**
+- Fetches only that SDR's transcripts, calls, and grades
+- Builds context showing: their grade history, strengths/improvements from grading, call summaries, trends over time
+- System prompt focused on personal coaching, skill improvement, and call review
 
-**Fix:** Increase Speaker Labeler timeout to 90s.
+### 2. Database: `sdr_assistant_sessions` table
 
-### Issue 3: Referee — 13% Error Rate (Timeout)
-10 errors, all timeouts at 75s. P90 is exactly 75,001ms (hitting the limit).
+New table mirroring `sales_assistant_sessions` structure for session persistence:
+- `id`, `user_id`, `messages` (jsonb), `title`, `is_active`, `created_at`, `updated_at`
+- RLS: users can only access their own sessions
 
-**Fix:** Increase Referee timeout to 120s.
+### 3. Client API: `src/api/sdrAssistant.ts`
 
-### Issue 4: Spy Schema Validation Failures
-8 out of 10 Spy errors are schema validation failures: `silver_bullet_question` is required but the AI omits it. This is a schema strictness issue, not a performance issue.
+Streaming client matching `salesAssistant.ts` pattern -- calls the `sdr-assistant-chat` edge function with message windowing and truncation.
 
-**Fix:** Make `silver_bullet_question` optional (`.optional()`) in the SpySchema, with a coercion fallback.
+### 4. Session API: `src/api/sdrAssistantSessions.ts`
 
-### Issue 5: Auditor Schema Validation Failures  
-6 out of 11 Auditor errors are "coaching_tips array must contain at most 5 elements." The AI returns more tips than allowed.
+Session management matching `salesAssistantSessions.ts` -- fetch, save, archive, switch, delete sessions from `sdr_assistant_sessions`.
 
-**Fix:** Add a coercion step to truncate `coaching_tips` to 5 items (like existing `coerceStrategistOutput`).
+### 5. Chat Component: `src/components/SDRAssistantChat.tsx`
 
-### Issue 6: Skeptic Category Enum Too Restrictive
-1 error where AI returned "Compliance" but enum only allows 12 categories. This will recur.
+Floating chat component matching `SalesAssistantChat.tsx` UI:
+- Floating sparkle button in bottom-right
+- Slide-out sheet with streaming markdown responses
+- Quick actions tailored per role:
+  - **Manager**: "Team Performance", "Coaching Opportunities", "Grade Trends", "Weakest Areas"
+  - **SDR**: "My Performance", "Improve My Calls", "Recent Grades", "Best Practices"
+- Session history, new chat, delete chat
+- Rate limit handling
 
-**Fix:** Add "Compliance" and "Legal" to the Skeptic category enum.
+### 6. Integration
 
-### Issue 7: Serialized Batch 2a/2b — Unnecessary Sequential Wait
-Batch 2 is split into 2a (Profiler, Strategist, Referee) and 2b (Interrogator, Negotiator, Auditor) with a 200ms delay between them. Batch 2b "needs context from Strategist" but only for building Negotiator and Auditor prompts. The Interrogator doesn't actually need Strategist output.
-
-**Fix:** Run Interrogator in Batch 2a (parallel with Profiler/Strategist/Referee) instead of waiting for 2b. Keep Negotiator and Auditor in 2b since they genuinely need Strategist context.
-
-### Issue 8: Speaker Labeler Uses `gpt-5-mini` But Needs More Power
-The Speaker Labeler has a complex labeling task across entire transcripts. Using `gpt-5-mini` leads to errors like "RE P" (typo in enum value). Upgrade to `gpt-5.2` for reliability.
-
-**Fix:** Change Speaker Labeler model to `gpt-5.2` in the registry.
+- Add `<SDRAssistantChat />` to `SDRManagerDashboard.tsx` and related manager pages
+- Add `<SDRAssistantChat />` to `SDRDashboard.tsx` and SDR history page
 
 ---
 
-## Summary of Changes
+## Technical Details
 
+### Edge Function Context Building
+
+**Manager context includes:**
+```
+TEAM OVERVIEW
+- Team name, member count
+- Per-rep stats: total calls, meaningful calls, grade distribution, avg scores, meetings booked
+
+COACHING PRIORITIES  
+- Reps with lowest average grades
+- Most common improvement areas across team
+- Reps trending down vs up
+
+RECENT CALL DETAILS
+- Last 5 graded calls per rep with summaries, grades, coaching notes
+```
+
+**SDR context includes:**
+```
+PERFORMANCE SUMMARY
+- Total transcripts, calls detected, meaningful calls
+- Grade distribution, average scores per category
+- Meetings scheduled count
+
+RECENT CALLS
+- Last 20 graded calls with summaries, grades, strengths, improvements, coaching notes
+
+TRENDS
+- Score trends over time
+- Most frequent improvement areas
+```
+
+### Files to Create
+| File | Purpose |
+|------|---------|
+| `supabase/functions/sdr-assistant-chat/index.ts` | Edge function |
+| `src/api/sdrAssistant.ts` | Streaming client |
+| `src/api/sdrAssistantSessions.ts` | Session persistence |
+| `src/components/SDRAssistantChat.tsx` | Chat UI component |
+
+### Files to Modify
 | File | Change |
-|---|---|
-| `agent-factory.ts` | Increase timeout overrides: speaker_labeler 60s→90s, interrogator 75s→120s, referee 75s→120s, auditor 60s→90s |
-| `agent-schemas.ts` | Make `silver_bullet_question` optional; add "Compliance" and "Legal" to Skeptic category enum |
-| `agent-factory.ts` | Add `coerceAuditorOutput` to truncate `coaching_tips` to 5 items |
-| `agent-factory.ts` | Add `coerceSpyOutput` to provide default `silver_bullet_question` when missing |
-| `agent-factory.ts` | Add `coerceSpeakerLabelerOutput` to fix typos like "RE P" → "REP" |
-| `agent-registry.ts` | Upgrade Speaker Labeler model from `gpt-5-mini` to `gpt-5.2` |
-| `pipeline.ts` | Move Interrogator from Batch 2b to Batch 2a to parallelize it earlier |
-| `pipeline.ts` | Remove the 200ms delay between Batch 2a/2b (unnecessary with rate limits relaxed) |
-| `pipeline.ts` | Reduce `BATCH_DELAY_MS` from 300ms to 100ms |
+|------|--------|
+| `src/pages/sdr-manager/SDRManagerDashboard.tsx` | Add `<SDRAssistantChat />` |
+| `src/pages/sdr/SDRDashboard.tsx` | Add `<SDRAssistantChat />` |
+| `supabase/config.toml` | Not edited (auto-configured) |
 
-### Expected Impact
-- Interrogator error rate: 55% → ~5% (timeout headroom doubled)
-- Speaker Labeler error rate: 51% → ~10% (timeout + model upgrade)
-- Referee error rate: 13% → ~2%
-- Spy/Auditor schema errors: eliminated via coercion
-- Overall pipeline speed: ~15-20% faster by running Interrogator in parallel with Batch 2a and removing delays
+### Database Migration
+- Create `sdr_assistant_sessions` table with RLS policies (users read/write own rows only)
 
