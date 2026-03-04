@@ -4,14 +4,14 @@
  * Performance optimizations (P1):
  * - Phase 0: Speaker Labeler + Sentinel (call classifier) run in parallel
  * - Sentinel provides scoring hints to calibrate downstream agents
- * - Skeptic runs async (non-blocking) at start of Batch 2
+ * - Skeptic + Interrogator run async (non-blocking) to avoid blocking batches
  * - Per-agent timeouts with graceful degradation
- * - Reduced batch count from 3 to 2 + async Skeptic
+ * - Reduced batch count from 3 to 2 + async agents
  * 
  * Phase 0: Speaker Labeler + Sentinel (parallel pre-processing)
  * Batch 1: Critical (Census, Historian, Spy)
- * Batch 2: Strategic (Profiler, Strategist, Referee, Interrogator, Negotiator) + Skeptic (async)
- * Phase 2: Coach (synthesis)
+ * Batch 2: Strategic (Profiler, Strategist, Referee, Negotiator, Auditor) + Skeptic/Interrogator (async)
+ * Phase 2: Coach + Scribe (synthesis)
  */
 
 import { z } from "zod";
