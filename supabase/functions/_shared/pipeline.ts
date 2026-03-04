@@ -1161,8 +1161,9 @@ export async function runAnalysisPipeline(
   await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
 
   // ============= BATCH 2: Strategic + Deep Dive (Split into 2a/2b for rate limit control) =============
-  // Skeptic runs async (non-blocking) and we await before Coach
-  console.log(`${logPrefix} Batch 2a: Running Profiler, Strategist, Referee, Interrogator + Skeptic (async)...`);
+  // Skeptic + Interrogator run async (non-blocking) - both are non-critical and can be slow
+  // We await them before Coach synthesis
+  console.log(`${logPrefix} Batch 2a: Running Profiler, Strategist, Referee + Skeptic, Interrogator (async)...`);
   const batch2Start = performance.now();
 
   // Build context-aware prompts using processedTranscript
@@ -1200,19 +1201,22 @@ export async function runAnalysisPipeline(
   pendingSkepticResult = cachedExecuteAgentWithPrompt<SkepticOutput>(skepticConfig, skepticPrompt, supabase, callId);
   console.log(`${logPrefix} Skeptic fired async (non-blocking)`);
 
-  // Batch 2a: Profiler, Strategist, Referee, Interrogator (4 agents in parallel)
-  // Interrogator moved here from Batch 2b - it doesn't need Strategist context
+  // Fire Interrogator async (non-blocking) - it's non-critical and its 120s timeout
+  // was blocking the entire Batch 2a via Promise.all, causing pipeline kills
   const interrogatorPrompt = buildInterrogatorPrompt(
     processedTranscript, 
     callClassification?.scoring_hints,
     callClassification?.detected_call_type
   );
-  
-  const [profilerResult, strategistResult, refereeResult, interrogatorResult] = await Promise.all([
+  pendingInterrogatorResult = cachedExecuteAgentWithPrompt<InterrogatorOutput>(interrogatorConfig, interrogatorPrompt, supabase, callId);
+  console.log(`${logPrefix} Interrogator fired async (non-blocking)`);
+
+  // Batch 2a: Profiler, Strategist, Referee (3 critical agents in parallel)
+  // Interrogator moved to async - its 120s timeout was blocking the pipeline
+  const [profilerResult, strategistResult, refereeResult] = await Promise.all([
     cachedExecuteAgentWithPrompt<ProfilerOutput>(profilerConfig, profilerPrompt, supabase, callId),
     cachedExecuteAgentWithPrompt<StrategistOutput>(strategistConfig, strategistPrompt, supabase, callId),
     cachedExecuteAgentWithPrompt<RefereeOutput>(refereeConfig, behaviorPrompt, supabase, callId),
-    cachedExecuteAgentWithPrompt<InterrogatorOutput>(interrogatorConfig, interrogatorPrompt, supabase, callId),
   ]);
   
   const batch2aDuration = performance.now() - batch2Start;
