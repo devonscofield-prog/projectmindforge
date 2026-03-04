@@ -94,7 +94,7 @@ export interface PipelineResult {
 }
 
 // Delay between batches to allow rate limits to recover
-const BATCH_DELAY_MS = 300;
+const BATCH_DELAY_MS = 100;
 
 // Phase 0 time budget - extended for maximum quality
 const PHASE0_BUDGET_MS = 60000;
