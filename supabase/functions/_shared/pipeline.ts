@@ -1161,7 +1161,7 @@ export async function runAnalysisPipeline(
 
   // ============= BATCH 2: Strategic + Deep Dive (Split into 2a/2b for rate limit control) =============
   // Skeptic runs async (non-blocking) and we await before Coach
-  console.log(`${logPrefix} Batch 2a: Running Profiler, Strategist, Referee + Skeptic (async)...`);
+  console.log(`${logPrefix} Batch 2a: Running Profiler, Strategist, Referee, Interrogator + Skeptic (async)...`);
   const batch2Start = performance.now();
 
   // Build context-aware prompts using processedTranscript
