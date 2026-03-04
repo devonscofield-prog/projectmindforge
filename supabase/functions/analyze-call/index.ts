@@ -453,9 +453,33 @@ Deno.serve(async (req) => {
         }
 
         // ========== POST-PROCESSING PHASE ==========
-        // Wait for Deal Heat and Follow-up Suggestions before marking complete.
+        // Wait for Deal Heat, Follow-up Suggestions, and Sales Assets fallback before marking complete.
         // This ensures users see all content when analysis shows as "completed".
         console.log(`[analyze-call] Starting post-processing for ${targetCallId}...`);
+        
+        // Check if Scribe produced the default placeholder — trigger generate-sales-assets as fallback
+        const SCRIBE_PLACEHOLDER = 'Call notes generation failed. Please regenerate manually.';
+        const scribeProducedDefault = result.salesAssets?.internal_notes_markdown === SCRIBE_PLACEHOLDER;
+        if (scribeProducedDefault) {
+          console.warn(`[analyze-call] Scribe produced default placeholder for ${targetCallId}, triggering generate-sales-assets fallback...`);
+          try {
+            const fallbackResponse = await fetch(`${supabaseUrl}/functions/v1/generate-sales-assets`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabaseServiceKey}`,
+              },
+              body: JSON.stringify({ call_id: targetCallId }),
+            });
+            if (fallbackResponse.ok) {
+              console.log(`[analyze-call] Sales assets fallback succeeded for ${targetCallId}`);
+            } else {
+              console.warn(`[analyze-call] Sales assets fallback failed for ${targetCallId}: ${fallbackResponse.status}`);
+            }
+          } catch (e) {
+            console.warn(`[analyze-call] Sales assets fallback error for ${targetCallId}:`, e);
+          }
+        }
 
         let dealHeatSuccess = false;
         let suggestionsSuccess = false;

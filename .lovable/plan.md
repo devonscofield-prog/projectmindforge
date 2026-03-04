@@ -1,43 +1,117 @@
 
 
-# Call Notes Not Auto-Populating: Root Cause & Fix
+# SDR Assistant Chatbots: Manager + Rep
 
-## Problem
-7 out of 134 recent calls (~5%) have call notes showing "Call notes generation failed. Please regenerate manually." — the Scribe agent's default fallback text. Users see no useful notes until they manually click "Generate Call Notes."
+## Overview
 
-## Root Cause
-Two issues:
+Create two AI chatbots following the exact same pattern as the existing Sales Assistant Chat -- floating button, slide-out sheet, streaming responses, session persistence -- but tailored for the SDR module:
 
-1. **No timeout override for the Scribe agent.** It defaults to 60s (`gpt-5-mini` default), but it runs in Phase 2 alongside Coach, which gets 120s. When the Scribe times out, the pipeline silently uses the default placeholder text and saves it to the database.
+1. **SDR Manager Assistant** -- Helps managers identify coaching opportunities, analyze team performance, and ask questions about their team's transcripts/grades
+2. **SDR Rep Assistant** -- Helps individual SDRs get coaching advice, review their call grades, and improve their performance
 
-2. **No automatic fallback.** When the Scribe fails, there is no retry or automatic invocation of the `generate-sales-assets` edge function. The default placeholder is saved with a `sales_assets_generated_at` timestamp, so the UI treats it as "generated" and shows the unhelpful placeholder.
+Both will use the same OpenAI `gpt-5.2` API as the Sales Assistant (not Lovable AI Gateway), matching the existing architecture.
 
-## Fix
+---
 
-### 1. Add Scribe timeout override in `agent-factory.ts`
-Add `'scribe': 90000` to `AGENT_TIMEOUT_OVERRIDES` — matching the Auditor. The Scribe runs in background (fire-and-forget), so 90s is safe.
+## What Gets Built
 
-### 2. Auto-retry Scribe on failure in `pipeline.ts`
-When `scribeResult.success` is false, retry once with the same input before falling back to default. This handles transient AI errors.
+### 1. Edge Function: `sdr-assistant-chat`
 
-### 3. Fallback to `generate-sales-assets` in `analyze-call/index.ts`
-After saving analysis results, check if `result.salesAssets.internal_notes_markdown` contains the default placeholder text. If so, trigger the `generate-sales-assets` edge function as a post-processing step (like Deal Heat and Follow-up Suggestions), passing the transcript and strategic context. This provides a second chance using a completely separate AI call path.
+A single edge function that handles both SDR and SDR Manager chat, differentiating by the caller's role.
 
-### 4. Fix the 7 existing failed notes
-Run a database query to clear `sales_assets` and `sales_assets_generated_at` for the 7 affected calls, so the UI shows "Generate Call Notes" instead of the misleading placeholder.
+**For SDR Managers:**
+- Fetches all team members via `sdr_teams` + `sdr_team_members`
+- Fetches recent transcripts for all team SDRs
+- Fetches all calls + grades for the team
+- Builds context showing: team roster, grade distribution per rep, recent coaching notes, lowest-performing areas, reps with the most D/F grades, meetings scheduled rate
+- System prompt focused on identifying coaching opportunities, comparing rep performance, and surfacing patterns
 
-## Files to Change
+**For SDRs:**
+- Fetches only that SDR's transcripts, calls, and grades
+- Builds context showing: their grade history, strengths/improvements from grading, call summaries, trends over time
+- System prompt focused on personal coaching, skill improvement, and call review
 
+### 2. Database: `sdr_assistant_sessions` table
+
+New table mirroring `sales_assistant_sessions` structure for session persistence:
+- `id`, `user_id`, `messages` (jsonb), `title`, `is_active`, `created_at`, `updated_at`
+- RLS: users can only access their own sessions
+
+### 3. Client API: `src/api/sdrAssistant.ts`
+
+Streaming client matching `salesAssistant.ts` pattern -- calls the `sdr-assistant-chat` edge function with message windowing and truncation.
+
+### 4. Session API: `src/api/sdrAssistantSessions.ts`
+
+Session management matching `salesAssistantSessions.ts` -- fetch, save, archive, switch, delete sessions from `sdr_assistant_sessions`.
+
+### 5. Chat Component: `src/components/SDRAssistantChat.tsx`
+
+Floating chat component matching `SalesAssistantChat.tsx` UI:
+- Floating sparkle button in bottom-right
+- Slide-out sheet with streaming markdown responses
+- Quick actions tailored per role:
+  - **Manager**: "Team Performance", "Coaching Opportunities", "Grade Trends", "Weakest Areas"
+  - **SDR**: "My Performance", "Improve My Calls", "Recent Grades", "Best Practices"
+- Session history, new chat, delete chat
+- Rate limit handling
+
+### 6. Integration
+
+- Add `<SDRAssistantChat />` to `SDRManagerDashboard.tsx` and related manager pages
+- Add `<SDRAssistantChat />` to `SDRDashboard.tsx` and SDR history page
+
+---
+
+## Technical Details
+
+### Edge Function Context Building
+
+**Manager context includes:**
+```
+TEAM OVERVIEW
+- Team name, member count
+- Per-rep stats: total calls, meaningful calls, grade distribution, avg scores, meetings booked
+
+COACHING PRIORITIES  
+- Reps with lowest average grades
+- Most common improvement areas across team
+- Reps trending down vs up
+
+RECENT CALL DETAILS
+- Last 5 graded calls per rep with summaries, grades, coaching notes
+```
+
+**SDR context includes:**
+```
+PERFORMANCE SUMMARY
+- Total transcripts, calls detected, meaningful calls
+- Grade distribution, average scores per category
+- Meetings scheduled count
+
+RECENT CALLS
+- Last 20 graded calls with summaries, grades, strengths, improvements, coaching notes
+
+TRENDS
+- Score trends over time
+- Most frequent improvement areas
+```
+
+### Files to Create
+| File | Purpose |
+|------|---------|
+| `supabase/functions/sdr-assistant-chat/index.ts` | Edge function |
+| `src/api/sdrAssistant.ts` | Streaming client |
+| `src/api/sdrAssistantSessions.ts` | Session persistence |
+| `src/components/SDRAssistantChat.tsx` | Chat UI component |
+
+### Files to Modify
 | File | Change |
-|---|---|
-| `supabase/functions/_shared/agent-factory.ts` | Add `'scribe': 90000` to timeout overrides |
-| `supabase/functions/_shared/pipeline.ts` | Add single retry for Scribe on failure |
-| `supabase/functions/analyze-call/index.ts` | Add `triggerSalesAssetsFallback()` in post-processing when Scribe produced default output |
-| Database migration | Clear failed placeholder notes for 7 existing calls |
+|------|--------|
+| `src/pages/sdr-manager/SDRManagerDashboard.tsx` | Add `<SDRAssistantChat />` |
+| `src/pages/sdr/SDRDashboard.tsx` | Add `<SDRAssistantChat />` |
+| `supabase/config.toml` | Not edited (auto-configured) |
 
-## Expected Impact
-- Scribe timeout errors eliminated (60s was too tight)
-- Automatic retry catches transient failures
-- Fallback to `generate-sales-assets` catches any remaining failures
-- 7 existing calls get their notes cleared so users can regenerate
+### Database Migration
+- Create `sdr_assistant_sessions` table with RLS policies (users read/write own rows only)
 
