@@ -826,9 +826,9 @@ ${pricingSection}
 
 // ============= PIPELINE TIMEOUT =============
 
-// 5 minutes - extended for background processing with fire-and-forget pattern
+// 7 minutes - extended for background processing with fire-and-forget pattern
 // analyze-call returns 202 immediately, so we have ample time for quality
-const PIPELINE_TIMEOUT_MS = 300000;
+const PIPELINE_TIMEOUT_MS = 420000;
 
 // Hard limit before Coach phase - if we've exceeded this, skip Coach and return partial results
 // This prevents complete analysis failure when agents take too long

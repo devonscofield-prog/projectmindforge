@@ -12,13 +12,13 @@ import { sanitizeUserContent } from './sanitize.ts';
 
 // AI API configuration
 const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
-const AI_GATEWAY_TIMEOUT_MS = 90000; // 90s - extended for fire-and-forget background processing
+const AI_GATEWAY_TIMEOUT_MS = 120000; // 120s - extended for fire-and-forget background processing
 
 // Per-agent timeouts based on model - extended for background processing
 // analyze-call now returns 202 immediately and processes in background
 const AGENT_TIMEOUT_MS = {
-  'openai/gpt-5-mini': 60000,
-  'openai/gpt-5.2': 90000,
+  'openai/gpt-5-mini': 90000,
+  'openai/gpt-5.2': 120000,
 } as const;
 
 type ModelType = keyof typeof AGENT_TIMEOUT_MS;

@@ -4,7 +4,7 @@
 
 // Rate limiting config
 export const RATE_LIMIT_WINDOW_MS = 60 * 1000;
-export const RATE_LIMIT_MAX_REQUESTS = 5;
+export const RATE_LIMIT_MAX_REQUESTS = 10;
 
 // AI Gateway timeout (55s to leave buffer before edge function 60s timeout)
 export const AI_GATEWAY_TIMEOUT_MS = 55000;
