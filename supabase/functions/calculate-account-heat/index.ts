@@ -354,7 +354,7 @@ No calls recorded for this account.`);
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          model: 'gpt-5.2',
+          model: 'gpt-5.4-pro',
           messages: [
             { role: 'system', content: SYSTEM_PROMPT },
             { role: 'user', content: fullContext }

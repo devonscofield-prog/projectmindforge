@@ -245,7 +245,7 @@ Provide a condensed summary of this chunk's patterns and trends.`;
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-5-mini',
+          model: 'gpt-5.4',
           temperature: 0.3, // Lower temperature for consistency
           max_completion_tokens: 4096, // Explicit token limit
           messages: [

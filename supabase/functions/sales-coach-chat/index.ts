@@ -211,7 +211,7 @@ Deno.serve(async (req) => {
       log.warn('Product knowledge retrieval warning:', err);
     }
 
-    // Call OpenAI API directly with GPT-5.2
+    // Call OpenAI API directly with GPT-5.4-pro
     const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
     if (!OPENAI_API_KEY) {
       throw new Error('OPENAI_API_KEY not configured');
@@ -226,7 +226,7 @@ Deno.serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-5.2-2025-12-11',
+        model: 'gpt-5.4-pro',
         messages: [
           { 
             role: 'system', 

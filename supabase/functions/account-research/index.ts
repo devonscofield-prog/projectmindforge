@@ -226,7 +226,7 @@ Call submit_account_research with findings.`;
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-5.2',
+          model: 'gpt-5.4-pro',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt }

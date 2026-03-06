@@ -164,7 +164,7 @@ Format each recommendation with a clear title, priority (high/medium/low), categ
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-5-mini",
+        model: "gpt-5.4",
         messages: [
           {
             role: "system",
