@@ -362,7 +362,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (input) => `Based on the following analysis reports from 9 specialized agents, synthesize a coaching plan for the sales rep:\n\n${input}`,
     toolName: 'synthesize_coaching',
     toolDescription: 'Synthesize all analysis into a prioritized coaching plan',
-    options: { model: 'openai/gpt-5.2', maxTokens: 16384 },
+    options: { model: 'openai/gpt-5.4-pro', maxTokens: 16384 },
     isCritical: false,
     default: DEFAULT_COACH,
     phase: 2,
