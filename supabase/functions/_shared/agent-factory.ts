@@ -672,15 +672,15 @@ export async function executeCoachWithConsensus(
   // Fast path: skip consensus and use single model
   if (options?.skipConsensus) {
     console.log('[Coach] Running in fast mode (single model, no consensus)...');
-    return executeAgentWithModel(config, userPrompt, 'openai/gpt-5.2', supabase, callId);
+    return executeAgentWithModel(config, userPrompt, 'openai/gpt-5.4-pro', supabase, callId);
   }
   
   console.log('[Coach Consensus] Starting multi-model execution...');
 
   // Run both models in parallel
   const [gptResult, modelBResult] = await Promise.allSettled([
-    executeAgentWithModel(config, userPrompt, 'openai/gpt-5.2', supabase, callId),
-    executeAgentWithModel(config, userPrompt, 'openai/gpt-5-mini', supabase, callId),
+    executeAgentWithModel(config, userPrompt, 'openai/gpt-5.4-pro', supabase, callId),
+    executeAgentWithModel(config, userPrompt, 'openai/gpt-5.4', supabase, callId),
   ]);
 
   // Extract results with fallback handling
