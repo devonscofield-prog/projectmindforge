@@ -316,8 +316,8 @@ async function gradeWithAI(
   const apiUrl = 'https://api.openai.com/v1/chat/completions';
   const apiKey = openaiKey;
   
-  // Use GPT-5.2 for grading
-  const model = 'gpt-5.2';
+  // Use GPT-5.4-pro for grading
+  const model = 'gpt-5.4-pro';
   
   console.log(`Using OpenAI (${model}) for grading`);
 

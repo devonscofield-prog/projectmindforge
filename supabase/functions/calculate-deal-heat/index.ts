@@ -379,7 +379,7 @@ Deno.serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-5.2',
+        model: 'gpt-5.4-pro',
         messages: [
           { role: 'system', content: ACTUARY_SYSTEM_PROMPT },
           { role: 'user', content: userPrompt }

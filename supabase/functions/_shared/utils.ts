@@ -209,7 +209,7 @@ export async function callLovableAI(options: AIRequestOptions): Promise<Response
   }
 
   const body: Record<string, unknown> = {
-    model: options.model || 'gpt-5-mini',
+    model: options.model || 'gpt-5.4',
     messages: [
       { role: 'system', content: options.systemPrompt },
       ...options.messages,

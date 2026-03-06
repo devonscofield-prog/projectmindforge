@@ -166,7 +166,7 @@ Deno.serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-5-mini',
+        model: 'gpt-5.4',
         messages: [
           { role: 'system', content: EDIT_SYSTEM_PROMPT },
           { role: 'user', content: userMessage }
