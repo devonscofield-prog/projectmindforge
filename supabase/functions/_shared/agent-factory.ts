@@ -298,7 +298,7 @@ async function callOpenAIAPI<T extends z.ZodTypeAny>(
     throw new Error('OPENAI_API_KEY is not configured');
   }
 
-  // Extract model name without prefix (e.g., "openai/gpt-5.2-pro" -> "gpt-5.2-pro")
+  // Extract model name without prefix (e.g., "openai/gpt-5.4-pro" -> "gpt-5.4-pro")
   const modelName = config.options.model.replace('openai/', '');
 
   // GPT-5.x models use max_completion_tokens and don't support temperature
