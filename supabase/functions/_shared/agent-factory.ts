@@ -652,12 +652,12 @@ Output your reconciled assessment using the same schema.`;
 }
 
 export interface CoachConsensusOptions {
-  skipConsensus?: boolean;  // If true, use single model (GPT-5.2) for speed
+  skipConsensus?: boolean;  // If true, use single model (GPT-5.4-pro) for speed
 }
 
 /**
  * Execute Coach agent with multi-model consensus
- * Runs on both GPT-5.2 and GPT-5-mini in parallel, then reconciles
+ * Runs on both GPT-5.4-pro and GPT-5.4 in parallel, then reconciles
  * Set skipConsensus=true for faster single-model execution when speed is preferred over maximum accuracy
  */
 export async function executeCoachWithConsensus(
