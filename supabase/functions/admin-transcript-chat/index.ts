@@ -394,7 +394,7 @@ async function classifyQueryIntent(query: string, apiKey: string): Promise<Query
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-5-nano',
+        model: 'gpt-5.4',
         messages: [{
           role: 'user',
           content: `Analyze this sales transcript analysis query and extract search parameters for finding relevant transcript sections:
