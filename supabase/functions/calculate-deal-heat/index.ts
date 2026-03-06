@@ -369,7 +369,7 @@ Deno.serve(async (req) => {
 
     // Build the user prompt with all available context
     const userPrompt = buildUserPrompt(transcript, strategy_data, behavior_data, metadata);
-    console.log(`[${correlationId}] Calling OpenAI (gpt-5.2)`);
+    console.log(`[${correlationId}] Calling OpenAI (gpt-5.4-pro)`);
 
     const startTime = Date.now();
     const response = await fetch(OPENAI_API_URL, {
