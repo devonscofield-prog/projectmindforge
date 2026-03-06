@@ -192,7 +192,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (t) => `Label all speakers in this sales call transcript:\n\n${t}`,
     toolName: 'label_speakers',
     toolDescription: 'Identify and label all speakers in a sales call transcript',
-    options: { model: 'openai/gpt-5.2', maxTokens: 8192 },
+    options: { model: 'openai/gpt-5.4-pro', maxTokens: 8192 },
     isCritical: false, // Falls back to raw transcript if fails
     default: DEFAULT_SPEAKER_LABELER,
     phase: 0,
@@ -206,7 +206,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (t) => `Classify this sales call transcript by type:\n\n${t}`,
     toolName: 'classify_call_type',
     toolDescription: 'Classify the type of sales call to calibrate downstream agent scoring',
-    options: { model: 'openai/gpt-5-mini', maxTokens: 8192 },
+    options: { model: 'openai/gpt-5.4', maxTokens: 8192 },
     isCritical: false, // Falls back to full_cycle_sales if fails
     default: DEFAULT_SENTINEL,
     phase: 0,
