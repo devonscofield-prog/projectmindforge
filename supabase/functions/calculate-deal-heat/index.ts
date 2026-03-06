@@ -106,7 +106,7 @@ async function handleBackfillBatch(correlationId: string, batchSize: number): Pr
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-5-mini', // Use mini for backfill efficiency
+          model: 'gpt-5.4', // Use standard for backfill efficiency
           messages: [
             { role: 'system', content: ACTUARY_SYSTEM_PROMPT },
             { role: 'user', content: userPrompt }
