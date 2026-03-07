@@ -759,9 +759,9 @@ Provide a comprehensive trend analysis with specific evidence and actionable rec
 
     log.info('ai_request_started', 'Sending request to AI Gateway', { mode: analysisMode, totalCalls });
 
-    // Timeout controller for AI request (60 seconds for gemini-3-pro-preview)
+    // Timeout controller for AI request (90 seconds for gpt-5.4-pro)
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    const timeoutId = setTimeout(() => controller.abort(), 90000);
     
     let aiResponse: Response;
     try {

@@ -216,7 +216,7 @@ ${email.body}
     if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY not configured');
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    const timeoutId = setTimeout(() => controller.abort(), 90000);
 
     try {
       const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
