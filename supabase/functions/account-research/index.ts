@@ -213,9 +213,9 @@ Call submit_account_research with findings.`;
 
     const userPrompt = `Research: ${sanitizeUserContent(companyName)}${contextParts.length > 0 ? `\n\nContext provided:\n${sanitizeUserContent(contextParts.join('\n\n'))}` : ''}`;
 
-    // Create abort controller with 60-second timeout
+    // Create abort controller with 90-second timeout for gpt-5.4-pro
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    const timeoutId = setTimeout(() => controller.abort(), 90000);
 
     let response: Response;
     try {

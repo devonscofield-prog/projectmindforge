@@ -5,7 +5,7 @@ import { getCorsHeaders } from "../_shared/cors.ts";
 // Simple in-memory rate limiter
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 const RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
-const MAX_REQUESTS_PER_WINDOW = 5; // Aligned with generate-coaching-trends
+const MAX_REQUESTS_PER_WINDOW = 10;
 
 function checkRateLimit(userId: string): { allowed: boolean; retryAfter?: number } {
   const now = Date.now();
@@ -232,9 +232,9 @@ Critical Info Missing: ${allMissingInfo.join('; ') || 'None'}
 
 Provide a condensed summary of this chunk's patterns and trends.`;
 
-    // Timeout controller for AI request (55 seconds)
+    // Timeout controller for AI request (90 seconds for gpt-5.4-pro)
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 55000);
+    const timeoutId = setTimeout(() => controller.abort(), 90000);
     
     let aiResponse: Response;
     try {

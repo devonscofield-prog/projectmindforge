@@ -4,7 +4,7 @@ import { signRequest } from "../_shared/hmac.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
 
 const CACHE_TTL_MINUTES = 15;
-const AI_TIMEOUT_MS = 60000; // 60 second timeout for AI calls (matches gemini-3-pro-preview)
+const AI_TIMEOUT_MS = 90000; // 90 second timeout for gpt-5.4-pro AI calls
 
 // Zod schema for validating generate-coaching-trends response
 const CoachingTrendAnalysisSchema = z.object({
@@ -48,7 +48,7 @@ const CoachingTrendAnalysisSchema = z.object({
 // Simple in-memory rate limiter
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 const RATE_LIMIT_WINDOW_MS = 60000;
-const MAX_REQUESTS_PER_WINDOW = 5;
+const MAX_REQUESTS_PER_WINDOW = 10;
 
 function checkRateLimit(userId: string): { allowed: boolean; retryAfter?: number } {
   const now = Date.now();
