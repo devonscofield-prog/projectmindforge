@@ -18,7 +18,6 @@ const AI_GATEWAY_TIMEOUT_MS = 120000; // 120s - extended for fire-and-forget bac
 // analyze-call now returns 202 immediately and processes in background
 const AGENT_TIMEOUT_MS = {
   'openai/gpt-5.4-2026-03-05': 90000,
-  'openai/gpt-5.4-pro-2026-03-05': 120000,
 } as const;
 
 type ModelType = keyof typeof AGENT_TIMEOUT_MS;
