@@ -452,7 +452,7 @@ async function extractEntitiesBatchInternal(
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: 'gpt-5.4',
+      model: 'gpt-5.4-2026-03-05',
       messages: [{
         role: 'user',
         content: `Extract entities, topics, and MEDDPICC elements from each of these ${chunks.length} sales call transcript chunks.

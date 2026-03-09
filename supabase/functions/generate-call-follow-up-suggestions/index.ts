@@ -64,7 +64,7 @@ async function callLovableAI(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-5.4',
+        model: 'gpt-5.4-2026-03-05',
         messages,
         tools,
         tool_choice: toolChoice,

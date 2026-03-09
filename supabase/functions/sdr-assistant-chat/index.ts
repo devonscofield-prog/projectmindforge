@@ -167,7 +167,7 @@ Deno.serve(async (req) => {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: Deno.env.get('SDR_GPT_MODEL') || 'gpt-5.4-pro',
+        model: Deno.env.get('SDR_GPT_MODEL') || 'gpt-5.4-pro-2026-03-05',
         messages: [
           { role: 'system', content: `${systemPrompt}\n\n## CONTEXT DATA\n${contextPrompt}` },
           ...messages.slice(-20)

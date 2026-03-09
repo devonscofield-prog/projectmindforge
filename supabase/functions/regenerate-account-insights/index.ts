@@ -208,7 +208,7 @@ Deno.serve(async (req) => {
         headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
         signal: controller.signal,
         body: JSON.stringify({
-          model: 'gpt-5.4-pro',
+          model: 'gpt-5.4-pro-2026-03-05',
           messages: [
             { role: 'system', content: INSIGHTS_SYSTEM_PROMPT },
             { role: 'user', content: contextPrompt }

@@ -418,7 +418,7 @@ Deno.serve(async (req) => {
     const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
     if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY not configured');
 
-    log.info(`Calling GPT-5.4-pro with ${messages.length} messages, page: ${page_context}`);
+    log.info(`Calling GPT-5.4-pro-2026-03-05 with ${messages.length} messages, page: ${page_context}`);
 
     const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -427,7 +427,7 @@ Deno.serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-5.4-pro',
+        model: 'gpt-5.4-pro-2026-03-05',
         messages: [
           { role: 'system', content: `${SYSTEM_PROMPT}\n\nThe admin is currently viewing: ${page_context}\nPrioritize data relevant to this page when answering, but you have visibility into ALL platform data below.\n\n## PLATFORM DATA\n${contextData}` },
           ...messages.slice(-20),

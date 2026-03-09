@@ -232,7 +232,7 @@ Critical Info Missing: ${allMissingInfo.join('; ') || 'None'}
 
 Provide a condensed summary of this chunk's patterns and trends.`;
 
-    // Timeout controller for AI request (90 seconds for gpt-5.4-pro)
+    // Timeout controller for AI request (90 seconds for gpt-5.4-2026-03-056-03-05)
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 90000);
     
@@ -245,7 +245,7 @@ Provide a condensed summary of this chunk's patterns and trends.`;
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-5.4',
+          model: 'gpt-5.4-2026-03-05',
           temperature: 0.3, // Lower temperature for consistency
           max_completion_tokens: 4096, // Explicit token limit
           messages: [
