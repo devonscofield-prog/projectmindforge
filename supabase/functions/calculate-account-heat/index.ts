@@ -340,7 +340,7 @@ No calls recorded for this account.`);
     const fullContext = contextParts.join('\n\n');
     console.log(`[AccountHeat] Context size: ${fullContext.length} chars (~${Math.round(fullContext.length / 4)} tokens)`);
 
-    // Call AI with 90-second timeout for gpt-5.4-pro
+    // Call AI with 90-second timeout for gpt-5.4-pro-2026-03-05
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 90000);
 
