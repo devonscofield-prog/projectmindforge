@@ -51,7 +51,7 @@ export interface AgentConfig<T extends z.ZodTypeAny = z.ZodTypeAny> {
   toolName: string;                        // Tool function name
   toolDescription: string;                 // Tool description for AI
   options: {
-    model: 'openai/gpt-5.4-2026-03-05' | 'openai/gpt-5.4-pro-2026-03-05';
+    model: 'openai/gpt-5.4-2026-03-05';
     temperature?: number;
     maxTokens?: number;
   };
