@@ -652,7 +652,7 @@ Output your reconciled assessment using the same schema.`;
 }
 
 export interface CoachConsensusOptions {
-  skipConsensus?: boolean;  // If true, use single model (GPT-5.4-pro) for speed
+  skipConsensus?: boolean;  // If true, use single model (GPT-5.4-pro-2026-03-05) for speed
 }
 
 /**
