@@ -232,7 +232,7 @@ Critical Info Missing: ${allMissingInfo.join('; ') || 'None'}
 
 Provide a condensed summary of this chunk's patterns and trends.`;
 
-    // Timeout controller for AI request (90 seconds for gpt-5.4-pro)
+    // Timeout controller for AI request (90 seconds for gpt-5.4-2026-03-05)
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 90000);
     
