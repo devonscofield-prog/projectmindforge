@@ -211,7 +211,7 @@ Deno.serve(async (req) => {
       log.warn('Product knowledge retrieval warning:', err);
     }
 
-    // Call OpenAI API directly with GPT-5.4-pro-2026-03-05
+    // Call OpenAI API directly with GPT-5.4-2026-03-05
     const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
     if (!OPENAI_API_KEY) {
       throw new Error('OPENAI_API_KEY not configured');
