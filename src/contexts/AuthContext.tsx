@@ -87,12 +87,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
   };
 
   // Set up presence tracking and last_seen updates
+  // Only for admin/manager roles who view online status — reduces Realtime connections for reps/SDRs
   useEffect(() => {
     if (!user) {
       if (presenceChannel) {
         presenceChannel.unsubscribe();
         setPresenceChannel(null);
       }
+      return;
+    }
+
+    // Only admin and manager roles need presence tracking
+    const needsPresence = role === 'admin' || role === 'manager';
+
+    if (!needsPresence) {
+      // Still update last_seen on login for non-presence users, but skip periodic updates
+      updateLastSeen(user.id);
       return;
     }
 
@@ -126,7 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
       channel.unsubscribe();
       clearInterval(lastSeenInterval);
     };
-  }, [user?.id]);
+  }, [user?.id, role]);
 
   const checkUserActive = async (userId: string): Promise<boolean> => {
     try {
