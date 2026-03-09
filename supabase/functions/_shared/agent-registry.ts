@@ -206,7 +206,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (t) => `Classify this sales call transcript by type:\n\n${t}`,
     toolName: 'classify_call_type',
     toolDescription: 'Classify the type of sales call to calibrate downstream agent scoring',
-    options: { model: 'openai/gpt-5.4', maxTokens: 8192 },
+    options: { model: 'openai/gpt-5.4-2026-03-05', maxTokens: 8192 },
     isCritical: false, // Falls back to full_cycle_sales if fails
     default: DEFAULT_SENTINEL,
     phase: 0,
