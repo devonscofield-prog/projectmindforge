@@ -235,7 +235,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (t) => `Write a high-quality executive summary of this sales call:\n\n${t}`,
     toolName: 'write_call_history',
     toolDescription: 'Write a high-quality executive summary of a sales call',
-    options: { model: 'openai/gpt-5.4', maxTokens: 8192 },
+    options: { model: 'openai/gpt-5.4-2026-03-05', maxTokens: 8192 },
     isCritical: true,
     default: DEFAULT_HISTORIAN,
     phase: 1,
