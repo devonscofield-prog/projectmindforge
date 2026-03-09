@@ -671,7 +671,7 @@ export async function executeCoachWithConsensus(
   // Fast path: skip consensus and use single model
   if (options?.skipConsensus) {
     console.log('[Coach] Running in fast mode (single model, no consensus)...');
-    return executeAgentWithModel(config, userPrompt, 'openai/gpt-5.4-pro-2026-03-05', supabase, callId);
+    return executeAgentWithModel(config, userPrompt, 'openai/gpt-5.4-2026-03-05', supabase, callId);
   }
   
   console.log('[Coach Consensus] Starting multi-model execution...');
