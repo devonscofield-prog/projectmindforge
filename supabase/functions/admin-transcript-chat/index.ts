@@ -695,7 +695,7 @@ Deno.serve(async (req) => {
 
     console.log(`[admin-transcript-chat] Context built (${transcriptContext.length} chars). Calling Lovable AI with ${validatedMessages.length} messages`);
 
-    // Main AI call with 90 second t-2026-03-05imeout for -2026-03-05gpt-5.4-pro
+    // Main AI call with 90 second timeout for gpt-5.4-pro-2026-03-05
     const aiController = new AbortController();
     const aiTimeoutId = setTimeout(() => aiController.abort(), 90000);
     
