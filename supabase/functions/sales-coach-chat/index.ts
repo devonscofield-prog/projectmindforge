@@ -217,7 +217,7 @@ Deno.serve(async (req) => {
       throw new Error('OPENAI_API_KEY not configured');
     }
 
-    log.info(`Calling OpenAI API (GPT 5.2) with ${messages.length} messages`);
+    log.info(`Calling OpenAI API (GPT 5.4) with ${messages.length} messages`);
 
     const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
