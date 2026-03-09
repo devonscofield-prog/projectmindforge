@@ -772,7 +772,7 @@ Provide a comprehensive trend analysis with specific evidence and actionable rec
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-5.4-pro',
+          model: 'gpt-5.4-pro-2026-03-05',
           temperature: 0.2,
           max_completion_tokens: 8192,
           messages: [

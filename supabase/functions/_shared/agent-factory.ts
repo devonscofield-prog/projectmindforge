@@ -679,8 +679,8 @@ export async function executeCoachWithConsensus(
 
   // Run both models in parallel
   const [gptResult, modelBResult] = await Promise.allSettled([
-    executeAgentWithModel(config, userPrompt, 'openai/gpt-5.4-pro', supabase, callId),
-    executeAgentWithModel(config, userPrompt, 'openai/gpt-5.4', supabase, callId),
+    executeAgentWithModel(config, userPrompt, 'openai/gpt-5.4-pro-2026-03-05', supabase, callId),
+    executeAgentWithModel(config, userPrompt, 'openai/gpt-5.4-2026-03-05', supabase, callId),
   ]);
 
   // Extract results with fallback handling

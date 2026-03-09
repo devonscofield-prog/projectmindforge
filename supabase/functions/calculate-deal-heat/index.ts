@@ -106,7 +106,7 @@ async function handleBackfillBatch(correlationId: string, batchSize: number): Pr
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-5.4-2026-03-05-2026-03-05', // Use standard for backfill efficiency
+          model: 'gpt-5.4-2026-03-05-2026-03-05-2026-03-05', // Use standard for backfill efficiency
           messages: [
             { role: 'system', content: ACTUARY_SYSTEM_PROMPT },
             { role: 'user', content: userPrompt }
@@ -369,7 +369,7 @@ Deno.serve(async (req) => {
 
     // Build the user prompt with all available context
     const userPrompt = buildUserPrompt(transcript, strategy_data, behavior_data, metadata);
-    console.log(`[${correlationId}] Calling OpenAI (-2026-03-05gpt-5.4-pro)`);
+    console.log(`[${correlationId}] Calli-2026-03-05ng OpenAI (-2026-03-05gpt-5.4-pro)`);
 
     const startTime = Date.now();
     const response = await fetch(OPENAI_API_URL, {
@@ -379,7 +379,7 @@ Deno.serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-5.4-pro',
+     -2026-03-05   model: 'gpt-5.4-pro',
         messages: [
           { role: 'system', content: ACTUARY_SYSTEM_PROMPT },
           { role: 'user', content: userPrompt }
