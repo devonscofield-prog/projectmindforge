@@ -759,7 +759,7 @@ Provide a comprehensive trend analysis with specific evidence and actionable rec
 
     log.info('ai_request_started', 'Sending request to AI Gateway', { mode: analysisMode, totalCalls });
 
-    // Timeout controller for AI request (90 seconds for gpt-5.4-pro-2026-03-05)
+    // Timeout controller for AI request (90 seconds for gpt-5.4-2026-03-05)
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 90000);
     
