@@ -447,7 +447,7 @@ export function useStuckCalls() {
       
       return data || [];
     },
-    refetchInterval: 120000, // Refresh every 2 minutes
+    refetchInterval: 5 * 60_000, // Refresh every 5 minutes
   });
 }
 

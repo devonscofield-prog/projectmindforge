@@ -91,9 +91,13 @@ function scheduleFlush(): void {
 }
 
 /**
- * Queue a metric for batching and sending
+ * Queue a metric for batching and sending.
+ * In production, only 10% of metrics are sampled to reduce DB writes.
  */
 export function queueMetric(entry: MetricEntry): void {
+  // Sample at 10% in production to reduce cloud costs
+  if (!import.meta.env.DEV && Math.random() > 0.1) return;
+
   metricsQueue.push(entry);
   scheduleFlush();
   
