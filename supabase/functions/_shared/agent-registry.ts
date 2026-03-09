@@ -51,7 +51,7 @@ export interface AgentConfig<T extends z.ZodTypeAny = z.ZodTypeAny> {
   toolName: string;                        // Tool function name
   toolDescription: string;                 // Tool description for AI
   options: {
-    model: 'openai/gpt-5.4-2026-03-05' | 'openai/gpt-5.4-pro-2026-03-05';
+    model: 'openai/gpt-5.4-2026-03-05';
     temperature?: number;
     maxTokens?: number;
   };
@@ -192,7 +192,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (t) => `Label all speakers in this sales call transcript:\n\n${t}`,
     toolName: 'label_speakers',
     toolDescription: 'Identify and label all speakers in a sales call transcript',
-    options: { model: 'openai/gpt-5.4-pro-2026-03-05', maxTokens: 8192 },
+    options: { model: 'openai/gpt-5.4-2026-03-05', maxTokens: 8192 },
     isCritical: false, // Falls back to raw transcript if fails
     default: DEFAULT_SPEAKER_LABELER,
     phase: 0,
@@ -277,7 +277,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (t) => `Analyze this sales call for strategic alignment. Map pains to pitches and score:\n\n${t}`,
     toolName: 'audit_call_strategy',
     toolDescription: 'Audit strategic alignment in a sales call - mapping pains to pitches',
-    options: { model: 'openai/gpt-5.4-pro-2026-03-05', maxTokens: 8192 },
+    options: { model: 'openai/gpt-5.4-2026-03-05', maxTokens: 8192 },
     isCritical: false,
     default: DEFAULT_STRATEGIST,
     phase: 1,
@@ -291,7 +291,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (t) => `Analyze this sales call transcript. Find the 3-5 most dangerous UNKNOWNS or MISSING INFORMATION that could block this deal:\n\n${t}`,
     toolName: 'identify_deal_gaps',
     toolDescription: 'Identify critical information gaps blocking a sales deal',
-    options: { model: 'openai/gpt-5.4-pro-2026-03-05', maxTokens: 8192 },
+    options: { model: 'openai/gpt-5.4-2026-03-05', maxTokens: 8192 },
     isCritical: false,
     default: DEFAULT_SKEPTIC,
     phase: 1,
@@ -362,7 +362,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
     userPromptTemplate: (input) => `Based on the following analysis reports from 9 specialized agents, synthesize a coaching plan for the sales rep:\n\n${input}`,
     toolName: 'synthesize_coaching',
     toolDescription: 'Synthesize all analysis into a prioritized coaching plan',
-    options: { model: 'openai/gpt-5.4-pro-2026-03-05', maxTokens: 16384 },
+    options: { model: 'openai/gpt-5.4-2026-03-05', maxTokens: 16384 },
     isCritical: false,
     default: DEFAULT_COACH,
     phase: 2,

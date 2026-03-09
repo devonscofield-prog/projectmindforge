@@ -369,7 +369,7 @@ Deno.serve(async (req) => {
 
     // Build the user prompt with all available context
     const userPrompt = buildUserPrompt(transcript, strategy_data, behavior_data, metadata);
-    console.log(`[${correlationId}] Calling OpenAI (gpt-5.4-pro-2026-03-05)`);
+    console.log(`[${correlationId}] Calling OpenAI (gpt-5.4--03-05)`);
 
     const startTime = Date.now();
     const response = await fetch(OPENAI_API_URL, {
@@ -379,7 +379,7 @@ Deno.serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-     model: 'gpt-5.4-pro-2026-03-05',
+     model: 'gpt-5.4-pro--03-05',
         messages: [
           { role: 'system', content: ACTUARY_SYSTEM_PROMPT },
           { role: 'user', content: userPrompt }

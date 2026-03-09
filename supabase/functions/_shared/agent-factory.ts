@@ -18,7 +18,6 @@ const AI_GATEWAY_TIMEOUT_MS = 120000; // 120s - extended for fire-and-forget bac
 // analyze-call now returns 202 immediately and processes in background
 const AGENT_TIMEOUT_MS = {
   'openai/gpt-5.4-2026-03-05': 90000,
-  'openai/gpt-5.4-pro-2026-03-05': 120000,
 } as const;
 
 type ModelType = keyof typeof AGENT_TIMEOUT_MS;
@@ -298,7 +297,7 @@ async function callOpenAIAPI<T extends z.ZodTypeAny>(
     throw new Error('OPENAI_API_KEY is not configured');
   }
 
-  // Extract model name without prefix (e.g., "openai/gpt-5.4-pro-2026-03-05" -> "gpt-5.4-pro-2026-03-05")
+  // Extract model name without prefix (e.g., "openai/gpt-5.4-2026-03-05" -> "gpt-5.4-2026-03-05")
   const modelName = config.options.model.replace('openai/', '');
 
   // GPT-5.x models use max_completion_tokens and don't support temperature
@@ -416,7 +415,7 @@ async function callLovableAI<T extends z.ZodTypeAny>(
 
 // ============= CONSENSUS CONFIGURATION =============
 
-const CONSENSUS_MODELS = ['openai/gpt-5.4-pro-2026-03-05'] as const;
+const CONSENSUS_MODELS = ['openai/gpt-5.4-2026-03-05'] as const;
 
 // Grade ranking for averaging
 const GRADE_ORDER = ['F', 'D', 'C', 'B', 'A', 'A+'] as const;
@@ -652,12 +651,12 @@ Output your reconciled assessment using the same schema.`;
 }
 
 export interface CoachConsensusOptions {
-  skipConsensus?: boolean;  // If true, use single model (GPT-5.4-pro-2026-03-05) for speed
+  skipConsensus?: boolean;  // If true, use single model (GPT-5.4-2026-03-05) for speed
 }
 
 /**
  * Execute Coach agent with multi-model consensus
- * Runs on both GPT-5.4-pro-2026-03-05 and GPT-5.4-2026-03-05 in parallel, then reconciles
+ * Runs GPT-5.4-2026-03-05 with consensus reconciliation
  * Set skipConsensus=true for faster single-model execution when speed is preferred over maximum accuracy
  */
 export async function executeCoachWithConsensus(
@@ -672,14 +671,14 @@ export async function executeCoachWithConsensus(
   // Fast path: skip consensus and use single model
   if (options?.skipConsensus) {
     console.log('[Coach] Running in fast mode (single model, no consensus)...');
-    return executeAgentWithModel(config, userPrompt, 'openai/gpt-5.4-pro-2026-03-05', supabase, callId);
+    return executeAgentWithModel(config, userPrompt, 'openai/gpt-5.4-2026-03-05', supabase, callId);
   }
   
   console.log('[Coach Consensus] Starting multi-model execution...');
 
   // Run both models in parallel
   const [gptResult, modelBResult] = await Promise.allSettled([
-    executeAgentWithModel(config, userPrompt, 'openai/gpt-5.4-pro-2026-03-05', supabase, callId),
+    executeAgentWithModel(config, userPrompt, 'openai/gpt-5.4-2026-03-05', supabase, callId),
     executeAgentWithModel(config, userPrompt, 'openai/gpt-5.4-2026-03-05', supabase, callId),
   ]);
 

@@ -4,7 +4,7 @@ import { signRequest } from "../_shared/hmac.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
 
 const CACHE_TTL_MINUTES = 15;
-const AI_TIMEOUT_MS = 90000; // 90 second timeout for gpt-5.4-pro-2026-03-05 AI calls
+const AI_TIMEOUT_MS = 90000; // 90 second timeout for gpt-5.4-2026-03-05 AI calls
 
 // Zod schema for validating generate-coaching-trends response
 const CoachingTrendAnalysisSchema = z.object({

@@ -211,13 +211,13 @@ Deno.serve(async (req) => {
       log.warn('Product knowledge retrieval warning:', err);
     }
 
-    // Call OpenAI API directly with GPT-5.4-pro-2026-03-05
+    // Call OpenAI API directly with GPT-5.4-2026-03-05
     const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
     if (!OPENAI_API_KEY) {
       throw new Error('OPENAI_API_KEY not configured');
     }
 
-    log.info(`Calling OpenAI API (GPT 5.2) with ${messages.length} messages`);
+    log.info(`Calling OpenAI API (GPT 5.4) with ${messages.length} messages`);
 
     const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -226,7 +226,7 @@ Deno.serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-5.4-pro-2026-03-05',
+        model: 'gpt-5.4-2026-03-05',
         messages: [
           { 
             role: 'system', 
