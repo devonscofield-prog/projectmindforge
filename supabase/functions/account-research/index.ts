@@ -213,7 +213,7 @@ Call submit_account_research with findings.`;
 
     const userPrompt = `Research: ${sanitizeUserContent(companyName)}${contextParts.length > 0 ? `\n\nContext provided:\n${sanitizeUserContent(contextParts.join('\n\n'))}` : ''}`;
 
-    // Create abort controller with 90-second timeout for gpt-5.4-2026-03-05
+    // Create abort controller with 90-second timeout for gpt-5.4--03-05
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 90000);
 
@@ -226,7 +226,7 @@ Call submit_account_research with findings.`;
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-5.4-pro-2026-03-05',
+          model: 'gpt-5.4-pro--03-05',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt }
