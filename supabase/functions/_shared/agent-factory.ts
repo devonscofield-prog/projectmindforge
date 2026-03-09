@@ -606,7 +606,7 @@ Output your reconciled assessment using the same schema.`;
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-5.4', // Fast model for reconciliation
+        model: 'gpt-5.4-2026-03-05', // Fast model for reconciliation
         messages: [
           { role: 'system', content: 'You are a senior sales coach reconciling two assessments. Be decisive and evidence-based.' },
           { role: 'user', content: reconcilerPrompt },
