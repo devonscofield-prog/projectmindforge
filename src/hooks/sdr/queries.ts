@@ -169,7 +169,7 @@ export function useSDRTranscriptDetail(transcriptId: string | undefined) {
     enabled: !!transcriptId,
     refetchInterval: (q) => {
       const status = (q.state.data as SDRTranscriptDetail | undefined)?.processing_status;
-      return status === 'pending' || status === 'processing' ? 3_000 : false;
+      return status === 'pending' || status === 'processing' ? 5_000 : false;
     },
     staleTime: 5_000,
     gcTime: 10 * 60 * 1000,
@@ -248,7 +248,7 @@ export function useSDRCallDetail(callId: string | undefined) {
     enabled: !!callId,
     refetchInterval: (query) => {
       const status = (query.state.data as SDRCallDetail | undefined)?.analysis_status;
-      return status === 'pending' || status === 'processing' ? 3_000 : false;
+      return status === 'pending' || status === 'processing' ? 5_000 : false;
     },
     staleTime: 5_000,
     gcTime: 10 * 60 * 1000,

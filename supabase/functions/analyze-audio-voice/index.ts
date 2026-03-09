@@ -198,6 +198,8 @@ async function logEdgeMetric(
   status: 'success' | 'error',
   metadata: Record<string, unknown> = {},
 ) {
+  // Sample at 10% for success metrics to reduce DB writes; always log errors
+  if (status === 'success' && Math.random() > 0.1) return;
   try {
     await supabase.from('performance_metrics').insert({
       metric_type: 'edge_function',
