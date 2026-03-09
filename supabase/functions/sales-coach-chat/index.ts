@@ -226,7 +226,7 @@ Deno.serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: '-2026-03-05gpt-5.4-pro',
+        model: 'gpt-5.4-pro-2026-03-05',
         messages: [
           { 
             role: 'system', 
