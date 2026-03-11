@@ -3452,6 +3452,7 @@ export type Database = {
       }
       cleanup_expired_cache: { Args: never; Returns: number }
       cleanup_expired_devices: { Args: never; Returns: number }
+      cleanup_old_activity_logs: { Args: never; Returns: number }
       cleanup_old_metrics: { Args: never; Returns: number }
       find_best_chunks: {
         Args: {
