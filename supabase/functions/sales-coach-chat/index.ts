@@ -211,31 +211,27 @@ Deno.serve(async (req) => {
       log.warn('Product knowledge retrieval warning:', err);
     }
 
-    // Call OpenAI API directly with GPT-5.4-2026-03-05
-    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-    if (!OPENAI_API_KEY) {
-      throw new Error('OPENAI_API_KEY not configured');
+    // Call Anthropic API with Claude Sonnet 4.6
+    const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API');
+    if (!ANTHROPIC_API_KEY) {
+      throw new Error('ANTHROPIC_API key not configured');
     }
 
-    log.info(`Calling OpenAI API (GPT 5.4) with ${messages.length} messages`);
+    log.info(`Calling Anthropic API (Claude Sonnet 4.6) with ${messages.length} messages`);
 
-    const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+    const aiResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-5.4-2026-03-05',
-        messages: [
-          { 
-            role: 'system', 
-            content: `${SALES_COACH_SYSTEM_PROMPT}\n\n## ACCOUNT CONTEXT\n${contextPrompt}${productContext}` 
-          },
-          ...messages.slice(-20) // Window to last 20 messages
-        ],
+        model: 'claude-sonnet-4-6',
+        system: `${SALES_COACH_SYSTEM_PROMPT}\n\n## ACCOUNT CONTEXT\n${contextPrompt}${productContext}`,
+        messages: messages.slice(-20).map((m: Message) => ({ role: m.role, content: m.content })),
         stream: true,
-        max_completion_tokens: 32768, // 32K tokens for detailed coaching responses
+        max_tokens: 32768,
       })
     });
 
@@ -253,12 +249,57 @@ Deno.serve(async (req) => {
         );
       }
       const errorText = await aiResponse.text();
-      log.error('OpenAI API error:', aiResponse.status, errorText);
-      throw new Error(`OpenAI API error: ${aiResponse.status}`);
+      log.error('Anthropic API error:', aiResponse.status, errorText);
+      throw new Error(`Anthropic API error: ${aiResponse.status}`);
     }
 
-    // Stream the response back
-    return new Response(aiResponse.body, {
+    // Translate Anthropic SSE stream to OpenAI-compatible format for frontend compatibility
+    const reader = aiResponse.body!.getReader();
+    const decoder = new TextDecoder();
+    const encoder = new TextEncoder();
+
+    const stream = new ReadableStream({
+      async start(controller) {
+        let buffer = '';
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+
+            let newlineIdx: number;
+            while ((newlineIdx = buffer.indexOf('\n')) !== -1) {
+              const line = buffer.slice(0, newlineIdx).trim();
+              buffer = buffer.slice(newlineIdx + 1);
+
+              if (!line.startsWith('data: ')) continue;
+              const jsonStr = line.slice(6);
+              if (jsonStr === '[DONE]') continue;
+
+              try {
+                const event = JSON.parse(jsonStr);
+                if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+                  const openAiChunk = JSON.stringify({
+                    choices: [{ delta: { content: event.delta.text } }]
+                  });
+                  controller.enqueue(encoder.encode(`data: ${openAiChunk}\n\n`));
+                } else if (event.type === 'message_stop') {
+                  controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+                }
+              } catch { /* skip unparseable lines */ }
+            }
+          }
+          // Final DONE signal if not already sent
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          controller.close();
+        } catch (err) {
+          log.error('Stream translation error:', err);
+          controller.error(err);
+        }
+      }
+    });
+
+    return new Response(stream, {
       headers: { ...corsHeaders, 'Content-Type': 'text/event-stream' },
     });
 
