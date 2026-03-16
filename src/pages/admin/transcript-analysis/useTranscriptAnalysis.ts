@@ -7,7 +7,7 @@ import { createLogger } from '@/lib/logger';
 import { Json } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import { downloadTranscripts } from '@/lib/transcriptDownload';
+import { downloadTranscripts, downloadAllTranscriptsAsZip } from '@/lib/transcriptDownload';
 import { useDateRangeSelector, type DatePreset } from '@/hooks/useDateRangeSelector';
 import { 
   fetchBackgroundJob, 
@@ -1340,5 +1340,21 @@ export function useTranscriptAnalysis(options: UseTranscriptAnalysisOptions = {}
         toast.error('Failed to download transcripts');
       }
     }, [selectedTranscripts]),
+    handleDownloadAllTranscripts: useCallback(async () => {
+      const toastId = toast.loading('Fetching all transcripts…');
+      try {
+        await downloadAllTranscriptsAsZip((progress) => {
+          if (progress.phase === 'fetching') {
+            toast.loading(`Fetching transcripts… ${progress.fetched}/${progress.total || '?'}`, { id: toastId });
+          } else if (progress.phase === 'building') {
+            toast.loading(`Building ZIP with ${progress.total} transcripts…`, { id: toastId });
+          }
+        });
+        toast.success('All transcripts downloaded!', { id: toastId });
+      } catch (err) {
+        log.error('Failed to download all transcripts', { error: err });
+        toast.error('Failed to download all transcripts', { id: toastId });
+      }
+    }, []),
   };
 }

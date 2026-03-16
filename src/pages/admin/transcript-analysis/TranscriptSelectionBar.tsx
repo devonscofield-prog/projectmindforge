@@ -86,6 +86,7 @@ interface TranscriptSelectionBarProps {
   onLoadClick: () => void;
   onInsightsClick: () => void;
   onDownloadClick?: () => void;
+  onDownloadAllClick?: () => void;
   isDownloading?: boolean;
 }
 
@@ -135,6 +136,7 @@ export function TranscriptSelectionBar({
   onLoadClick,
   onInsightsClick,
   onDownloadClick,
+  onDownloadAllClick,
   isDownloading,
 }: TranscriptSelectionBarProps) {
   const hasUnindexed = globalChunkStatus && globalChunkStatus.indexed < globalChunkStatus.total;
@@ -529,6 +531,18 @@ export function TranscriptSelectionBar({
                 <Download className="h-4 w-4 mr-1" />
               )}
               Download
+            </Button>
+          )}
+          {onDownloadAllClick && isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onDownloadAllClick}
+              aria-label="Download all transcripts as ZIP"
+              title="Download all transcripts (CSV index + .txt files)"
+            >
+              <Download className="h-4 w-4 mr-1" />
+              Download All
             </Button>
           )}
         </div>
