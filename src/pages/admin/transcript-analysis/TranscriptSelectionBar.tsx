@@ -136,6 +136,7 @@ export function TranscriptSelectionBar({
   onLoadClick,
   onInsightsClick,
   onDownloadClick,
+  onDownloadAllClick,
   isDownloading,
 }: TranscriptSelectionBarProps) {
   const hasUnindexed = globalChunkStatus && globalChunkStatus.indexed < globalChunkStatus.total;
