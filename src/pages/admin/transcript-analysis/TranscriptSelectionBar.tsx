@@ -533,6 +533,18 @@ export function TranscriptSelectionBar({
               Download
             </Button>
           )}
+          {onDownloadAllClick && isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onDownloadAllClick}
+              aria-label="Download all transcripts as ZIP"
+              title="Download all transcripts (CSV index + .txt files)"
+            >
+              <Download className="h-4 w-4 mr-1" />
+              Download All
+            </Button>
+          )}
         </div>
         
         <div className="flex items-center gap-2">
