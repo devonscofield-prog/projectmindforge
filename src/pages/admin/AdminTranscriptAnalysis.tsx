@@ -254,6 +254,7 @@ function AdminTranscriptAnalysis() {
             onLoadClick={() => setSavedSelectionsOpen(true)}
             onInsightsClick={() => setSavedInsightsOpen(true)}
             onDownloadClick={handleDownloadTranscripts}
+            onDownloadAllClick={handleDownloadAllTranscripts}
           />
         )}
 
