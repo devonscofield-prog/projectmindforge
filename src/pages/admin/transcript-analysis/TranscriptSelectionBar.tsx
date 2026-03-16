@@ -86,6 +86,7 @@ interface TranscriptSelectionBarProps {
   onLoadClick: () => void;
   onInsightsClick: () => void;
   onDownloadClick?: () => void;
+  onDownloadAllClick?: () => void;
   isDownloading?: boolean;
 }
 
