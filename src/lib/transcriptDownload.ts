@@ -1,3 +1,7 @@
+import { supabase } from '@/integrations/supabase/client';
+import { format } from 'date-fns';
+import { generateCSV } from '@/lib/csvParser';
+
 interface TranscriptData {
   id: string;
   call_date: string;
