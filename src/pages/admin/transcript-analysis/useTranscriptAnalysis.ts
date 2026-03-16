@@ -7,7 +7,7 @@ import { createLogger } from '@/lib/logger';
 import { Json } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import { downloadTranscripts } from '@/lib/transcriptDownload';
+import { downloadTranscripts, downloadAllTranscriptsAsZip } from '@/lib/transcriptDownload';
 import { useDateRangeSelector, type DatePreset } from '@/hooks/useDateRangeSelector';
 import { 
   fetchBackgroundJob, 
