@@ -116,6 +116,7 @@ function AdminTranscriptAnalysis() {
     stopReindex,
     handleLoadSelection,
     handleDownloadTranscripts,
+    handleDownloadAllTranscripts,
     isSelectingAll,
   } = useTranscriptAnalysis();
 
