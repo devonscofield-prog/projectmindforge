@@ -22,7 +22,7 @@ export function useUnreadCount() {
   return useQuery({
     queryKey: ['in-app-notifications-unread-count'],
     queryFn: fetchUnreadCount,
-    refetchInterval: 5 * 60_000, // fallback poll every 5 minutes (realtime handles instant delivery)
+    refetchInterval: 30 * 60_000, // Rare fallback — realtime handles instant delivery via useNotificationRealtime
   });
 }
 

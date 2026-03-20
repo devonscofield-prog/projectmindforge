@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { getCallWithAnalysis, getAnalysisForCall, retryCallAnalysis, deleteFailedTranscript, updateCallTranscript, updateAnalysisUserCounts, type UpdateCallTranscriptParams } from '@/api/aiCallAnalysis';
@@ -96,14 +97,20 @@ export function useCallWithAnalysis(callId: string | undefined, userId: string |
  * Only polls when analysis status is pending or processing
  */
 export function useAnalysisPolling(callId: string | undefined, shouldPoll: boolean) {
+  // Cap polling at 5 minutes to prevent runaway queries on stale tabs
+  const [pollStart] = useState(() => Date.now());
+  const maxPollDuration = 5 * 60_000; // 5 minutes
+  const isPollExpired = Date.now() - pollStart > maxPollDuration;
+  const effectivePoll = shouldPoll && !isPollExpired;
+
   return useQuery({
     queryKey: callDetailKeys.analysis(callId || ''),
     queryFn: async () => {
       if (!callId) return null;
       return await getAnalysisForCall(callId);
     },
-    enabled: !!callId && shouldPoll,
-    refetchInterval: shouldPoll ? 2000 : false, // Poll every 2 seconds when enabled
+    enabled: !!callId && effectivePoll,
+    refetchInterval: effectivePoll ? 3000 : false, // Poll every 3 seconds, capped at 5 min
     staleTime: 0, // Always fresh when polling
   });
 }

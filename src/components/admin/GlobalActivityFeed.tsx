@@ -5,7 +5,7 @@ import { LogIn, LogOut, RefreshCw, Activity, UserMinus } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { createLogger } from '@/lib/logger';
 import { fetchAllRecentActivityLogs, UserActivityLogWithProfile, UserActivityType } from '@/api/userActivityLogs';
-import { supabase } from '@/integrations/supabase/client';
+
 
 const log = createLogger('GlobalActivityFeed');
 
@@ -68,27 +68,9 @@ export function GlobalActivityFeed() {
 
   useEffect(() => {
     loadLogs();
-
-    // Subscribe to real-time updates
-    const channel = supabase
-      .channel('user-activity-feed')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'user_activity_logs',
-        },
-        () => {
-          // Refresh the logs when a new activity is inserted
-          loadLogs();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    // Realtime subscription removed — user_activity_logs was removed from
+    // supabase_realtime publication to reduce Cloud usage. The feed refreshes
+    // on mount and can be manually refreshed.
   }, [loadLogs]);
 
   // Re-throw error for error boundary to catch

@@ -1,44 +1,13 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { RealtimeChannel } from '@supabase/supabase-js';
 
 interface PresencePayload {
   user_id: string;
   online_at: string;
 }
 
-export function usePresenceTracker(userId: string | null): RealtimeChannel | null {
-  const [channel, setChannel] = useState<RealtimeChannel | null>(null);
-
-  useEffect(() => {
-    if (!userId) return;
-
-    const presenceChannel = supabase.channel('online-users', {
-      config: {
-        presence: {
-          key: userId,
-        },
-      },
-    });
-
-    presenceChannel.subscribe(async (status) => {
-      if (status === 'SUBSCRIBED') {
-        await presenceChannel.track({
-          user_id: userId,
-          online_at: new Date().toISOString(),
-        });
-      }
-    });
-
-    setChannel(presenceChannel);
-
-    return () => {
-      presenceChannel.unsubscribe();
-    };
-  }, [userId]);
-
-  return channel;
-}
+// NOTE: usePresenceTracker was removed — AuthContext handles presence tracking
+// for admin/manager roles directly. This file only exports useOnlineUsers.
 
 export function useOnlineUsers(): Set<string> {
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
