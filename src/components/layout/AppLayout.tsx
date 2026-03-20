@@ -267,8 +267,8 @@ function SidebarNav() {
     queryKey: ['manager-coaching-overdue', user?.id, role],
     queryFn: () => getCoachingOverdueCount(user!.id, role!),
     enabled: !!user?.id && (role === 'manager' || role === 'admin'),
-    staleTime: 2 * 60 * 1000,
-    refetchInterval: 5 * 60 * 1000,
+    staleTime: 10 * 60 * 1000,
+    refetchInterval: 15 * 60 * 1000,
   });
 
   const handleSignOut = async () => {

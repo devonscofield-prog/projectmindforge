@@ -444,7 +444,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
         toast.error('Your account has been deactivated. You have been signed out.');
         await supabase.auth.signOut();
       }
-    }, 300000); // Check every 5 minutes
+    }, 30 * 60_000); // Check every 30 minutes — deactivation is not time-critical
 
     return () => clearInterval(interval);
   }, [user]);
