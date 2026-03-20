@@ -258,8 +258,8 @@ function SidebarNav() {
     queryKey: ['rep-pending-accounts', user?.id],
     queryFn: () => getPendingAccountsCountForRep(user!.id),
     enabled: !!user?.id && role === 'rep',
-    staleTime: 2 * 60 * 1000,
-    refetchInterval: 5 * 60 * 1000,
+    staleTime: 10 * 60 * 1000,
+    refetchInterval: 15 * 60 * 1000,
   });
 
   // Fetch coaching overdue count for manager "Team Overview" badge
