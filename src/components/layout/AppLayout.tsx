@@ -249,8 +249,8 @@ function SidebarNav() {
     queryKey: ['rep-tasks-count', user?.id],
     queryFn: () => getPendingTaskCountForRep(user!.id),
     enabled: !!user?.id && role === 'rep',
-    staleTime: 2 * 60 * 1000,
-    refetchInterval: 5 * 60 * 1000,
+    staleTime: 10 * 60 * 1000,
+    refetchInterval: 15 * 60 * 1000, // Badge counts aren't urgent — poll every 15 min
   });
 
   // Fetch pending accounts count for rep "Accounts" badge
