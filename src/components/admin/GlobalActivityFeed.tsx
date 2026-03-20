@@ -5,7 +5,7 @@ import { LogIn, LogOut, RefreshCw, Activity, UserMinus } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { createLogger } from '@/lib/logger';
 import { fetchAllRecentActivityLogs, UserActivityLogWithProfile, UserActivityType } from '@/api/userActivityLogs';
-import { supabase } from '@/integrations/supabase/client';
+
 
 const log = createLogger('GlobalActivityFeed');
 
